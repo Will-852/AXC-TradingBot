@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenClaw ICU</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--card:#111827;--border:#1e2736;--dim:#1e2736;
+  --green:#00ff88;--amber:#ffaa00;--red:#ff3355;--blue:#4488ff;
+  --text:#8899bb;--bright:#d0ddef;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font:12px/1.5 'SF Mono','Fira Code','Cascadia Code',monospace}
+a{color:var(--blue);text-decoration:none}
+
+/* ECG strip */
+#ecg-wrap{width:100%;height:60px;background:var(--card);border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+#ecg{width:100%;height:100%}
+.ecg-label{position:absolute;top:6px;right:12px;font-size:10px;color:var(--green);letter-spacing:1px}
+.ecg-rate{position:absolute;top:6px;left:12px;font-size:10px;color:var(--text)}
+
+/* Layout */
+.container{max-width:1400px;margin:0 auto;padding:12px}
+.header{display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-bottom:8px}
+.title{font-size:16px;font-weight:700;color:var(--bright);letter-spacing:1px}
+.pills{display:flex;gap:8px}
+.pill{padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.5px}
+.pill-green{background:var(--green);color:#000}
+.pill-amber{background:var(--amber);color:#000}
+.pill-red{background:var(--red);color:#fff}
+.pill-dim{background:var(--dim);color:var(--text)}
+
+/* Grid */
+.row{display:flex;gap:10px;margin-bottom:10px}
+.col{flex:1;min-width:0}
+.col-body{flex:0 0 320px}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px;height:100%}
+.card-title{font-size:10px;font-weight:700;color:#556;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card-title::before{content:'';display:inline-block;width:3px;height:10px;border-radius:1px}
+
+/* Vital cards */
+.vitals{display:flex;gap:10px;margin-bottom:10px}
+.vital{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:14px;text-align:center}
+.vital-num{font-size:32px;font-weight:800;color:var(--bright);line-height:1}
+.vital-label{font-size:9px;color:#556;text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+.vital-sub{font-size:10px;color:var(--green);margin-top:2px}
+
+/* Body diagram */
+.body-svg{display:flex;flex-direction:column;align-items:center;gap:0;padding:8px 0}
+.organ{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;cursor:pointer;width:100%;transition:background .15s}
+.organ:hover{background:rgba(255,255,255,.04)}
+.organ-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
+.organ-name{font-weight:700;color:var(--bright);font-size:12px;flex:1}
+.organ-meta{font-size:10px;color:#556}
+.organ-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.organ-connector{width:1px;height:10px;background:var(--border);margin:0 auto}
+
+/* Markets */
+.market-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.market-sym{width:32px;font-weight:700;color:var(--bright);font-size:11px}
+.market-price{flex:1;color:var(--bright);text-align:right;font-size:12px}
+.market-spark{width:80px;height:20px}
+.market-chg{width:60px;text-align:right;font-size:11px}
+
+/* Activity bars */
+.act-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.act-name{width:70px;color:var(--bright)}
+.act-bar-wrap{flex:1;height:8px;background:var(--dim);border-radius:4px;overflow:hidden}
+.act-bar{height:100%;border-radius:4px;transition:width .5s}
+.act-val{width:60px;text-align:right;color:#556}
+
+/* File tree */
+.tree-row{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;border-radius:3px;padding:3px 6px}
+.tree-row:hover{background:rgba(255,255,255,.03)}
+.tree-icon{width:18px;text-align:center}
+.tree-path{color:var(--blue);flex:1}
+.tree-role{color:#556;width:50px}
+.tree-count{color:#445;width:50px;text-align:right}
+.tree-hint{font-size:10px;color:#334;padding:0 6px 4px 30px;display:none}
+
+/* Log */
+.log-wrap{max-height:280px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.log-line{font-size:10px;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-trigger{color:var(--amber)}
+.log-error{color:var(--red)}
+.log-normal{color:#445}
+
+/* Pulse animation */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.pulsing{animation:pulse 2s ease-in-out infinite}
+
+/* Dot colors */
+.dot-live{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot-ok{background:#44aa66}
+.dot-warn{background:var(--amber);box-shadow:0 0 4px var(--amber)}
+.dot-off{background:#334}
+.dot-error{background:var(--red);box-shadow:0 0 4px var(--red)}
+
+/* Tooltip */
+.tooltip{display:none;position:absolute;background:#1a2030;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;z-index:100;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.tooltip.show{display:block}
+</style>
+</head>
+<body>
+
+<!-- S1: ECG -->
+<div id="ecg-wrap">
+  <canvas id="ecg"></canvas>
+  <div class="ecg-label">ECG MONITOR</div>
+  <div class="ecg-rate" id="ecg-rate">SCAN: 3min interval</div>
+</div>
+
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+  <div class="title">OPENCLAW ICU MONITOR</div>
+  <div class="pills" id="pills"></div>
+</div>
+
+<!-- S2: Vitals -->
+<div class="vitals" id="vitals"></div>
+
+<!-- Main layout -->
+<div class="row">
+  <!-- S3: Body (left) -->
+  <div class="col-body">
+    <div class="card">
+      <div class="card-title" style="--c:var(--green)"><span style="color:var(--green)">ORGANISM STATUS</span></div>
+      <div id="body-diagram"></div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col">
+    <!-- S4: Markets -->
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-title"><span style="color:var(--blue)">MARKET VITALS</span></div>
+      <div id="markets"></div>
+    </div>
+
+    <!-- S5: Activity -->
+    <div class="card">
+      <div class="card-title"><span style="color:var(--amber)">AGENT ACTIVITY</span></div>
+      <div id="activity"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom row -->
+<div class="row">
+  <!-- S6: File tree -->
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span style="color:var(--blue)">FILE STRUCTURE</span></div>
+      <div id="file-tree"></div>
+    </div>
+  </div>
+  <!-- S7: Log -->
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span style="color:#556">SCAN LOG</span></div>
+      <div class="log-wrap" id="scan-log"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- container -->
+
+<script>
+// ─── ECG Animation ───
+const ecgCanvas = document.getElementById('ecg');
+const ecgCtx = ecgCanvas.getContext('2d');
+let ecgData = [];
+let ecgColor = '#00ff88';
+let lastTriggerTime = 0;
+
+function resizeECG() {
+  ecgCanvas.width = ecgCanvas.parentElement.clientWidth;
+  ecgCanvas.height = 60;
+}
+resizeECG();
+window.addEventListener('resize', resizeECG);
+
+function generateECGPoint(t) {
+  const timeSinceTrigger = t - lastTriggerTime;
+  if (timeSinceTrigger < 8) {
+    const phase = timeSinceTrigger;
+    if (phase < 1) return Math.sin(phase * Math.PI) * 3;
+    if (phase < 2) return -Math.sin((phase-1) * Math.PI) * 2;
+    if (phase < 3) return Math.sin((phase-2) * Math.PI * 2) * 15; // QRS spike
+    if (phase < 4) return -Math.sin((phase-3) * Math.PI) * 5;
+    if (phase < 6) return Math.sin((phase-4) * Math.PI * 0.5) * 4;
+    return Math.sin((phase-6) * Math.PI) * 1;
+  }
+  return (Math.random() - 0.5) * 0.8; // flat with noise
+}
+
+let ecgT = 0;
+function drawECG() {
+  const w = ecgCanvas.width, h = ecgCanvas.height;
+  ecgData.push(generateECGPoint(ecgT));
+  ecgT += 0.3;
+  const maxPoints = Math.floor(w / 2);
+  if (ecgData.length > maxPoints) ecgData = ecgData.slice(-maxPoints);
+
+  ecgCtx.fillStyle = '#0a0e17';
+  ecgCtx.fillRect(0, 0, w, h);
+
+  // Grid lines
+  ecgCtx.strokeStyle = 'rgba(30,39,54,0.5)';
+  ecgCtx.lineWidth = 0.5;
+  for (let y = 10; y < h; y += 15) {
+    ecgCtx.beginPath(); ecgCtx.moveTo(0,y); ecgCtx.lineTo(w,y); ecgCtx.stroke();
+  }
+
+  // ECG line
+  ecgCtx.strokeStyle = ecgColor;
+  ecgCtx.lineWidth = 1.5;
+  ecgCtx.shadowColor = ecgColor;
+  ecgCtx.shadowBlur = 4;
+  ecgCtx.beginPath();
+  const mid = h / 2;
+  for (let i = 0; i < ecgData.length; i++) {
+    const x = (i / maxPoints) * w;
+    const y = mid - ecgData[i] * 1.5;
+    i === 0 ? ecgCtx.moveTo(x, y) : ecgCtx.lineTo(x, y);
+  }
+  ecgCtx.stroke();
+  ecgCtx.shadowBlur = 0;
+
+  // Scan head dot
+  if (ecgData.length > 0) {
+    const lastX = ((ecgData.length-1) / maxPoints) * w;
+    const lastY = mid - ecgData[ecgData.length-1] * 1.5;
+    ecgCtx.fillStyle = ecgColor;
+    ecgCtx.beginPath();
+    ecgCtx.arc(lastX, lastY, 3, 0, Math.PI*2);
+    ecgCtx.fill();
+  }
+
+  requestAnimationFrame(drawECG);
+}
+drawECG();
+
+// ─── Sparkline SVG ───
+function sparklineSVG(points, color) {
+  if (!points || points.length < 2) return '';
+  const w = 80, h = 20, pad = 2;
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  const coords = points.map((p, i) => {
+    const x = pad + (i / (points.length-1)) * (w - pad*2);
+    const y = pad + (1 - (p - min) / range) * (h - pad*2);
+    return `${x},${y}`;
+  });
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${coords.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ─── Render Functions ───
+function renderPills(d) {
+  const el = document.getElementById('pills');
+  const trigCls = d.trigger === 'ON' ? 'pill-amber' : 'pill-dim';
+  const sigCls = d.signal_active === 'YES' ? 'pill-red' : 'pill-dim';
+  el.innerHTML = `
+    <span class="pill ${trigCls}">TRIGGER: ${d.trigger}</span>
+    <span class="pill ${sigCls}">SIGNAL: ${d.signal_active}</span>
+    <span class="pill pill-dim">MODE: ${d.mode}</span>
+  `;
+}
+
+function renderVitals(d) {
+  const bal = parseFloat(d.balance) || 0;
+  const balSub = bal > 95 ? 'STABLE' : bal > 80 ? 'LOW' : 'CRITICAL';
+  const balColor = bal > 95 ? 'var(--green)' : bal > 80 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('vitals').innerHTML = `
+    <div class="vital">
+      <div class="vital-num" style="color:${balColor}">$${bal.toFixed(2)}</div>
+      <div class="vital-label">CAPITAL</div>
+      <div class="vital-sub" style="color:${balColor}">${balSub}</div>
+    </div>
+    <div class="vital">
+      <div class="vital-num">${d.consecutive_losses}</div>
+      <div class="vital-label">CONSEC LOSSES</div>
+      <div class="vital-sub">${d.direction !== '---' ? d.direction : 'NO POSITION'}</div>
+    </div>
+    <div class="vital">
+      <div class="vital-num">${d.scan_count}</div>
+      <div class="vital-label">SCANS</div>
+      <div class="vital-sub">SINCE TRIGGER</div>
+    </div>
+  `;
+}
+
+function renderBody(d) {
+  const organs = [
+    {icon:'&#x1F9E0;',name:'BRAIN',id:'main',role:'Decision + Routing'},
+    {icon:'&#x1F441;&#xFE0F;',name:'EYES',id:'scanner',role:'Market Perception'},
+    {icon:'&#x1F493;',name:'HEART',id:'trader',role:'Trade Execution'},
+    {icon:'&#x1F321;&#xFE0F;',name:'NERVES',id:'heartbeat',role:'Health Sensing'},
+  ];
+  const files = [
+    {icon:'&#x1FA78;',name:'BLOOD',desc:'shared/',detail:`${d.file_tree.find(f=>f.role==='Blood')?.files||0} signals`,status:'live'},
+    {icon:'&#x1F9EC;',name:'DNA',desc:'config/',detail:'params.py',status:'ok'},
+    {icon:'&#x1F4AA;',name:'MUSCLES',desc:'scripts/',detail:`${d.file_tree.find(f=>f.role==='Muscle')?.files||0} files`,status:'ok'},
+  ];
+
+  let html = '<div class="body-svg">';
+  for (const o of organs) {
+    const ag = d.agents.find(a => a.id === o.id) || {};
+    const dotCls = ag.status === 'live' ? 'dot-live' : ag.status === 'ok' ? 'dot-ok' : ag.status === 'warn' ? 'dot-warn' : 'dot-off';
+    const pidStr = ag.pid ? `PID ${ag.pid}` : ag.exit !== null && ag.exit !== undefined ? `exit ${ag.exit}` : 'idle';
+    html += `
+      <div class="organ" title="${o.role}">
+        <div class="organ-icon">${o.icon}</div>
+        <div>
+          <div class="organ-name">${o.name}</div>
+          <div class="organ-meta">${o.id} &middot; ${ag.model || '?'}</div>
+          <div class="organ-meta">${pidStr}</div>
+        </div>
+        <div class="organ-dot ${dotCls}"></div>
+      </div>
+      <div class="organ-connector"></div>`;
+  }
+  // File organs
+  for (const f of files) {
+    const dotCls = f.status === 'live' ? 'dot-live' : 'dot-ok';
+    html += `
+      <div class="organ">
+        <div class="organ-icon">${f.icon}</div>
+        <div>
+          <div class="organ-name">${f.name}</div>
+          <div class="organ-meta">${f.desc}</div>
+          <div class="organ-meta">${f.detail}</div>
+        </div>
+        <div class="organ-dot ${dotCls}"></div>
+      </div>
+      <div class="organ-connector"></div>`;
+  }
+  html += '</div>';
+  document.getElementById('body-diagram').innerHTML = html;
+}
+
+function renderMarkets(d) {
+  const syms = ['BTC','ETH','XRP','XAG'];
+  let html = '';
+  for (const sym of syms) {
+    const price = parseFloat(d.prices[sym]) || 0;
+    const history = d.price_history[sym] || [];
+    const prev = history.length >= 2 ? history[history.length-2] : price;
+    const chg = prev > 0 ? ((price - prev) / prev * 100) : 0;
+    const chgColor = chg >= 0 ? 'var(--green)' : 'var(--red)';
+    const arrow = chg >= 0 ? '&#x25B2;' : '&#x25BC;';
+    const sparkColor = chg >= 0 ? '#00ff88' : '#ff3355';
+
+    let priceStr;
+    if (price >= 1000) priceStr = '$' + price.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+    else if (price >= 1) priceStr = '$' + price.toFixed(4);
+    else priceStr = '$' + price.toFixed(6);
+
+    html += `
+      <div class="market-row">
+        <div class="market-sym">${sym}</div>
+        <div class="market-price">${priceStr}</div>
+        <div class="market-spark">${sparklineSVG(history, sparkColor)}</div>
+        <div class="market-chg" style="color:${chgColor}">${arrow} ${Math.abs(chg).toFixed(2)}%</div>
+      </div>`;
+  }
+  document.getElementById('markets').innerHTML = html;
+}
+
+function renderActivity(d) {
+  const costs = d.costs || {};
+  const agents = [
+    {name:'scanner', calls: parseInt(d.scan_count)||0, color:'var(--green)'},
+    {name:'trader',  calls: 0, color:'var(--amber)'},
+    {name:'heartbeat',calls: 0, color:'var(--blue)'},
+    {name:'main',    calls: 0, color:'#aa66ff'},
+  ];
+  const maxCalls = Math.max(...agents.map(a=>a.calls), 1);
+  let html = '';
+  for (const a of agents) {
+    const pct = (a.calls / maxCalls * 100).toFixed(0);
+    html += `
+      <div class="act-row">
+        <div class="act-name">${a.name}</div>
+        <div class="act-bar-wrap"><div class="act-bar" style="width:${pct}%;background:${a.color}"></div></div>
+        <div class="act-val">${a.calls} calls</div>
+      </div>`;
+  }
+  html += `<div style="margin-top:8px;font-size:10px;color:#556;text-align:right">DAILY COST: ${costs.daily_total || '$0.00'}</div>`;
+  document.getElementById('activity').innerHTML = html;
+}
+
+function renderFileTree(d) {
+  const icons = {DNA:'&#x1F9EC;',Muscle:'&#x1F4AA;',Brain:'&#x1F9E0;',Heart:'&#x1F493;',Eye:'&#x1F441;&#xFE0F;',Nerve:'&#x1F321;&#xFE0F;',Blood:'&#x1FA78;',Logs:'&#x1F4CB;'};
+  let html = '';
+  for (const f of d.file_tree) {
+    html += `
+      <div class="tree-row" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">
+        <div class="tree-icon">${icons[f.role]||'&#x1F4C1;'}</div>
+        <div class="tree-path">${f.path}</div>
+        <div class="tree-role">${f.role}</div>
+        <div class="tree-count">${f.files} files</div>
+      </div>
+      <div class="tree-hint">${f.hint}</div>`;
+  }
+  // CLAUDE.md
+  html += `
+    <div class="tree-row">
+      <div class="tree-icon">&#x1F4CB;</div>
+      <div class="tree-path">CLAUDE.md</div>
+      <div class="tree-role">Mirror</div>
+      <div class="tree-count">root</div>
+    </div>`;
+  document.getElementById('file-tree').innerHTML = html;
+}
+
+function renderScanLog(d) {
+  let html = '';
+  for (const line of d.scan_log) {
+    let cls = 'log-normal';
+    if (line.includes('TRIGGER')) cls = 'log-trigger';
+    else if (line.includes('ERROR')) cls = 'log-error';
+    html += `<div class="log-line ${cls}">${line}</div>`;
+  }
+  const el = document.getElementById('scan-log');
+  el.innerHTML = html;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Data Fetch ───
+let triggerCount = 0;
+
+async function fetchData() {
+  try {
+    const resp = await fetch('/api/data');
+    const d = await resp.json();
+
+    // ECG: trigger spike when new triggers detected
+    const newTriggers = parseInt(d.scan_count) || 0;
+    if (d.trigger === 'ON') {
+      lastTriggerTime = ecgT;
+      ecgColor = '#00ff88';
+    }
+
+    // Check for errors
+    const hasError = d.agents.some(a => a.status === 'warn' || a.status === 'off');
+    if (hasError) ecgColor = '#ff3355';
+
+    // Check flatline (last_scan age)
+    document.getElementById('ecg-rate').textContent =
+      `SCAN: 3min interval | LAST: ${d.last_scan}`;
+
+    renderPills(d);
+    renderVitals(d);
+    renderBody(d);
+    renderMarkets(d);
+    renderActivity(d);
+    renderFileTree(d);
+    renderScanLog(d);
+  } catch(e) {
+    ecgColor = '#ff3355';
+    document.getElementById('ecg-rate').textContent = 'CONNECTION LOST';
+  }
+}
+
+// Initial + 30s refresh
+fetchData();
+setInterval(fetchData, 30000);
+</script>
+</body>
+</html>
