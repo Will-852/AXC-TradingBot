@@ -39,7 +39,7 @@ PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
 PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "XAGUSDT": "XAG"}
 
 # Trigger thresholds
-PRICE_TRIGGER_PCT = 0.6       # >0.6% price change
+PRICE_TRIGGER_PCT = 0.38      # >0.38% price change
 VOLUME_TRIGGER_MULT = 1.75    # >175% of baseline
 FUNDING_TRIGGER_PCT = 0.18    # >0.18% funding delta
 SR_ZONE_CHECK = True          # Check S/R zones

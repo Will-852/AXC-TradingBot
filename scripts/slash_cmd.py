@@ -222,7 +222,14 @@ def cmd_report():
         p = prices.get(sym, {})
         price = p.get("price", 0)
         chg = p.get("change", 0)
-        lines.append(f"{label}  ${price:<11,.1f}{chg:+.1f}% {emoji(chg)}")
+        # 根據價格自動選擇小數位
+        if price >= 1000:
+            price_str = f"${price:,.2f}"
+        elif price >= 1:
+            price_str = f"${price:,.4f}"
+        else:
+            price_str = f"${price:,.6f}"
+        lines.append(f"{label}  {price_str:<14}{chg:+.2f}% {emoji(chg)}")
 
     # Dynamic LAST/NEXT from SIGNAL.md
     scan_status = sig.get("SCAN_STATUS", "?")
