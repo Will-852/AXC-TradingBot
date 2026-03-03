@@ -8,3 +8,4 @@
 [2026-03-03] FIX      建立5個缺失項目: system-memory skill, AGENT_BLUEPRINT.md, SYSTEM_STATUS.md, CLAUDE.md, report LaunchAgent | 系統架構完整
 [2026-03-03] CHANGE   Git備份初始化完成，Haiku失敗自動升級Sonnet規則加入system-memory
 [2026-03-03] AUTO-FIX MEMORY.md 258行歸檔至MEMORY_ARCHIVE_2026-03.md
+[2026-03-03] REMOVE   star-office-ui，Telegram已足夠監控
