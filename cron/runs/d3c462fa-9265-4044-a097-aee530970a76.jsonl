@@ -1,0 +1,2 @@
+{"ts":1772439482704,"jobId":"d3c462fa-9265-4044-a097-aee530970a76","action":"finished","status":"error","error":"cron: job execution timed out","deliveryStatus":"unknown","runAtMs":1772439362651,"durationMs":120045,"nextRunAtMs":1772439542651}
+{"ts":1772439662692,"jobId":"d3c462fa-9265-4044-a097-aee530970a76","action":"finished","status":"error","error":"cron: job execution timed out","deliveryStatus":"unknown","runAtMs":1772439542662,"durationMs":120017,"nextRunAtMs":1772439722679}
