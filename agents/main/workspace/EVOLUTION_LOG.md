@@ -11,3 +11,4 @@
 [2026-03-03] REMOVE   star-office-ui，Telegram已足夠監控
 [2026-03-03] CHANGE   架構重組完成：config/+scripts/建立，workspace/tools/移除
 [2026-03-03] LEARN    系統人體架構確立：大腦/眼/心臟/神經/血液/肌肉/DNA/骨架
+[2026-03-03] FIX      血管接駁：indicator_calc.py改為讀config/params.py

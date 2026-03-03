@@ -21,6 +21,13 @@ import pandas as pd
 import requests
 import tradingview_indicators as tv
 
+sys.path.insert(0, '/Users/wai/.openclaw')
+from config.params import (
+    BB_TOUCH_TOL_DEFAULT,
+    BB_TOUCH_TOL_XRP,
+    BB_WIDTH_MIN,
+)
+
 # ─── Aster DEX API ───
 API_BASE = "https://fapi.asterdex.com"
 HKT = timezone(timedelta(hours=8))
@@ -33,7 +40,7 @@ TIMEFRAME_PARAMS = {
         "ema_fast": 8, "ema_slow": 20, "atr_period": 14,
         "rsi_long": 30, "rsi_short": 70,
         "adx_range_max": 20,
-        "bb_touch_tol": 0.005,
+        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
         "lookback_support": 50,
     },
     "1h": {
@@ -42,7 +49,7 @@ TIMEFRAME_PARAMS = {
         "ema_fast": 10, "ema_slow": 30, "atr_period": 14,
         "rsi_long": 35, "rsi_short": 65,
         "adx_range_max": 20,
-        "bb_touch_tol": 0.005,
+        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
         "lookback_support": 30,
     },
     "4h": {
@@ -51,7 +58,7 @@ TIMEFRAME_PARAMS = {
         "ema_fast": 10, "ema_slow": 50, "atr_period": 14,
         "rsi_long": 35, "rsi_short": 65,
         "adx_range_max": 18,
-        "bb_touch_tol": 0.005,
+        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
         "lookback_support": 30,
     },
 }
@@ -59,7 +66,7 @@ TIMEFRAME_PARAMS = {
 # ─── 產品參數覆蓋 ───
 PRODUCT_OVERRIDES = {
     "ETHUSDT": {"rsi_long": 32, "rsi_short": 68},
-    "XRPUSDT": {"bb_touch_tol": 0.008, "stop_loss_mult": 1.0},
+    "XRPUSDT": {"bb_touch_tol": BB_TOUCH_TOL_XRP, "stop_loss_mult": 1.0},
 }
 
 
@@ -215,7 +222,7 @@ def evaluate_range_signal(ind: dict, params: dict) -> dict:
     signals = {"range_valid": False, "signal_long": 0, "signal_short": 0, "reasons": []}
 
     # R0: BB 寬度
-    if ind["bb_width"] is None or ind["bb_width"] >= 0.05:
+    if ind["bb_width"] is None or ind["bb_width"] >= BB_WIDTH_MIN:
         signals["reasons"].append(f"R0_FAIL: bb_width={ind['bb_width']}")
         return signals
 

@@ -17,6 +17,11 @@ TREND_SL_ATR_MULT = 1.5
 TREND_TP_ATR_MULT = 3.0
 TREND_ENTRY_CONFIRM = "ema_cross"
 
+# ── Bollinger Band 參數 ──
+BB_TOUCH_TOL_DEFAULT = 0.005   # BTC, ETH, XAG
+BB_TOUCH_TOL_XRP = 0.008       # XRP 較大容忍度
+BB_WIDTH_MIN = 0.05            # 最小BB寬度過濾
+
 # ── 倉位管理 ──
 MAX_POSITION_SIZE_USDT = 50
 MAX_OPEN_POSITIONS = 3
