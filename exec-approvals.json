@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "socket": {
+    "path": "/Users/wai/.openclaw/exec-approvals.sock",
+    "token": "MZ3qu2wc7FM9s3P6C-XmwBcx5sseJJCo"
+  },
+  "defaults": {},
+  "agents": {
+    "*": {
+      "allowlist": [
+        {
+          "pattern": "/Users/wai/.openclaw/workspace/tools/slash_cmd.py",
+          "lastUsedAt": 1772475785492,
+          "id": "37d14823-af77-4c6a-9c7d-73cecadaec2d"
+        },
+        {
+          "pattern": "python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py *",
+          "lastUsedAt": 1772475786820
+        }
+      ]
+    }
+  }
+}

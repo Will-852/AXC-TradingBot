@@ -1,0 +1,173 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.2.26",
+    "lastTouchedAt": "2026-03-01T21:50:39.816Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-01T21:33:41.201Z",
+    "lastRunVersion": "2026.2.26",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "auth": {},
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "tier1": {
+        "baseUrl": "https://tao.plus7.plus/v1",
+        "apiKey": "sk-I5znHoTw2mdrvt8CNpeJUFYvm5426SvlpM7NOGpIunVQogcD",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-4-6",
+            "name": "TIER1 Sonnet (決策+落盤)",
+            "api": "anthropic-messages",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 2000000,
+            "maxTokens": 200000
+          }
+        ]
+      },
+      "tier2": {
+        "baseUrl": "https://tao.plus7.plus/v1",
+        "apiKey": "sk-I5znHoTw2mdrvt8CNpeJUFYvm5426SvlpM7NOGpIunVQogcD",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-haiku-4-5-20251001",
+            "name": "TIER2 Haiku (掃描+監控)",
+            "api": "anthropic-messages",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 64000
+          }
+        ]
+      },
+      "tier3": {
+        "baseUrl": "https://tao.plus7.plus/v1",
+        "apiKey": "sk-I5znHoTw2mdrvt8CNpeJUFYvm5426SvlpM7NOGpIunVQogcD",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "gpt-5-mini",
+            "name": "TIER3 GPT-5 Mini (日常+Agent)",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 128000,
+            "maxTokens": 16384
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "tier1/claude-sonnet-4-6"
+      },
+      "models": {
+        "tier1/claude-sonnet-4-6": {
+          "alias": "tier1"
+        },
+        "tier2/claude-haiku-4-5-20251001": {
+          "alias": "tier2"
+        },
+        "tier3/gpt-5-mini": {
+          "alias": "tier3"
+        }
+      },
+      "workspace": "/Users/wai/.openclaw/workspace",
+      "memorySearch": {
+        "enabled": false
+      },
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30",
+      "groupPolicy": "allowlist",
+      "streaming": "off"
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "1eebfee33a6a02641dbc274955779ff5245b0e3c33c29a16GATEWAY_TOKEN_HERE"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "remote": {
+      "url": "ws://127.0.0.1:18789"
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  }
+}

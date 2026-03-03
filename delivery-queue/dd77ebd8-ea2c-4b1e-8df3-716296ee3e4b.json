@@ -1,0 +1,28 @@
+{
+  "id": "dd77ebd8-ea2c-4b1e-8df3-716296ee3e4b",
+  "enqueuedAt": 1772528090715,
+  "channel": "telegram",
+  "to": "telegram:2060972655",
+  "accountId": "default",
+  "payloads": [
+    {
+      "text": "✅ 報告已發送。",
+      "replyToId": "652c2229-58a0-470f-8250-399580a6d288",
+      "replyToTag": true,
+      "replyToCurrent": true,
+      "audioAsVoice": false
+    }
+  ],
+  "threadId": null,
+  "replyToId": "652c2229-58a0-470f-8250-399580a6d288",
+  "mirror": {
+    "sessionKey": "agent:main:main",
+    "agentId": "main",
+    "text": "✅ 報告已發送。",
+    "mediaUrls": [],
+    "isGroup": false
+  },
+  "retryCount": 1,
+  "lastAttemptAt": 1772528091896,
+  "lastError": "Call to 'sendMessage' failed! (400: Bad Request: message to be replied not found)"
+}

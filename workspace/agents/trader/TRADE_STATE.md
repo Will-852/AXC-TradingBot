@@ -1,0 +1,1 @@
+/Users/wai/.openclaw/shared/TRADE_STATE.md
