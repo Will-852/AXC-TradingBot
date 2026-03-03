@@ -5,3 +5,51 @@ logs/
 __pycache__/
 *.pyc
 shared/
+
+# Sensitive
+secrets/
+credentials/
+identity/
+*.bak
+*.bak.*
+
+# OpenClaw runtime
+agents/main/sessions/
+agents/*/agent/
+canvas/
+completions/
+cron/
+delivery-queue/
+devices/
+exec-approvals.json
+memory/
+telegram/
+update-check.json
+.openclaw/
+
+# Workspace runtime (not core config)
+workspace/.openclaw/
+workspace/AGENTS.md
+workspace/CRON_PAYLOADS.md
+workspace/HEARTBEAT.md
+workspace/IDENTITY.md
+workspace/SOUL.md
+workspace/TOOLS.md
+workspace/USER.md
+workspace/agents/
+workspace/config/
+workspace/keys/
+workspace/knowledge/
+workspace/protocols/
+workspace/reference/
+workspace/routing/
+workspace/tools/
+
+# Agent workspace runtime
+agents/*/workspace/.openclaw/
+agents/*/workspace/AGENTS.md
+agents/*/workspace/BOOTSTRAP.md
+agents/*/workspace/HEARTBEAT.md
+agents/*/workspace/IDENTITY.md
+agents/*/workspace/TOOLS.md
+agents/*/workspace/USER.md
