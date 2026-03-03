@@ -58,7 +58,7 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
 #content{padding:24px;display:flex;flex-direction:column;gap:20px;max-width:1440px;width:100%}
 
 /* ── STAT CARDS ── */
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
 .s-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
   padding:20px 24px;position:relative;transition:border-color .2s}
 .s-card:hover{border-color:var(--text-muted)}
@@ -67,6 +67,7 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
 .s-card:nth-child(2)::before{background:var(--accent-blue)}
 .s-card:nth-child(3)::before{background:var(--accent-amber)}
 .s-card:nth-child(4)::before{background:var(--accent-red)}
+.s-card:nth-child(5)::before{background:var(--accent-blue)}
 .sc-label{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:10px}
 .sc-val{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;line-height:1}
 .sc-sub{font-size:12px;color:var(--text-muted);margin-top:10px;display:flex;align-items:center;gap:6px}
@@ -154,6 +155,13 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
   border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-muted);
   cursor:pointer;letter-spacing:.5px;transition:all .15s}
 .btn-s:hover{border-color:var(--text-muted);color:var(--text-primary);background:var(--bg-hover)}
+
+/* ── FOOTER ── */
+#footer{background:var(--bg-elevated);border-top:1px solid var(--border);padding:10px 24px;
+  display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:auto}
+.ft-git{display:flex;align-items:center;gap:8px}
+.ft-hash{color:var(--accent-blue)}
+.ft-tg{display:flex;align-items:center;gap:6px}
 </style>
 </head>
 <body>
@@ -208,6 +216,11 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
         <div class="sc-val mono" id="v-loss">0</div>
         <div class="sc-sub">consecutive</div>
       </div>
+      <div class="s-card">
+        <div class="sc-label">⏱ Uptime</div>
+        <div class="sc-val mono" id="v-uptime">—</div>
+        <div class="sc-sub" id="v-upboot">since boot</div>
+      </div>
     </section>
 
     <!-- ROW 2: Market Vitals + Organism (60/40) -->
@@ -243,6 +256,12 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
       <div class="c-body log-wrap" id="log-body"></div>
     </section>
   </div>
+
+  <!-- FOOTER -->
+  <footer id="footer">
+    <div class="ft-git" id="ft-git">⎇ —</div>
+    <div class="ft-tg" id="ft-tg">📱 —</div>
+  </footer>
 </div>
 
 <script>
@@ -309,6 +328,22 @@ function render(){
   document.getElementById('v-trigs').textContent=(D.scan_log||[]).filter(l=>l.includes('TRIGGER')).length;
   document.getElementById('v-loss').textContent=D.consecutive_losses||'0';
 
+  // Uptime
+  const up=D.uptime||{};
+  document.getElementById('v-uptime').textContent=up.duration||'—';
+  document.getElementById('v-upboot').textContent=up.started&&up.started!=='—'?'since '+up.started:'since boot';
+
+  // Footer — git
+  const gi=D.git||{};
+  if(gi.hash&&gi.hash!=='—'){
+    document.getElementById('ft-git').innerHTML='⎇ <span class="ft-hash">'+gi.hash+'</span> · '+gi.message+' · '+gi.time_ago;
+  }
+  // Footer — telegram
+  const tgf=D.telegram||{};
+  const tgDot=tgf.connected?'dot-g':'dot-r';
+  const tgLbl=tgf.connected?'connected':'offline';
+  document.getElementById('ft-tg').innerHTML='📱 Telegram <span class="dot '+tgDot+'"></span> '+tgLbl;
+
   // Market Vitals
   const syms=['BTC','ETH','XRP','XAG'],prices=D.prices||{},hist=D.price_history||{};
   syms.forEach(s=>{if(hist[s])pH[s]=hist[s]});
@@ -339,15 +374,28 @@ function render(){
       +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+o.det+(fc?' · '+fc:'')+'</div></div>'
       +'<div class="org-st"><span class="st-dot st-ok"></span>ok</div></div>';
   });
+  // Telegram organ
+  const tg=D.telegram||{};
+  const tgSt=tg.connected?'live':'off';
+  const tgLabel=tg.connected?'connected':'CHECK TOKEN';
+  const tgDet=(tg.bot_name||'—')+(tg.last_sent&&tg.last_sent!=='—'?' · last '+tg.last_sent:'');
+  oh+='<div class="org-row"><span class="org-ico">📱</span>'
+    +'<div class="org-info"><div class="org-name">TELEGRAM</div><div class="org-det">'+tgDet+'</div></div>'
+    +'<div class="org-st"><span class="st-dot st-'+tgSt+'"></span>'+tgLabel+'</div></div>';
   document.getElementById('org-body').innerHTML=oh;
 
   // Agent Activity
-  const costs=D.costs||{};
-  const calls={main:parseInt(costs.tier1_calls)||0,trader:parseInt(costs.tier1_calls)||0,scanner:parseInt(costs.tier2_calls)||0,heartbeat:parseInt(costs.tier3_calls)||0};
-  const mx=Math.max(...Object.values(calls),1);
-  document.getElementById('act-body').innerHTML=['main','trader','scanner','heartbeat'].map(id=>{
-    const c=calls[id];return'<div class="aa-row"><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
-  }).join('')+'<div class="cost-line"><span>TODAY '+(costs.daily_total||'$0.00')+'</span><span>'+(costs.daily_calls||'0')+' calls total</span></div>';
+  const aa=D.agent_activity||{};
+  if(aa.no_data){
+    document.getElementById('act-body').innerHTML='<div style="color:var(--text-muted);padding:20px 0;text-align:center">No data yet</div>';
+  }else{
+    const ids=['main','trader','scanner','heartbeat'];
+    const callNums=ids.map(id=>(aa[id]||{}).calls||0);
+    const mx=Math.max(...callNums,1);
+    document.getElementById('act-body').innerHTML=ids.map((id,i)=>{
+      const c=callNums[i];return'<div class="aa-row"><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
+    }).join('')+'<div class="cost-line"><span>TODAY '+(aa.total_cost||'$0.00')+'</span><span>'+(aa.total_calls||0)+' calls · 30d est '+(aa.projected_30d||'$0.00')+'</span></div>';
+  }
 
   // System Layers
   document.getElementById('lay-body').innerHTML=LAYERS.map(l=>'<div class="ly-row"><span class="ly-n">'+l.n+'</span><span class="ly-name">'+l.name+'</span><span class="ly-path mono">'+l.p+'</span></div>').join('');
