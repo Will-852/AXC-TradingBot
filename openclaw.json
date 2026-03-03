@@ -117,7 +117,8 @@
     },
     "list": [
       {
-        "id": "main"
+        "id": "main",
+        "workspace": "/Users/wai/.openclaw/agents/main/workspace"
       },
       {
         "id": "heartbeat",
