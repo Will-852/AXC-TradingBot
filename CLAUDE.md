@@ -35,6 +35,31 @@ trader    → agents/trader/workspace/
 scanner   → agents/scanner/workspace/
 heartbeat → agents/heartbeat/workspace/
 
+## 🫀 系統人體架構
+
+🧠 大腦    main agent        決策、對話、路由
+👁️ 眼      scanner (tier2)   感知市場訊號
+💓 心臟    trader (tier1)    執行交易動作
+🌡️ 神經    heartbeat (tier3) 感應系統健康
+🩸 血液    shared/           Agent間訊號傳遞
+💪 肌肉    scripts/          Python執行層
+🧬 DNA     config/           所有參數同模式
+🦴 骨架    SOUL.md           唔變嘅原則支撐
+🧠 記憶    agents/main/workspace/ 短期+長期記憶
+
+重要程度：
+🔴 主要（停咗會死）: main + trader + scripts/trader_cycle
+🟡 重要（停咗會病）: scanner + heartbeat + shared/
+🟢 支援（停咗會弱）: config/ + SOUL.md + memory/
+
+核心運作鏈：
+眼(scanner)發現訊號
+  → 血液(SIGNAL.md)傳遞
+  → 心臟(trader)執行
+  → 血液(TRADE_STATE.md)記錄
+  → 大腦(main)匯報
+  → 聲帶(Telegram)通知你
+
 ## 切換模式
 只改 config/modes/ 入面嘅active mode
 其他唔需要動
