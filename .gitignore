@@ -16,7 +16,6 @@ identity/
 # OpenClaw runtime
 agents/main/sessions/
 agents/*/agent/
-canvas/
 completions/
 cron/
 delivery-queue/
