@@ -1,0 +1,7 @@
+backups/
+logs/
+*.log
+*.err.log
+__pycache__/
+*.pyc
+shared/
