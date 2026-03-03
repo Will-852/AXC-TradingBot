@@ -102,7 +102,12 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
   cursor:pointer;transition:background .15s;margin:0 -20px;padding-left:20px;padding-right:20px}
 .org-row:last-child{border-bottom:none}
 .org-row:hover{background:var(--bg-hover)}
-.org-ico{font-size:18px;width:30px;text-align:center;flex-shrink:0}
+.org-ico{width:48px;height:48px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;font-size:22px}
+.pixel-sprite{position:absolute;top:0;left:0;width:1px;height:1px;background:transparent;
+  transform:scale(3);transform-origin:top left;image-rendering:pixelated;
+  animation:sprite-bob 3s ease-in-out infinite}
+@keyframes sprite-bob{0%,100%{transform:scale(3) translateY(0)}50%{transform:scale(3) translateY(-1px)}}
+.sprite-dim{filter:brightness(0.5)}
 .org-info{flex:1;margin-left:8px;min-width:0}
 .org-name{font-weight:600;font-size:13px}
 .org-det{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -113,7 +118,7 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
 .st-warn{background:var(--accent-amber);animation:pulse 1.5s ease-in-out infinite}
 .st-off{background:var(--border)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.org-expand{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 58px;
+.org-expand{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 76px;
   font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.8}
 .org-expand.open{max-height:100px;padding-bottom:8px}
 
@@ -302,7 +307,17 @@ function spark(pts,clr){
     +'<path d="'+d+'" fill="none" stroke="'+clr+'" stroke-width="1.5"/></svg>';
 }
 
-const AGENTS=[{key:'main',icon:'🧠',name:'BRAIN'},{key:'scanner',icon:'👁',name:'EYES'},{key:'trader',icon:'💓',name:'HEART'},{key:'heartbeat',icon:'🌡',name:'NERVES'}];
+const AGENTS=[{key:'main',sprite:'brain',name:'BRAIN'},{key:'scanner',sprite:'eyes',name:'EYES'},{key:'trader',sprite:'heart',name:'HEART'},{key:'heartbeat',sprite:'nerves',name:'NERVES'}];
+
+// ── PIXEL SPRITES ──
+const SP={
+brain:{d:'...BBBBBBBB.....\n..BBBBBBBBBB....\n.BBSSSSSSSSBB...\n.BBSSSSSSSSBB...\n.BBSDSSSSDSBB...\n.BBSWSSSSWSBB...\n.BBSDSSSSDSBB...\n.BBSSS.SSSSBB...\n.BBSSSSSSSSBB...\n..BBSSSSSSBB....\n...BBBBBBBB.....\n....WWWWWW......\n...WWBWWBWW.....\n...WWBWWBWW.....\n...WW....WW.....\n...W......W.....',c:{B:'#58a6ff',S:'#f0883e',D:'#161b22',W:'#e6edf3'}},
+eyes:{d:'...GGGGGGG......\n..GGGGGGGGG.....\n.GGMMMMMMMGG....\n.GMMWWWWWMMG....\n.GMWWBBBWWMG....\n.GMWBBGBBWMG....\n.GMWWBBBWWMG....\n.GMMWWWWWMMG....\n.GGMMMMMMMGG....\n..GGMMMMMGG.....\n...MM...MM......\n..GMMMMMMMG.....\n.GGMBMMMBMGG....\n.GMMMMMMMMMG....\n..GG....GG......\n..G......G......',c:{G:'#3fb950',M:'#30363d',B:'#58a6ff',W:'#e6edf3'}},
+heart:{d:'...DDDDDDDD.....\n..DDDDDDDDDD....\n.DDSSSSSSSSDD...\n.DDSSSSSSSSDD...\n.DDSDSSSSDSDD...\n.DDSSSSSSSSDD...\n.DDSS.SS.SSDD...\n..DDSSSSSSDD....\n...WWWWWWWW.....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n.WWWGGGGGWWWW...\n.WWGG.G.GGWW....\n..WW.....WW.....\n..D.......D.....',c:{D:'#161b22',S:'#f0883e',W:'#e6edf3',R:'#f85149',G:'#3fb950'}},
+nerves:{d:'...WWWWWWW......\n..WWRRRRRWW.....\n.WWWWRWRWWWW....\n.WWSSSSSSSWW....\n.WWSDSSSSDWW....\n.WWSSSSSSSWW....\n.WWSS.S.SSWW....\n..WWSSSSSWW.....\n...WWWWWWW......\n..WWWAWWAWWW....\n..WAAAWWAAAW....\n..WWWAWWAWWW....\n..WWWWWWWWWW....\n...WW....WW.....\n...W......W.....\n...D......D.....',c:{W:'#e6edf3',R:'#f85149',S:'#f0883e',D:'#161b22',A:'#d29922'}}
+};
+function genShadow(sp){const rows=sp.d.split('\n'),sh=[];rows.forEach((r,y)=>{for(let x=0;x<r.length;x++){const ch=r[x];if(ch!=='.'&&sp.c[ch])sh.push(x+'px '+y+'px 0 '+sp.c[ch])}});return sh.join(',')}
+(function(){const s=document.createElement('style');s.textContent=Object.entries(SP).map(([n,v])=>'.sprite-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n');document.head.appendChild(s)})();
 const EXTRAS=[{icon:'🩸',name:'BLOOD',det:'shared/',role:'Blood'},{icon:'🧬',name:'DNA',det:'config/params.py',role:'DNA'},{icon:'💪',name:'MUSCLES',det:'scripts/',role:'Muscle'}];
 const LAYERS=[{n:'①',name:'SOUL',p:'agents/*/SOUL.md'},{n:'②',name:'MEMORY',p:'agents/main/workspace/MEMORY.md'},{n:'③',name:'DNA',p:'config/params.py'},{n:'④',name:'MUSCLES',p:'scripts/ (executors)'},{n:'⑤',name:'BLOOD',p:'shared/ (signals)'},{n:'⑥',name:'MIRROR',p:'CLAUDE.md'}];
 const BCLR={main:'var(--accent-blue)',trader:'var(--accent-green)',scanner:'var(--accent-amber)',heartbeat:'var(--text-muted)'};
@@ -362,8 +377,9 @@ function render(){
     const a=ags.find(x=>x.id===o.key)||{};const st=a.status||'off';
     const stL={live:'online',ok:'idle',warn:'warning',off:'offline'}[st]||st;
     const pid=a.pid?' · PID '+a.pid:'';
+    const dimCls=st==='off'?' sprite-dim':'';
     oh+='<div class="org-row" onclick="this.nextElementSibling.classList.toggle(\'open\')">'
-      +'<span class="org-ico">'+o.icon+'</span>'
+      +'<span class="org-ico"><span class="pixel-sprite sprite-'+o.sprite+dimCls+'"></span></span>'
       +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+(a.id||o.key)+' · '+(a.model||'?')+pid+'</div></div>'
       +'<div class="org-st"><span class="st-dot st-'+st+'"></span>'+stL+'</div></div>'
       +'<div class="org-expand">workspace: '+(a.workspace||'—')+'</div>';
@@ -394,7 +410,7 @@ function render(){
     const mx=Math.max(...callNums,1);
     document.getElementById('act-body').innerHTML=ids.map((id,i)=>{
       const c=callNums[i];return'<div class="aa-row"><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
-    }).join('')+'<div class="cost-line"><span>TODAY '+(aa.total_cost||'$0.00')+'</span><span>'+(aa.total_calls||0)+' calls · 30d est '+(aa.projected_30d||'$0.00')+'</span></div>';
+    }).join('')+'<div class="cost-line"><span>'+(aa.total_calls||0)+' calls today</span><span>cost tracked by OpenClaw</span></div>';
   }
 
   // System Layers
