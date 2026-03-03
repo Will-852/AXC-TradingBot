@@ -102,13 +102,19 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
   cursor:pointer;transition:background .15s;margin:0 -20px;padding-left:20px;padding-right:20px}
 .org-row:last-child{border-bottom:none}
 .org-row:hover{background:var(--bg-hover)}
-.org-ico{width:48px;height:48px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;font-size:22px}
-.pixel-sprite{position:absolute;top:0;left:0;width:1px;height:1px;background:transparent;
+.org-ico{width:28px;height:28px;flex-shrink:0;position:relative}
+.organ-sprite{position:absolute;top:2px;left:2px;width:1px;height:1px;background:transparent;
   transform:scale(3);transform-origin:top left;image-rendering:pixelated;
   animation:sprite-bob 3s ease-in-out infinite}
 @keyframes sprite-bob{0%,100%{transform:scale(3) translateY(0)}50%{transform:scale(3) translateY(-1px)}}
+.anim-scan{animation:scan-lr 2s ease-in-out infinite!important}
+.anim-beat{animation:heart-beat 1.2s ease-in-out infinite!important}
+.anim-flicker{animation:nerve-flicker 1.5s steps(3) infinite!important}
+@keyframes scan-lr{0%,100%{transform:scale(3) translateX(0)}50%{transform:scale(3) translateX(2px)}}
+@keyframes heart-beat{0%,80%,100%{transform:scale(3)}10%{transform:scale(3.5)}25%{transform:scale(3)}40%{transform:scale(3.3)}}
+@keyframes nerve-flicker{0%,100%{opacity:1}33%{opacity:0.3}66%{opacity:0.8}}
 .sprite-dim{filter:brightness(0.5)}
-.org-info{flex:1;margin-left:8px;min-width:0}
+.org-info{flex:1;margin-left:10px;min-width:0}
 .org-name{font-weight:600;font-size:13px}
 .org-det{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .org-st{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;flex-shrink:0}
@@ -118,25 +124,35 @@ html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
 .st-warn{background:var(--accent-amber);animation:pulse 1.5s ease-in-out infinite}
 .st-off{background:var(--border)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.org-expand{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 76px;
+.org-expand{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 48px;
   font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.8}
 .org-expand.open{max-height:100px;padding-bottom:8px}
 
 /* ── AGENT ACTIVITY ── */
-.aa-row{display:flex;align-items:center;padding:8px 0;gap:12px}
-.aa-name{font-family:'JetBrains Mono',monospace;font-size:13px;width:84px;flex-shrink:0}
+.aa-row{display:flex;align-items:center;padding:8px 0;gap:10px}
+.aa-chr{width:32px;height:32px;flex-shrink:0;position:relative}
+.chr-sprite{position:absolute;top:0;left:0;width:1px;height:1px;background:transparent;
+  transform:scale(2);transform-origin:top left;image-rendering:pixelated}
+.aa-name{font-family:'JetBrains Mono',monospace;font-size:13px;width:72px;flex-shrink:0}
 .aa-bar{flex:1;height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden}
 .aa-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
 .aa-stat{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);width:100px;text-align:right;flex-shrink:0}
 .cost-line{display:flex;justify-content:space-between;padding-top:12px;margin-top:8px;
   border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)}
 
-/* ── SYSTEM LAYERS ── */
-.ly-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid rgba(48,54,61,.5);gap:12px}
-.ly-row:last-child{border-bottom:none}
-.ly-n{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-blue);width:20px;text-align:center;flex-shrink:0}
-.ly-name{font-weight:600;font-size:13px;width:76px;flex-shrink:0}
-.ly-path{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted)}
+/* ── SYSTEM CHAIN ── */
+.ch-node{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--bg-hover);border-radius:var(--radius);border-left:3px solid;cursor:pointer;transition:all .2s}
+.ch-node:hover{background:rgba(48,54,61,.9)}
+.ch-node:hover .ch-det{max-height:24px;margin-top:4px;opacity:1}
+.ch-main{display:flex;flex-direction:column;flex:1}
+.ch-name{font-weight:600;font-size:13px}
+.ch-path{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted)}
+.ch-det{max-height:0;overflow:hidden;opacity:0;transition:all .25s;font-size:10px;color:var(--text-muted)}
+.ch-link{position:relative;height:20px;margin-left:18px;border-left:2px dashed var(--border)}
+.ch-dot{position:absolute;left:-4px;width:6px;height:6px;border-radius:50%;background:var(--accent-green);
+  animation:ch-flow 2s ease-in-out infinite}
+@keyframes ch-flow{0%{top:-3px;opacity:0}40%{opacity:1}60%{opacity:1}100%{top:calc(100% - 3px);opacity:0}}
 
 /* ── SCAN LOG ── */
 .log-wrap{max-height:260px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:2}
@@ -307,19 +323,43 @@ function spark(pts,clr){
     +'<path d="'+d+'" fill="none" stroke="'+clr+'" stroke-width="1.5"/></svg>';
 }
 
-const AGENTS=[{key:'main',sprite:'brain',name:'BRAIN'},{key:'scanner',sprite:'eyes',name:'EYES'},{key:'trader',sprite:'heart',name:'HEART'},{key:'heartbeat',sprite:'nerves',name:'NERVES'}];
+const AGENTS=[{key:'main',organ:'brain',chr:'brain',name:'BRAIN'},{key:'scanner',organ:'eye',chr:'eyes',name:'EYES'},{key:'trader',organ:'heart',chr:'heart',name:'HEART'},{key:'heartbeat',organ:'nerve',chr:'nerves',name:'NERVES'}];
+const ORG_ANIM={eye:'anim-scan',heart:'anim-beat',nerve:'anim-flicker'};
 
-// ── PIXEL SPRITES ──
-const SP={
+// ── ORGAN SPRITES (8x8, scale 3 = 24px) ──
+const ORG={
+brain:{d:'..PPPP..\n.PVPVPP.\nPPVPPVPP\nPPPPPPVP\nPVPPPPPP\nPPPVPPPP\n.PPPPPP.\n..PPPP..',c:{P:'#ff6b9d',V:'#c44dff'}},
+eye:{d:'..WWWW..\n.WWWWWW.\nWWBBBBWW\nWBBDDBBW\nWBBDDBBW\nWWBBBBWW\n.WWWWWW.\n..WWWW..',c:{W:'#e6edf3',B:'#58a6ff',D:'#1f6feb'}},
+heart:{d:'.RR..RR.\nRLLRRLLR\nRLLLLLLR\nRLLLLLLR\n.RLLLLR.\n..RLLR..\n...RR...\n........',c:{R:'#f85149',L:'#ff7b72'}},
+nerve:{d:'....AA..\n...AB...\n..ABB...\n..ABBA..\n..ABBA..\n...BBA..\n...BA...\n..AA....',c:{A:'#d29922',B:'#f0c000'}},
+blood:{d:'...RL...\n..RLLR..\n..RLLR..\n.RLLLLR.\nRLLLLLLR\nRLLLLLLR\n.RLLLLR.\n..RRRR..',c:{R:'#f85149',L:'#ff7b72'}},
+dna:{d:'.G....B.\n..G..B..\n...GB...\n..GBBG..\n..BGGB..\n...BG...\n..B..G..\n.B....G.',c:{G:'#3fb950',B:'#58a6ff'}},
+muscle:{d:'..WW....\n.WWWW...\nWWSSWW..\n.SSSSWW.\n..SSSS..\n...SSS..\n...SS...\n..SS....',c:{W:'#e6edf3',S:'#f0883e'}},
+telegram:{d:'B.......\nBBB.....\nBWWBB...\nBWWWWBB.\nBBBWWBB.\n...BBWB.\n.....BB.\n......B.',c:{B:'#58a6ff',W:'#e6edf3'}}
+};
+
+// ── CHARACTER SPRITES (16x16, scale 2 = 32px) ──
+const CHR={
 brain:{d:'...BBBBBBBB.....\n..BBBBBBBBBB....\n.BBSSSSSSSSBB...\n.BBSSSSSSSSBB...\n.BBSDSSSSDSBB...\n.BBSWSSSSWSBB...\n.BBSDSSSSDSBB...\n.BBSSS.SSSSBB...\n.BBSSSSSSSSBB...\n..BBSSSSSSBB....\n...BBBBBBBB.....\n....WWWWWW......\n...WWBWWBWW.....\n...WWBWWBWW.....\n...WW....WW.....\n...W......W.....',c:{B:'#58a6ff',S:'#f0883e',D:'#161b22',W:'#e6edf3'}},
 eyes:{d:'...GGGGGGG......\n..GGGGGGGGG.....\n.GGMMMMMMMGG....\n.GMMWWWWWMMG....\n.GMWWBBBWWMG....\n.GMWBBGBBWMG....\n.GMWWBBBWWMG....\n.GMMWWWWWMMG....\n.GGMMMMMMMGG....\n..GGMMMMMGG.....\n...MM...MM......\n..GMMMMMMMG.....\n.GGMBMMMBMGG....\n.GMMMMMMMMMG....\n..GG....GG......\n..G......G......',c:{G:'#3fb950',M:'#30363d',B:'#58a6ff',W:'#e6edf3'}},
 heart:{d:'...DDDDDDDD.....\n..DDDDDDDDDD....\n.DDSSSSSSSSDD...\n.DDSSSSSSSSDD...\n.DDSDSSSSDSDD...\n.DDSSSSSSSSDD...\n.DDSS.SS.SSDD...\n..DDSSSSSSDD....\n...WWWWWWWW.....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n.WWWGGGGGWWWW...\n.WWGG.G.GGWW....\n..WW.....WW.....\n..D.......D.....',c:{D:'#161b22',S:'#f0883e',W:'#e6edf3',R:'#f85149',G:'#3fb950'}},
 nerves:{d:'...WWWWWWW......\n..WWRRRRRWW.....\n.WWWWRWRWWWW....\n.WWSSSSSSSWW....\n.WWSDSSSSDWW....\n.WWSSSSSSSWW....\n.WWSS.S.SSWW....\n..WWSSSSSWW.....\n...WWWWWWW......\n..WWWAWWAWWW....\n..WAAAWWAAAW....\n..WWWAWWAWWW....\n..WWWWWWWWWW....\n...WW....WW.....\n...W......W.....\n...D......D.....',c:{W:'#e6edf3',R:'#f85149',S:'#f0883e',D:'#161b22',A:'#d29922'}}
 };
+
 function genShadow(sp){const rows=sp.d.split('\n'),sh=[];rows.forEach((r,y)=>{for(let x=0;x<r.length;x++){const ch=r[x];if(ch!=='.'&&sp.c[ch])sh.push(x+'px '+y+'px 0 '+sp.c[ch])}});return sh.join(',')}
-(function(){const s=document.createElement('style');s.textContent=Object.entries(SP).map(([n,v])=>'.sprite-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n');document.head.appendChild(s)})();
-const EXTRAS=[{icon:'🩸',name:'BLOOD',det:'shared/',role:'Blood'},{icon:'🧬',name:'DNA',det:'config/params.py',role:'DNA'},{icon:'💪',name:'MUSCLES',det:'scripts/',role:'Muscle'}];
-const LAYERS=[{n:'①',name:'SOUL',p:'agents/*/SOUL.md'},{n:'②',name:'MEMORY',p:'agents/main/workspace/MEMORY.md'},{n:'③',name:'DNA',p:'config/params.py'},{n:'④',name:'MUSCLES',p:'scripts/ (executors)'},{n:'⑤',name:'BLOOD',p:'shared/ (signals)'},{n:'⑥',name:'MIRROR',p:'CLAUDE.md'}];
+(function(){const s=document.createElement('style');
+s.textContent=Object.entries(ORG).map(([n,v])=>'.organ-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n')
++'\n'+Object.entries(CHR).map(([n,v])=>'.chr-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n');
+document.head.appendChild(s)})();
+
+const EXTRAS=[{organ:'blood',name:'BLOOD',det:'shared/',role:'Blood'},{organ:'dna',name:'DNA',det:'config/params.py',role:'DNA'},{organ:'muscle',name:'MUSCLES',det:'scripts/',role:'Muscle'}];
+const LAYERS=[
+{name:'SOUL',p:'agents/*/SOUL.md',desc:'Immutable principles',clr:'#c44dff'},
+{name:'MEMORY',p:'agents/main/workspace/',desc:'Short + long term memory',clr:'#58a6ff'},
+{name:'DNA',p:'config/params.py',desc:'All numeric parameters',clr:'#3fb950'},
+{name:'MUSCLES',p:'scripts/',desc:'Python execution layer',clr:'#d29922'},
+{name:'BLOOD',p:'shared/',desc:'Inter-agent signals',clr:'#f85149'},
+{name:'MIRROR',p:'CLAUDE.md',desc:'Human-facing docs',clr:'#e6edf3'}];
 const BCLR={main:'var(--accent-blue)',trader:'var(--accent-green)',scanner:'var(--accent-amber)',heartbeat:'var(--text-muted)'};
 
 // ── RENDER ──
@@ -378,15 +418,16 @@ function render(){
     const stL={live:'online',ok:'idle',warn:'warning',off:'offline'}[st]||st;
     const pid=a.pid?' · PID '+a.pid:'';
     const dimCls=st==='off'?' sprite-dim':'';
+    const animCls=ORG_ANIM[o.organ]||'';
     oh+='<div class="org-row" onclick="this.nextElementSibling.classList.toggle(\'open\')">'
-      +'<span class="org-ico"><span class="pixel-sprite sprite-'+o.sprite+dimCls+'"></span></span>'
+      +'<span class="org-ico"><span class="organ-sprite organ-'+o.organ+dimCls+(animCls?' '+animCls:'')+'"></span></span>'
       +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+(a.id||o.key)+' · '+(a.model||'?')+pid+'</div></div>'
       +'<div class="org-st"><span class="st-dot st-'+st+'"></span>'+stL+'</div></div>'
       +'<div class="org-expand">workspace: '+(a.workspace||'—')+'</div>';
   });
   EXTRAS.forEach(o=>{
     const f=ft.find(x=>x.role===o.role);const fc=f?f.files+' files':'';
-    oh+='<div class="org-row"><span class="org-ico">'+o.icon+'</span>'
+    oh+='<div class="org-row"><span class="org-ico"><span class="organ-sprite organ-'+o.organ+'"></span></span>'
       +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+o.det+(fc?' · '+fc:'')+'</div></div>'
       +'<div class="org-st"><span class="st-dot st-ok"></span>ok</div></div>';
   });
@@ -395,7 +436,7 @@ function render(){
   const tgSt=tg.connected?'live':'off';
   const tgLabel=tg.connected?'connected':'CHECK TOKEN';
   const tgDet=(tg.bot_name||'—')+(tg.last_sent&&tg.last_sent!=='—'?' · last '+tg.last_sent:'');
-  oh+='<div class="org-row"><span class="org-ico">📱</span>'
+  oh+='<div class="org-row"><span class="org-ico"><span class="organ-sprite organ-telegram"></span></span>'
     +'<div class="org-info"><div class="org-name">TELEGRAM</div><div class="org-det">'+tgDet+'</div></div>'
     +'<div class="org-st"><span class="st-dot st-'+tgSt+'"></span>'+tgLabel+'</div></div>';
   document.getElementById('org-body').innerHTML=oh;
@@ -406,15 +447,23 @@ function render(){
     document.getElementById('act-body').innerHTML='<div style="color:var(--text-muted);padding:20px 0;text-align:center">No data yet</div>';
   }else{
     const ids=['main','trader','scanner','heartbeat'];
+    const chrMap={main:'brain',trader:'heart',scanner:'eyes',heartbeat:'nerves'};
     const callNums=ids.map(id=>(aa[id]||{}).calls||0);
     const mx=Math.max(...callNums,1);
     document.getElementById('act-body').innerHTML=ids.map((id,i)=>{
-      const c=callNums[i];return'<div class="aa-row"><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
+      const c=callNums[i];return'<div class="aa-row"><span class="aa-chr"><span class="chr-sprite chr-'+chrMap[id]+'"></span></span><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
     }).join('')+'<div class="cost-line"><span>'+(aa.total_calls||0)+' calls today</span><span>cost tracked by OpenClaw</span></div>';
   }
 
-  // System Layers
-  document.getElementById('lay-body').innerHTML=LAYERS.map(l=>'<div class="ly-row"><span class="ly-n">'+l.n+'</span><span class="ly-name">'+l.name+'</span><span class="ly-path mono">'+l.p+'</span></div>').join('');
+  // System Chain
+  document.getElementById('lay-body').innerHTML=LAYERS.map((l,i)=>{
+    let h='<div class="ch-node" style="border-left-color:'+l.clr+'">'
+      +'<div class="ch-main"><span class="ch-name" style="color:'+l.clr+'">'+l.name+'</span>'
+      +'<span class="ch-det">'+l.desc+'</span></div>'
+      +'<span class="ch-path">'+l.p+'</span></div>';
+    if(i<LAYERS.length-1)h+='<div class="ch-link"><span class="ch-dot" style="animation-delay:'+(i*0.35)+'s"></span></div>';
+    return h;
+  }).join('');
 
   // Scan Log
   if(!paused){
