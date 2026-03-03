@@ -5,474 +5,383 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OpenClaw ICU</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a0e17;--card:#111827;--border:#1e2736;--dim:#1e2736;
-  --green:#00ff88;--amber:#ffaa00;--red:#ff3355;--blue:#4488ff;
-  --text:#8899bb;--bright:#d0ddef;
+  --bg-base:#0f1117;--bg-elevated:#161b22;--bg-card:#1c2333;--bg-hover:#21273a;
+  --border:#30363d;--text-primary:#e6edf3;--text-muted:#7d8590;
+  --accent-green:#3fb950;--accent-blue:#58a6ff;--accent-amber:#d29922;--accent-red:#f85149;
+  --radius:8px;--sidebar-w:64px;--sidebar-exp:220px;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font:12px/1.5 'SF Mono','Fira Code','Cascadia Code',monospace}
-a{color:var(--blue);text-decoration:none}
+html,body{height:100%;background:var(--bg-base);color:var(--text-primary);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
 
-/* ECG strip */
-#ecg-wrap{width:100%;height:60px;background:var(--card);border-bottom:1px solid var(--border);position:relative;overflow:hidden}
-#ecg{width:100%;height:100%}
-.ecg-label{position:absolute;top:6px;right:12px;font-size:10px;color:var(--green);letter-spacing:1px}
-.ecg-rate{position:absolute;top:6px;left:12px;font-size:10px;color:var(--text)}
+/* ── SIDEBAR ── */
+#sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:var(--bg-elevated);
+  border-right:1px solid var(--border);z-index:100;transition:width .25s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;overflow:hidden}
+#sidebar:hover{width:var(--sidebar-exp)}
+.sb-logo{padding:14px 0;text-align:center;border-bottom:1px solid var(--border);min-height:48px;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.sb-logo .mark{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:var(--accent-green);letter-spacing:1px;
+  opacity:0;transition:opacity .2s;white-space:nowrap}
+#sidebar:hover .sb-logo .mark{opacity:1}
+.sb-logo .dot{width:10px;height:10px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 10px var(--accent-green);flex-shrink:0}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;transition:all .15s;
+  white-space:nowrap;color:var(--text-muted);border-left:3px solid transparent}
+.nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.nav-item.active{color:var(--accent-green);border-left-color:var(--accent-green);background:rgba(63,185,80,.06)}
+.nav-item .icon{font-size:18px;min-width:24px;text-align:center}
+.nav-item .lbl{font-size:13px;font-weight:500;opacity:0;transition:opacity .2s}
+#sidebar:hover .nav-item .lbl{opacity:1}
+.sb-spacer{flex:1}
+.sb-sep{height:1px;background:var(--border);margin:4px 16px}
 
-/* Layout */
-.container{max-width:1400px;margin:0 auto;padding:12px}
-.header{display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-bottom:8px}
-.title{font-size:16px;font-weight:700;color:var(--bright);letter-spacing:1px}
-.pills{display:flex;gap:8px}
-.pill{padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.5px}
-.pill-green{background:var(--green);color:#000}
-.pill-amber{background:var(--amber);color:#000}
-.pill-red{background:var(--red);color:#fff}
-.pill-dim{background:var(--dim);color:var(--text)}
+/* ── MAIN ── */
+#main{margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column}
 
-/* Grid */
-.row{display:flex;gap:10px;margin-bottom:10px}
-.col{flex:1;min-width:0}
-.col-body{flex:0 0 320px}
+/* ── HEADER ── */
+#header{height:48px;background:var(--bg-elevated);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:50}
+.hd-brand{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--accent-green);letter-spacing:2px;flex-shrink:0}
+#ecg-mini{width:200px;height:32px;flex-shrink:0}
+.hd-right{display:flex;gap:8px;margin-left:auto;align-items:center;flex-shrink:0}
+.badge{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:3px 10px;
+  border-radius:12px;border:1px solid;white-space:nowrap;letter-spacing:.5px}
+.badge-dim{border-color:var(--border);color:var(--text-muted)}
+.badge-amber{border-color:var(--accent-amber);color:var(--accent-amber);background:rgba(210,153,34,.08)}
+.badge-green{border-color:var(--accent-green);color:var(--accent-green);background:rgba(63,185,80,.08)}
+.hd-ts{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);margin-left:4px}
 
-/* Cards */
-.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px;height:100%}
-.card-title{font-size:10px;font-weight:700;color:#556;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.card-title::before{content:'';display:inline-block;width:3px;height:10px;border-radius:1px}
+/* ── CONTENT ── */
+#content{padding:24px;display:flex;flex-direction:column;gap:20px;max-width:1440px;width:100%}
 
-/* Vital cards */
-.vitals{display:flex;gap:10px;margin-bottom:10px}
-.vital{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:14px;text-align:center}
-.vital-num{font-size:32px;font-weight:800;color:var(--bright);line-height:1}
-.vital-label{font-size:9px;color:#556;text-transform:uppercase;letter-spacing:1px;margin-top:6px}
-.vital-sub{font-size:10px;color:var(--green);margin-top:2px}
+/* ── STAT CARDS ── */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.s-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 24px;position:relative;transition:border-color .2s}
+.s-card:hover{border-color:var(--text-muted)}
+.s-card::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 2px 2px 0}
+.s-card:nth-child(1)::before{background:var(--accent-green)}
+.s-card:nth-child(2)::before{background:var(--accent-blue)}
+.s-card:nth-child(3)::before{background:var(--accent-amber)}
+.s-card:nth-child(4)::before{background:var(--accent-red)}
+.sc-label{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:10px}
+.sc-val{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;line-height:1}
+.sc-sub{font-size:12px;color:var(--text-muted);margin-top:10px;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-g{background:var(--accent-green);box-shadow:0 0 6px var(--accent-green)}
+.dot-a{background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)}
+.dot-r{background:var(--accent-red);box-shadow:0 0 6px var(--accent-red)}
 
-/* Body diagram */
-.body-svg{display:flex;flex-direction:column;align-items:center;gap:0;padding:8px 0}
-.organ{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;cursor:pointer;width:100%;transition:background .15s}
-.organ:hover{background:rgba(255,255,255,.04)}
-.organ-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
-.organ-name{font-weight:700;color:var(--bright);font-size:12px;flex:1}
-.organ-meta{font-size:10px;color:#556}
-.organ-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.organ-connector{width:1px;height:10px;background:var(--border);margin:0 auto}
+/* ── GRID LAYOUTS ── */
+.g-60-40{display:grid;grid-template-columns:3fr 2fr;gap:16px}
+.g-50-50{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
-/* Markets */
-.market-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03)}
-.market-sym{width:32px;font-weight:700;color:var(--bright);font-size:11px}
-.market-price{flex:1;color:var(--bright);text-align:right;font-size:12px}
-.market-spark{width:80px;height:20px}
-.market-chg{width:60px;text-align:right;font-size:11px}
+/* ── CARD ── */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.c-hd{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.c-title{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted)}
+.c-body{padding:16px 20px}
 
-/* Activity bars */
-.act-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
-.act-name{width:70px;color:var(--bright)}
-.act-bar-wrap{flex:1;height:8px;background:var(--dim);border-radius:4px;overflow:hidden}
-.act-bar{height:100%;border-radius:4px;transition:width .5s}
-.act-val{width:60px;text-align:right;color:#556}
+/* ── MARKET VITALS ── */
+.mk-row{display:flex;align-items:center;padding:11px 0;border-bottom:1px solid rgba(48,54,61,.5);transition:background .15s}
+.mk-row:last-child{border-bottom:none}
+.mk-row:hover{background:var(--bg-hover);margin:0 -20px;padding-left:20px;padding-right:20px}
+.mk-sym{font-family:'JetBrains Mono',monospace;font-weight:700;width:44px;font-size:13px}
+.mk-price{font-family:'JetBrains Mono',monospace;font-size:14px;width:110px;text-align:right}
+.mk-spark{flex:1;padding:0 16px;height:28px}
+.mk-spark svg{width:100%;height:28px}
+.mk-chg{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;width:80px;text-align:right}
+.c-neg{color:var(--accent-red)}.c-pos{color:var(--accent-green)}.c-flat{color:var(--text-muted)}
 
-/* File tree */
-.tree-row{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;border-radius:3px;padding:3px 6px}
-.tree-row:hover{background:rgba(255,255,255,.03)}
-.tree-icon{width:18px;text-align:center}
-.tree-path{color:var(--blue);flex:1}
-.tree-role{color:#556;width:50px}
-.tree-count{color:#445;width:50px;text-align:right}
-.tree-hint{font-size:10px;color:#334;padding:0 6px 4px 30px;display:none}
+/* ── ORGANISM ── */
+.org-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid rgba(48,54,61,.5);
+  cursor:pointer;transition:background .15s;margin:0 -20px;padding-left:20px;padding-right:20px}
+.org-row:last-child{border-bottom:none}
+.org-row:hover{background:var(--bg-hover)}
+.org-ico{font-size:18px;width:30px;text-align:center;flex-shrink:0}
+.org-info{flex:1;margin-left:8px;min-width:0}
+.org-name{font-weight:600;font-size:13px}
+.org-det{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.org-st{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;flex-shrink:0}
+.st-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.st-live{background:var(--accent-green);box-shadow:0 0 8px var(--accent-green);animation:pulse 2s ease-in-out infinite}
+.st-ok{background:var(--accent-green)}
+.st-warn{background:var(--accent-amber);animation:pulse 1.5s ease-in-out infinite}
+.st-off{background:var(--border)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.org-expand{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 58px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.8}
+.org-expand.open{max-height:100px;padding-bottom:8px}
 
-/* Log */
-.log-wrap{max-height:280px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-.log-line{font-size:10px;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.log-trigger{color:var(--amber)}
-.log-error{color:var(--red)}
-.log-normal{color:#445}
+/* ── AGENT ACTIVITY ── */
+.aa-row{display:flex;align-items:center;padding:8px 0;gap:12px}
+.aa-name{font-family:'JetBrains Mono',monospace;font-size:13px;width:84px;flex-shrink:0}
+.aa-bar{flex:1;height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden}
+.aa-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.aa-stat{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);width:100px;text-align:right;flex-shrink:0}
+.cost-line{display:flex;justify-content:space-between;padding-top:12px;margin-top:8px;
+  border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)}
 
-/* Pulse animation */
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-.pulsing{animation:pulse 2s ease-in-out infinite}
+/* ── SYSTEM LAYERS ── */
+.ly-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid rgba(48,54,61,.5);gap:12px}
+.ly-row:last-child{border-bottom:none}
+.ly-n{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-blue);width:20px;text-align:center;flex-shrink:0}
+.ly-name{font-weight:600;font-size:13px;width:76px;flex-shrink:0}
+.ly-path{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted)}
 
-/* Dot colors */
-.dot-live{background:var(--green);box-shadow:0 0 6px var(--green)}
-.dot-ok{background:#44aa66}
-.dot-warn{background:var(--amber);box-shadow:0 0 4px var(--amber)}
-.dot-off{background:#334}
-.dot-error{background:var(--red);box-shadow:0 0 4px var(--red)}
+/* ── SCAN LOG ── */
+.log-wrap{max-height:260px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:2}
+.log-wrap::-webkit-scrollbar{width:4px}
+.log-wrap::-webkit-scrollbar-track{background:transparent}
+.log-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ll{padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .2s}
+.ll:hover{background:var(--bg-hover)}
+.ll-trg{color:var(--accent-amber)}
+.ll-err{color:var(--accent-red)}
+.ll-sil{color:var(--text-muted);opacity:.55}
+.tag{display:inline-block;font-size:9px;font-weight:600;padding:1px 7px;border-radius:3px;margin-right:8px;
+  border:1px solid;letter-spacing:.5px;vertical-align:middle}
+.t-trg{border-color:var(--accent-amber);color:var(--accent-amber)}
+.t-sil{border-color:var(--border);color:var(--text-muted)}
+.t-err{border-color:var(--accent-red);color:var(--accent-red)}
+.t-deep{border-color:var(--accent-blue);color:var(--accent-blue)}
 
-/* Tooltip */
-.tooltip{display:none;position:absolute;background:#1a2030;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;z-index:100;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-.tooltip.show{display:block}
+/* ── MISC ── */
+.btn-s{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:4px 12px;
+  border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-muted);
+  cursor:pointer;letter-spacing:.5px;transition:all .15s}
+.btn-s:hover{border-color:var(--text-muted);color:var(--text-primary);background:var(--bg-hover)}
 </style>
 </head>
 <body>
 
-<!-- S1: ECG -->
-<div id="ecg-wrap">
-  <canvas id="ecg"></canvas>
-  <div class="ecg-label">ECG MONITOR</div>
-  <div class="ecg-rate" id="ecg-rate">SCAN: 3min interval</div>
-</div>
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sb-logo"><span class="dot"></span><span class="mark">OPENCLAW</span></div>
+  <div class="nav-item active" data-t="overview"><span class="icon">📊</span><span class="lbl">Overview</span></div>
+  <div class="nav-item" data-t="sec-brain"><span class="icon">🧠</span><span class="lbl">Brain</span></div>
+  <div class="nav-item" data-t="sec-eyes"><span class="icon">👁</span><span class="lbl">Eyes</span></div>
+  <div class="nav-item" data-t="sec-heart"><span class="icon">💓</span><span class="lbl">Heart</span></div>
+  <div class="nav-item" data-t="sec-nerves"><span class="icon">🌡</span><span class="lbl">Nerves</span></div>
+  <div class="sb-sep"></div>
+  <div class="nav-item" data-t="sec-log"><span class="icon">📋</span><span class="lbl">Scan Log</span></div>
+  <div class="sb-spacer"></div>
+  <div class="nav-item"><span class="icon">⚙</span><span class="lbl">Settings</span></div>
+</nav>
 
-<div class="container">
-
-<!-- Header -->
-<div class="header">
-  <div class="title">OPENCLAW ICU MONITOR</div>
-  <div class="pills" id="pills"></div>
-</div>
-
-<!-- S2: Vitals -->
-<div class="vitals" id="vitals"></div>
-
-<!-- Main layout -->
-<div class="row">
-  <!-- S3: Body (left) -->
-  <div class="col-body">
-    <div class="card">
-      <div class="card-title" style="--c:var(--green)"><span style="color:var(--green)">ORGANISM STATUS</span></div>
-      <div id="body-diagram"></div>
+<!-- MAIN -->
+<div id="main">
+  <header id="header">
+    <span class="hd-brand">OPENCLAW ICU</span>
+    <canvas id="ecg-mini" width="200" height="32"></canvas>
+    <div class="hd-right">
+      <span class="badge badge-dim" id="b-trg">TRIGGER: OFF</span>
+      <span class="badge badge-dim" id="b-sig">SIGNAL: NO</span>
+      <span class="badge badge-green" id="b-mode">MODE: —</span>
+      <span class="hd-ts" id="hd-ts">—</span>
     </div>
+  </header>
+
+  <div id="content">
+    <!-- ROW 1: Stat Cards -->
+    <section class="stat-grid" id="overview">
+      <div class="s-card">
+        <div class="sc-label">💰 Capital</div>
+        <div class="sc-val mono" id="v-bal">$0</div>
+        <div class="sc-sub" id="v-pos"><span class="dot dot-g"></span>No position</div>
+      </div>
+      <div class="s-card">
+        <div class="sc-label">📡 Scans</div>
+        <div class="sc-val mono" id="v-scans">0</div>
+        <div class="sc-sub">since last trigger</div>
+      </div>
+      <div class="s-card">
+        <div class="sc-label">⚡ Triggers</div>
+        <div class="sc-val mono" id="v-trigs">0</div>
+        <div class="sc-sub">detected in log</div>
+      </div>
+      <div class="s-card">
+        <div class="sc-label">📉 Losses</div>
+        <div class="sc-val mono" id="v-loss">0</div>
+        <div class="sc-sub">consecutive</div>
+      </div>
+    </section>
+
+    <!-- ROW 2: Market Vitals + Organism (60/40) -->
+    <section class="g-60-40">
+      <div class="card" id="sec-eyes">
+        <div class="c-hd"><span class="c-title">Market Vitals</span></div>
+        <div class="c-body" id="mkt-body"></div>
+      </div>
+      <div class="card" id="sec-brain">
+        <div class="c-hd"><span class="c-title">Organism Status</span></div>
+        <div class="c-body" id="org-body"></div>
+      </div>
+    </section>
+
+    <!-- ROW 3: Activity + Layers (50/50) -->
+    <section class="g-50-50">
+      <div class="card" id="sec-heart">
+        <div class="c-hd"><span class="c-title">Agent Activity</span><span class="c-title" style="letter-spacing:0">TODAY</span></div>
+        <div class="c-body" id="act-body"></div>
+      </div>
+      <div class="card" id="sec-nerves">
+        <div class="c-hd"><span class="c-title">System Layers</span><span class="c-title" style="letter-spacing:0">inside → out</span></div>
+        <div class="c-body" id="lay-body"></div>
+      </div>
+    </section>
+
+    <!-- ROW 4: Scan Log -->
+    <section class="card" id="sec-log">
+      <div class="c-hd">
+        <span class="c-title">Scan Log</span>
+        <button class="btn-s" id="btn-pause">PAUSE</button>
+      </div>
+      <div class="c-body log-wrap" id="log-body"></div>
+    </section>
   </div>
-
-  <!-- Right column -->
-  <div class="col">
-    <!-- S4: Markets -->
-    <div class="card" style="margin-bottom:10px">
-      <div class="card-title"><span style="color:var(--blue)">MARKET VITALS</span></div>
-      <div id="markets"></div>
-    </div>
-
-    <!-- S5: Activity -->
-    <div class="card">
-      <div class="card-title"><span style="color:var(--amber)">AGENT ACTIVITY</span></div>
-      <div id="activity"></div>
-    </div>
-  </div>
 </div>
-
-<!-- Bottom row -->
-<div class="row">
-  <!-- S6: File tree -->
-  <div class="col">
-    <div class="card">
-      <div class="card-title"><span style="color:var(--blue)">FILE STRUCTURE</span></div>
-      <div id="file-tree"></div>
-    </div>
-  </div>
-  <!-- S7: Log -->
-  <div class="col">
-    <div class="card">
-      <div class="card-title"><span style="color:#556">SCAN LOG</span></div>
-      <div class="log-wrap" id="scan-log"></div>
-    </div>
-  </div>
-</div>
-
-</div><!-- container -->
 
 <script>
-// ─── ECG Animation ───
-const ecgCanvas = document.getElementById('ecg');
-const ecgCtx = ecgCanvas.getContext('2d');
-let ecgData = [];
-let ecgColor = '#00ff88';
-let lastTriggerTime = 0;
+let D=null,pH={},paused=false;
 
-function resizeECG() {
-  ecgCanvas.width = ecgCanvas.parentElement.clientWidth;
-  ecgCanvas.height = 60;
+// ── ECG ──
+const ecg=document.getElementById('ecg-mini').getContext('2d');
+const EW=200,EH=32,EM=16;let eX=0;
+ecg.fillStyle='#0f1117';ecg.fillRect(0,0,EW,EH);
+function ecgStep(){
+  ecg.fillStyle='rgba(15,17,23,.12)';ecg.fillRect(eX,0,6,EH);
+  const ph=eX%90;let y=EM;
+  if(ph>35&&ph<39)y=EM-3;
+  else if(ph>42&&ph<45)y=EM+5;
+  else if(ph>45&&ph<50)y=EM-14;
+  else if(ph>50&&ph<53)y=EM+6;
+  else if(ph>58&&ph<66)y=EM-3;
+  ecg.strokeStyle='#3fb950';ecg.lineWidth=1.5;ecg.shadowColor='#3fb950';ecg.shadowBlur=4;
+  ecg.beginPath();ecg.moveTo(eX,EM);ecg.lineTo(eX+3,y);ecg.stroke();
+  ecg.shadowBlur=0;eX=(eX+3)%EW;
 }
-resizeECG();
-window.addEventListener('resize', resizeECG);
+setInterval(ecgStep,45);
 
-function generateECGPoint(t) {
-  const timeSinceTrigger = t - lastTriggerTime;
-  if (timeSinceTrigger < 8) {
-    const phase = timeSinceTrigger;
-    if (phase < 1) return Math.sin(phase * Math.PI) * 3;
-    if (phase < 2) return -Math.sin((phase-1) * Math.PI) * 2;
-    if (phase < 3) return Math.sin((phase-2) * Math.PI * 2) * 15; // QRS spike
-    if (phase < 4) return -Math.sin((phase-3) * Math.PI) * 5;
-    if (phase < 6) return Math.sin((phase-4) * Math.PI * 0.5) * 4;
-    return Math.sin((phase-6) * Math.PI) * 1;
-  }
-  return (Math.random() - 0.5) * 0.8; // flat with noise
+// ── HELPERS ──
+function fP(p){const n=parseFloat(p);if(isNaN(n))return p;return n>=1000?'$'+n.toLocaleString('en',{maximumFractionDigits:0}):n>=10?'$'+n.toFixed(2):'$'+n.toFixed(4)}
+
+function spark(pts,clr){
+  if(!pts||pts.length<2)return'';
+  const mn=Math.min(...pts),mx=Math.max(...pts),rng=mx-mn||1,W=140,H=28,p=3;
+  let d='M';
+  pts.forEach((v,i)=>{const x=p+i/(pts.length-1)*(W-p*2);const y=H-p-(v-mn)/rng*(H-p*2);d+=(i?'L':'')+x.toFixed(1)+','+y.toFixed(1)});
+  const lx=(p+(pts.length-1)/(pts.length-1)*(W-p*2)).toFixed(1);
+  const fd=d+'L'+lx+','+H+'L'+p+','+H+'Z';
+  const gid='g'+clr.replace('#','');
+  return'<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+    +'<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+clr+'" stop-opacity=".2"/><stop offset="1" stop-color="'+clr+'" stop-opacity="0"/></linearGradient></defs>'
+    +'<path d="'+fd+'" fill="url(#'+gid+')"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+clr+'" stroke-width="1.5"/></svg>';
 }
 
-let ecgT = 0;
-function drawECG() {
-  const w = ecgCanvas.width, h = ecgCanvas.height;
-  ecgData.push(generateECGPoint(ecgT));
-  ecgT += 0.3;
-  const maxPoints = Math.floor(w / 2);
-  if (ecgData.length > maxPoints) ecgData = ecgData.slice(-maxPoints);
+const AGENTS=[{key:'main',icon:'🧠',name:'BRAIN'},{key:'scanner',icon:'👁',name:'EYES'},{key:'trader',icon:'💓',name:'HEART'},{key:'heartbeat',icon:'🌡',name:'NERVES'}];
+const EXTRAS=[{icon:'🩸',name:'BLOOD',det:'shared/',role:'Blood'},{icon:'🧬',name:'DNA',det:'config/params.py',role:'DNA'},{icon:'💪',name:'MUSCLES',det:'scripts/',role:'Muscle'}];
+const LAYERS=[{n:'①',name:'SOUL',p:'agents/*/SOUL.md'},{n:'②',name:'MEMORY',p:'agents/main/workspace/MEMORY.md'},{n:'③',name:'DNA',p:'config/params.py'},{n:'④',name:'MUSCLES',p:'scripts/ (executors)'},{n:'⑤',name:'BLOOD',p:'shared/ (signals)'},{n:'⑥',name:'MIRROR',p:'CLAUDE.md'}];
+const BCLR={main:'var(--accent-blue)',trader:'var(--accent-green)',scanner:'var(--accent-amber)',heartbeat:'var(--text-muted)'};
 
-  ecgCtx.fillStyle = '#0a0e17';
-  ecgCtx.fillRect(0, 0, w, h);
+// ── RENDER ──
+function render(){
+  if(!D)return;
 
-  // Grid lines
-  ecgCtx.strokeStyle = 'rgba(30,39,54,0.5)';
-  ecgCtx.lineWidth = 0.5;
-  for (let y = 10; y < h; y += 15) {
-    ecgCtx.beginPath(); ecgCtx.moveTo(0,y); ecgCtx.lineTo(w,y); ecgCtx.stroke();
-  }
+  // Header
+  const trg=D.trigger||'OFF';
+  const bT=document.getElementById('b-trg');bT.textContent='TRIGGER: '+trg;bT.className='badge '+(trg==='ON'?'badge-amber':'badge-dim');
+  const sig=D.signal_active||'NO';
+  const bS=document.getElementById('b-sig');bS.textContent='SIGNAL: '+sig;bS.className='badge '+(sig==='YES'?'badge-amber':'badge-dim');
+  document.getElementById('b-mode').textContent='MODE: '+(D.mode||'?');
+  document.getElementById('hd-ts').textContent=D.timestamp||'';
 
-  // ECG line
-  ecgCtx.strokeStyle = ecgColor;
-  ecgCtx.lineWidth = 1.5;
-  ecgCtx.shadowColor = ecgColor;
-  ecgCtx.shadowBlur = 4;
-  ecgCtx.beginPath();
-  const mid = h / 2;
-  for (let i = 0; i < ecgData.length; i++) {
-    const x = (i / maxPoints) * w;
-    const y = mid - ecgData[i] * 1.5;
-    i === 0 ? ecgCtx.moveTo(x, y) : ecgCtx.lineTo(x, y);
-  }
-  ecgCtx.stroke();
-  ecgCtx.shadowBlur = 0;
+  // Stat cards
+  document.getElementById('v-bal').textContent='$'+(parseFloat(D.balance)||0).toFixed(2);
+  const pos=D.position,dir=D.direction;const vp=document.getElementById('v-pos');
+  if(pos&&pos!=='NONE'&&pos!=='—'&&pos!=='---'){vp.innerHTML='<span class="dot dot-a"></span>'+pos+(dir&&dir!=='—'&&dir!=='---'?' '+dir:'')}
+  else{vp.innerHTML='<span class="dot dot-g"></span>No position'}
+  document.getElementById('v-scans').textContent=D.scan_count||'0';
+  document.getElementById('v-trigs').textContent=(D.scan_log||[]).filter(l=>l.includes('TRIGGER')).length;
+  document.getElementById('v-loss').textContent=D.consecutive_losses||'0';
 
-  // Scan head dot
-  if (ecgData.length > 0) {
-    const lastX = ((ecgData.length-1) / maxPoints) * w;
-    const lastY = mid - ecgData[ecgData.length-1] * 1.5;
-    ecgCtx.fillStyle = ecgColor;
-    ecgCtx.beginPath();
-    ecgCtx.arc(lastX, lastY, 3, 0, Math.PI*2);
-    ecgCtx.fill();
-  }
+  // Market Vitals
+  const syms=['BTC','ETH','XRP','XAG'],prices=D.prices||{},hist=D.price_history||{};
+  syms.forEach(s=>{if(hist[s])pH[s]=hist[s]});
+  document.getElementById('mkt-body').innerHTML=syms.map(s=>{
+    const p=parseFloat(prices[s])||0,h=pH[s]||[],old=h.length>1?h[0]:p;
+    const chg=old>0?((p-old)/old*100):0;
+    const cls=chg>0.01?'c-pos':chg<-0.01?'c-neg':'c-flat';
+    const str=(chg>=0?'+':'')+chg.toFixed(2)+'%';
+    const clr=chg>=0?'#3fb950':'#f85149';
+    return'<div class="mk-row"><span class="mk-sym">'+s+'</span><span class="mk-price">'+fP(p)+'</span><span class="mk-spark">'+spark(h,clr)+'</span><span class="mk-chg '+cls+'">'+str+'</span></div>';
+  }).join('');
 
-  requestAnimationFrame(drawECG);
-}
-drawECG();
-
-// ─── Sparkline SVG ───
-function sparklineSVG(points, color) {
-  if (!points || points.length < 2) return '';
-  const w = 80, h = 20, pad = 2;
-  const min = Math.min(...points), max = Math.max(...points);
-  const range = max - min || 1;
-  const coords = points.map((p, i) => {
-    const x = pad + (i / (points.length-1)) * (w - pad*2);
-    const y = pad + (1 - (p - min) / range) * (h - pad*2);
-    return `${x},${y}`;
+  // Organism Status
+  const ags=D.agents||[],ft=D.file_tree||[];let oh='';
+  AGENTS.forEach(o=>{
+    const a=ags.find(x=>x.id===o.key)||{};const st=a.status||'off';
+    const stL={live:'online',ok:'idle',warn:'warning',off:'offline'}[st]||st;
+    const pid=a.pid?' · PID '+a.pid:'';
+    oh+='<div class="org-row" onclick="this.nextElementSibling.classList.toggle(\'open\')">'
+      +'<span class="org-ico">'+o.icon+'</span>'
+      +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+(a.id||o.key)+' · '+(a.model||'?')+pid+'</div></div>'
+      +'<div class="org-st"><span class="st-dot st-'+st+'"></span>'+stL+'</div></div>'
+      +'<div class="org-expand">workspace: '+(a.workspace||'—')+'</div>';
   });
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <polyline points="${coords.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
-  </svg>`;
-}
+  EXTRAS.forEach(o=>{
+    const f=ft.find(x=>x.role===o.role);const fc=f?f.files+' files':'';
+    oh+='<div class="org-row"><span class="org-ico">'+o.icon+'</span>'
+      +'<div class="org-info"><div class="org-name">'+o.name+'</div><div class="org-det">'+o.det+(fc?' · '+fc:'')+'</div></div>'
+      +'<div class="org-st"><span class="st-dot st-ok"></span>ok</div></div>';
+  });
+  document.getElementById('org-body').innerHTML=oh;
 
-// ─── Render Functions ───
-function renderPills(d) {
-  const el = document.getElementById('pills');
-  const trigCls = d.trigger === 'ON' ? 'pill-amber' : 'pill-dim';
-  const sigCls = d.signal_active === 'YES' ? 'pill-red' : 'pill-dim';
-  el.innerHTML = `
-    <span class="pill ${trigCls}">TRIGGER: ${d.trigger}</span>
-    <span class="pill ${sigCls}">SIGNAL: ${d.signal_active}</span>
-    <span class="pill pill-dim">MODE: ${d.mode}</span>
-  `;
-}
+  // Agent Activity
+  const costs=D.costs||{};
+  const calls={main:parseInt(costs.tier1_calls)||0,trader:parseInt(costs.tier1_calls)||0,scanner:parseInt(costs.tier2_calls)||0,heartbeat:parseInt(costs.tier3_calls)||0};
+  const mx=Math.max(...Object.values(calls),1);
+  document.getElementById('act-body').innerHTML=['main','trader','scanner','heartbeat'].map(id=>{
+    const c=calls[id];return'<div class="aa-row"><span class="aa-name">'+id+'</span><div class="aa-bar"><div class="aa-fill" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+BCLR[id]+'"></div></div><span class="aa-stat">'+c+' calls</span></div>';
+  }).join('')+'<div class="cost-line"><span>TODAY '+(costs.daily_total||'$0.00')+'</span><span>'+(costs.daily_calls||'0')+' calls total</span></div>';
 
-function renderVitals(d) {
-  const bal = parseFloat(d.balance) || 0;
-  const balSub = bal > 95 ? 'STABLE' : bal > 80 ? 'LOW' : 'CRITICAL';
-  const balColor = bal > 95 ? 'var(--green)' : bal > 80 ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('vitals').innerHTML = `
-    <div class="vital">
-      <div class="vital-num" style="color:${balColor}">$${bal.toFixed(2)}</div>
-      <div class="vital-label">CAPITAL</div>
-      <div class="vital-sub" style="color:${balColor}">${balSub}</div>
-    </div>
-    <div class="vital">
-      <div class="vital-num">${d.consecutive_losses}</div>
-      <div class="vital-label">CONSEC LOSSES</div>
-      <div class="vital-sub">${d.direction !== '---' ? d.direction : 'NO POSITION'}</div>
-    </div>
-    <div class="vital">
-      <div class="vital-num">${d.scan_count}</div>
-      <div class="vital-label">SCANS</div>
-      <div class="vital-sub">SINCE TRIGGER</div>
-    </div>
-  `;
-}
+  // System Layers
+  document.getElementById('lay-body').innerHTML=LAYERS.map(l=>'<div class="ly-row"><span class="ly-n">'+l.n+'</span><span class="ly-name">'+l.name+'</span><span class="ly-path mono">'+l.p+'</span></div>').join('');
 
-function renderBody(d) {
-  const organs = [
-    {icon:'&#x1F9E0;',name:'BRAIN',id:'main',role:'Decision + Routing'},
-    {icon:'&#x1F441;&#xFE0F;',name:'EYES',id:'scanner',role:'Market Perception'},
-    {icon:'&#x1F493;',name:'HEART',id:'trader',role:'Trade Execution'},
-    {icon:'&#x1F321;&#xFE0F;',name:'NERVES',id:'heartbeat',role:'Health Sensing'},
-  ];
-  const files = [
-    {icon:'&#x1FA78;',name:'BLOOD',desc:'shared/',detail:`${d.file_tree.find(f=>f.role==='Blood')?.files||0} signals`,status:'live'},
-    {icon:'&#x1F9EC;',name:'DNA',desc:'config/',detail:'params.py',status:'ok'},
-    {icon:'&#x1F4AA;',name:'MUSCLES',desc:'scripts/',detail:`${d.file_tree.find(f=>f.role==='Muscle')?.files||0} files`,status:'ok'},
-  ];
-
-  let html = '<div class="body-svg">';
-  for (const o of organs) {
-    const ag = d.agents.find(a => a.id === o.id) || {};
-    const dotCls = ag.status === 'live' ? 'dot-live' : ag.status === 'ok' ? 'dot-ok' : ag.status === 'warn' ? 'dot-warn' : 'dot-off';
-    const pidStr = ag.pid ? `PID ${ag.pid}` : ag.exit !== null && ag.exit !== undefined ? `exit ${ag.exit}` : 'idle';
-    html += `
-      <div class="organ" title="${o.role}">
-        <div class="organ-icon">${o.icon}</div>
-        <div>
-          <div class="organ-name">${o.name}</div>
-          <div class="organ-meta">${o.id} &middot; ${ag.model || '?'}</div>
-          <div class="organ-meta">${pidStr}</div>
-        </div>
-        <div class="organ-dot ${dotCls}"></div>
-      </div>
-      <div class="organ-connector"></div>`;
-  }
-  // File organs
-  for (const f of files) {
-    const dotCls = f.status === 'live' ? 'dot-live' : 'dot-ok';
-    html += `
-      <div class="organ">
-        <div class="organ-icon">${f.icon}</div>
-        <div>
-          <div class="organ-name">${f.name}</div>
-          <div class="organ-meta">${f.desc}</div>
-          <div class="organ-meta">${f.detail}</div>
-        </div>
-        <div class="organ-dot ${dotCls}"></div>
-      </div>
-      <div class="organ-connector"></div>`;
-  }
-  html += '</div>';
-  document.getElementById('body-diagram').innerHTML = html;
-}
-
-function renderMarkets(d) {
-  const syms = ['BTC','ETH','XRP','XAG'];
-  let html = '';
-  for (const sym of syms) {
-    const price = parseFloat(d.prices[sym]) || 0;
-    const history = d.price_history[sym] || [];
-    const prev = history.length >= 2 ? history[history.length-2] : price;
-    const chg = prev > 0 ? ((price - prev) / prev * 100) : 0;
-    const chgColor = chg >= 0 ? 'var(--green)' : 'var(--red)';
-    const arrow = chg >= 0 ? '&#x25B2;' : '&#x25BC;';
-    const sparkColor = chg >= 0 ? '#00ff88' : '#ff3355';
-
-    let priceStr;
-    if (price >= 1000) priceStr = '$' + price.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
-    else if (price >= 1) priceStr = '$' + price.toFixed(4);
-    else priceStr = '$' + price.toFixed(6);
-
-    html += `
-      <div class="market-row">
-        <div class="market-sym">${sym}</div>
-        <div class="market-price">${priceStr}</div>
-        <div class="market-spark">${sparklineSVG(history, sparkColor)}</div>
-        <div class="market-chg" style="color:${chgColor}">${arrow} ${Math.abs(chg).toFixed(2)}%</div>
-      </div>`;
-  }
-  document.getElementById('markets').innerHTML = html;
-}
-
-function renderActivity(d) {
-  const costs = d.costs || {};
-  const agents = [
-    {name:'scanner', calls: parseInt(d.scan_count)||0, color:'var(--green)'},
-    {name:'trader',  calls: 0, color:'var(--amber)'},
-    {name:'heartbeat',calls: 0, color:'var(--blue)'},
-    {name:'main',    calls: 0, color:'#aa66ff'},
-  ];
-  const maxCalls = Math.max(...agents.map(a=>a.calls), 1);
-  let html = '';
-  for (const a of agents) {
-    const pct = (a.calls / maxCalls * 100).toFixed(0);
-    html += `
-      <div class="act-row">
-        <div class="act-name">${a.name}</div>
-        <div class="act-bar-wrap"><div class="act-bar" style="width:${pct}%;background:${a.color}"></div></div>
-        <div class="act-val">${a.calls} calls</div>
-      </div>`;
-  }
-  html += `<div style="margin-top:8px;font-size:10px;color:#556;text-align:right">DAILY COST: ${costs.daily_total || '$0.00'}</div>`;
-  document.getElementById('activity').innerHTML = html;
-}
-
-function renderFileTree(d) {
-  const icons = {DNA:'&#x1F9EC;',Muscle:'&#x1F4AA;',Brain:'&#x1F9E0;',Heart:'&#x1F493;',Eye:'&#x1F441;&#xFE0F;',Nerve:'&#x1F321;&#xFE0F;',Blood:'&#x1FA78;',Logs:'&#x1F4CB;'};
-  let html = '';
-  for (const f of d.file_tree) {
-    html += `
-      <div class="tree-row" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">
-        <div class="tree-icon">${icons[f.role]||'&#x1F4C1;'}</div>
-        <div class="tree-path">${f.path}</div>
-        <div class="tree-role">${f.role}</div>
-        <div class="tree-count">${f.files} files</div>
-      </div>
-      <div class="tree-hint">${f.hint}</div>`;
-  }
-  // CLAUDE.md
-  html += `
-    <div class="tree-row">
-      <div class="tree-icon">&#x1F4CB;</div>
-      <div class="tree-path">CLAUDE.md</div>
-      <div class="tree-role">Mirror</div>
-      <div class="tree-count">root</div>
-    </div>`;
-  document.getElementById('file-tree').innerHTML = html;
-}
-
-function renderScanLog(d) {
-  let html = '';
-  for (const line of d.scan_log) {
-    let cls = 'log-normal';
-    if (line.includes('TRIGGER')) cls = 'log-trigger';
-    else if (line.includes('ERROR')) cls = 'log-error';
-    html += `<div class="log-line ${cls}">${line}</div>`;
-  }
-  const el = document.getElementById('scan-log');
-  el.innerHTML = html;
-  el.scrollTop = el.scrollHeight;
-}
-
-// ─── Data Fetch ───
-let triggerCount = 0;
-
-async function fetchData() {
-  try {
-    const resp = await fetch('/api/data');
-    const d = await resp.json();
-
-    // ECG: trigger spike when new triggers detected
-    const newTriggers = parseInt(d.scan_count) || 0;
-    if (d.trigger === 'ON') {
-      lastTriggerTime = ecgT;
-      ecgColor = '#00ff88';
-    }
-
-    // Check for errors
-    const hasError = d.agents.some(a => a.status === 'warn' || a.status === 'off');
-    if (hasError) ecgColor = '#ff3355';
-
-    // Check flatline (last_scan age)
-    document.getElementById('ecg-rate').textContent =
-      `SCAN: 3min interval | LAST: ${d.last_scan}`;
-
-    renderPills(d);
-    renderVitals(d);
-    renderBody(d);
-    renderMarkets(d);
-    renderActivity(d);
-    renderFileTree(d);
-    renderScanLog(d);
-  } catch(e) {
-    ecgColor = '#ff3355';
-    document.getElementById('ecg-rate').textContent = 'CONNECTION LOST';
+  // Scan Log
+  if(!paused){
+    const lines=(D.scan_log||[]).slice(-20).reverse();
+    document.getElementById('log-body').innerHTML=lines.map(l=>{
+      let cls='ll-sil',tag='SILENT',tc='t-sil';
+      if(l.includes('TRIGGER')){cls='ll-trg';tag='TRIGGER';tc='t-trg'}
+      else if(l.includes('ERROR')){cls='ll-err';tag='ERROR';tc='t-err'}
+      else if(l.includes('DEEP')){tag='DEEP';tc='t-deep'}
+      const tm=(l.match(/\d{2}:\d{2}/)||[''])[0];
+      const rest=l.replace(/^\[.*?\]\s*/,'');
+      return'<div class="ll '+cls+'"><span class="tag '+tc+'">'+tag+'</span>'+tm+' '+rest+'</div>';
+    }).join('');
   }
 }
 
-// Initial + 30s refresh
-fetchData();
-setInterval(fetchData, 30000);
+// ── NAV ──
+document.querySelectorAll('.nav-item[data-t]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    el.classList.add('active');
+    const t=document.getElementById(el.dataset.t);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+});
+
+// ── PAUSE ──
+document.getElementById('btn-pause').addEventListener('click',function(){paused=!paused;this.textContent=paused?'RESUME':'PAUSE'});
+
+// ── FETCH ──
+async function load(){try{const r=await fetch('/api/data');D=await r.json();render()}catch(e){console.error(e)}}
+load();setInterval(load,30000);
 </script>
 </body>
 </html>

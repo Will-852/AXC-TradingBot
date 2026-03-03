@@ -129,7 +129,7 @@ def update_price_history(prices):
         if sym not in history:
             history[sym] = []
         history[sym].append(p)
-        history[sym] = history[sym][-10:]
+        history[sym] = history[sym][-20:]
     with open(PRICE_HISTORY_PATH, "w") as f:
         json.dump(history, f)
     return history
