@@ -13,8 +13,17 @@ import os
 import re
 import subprocess
 import sys
+import time
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 PORT = 5555
 HOME = os.path.expanduser("~/.openclaw")
@@ -101,16 +110,139 @@ def get_file_tree():
     return tree
 
 
-def get_cost_tracker():
-    path = os.path.join(HOME, "workspace/routing/COST_TRACKER.md")
-    data = parse_md(path)
+def get_agent_activity():
+    """Derive agent call counts from scan log + cost from tracker."""
+    ct = parse_md(os.path.join(HOME, "workspace/routing/COST_TRACKER.md"))
+    daily_total = ct.get("DAILY_TOTAL", "$0.00")
+
+    today = datetime.now(HKT).strftime("%Y-%m-%d")
+    log_path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
+    scanner_calls = 0
+    trader_calls = 0
+    if os.path.exists(log_path):
+        with open(log_path) as f:
+            for line in f:
+                if today not in line:
+                    continue
+                if "LIGHT" in line:
+                    scanner_calls += 1
+                if "DEEP" in line:
+                    trader_calls += 1
+
+    now = datetime.now(HKT)
+    hb_calls = (now.hour * 60 + now.minute) // 25
+
+    total_calls = scanner_calls + trader_calls + hb_calls
     return {
-        "daily_total": data.get("DAILY_TOTAL", "$0.00"),
-        "daily_calls": data.get("DAILY_CALLS", "0"),
-        "tier1_calls": data.get("TIER1_CALLS", "0"),
-        "tier2_calls": data.get("TIER2_CALLS", "0"),
-        "tier3_calls": data.get("TIER3_CALLS", "0"),
+        "main": {"calls": trader_calls, "cost": 0.0},
+        "trader": {"calls": trader_calls, "cost": 0.0},
+        "scanner": {"calls": scanner_calls, "cost": 0.0},
+        "heartbeat": {"calls": hb_calls, "cost": 0.0},
+        "total_cost": daily_total,
+        "total_calls": total_calls,
+        "projected_30d": "$0.00",
+        "no_data": scanner_calls == 0 and trader_calls == 0,
     }
+
+
+def get_uptime():
+    """Get main agent uptime via psutil."""
+    result = {"main_pid": None, "started": "—", "duration": "—"}
+    try:
+        la = get_launchagents()
+        pid_str = la.get("ai.openclaw.gateway", {}).get("pid")
+        if not pid_str or not HAS_PSUTIL:
+            return result
+        pid = int(pid_str)
+        p = psutil.Process(pid)
+        start = p.create_time()
+        started_dt = datetime.fromtimestamp(start, tz=HKT)
+        result["main_pid"] = pid
+        result["started"] = started_dt.strftime("%Y-%m-%d %H:%M")
+
+        elapsed = time.time() - start
+        days = int(elapsed // 86400)
+        hours = int((elapsed % 86400) // 3600)
+        mins = int((elapsed % 3600) // 60)
+        if days > 0:
+            result["duration"] = f"{days}d {hours}h {mins}m"
+        elif hours > 0:
+            result["duration"] = f"{hours}h {mins}m"
+        else:
+            result["duration"] = f"{mins}m"
+    except Exception:
+        pass
+    return result
+
+
+def get_git_info():
+    """Get last git commit info."""
+    result = {"hash": "—", "message": "—", "date": "—", "time_ago": "—"}
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", HOME, "log", "--format=%H|%s|%ai", "-1"],
+            text=True, timeout=5,
+        ).strip()
+        parts = out.split("|", 2)
+        if len(parts) >= 3:
+            full_hash, msg, date_str = parts
+            result["hash"] = full_hash[:7]
+            result["message"] = msg
+            result["date"] = date_str[:10]
+            commit_dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S %z")
+            now = datetime.now(commit_dt.tzinfo or HKT)
+            secs = (now - commit_dt).total_seconds()
+            if secs < 3600:
+                result["time_ago"] = f"{int(secs // 60)}m ago"
+            elif secs < 86400:
+                result["time_ago"] = f"{int(secs // 3600)}h ago"
+            else:
+                result["time_ago"] = f"{int(secs // 86400)}d ago"
+    except Exception:
+        pass
+    return result
+
+
+def get_telegram_status():
+    """Check Telegram bot connectivity."""
+    result = {"connected": False, "bot_name": "—", "last_sent": "—"}
+    token = None
+    env_path = os.path.join(HOME, "secrets/.env")
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                if line.strip().startswith("TELEGRAM_BOT_TOKEN="):
+                    token = line.strip().split("=", 1)[1].strip().strip("'\"")
+                    break
+    if not token:
+        return result
+    try:
+        url = f"https://api.telegram.org/bot{token}/getMe"
+        req = urllib.request.Request(url, headers={"User-Agent": "OpenClaw/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("ok"):
+                result["connected"] = True
+                result["bot_name"] = "@" + data["result"].get("username", "?")
+    except Exception:
+        pass
+    for log_name in ["lightscan.log", "heartbeat.log"]:
+        log_path = os.path.join(HOME, "logs", log_name)
+        if not os.path.exists(log_path):
+            continue
+        try:
+            with open(log_path) as f:
+                for line in reversed(f.readlines()[-50:]):
+                    if "telegram" in line.lower() or "sent" in line.lower():
+                        m = re.search(r'(\d{2}:\d{2})', line)
+                        if m:
+                            result["last_sent"] = m.group(1)
+                            break
+        except Exception:
+            pass
+        if result["last_sent"] != "—":
+            break
+    return result
 
 
 def update_price_history(prices):
@@ -201,7 +333,10 @@ def collect_data():
         "trigger": scan_config.get("TRIGGER_PENDING", "OFF"),
         "scan_count": scan_config.get("LIGHT_SCAN_COUNT", "0"),
         "last_scan": last_scan_ts,
-        "costs": get_cost_tracker(),
+        "agent_activity": get_agent_activity(),
+        "uptime": get_uptime(),
+        "git": get_git_info(),
+        "telegram": get_telegram_status(),
     }
 
 
