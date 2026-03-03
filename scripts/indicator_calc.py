@@ -21,12 +21,13 @@ import pandas as pd
 import requests
 import tradingview_indicators as tv
 
-sys.path.insert(0, '/Users/wai/.openclaw')
-from config.params import (
-    BB_TOUCH_TOL_DEFAULT,
-    BB_TOUCH_TOL_XRP,
-    BB_WIDTH_MIN,
-)
+import importlib.util
+_spec = importlib.util.spec_from_file_location("openclaw_params", "/Users/wai/.openclaw/config/params.py")
+_params = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_params)
+BB_TOUCH_TOL_DEFAULT = _params.BB_TOUCH_TOL_DEFAULT
+BB_TOUCH_TOL_XRP = _params.BB_TOUCH_TOL_XRP
+BB_WIDTH_MIN = _params.BB_WIDTH_MIN
 
 # ─── Aster DEX API ───
 API_BASE = "https://fapi.asterdex.com"
