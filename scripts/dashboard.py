@@ -32,6 +32,20 @@ PRICE_HISTORY_PATH = os.path.join(HOME, "shared", "price_history.json")
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 
+# Whitelist: only decision-relevant params with Chinese labels
+PARAMS_DISPLAY = {
+    "SCAN_INTERVAL_SEC":       ("掃描間隔", "秒"),
+    "RISK_PER_TRADE_PCT":      ("風險/單", "%"),
+    "MAX_OPEN_POSITIONS":      ("最大倉位", ""),
+    "MAX_POSITION_SIZE_USDT":  ("倉位上限", "$"),
+    "RANGE_SL_ATR_MULT":       ("R:SL", "×ATR"),
+    "RANGE_TP_ATR_MULT":       ("R:TP", "×ATR"),
+    "TREND_SL_ATR_MULT":       ("T:SL", "×ATR"),
+    "TREND_TP_ATR_MULT":       ("T:TP", "×ATR"),
+    "RANGE_ENTRY_CONFIRM":     ("入場確認", ""),
+    "TREND_ENTRY_CONFIRM":     ("趨勢確認", ""),
+}
+
 
 def parse_md(path):
     data = {}
@@ -48,19 +62,71 @@ def parse_md(path):
     return data
 
 
-def get_agents():
-    agents = []
+def get_agent_info():
+    """Dynamic agent info: model from SOUL.md → openclaw.json fallback, status from launchctl."""
+    agent_map = {
+        "main": {"name": "主腦", "label": "ai.openclaw.gateway"},
+        "scanner": {"name": "掃描器", "label": "ai.openclaw.lightscan"},
+        "trader": {"name": "交易員", "label": "ai.openclaw.tradercycle"},
+        "heartbeat": {"name": "心跳", "label": "ai.openclaw.heartbeat"},
+    }
+    # Models from openclaw.json as fallback
+    oc_models = {}
     try:
         with open(os.path.join(HOME, "openclaw.json")) as f:
             cfg = json.load(f)
         defaults = cfg.get("agents", {}).get("defaults", {})
+        default_model = defaults.get("model", {}).get("primary", "unknown")
         for a in cfg.get("agents", {}).get("list", []):
             aid = a.get("id", "?")
-            ws = a.get("workspace", defaults.get("workspace", ""))
-            model = a.get("model", defaults.get("model", {}).get("primary", "?"))
-            agents.append({"id": aid, "workspace": ws, "model": model})
+            oc_models[aid] = a.get("model", default_model).split("/")[-1]
     except Exception:
         pass
+    la = get_launchagents()
+    agents = []
+    for aid, meta in agent_map.items():
+        # Try SOUL.md for model string
+        model = None
+        soul_path = os.path.join(HOME, "agents", aid, "workspace", "SOUL.md")
+        if os.path.exists(soul_path):
+            try:
+                with open(soul_path) as f:
+                    for line in f:
+                        ll = line.lower()
+                        if 'model:' in ll or 'model =' in ll:
+                            model = line.split(':', 1)[-1].strip()
+                            model = model.split('=', 1)[-1].strip().strip('"\'')
+                            break
+                        if any(m in line for m in ['claude-', 'gpt-', 'gemini-', 'llama']):
+                            match = re.search(
+                                r'(claude-[\w.-]+|gpt-[\w.-]+|gemini-[\w.-]+|llama-[\w.-]+)',
+                                line,
+                            )
+                            if match:
+                                model = match.group(1)
+                                break
+            except Exception:
+                pass
+        if not model:
+            model = oc_models.get(aid, "未知模型")
+        # Status from launchagents
+        la_info = la.get(meta["label"], {})
+        if la_info.get("pid"):
+            status = "online"
+            pid = la_info["pid"]
+        elif la_info.get("exit") == 0:
+            status = "idle"
+            pid = None
+        elif la_info.get("exit") is not None:
+            status = "error"
+            pid = None
+        else:
+            status = "error"
+            pid = None
+        agents.append({
+            "id": aid, "name": meta["name"], "model": model,
+            "pid": pid, "status": status,
+        })
     return agents
 
 
@@ -289,6 +355,78 @@ def get_trigger_summary():
     return {"total": total, "by_asset": asset_list, "by_reason": reason_list}
 
 
+def get_trading_params():
+    """Read ALL params dynamically from config/params.py. Zero hardcoded keys."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "params", os.path.join(HOME, "config/params.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        params = {}
+        for k in dir(mod):
+            if k.startswith('_'):
+                continue
+            v = getattr(mod, k)
+            if isinstance(v, (int, float, str, bool, list)):
+                params[k] = v
+        return params
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_trade_state():
+    """Read full trade state dynamically from TRADE_STATE.md."""
+    path = os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md")
+    state = {
+        "balance": 0, "pnl_today": 0, "pnl_total": 0,
+        "position": "無", "direction": "—",
+        "consecutive_losses": 0, "daily_loss": 0,
+        "in_position": False, "market_mode": "RANGE",
+        "system_status": "UNKNOWN", "cooldown_active": False,
+    }
+    if not os.path.exists(path):
+        return state
+    try:
+        with open(path) as f:
+            content = f.read()
+    except Exception:
+        return state
+    patterns = {
+        "balance": r'BALANCE_USDT:\s*\$?([\d.]+)',
+        "daily_loss": r'DAILY_LOSS:\s*\$?([\d.]+)',
+        "consecutive_losses": r'CONSECUTIVE_LOSSES:\s*(\d+)',
+    }
+    for key, pattern in patterns.items():
+        m = re.search(pattern, content)
+        if m:
+            state[key] = float(m.group(1))
+    m = re.search(r'MARKET_MODE:\s*(\w+)', content)
+    if m:
+        state["market_mode"] = m.group(1)
+    m = re.search(r'SYSTEM_STATUS:\s*(\w+)', content)
+    if m:
+        state["system_status"] = m.group(1)
+    m = re.search(r'COOLDOWN_ACTIVE:\s*(\w+)', content)
+    if m:
+        state["cooldown_active"] = m.group(1) == "YES"
+    m = re.search(r'POSITION_OPEN:\s*(\w+)', content)
+    if m:
+        state["in_position"] = m.group(1) == "YES"
+    if not state["in_position"]:
+        state["position"] = "無"
+        state["direction"] = "—"
+    else:
+        m = re.search(r'(?:^|\n)\s*PAIR:\s*(\S+)', content)
+        if m and m.group(1) != '—':
+            state["position"] = m.group(1)
+        m = re.search(r'DIRECTION:\s*(\S+)', content)
+        if m and m.group(1) != '—':
+            state["direction"] = m.group(1)
+    return state
+
+
 def get_trade_history():
     """Parse trade history from TRADE_LOG.md markdown table."""
     path = os.path.join(HOME, "workspace/agents/trader/TRADE_LOG.md")
@@ -296,62 +434,79 @@ def get_trade_history():
     if not os.path.exists(path):
         return trades
     with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line.startswith("|") or line.startswith("| #") or line.startswith("|---"):
-                continue
-            parts = [p.strip() for p in line.split("|")[1:-1]]
-            if len(parts) < 7:
-                continue
-            try:
-                date = parts[1].strip()
-                asset = parts[2].strip().replace("/", "")
-                direction = parts[3].strip()
-                entry_str = parts[4].replace("$", "").strip()
-                exit_str = parts[5].strip()
-                pnl_str = parts[6].strip()
-                entry = float(entry_str) if entry_str else 0.0
-                is_open = "OPEN" in exit_str
-                exit_price = 0.0
-                if not is_open:
-                    m = re.search(r'[\$]?([\d.]+)', exit_str)
-                    if m:
-                        exit_price = float(m.group(1))
-                pnl = 0.0
-                m = re.search(r'[\$]?([\d.]+)', pnl_str)
+        content = f.read()
+    for line in content.split('\n'):
+        line = line.strip()
+        if not line.startswith("|") or line.startswith("| #") or line.startswith("|---"):
+            continue
+        parts = [p.strip() for p in line.split("|")[1:-1]]
+        if len(parts) < 7:
+            continue
+        try:
+            date = parts[1].strip()
+            asset = parts[2].strip().replace("/", "")
+            direction = parts[3].strip()
+            entry_str = parts[4].replace("$", "").strip()
+            exit_str = parts[5].strip()
+            pnl_str = parts[6].strip()
+            entry = float(entry_str) if entry_str else 0.0
+            is_open = "OPEN" in exit_str
+            exit_price = 0.0
+            if not is_open:
+                m = re.search(r'[\$]?([\d.]+)', exit_str)
                 if m:
-                    pnl = float(m.group(1))
-                    if '-' in pnl_str:
-                        pnl = -pnl
-                trades.append({
-                    "dir": direction,
-                    "asset": asset,
-                    "entry": entry,
-                    "exit": exit_price if not is_open else None,
-                    "pnl": pnl,
-                    "time": date,
-                    "open": is_open,
-                })
-            except Exception:
-                continue
+                    exit_price = float(m.group(1))
+            pnl = 0.0
+            m = re.search(r'[\$]?([\d.]+)', pnl_str)
+            if m:
+                pnl = float(m.group(1))
+                if '-' in pnl_str:
+                    pnl = -pnl
+            trade = {
+                "dir": direction,
+                "asset": asset,
+                "entry": entry,
+                "exit": exit_price if not is_open else None,
+                "pnl": pnl,
+                "time": date,
+                "open": is_open,
+                "size": 0,
+            }
+            # For open trades, try to parse size from detail sections
+            if is_open:
+                m_size = re.search(r'大小[:：]\s*([\d.]+)', content)
+                if m_size:
+                    trade["size"] = float(m_size.group(1))
+            trades.append(trade)
+        except Exception:
+            continue
     return trades[-5:]
 
 
 def get_risk_status():
-    """Read risk parameters from settings.py and current state."""
+    """Read risk parameters dynamically from settings.py + TRADE_STATE.md. Zero hardcoded values."""
+    import importlib.util
+    # Load settings.py via importlib
+    circuit_daily = 0
+    circuit_single = 0
+    cooldown_2 = 0
+    cooldown_3 = 0
+    max_hold = 0
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "settings", os.path.join(HOME, "scripts/trader_cycle/config/settings.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        circuit_daily = getattr(mod, "CIRCUIT_BREAKER_DAILY", 0)
+        circuit_single = getattr(mod, "CIRCUIT_BREAKER_SINGLE", 0)
+        cooldown_2 = getattr(mod, "COOLDOWN_2_LOSSES_MIN", 0)
+        cooldown_3 = getattr(mod, "COOLDOWN_3_LOSSES_MIN", 0)
+        max_hold = getattr(mod, "MAX_HOLD_HOURS", 0)
+    except Exception:
+        pass
+    # Trade state
     trade_state = parse_md(os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md"))
-    settings_path = os.path.join(HOME, "scripts/trader_cycle/config/settings.py")
-    circuit_daily = 0.15
-    cooldown_3 = 120
-    if os.path.exists(settings_path):
-        with open(settings_path) as f:
-            content = f.read()
-        m = re.search(r'CIRCUIT_BREAKER_DAILY\s*=\s*([\d.]+)', content)
-        if m:
-            circuit_daily = float(m.group(1))
-        m = re.search(r'COOLDOWN_3_LOSSES_MIN\s*=\s*(\d+)', content)
-        if m:
-            cooldown_3 = int(m.group(1))
     cons_losses = 0
     try:
         cons_losses = int(trade_state.get("CONSECUTIVE_LOSSES", "0"))
@@ -363,20 +518,28 @@ def get_risk_status():
                         trade_state.get("ACCOUNT_BALANCE", "0")))
     except (ValueError, TypeError):
         pass
-    max_daily_loss = round(balance * circuit_daily, 2)
+    max_daily_loss = round(balance * circuit_daily, 2) if circuit_daily else 0
     daily_loss = 0.0
     dl_str = trade_state.get("DAILY_LOSS", "0")
     m = re.search(r'[\$]?([\d.]+)', str(dl_str))
     if m:
         daily_loss = float(m.group(1))
     market_mode = trade_state.get("MARKET_MODE", "RANGE")
+    cooldown_active = trade_state.get("COOLDOWN_ACTIVE", "NO") == "YES"
+    # max consecutive derived from highest cooldown tier
+    max_cons = 3 if cooldown_3 > 0 else (2 if cooldown_2 > 0 else 1)
     return {
         "consecutive_losses": cons_losses,
-        "max_consecutive_losses": 3,
+        "max_consecutive_losses": max_cons,
         "daily_loss": daily_loss,
         "max_daily_loss": max_daily_loss,
+        "circuit_daily_pct": round(circuit_daily * 100),
+        "circuit_single_pct": round(circuit_single * 100),
+        "cooldown_2_min": cooldown_2,
+        "cooldown_3_min": cooldown_3,
+        "max_hold_hours": max_hold,
         "market_mode": market_mode,
-        "trigger_cooldown": cons_losses >= 2,
+        "trigger_cooldown": cooldown_active or cons_losses >= 2,
     }
 
 
@@ -433,15 +596,31 @@ def update_price_history(prices):
     return history
 
 
+def _enrich_trades(trades, prices):
+    """Add current_price to open trades for unrealized PnL calculation."""
+    for t in trades:
+        if t.get("open"):
+            sym = t["asset"].replace("USDT", "")
+            try:
+                t["current_price"] = float(prices.get(sym, 0))
+            except (ValueError, TypeError):
+                t["current_price"] = 0
+    return trades
+
+
 def collect_data():
     ts = datetime.now(HKT).strftime("%Y-%m-%d %H:%M:%S UTC+8")
-    trade_state = parse_md(os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md"))
-    signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
+
+    # All dynamic sources
+    agents = get_agent_info()
+    params = get_trading_params()
+    trade = get_trade_state()
+
+    pnl_history = update_pnl_history(trade["balance"])
+
+    # Prices from scan config
     scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
-
-    balance = trade_state.get("BALANCE_USDT", trade_state.get("ACCOUNT_BALANCE", "0"))
-    pnl_history = update_pnl_history(balance)
-
+    signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
     prices = {
         "BTC": scan_config.get("BTC_price", "0"),
         "ETH": scan_config.get("ETH_price", "0"),
@@ -449,52 +628,46 @@ def collect_data():
         "XAG": scan_config.get("XAG_price", "0"),
     }
     price_history = update_price_history(prices)
-
-    la = get_launchagents()
-    agent_labels = {
-        "main": "ai.openclaw.gateway",
-        "scanner": "ai.openclaw.lightscan",
-        "trader": "ai.openclaw.tradercycle",
-        "heartbeat": "ai.openclaw.heartbeat",
-    }
-    agents = []
-    for a in get_agents():
-        aid = a["id"]
-        label = agent_labels.get(aid, "")
-        la_info = la.get(label, {})
-        if la_info.get("pid"):
-            status = "live"
-            pid = la_info["pid"]
-        elif la_info.get("exit") == 0:
-            status = "ok"
-            pid = None
-        elif la_info.get("exit") is not None:
-            status = "warn"
-            pid = None
-        else:
-            status = "off"
-            pid = None
-        agents.append({
-            "id": aid,
-            "model": a["model"].split("/")[-1],
-            "workspace": a["workspace"],
-            "status": status,
-            "pid": pid,
-            "exit": la_info.get("exit"),
-        })
-
     last_scan_ts = scan_config.get("last_updated", signal.get("TIMESTAMP", "?"))
+
+    # Build params_display from whitelist
+    params_display = []
+    for key, (label, unit) in PARAMS_DISPLAY.items():
+        val = params.get(key)
+        if val is not None:
+            if unit == "%" and isinstance(val, float) and val < 1:
+                display = f"{val*100:.0f}{unit}"
+            elif unit == "$":
+                display = f"{unit}{val}"
+            else:
+                display = f"{val}{unit}"
+            params_display.append({"label": label, "value": display})
+
+    # Unrealized PnL from open trades
+    trades = _enrich_trades(get_trade_history(), prices)
+    unrealized_pnl = 0.0
+    for t in trades:
+        if t.get("open") and t.get("current_price") and t.get("entry") and t.get("size"):
+            cp, ep, sz = float(t["current_price"]), float(t["entry"]), float(t["size"])
+            diff = (cp - ep) if t["dir"] == "LONG" else (ep - cp)
+            unrealized_pnl += diff * sz
+    unrealized_pnl = round(unrealized_pnl, 2)
+    bal = trade["balance"] or 0
+    unrealized_pct = round(unrealized_pnl / bal * 100, 2) if bal > 0 else 0.0
 
     return {
         "timestamp": ts,
-        "balance": balance,
-        "mode": scan_config.get("MARKET_MODE", trade_state.get("MARKET_MODE", "?")),
+        "balance": trade["balance"],
+        "mode": trade["market_mode"],
         "signal_active": signal.get("SIGNAL_ACTIVE", "NO"),
         "signal_pair": signal.get("PAIR", "---"),
-        "position": trade_state.get("POSITION_STATUS", trade_state.get("PAIR", "NONE")),
-        "direction": trade_state.get("DIRECTION", "---"),
-        "consecutive_losses": trade_state.get("CONSECUTIVE_LOSSES", "0"),
+        "position": trade["position"],
+        "direction": trade["direction"],
+        "in_position": trade["in_position"],
+        "consecutive_losses": int(trade["consecutive_losses"]),
         "agents": agents,
+        "params": params,
+        "params_display": params_display,
         "scan_log": get_scan_log(),
         "file_tree": get_file_tree(),
         "prices": prices,
@@ -508,8 +681,10 @@ def collect_data():
         "telegram": get_telegram_status(),
         "trigger_summary": get_trigger_summary(),
         "pnl_history": pnl_history,
-        "trade_history": get_trade_history(),
+        "trade_history": trades,
         "risk_status": get_risk_status(),
+        "unrealized_pnl": unrealized_pnl,
+        "unrealized_pct": unrealized_pct,
     }
 
 
