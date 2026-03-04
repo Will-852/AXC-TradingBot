@@ -67,6 +67,40 @@ log = logging.getLogger("tg_bot")
 
 # ── Pending orders (chat_id → order data) ─────────
 pending_orders: dict = {}
+PENDING_FILE = BASE_DIR / "shared/pending_orders.json"
+
+
+def _save_pending():
+    """Persist pending orders to disk."""
+    serializable = {}
+    for cid, p in pending_orders.items():
+        serializable[str(cid)] = {
+            "order":     p["order"],
+            "expire_at": p["expire_at"].isoformat(),
+            "msg_id":    p["msg_id"],
+        }
+    PENDING_FILE.write_text(json.dumps(serializable, ensure_ascii=False))
+
+
+def _load_pending():
+    """Restore unexpired pending orders on startup."""
+    if not PENDING_FILE.exists():
+        return
+    try:
+        data = json.loads(PENDING_FILE.read_text())
+        now  = datetime.now(timezone.utc)
+        for cid_str, p in data.items():
+            expire = datetime.fromisoformat(p["expire_at"])
+            if expire > now:
+                pending_orders[int(cid_str)] = {
+                    "order":     p["order"],
+                    "expire_at": expire,
+                    "msg_id":    p["msg_id"],
+                }
+        if pending_orders:
+            log.info(f"恢復 {len(pending_orders)} 個待確認訂單")
+    except Exception as e:
+        log.warning(f"恢復 pending_orders 失敗: {e}")
 
 
 # ════════════════════════════════════════════════════
@@ -85,13 +119,22 @@ def is_allowed(update: Update) -> bool:
 # Claude API (via proxy, no SDK)
 # ════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """你係 OpenClaw 智能交易助手，跑喺用戶本地 Mac。
+SYSTEM_PROMPT = """你係 OpenClaw 智能交易助手，跑喺用戶本地 Mac 上面。
+
+重要：必須用廣東話回覆。唔可以用普通話或書面中文。
 
 你可以存取本地交易狀態、掃描記錄、歷史記憶。
-用廣東話回覆，簡潔直接，數字具體。
-如果係下單指令，用結構化格式解析。
-報告用 emoji 標示重要資訊。
-保持在 1000 字以內。"""
+回覆要求：
+- 廣東話，簡潔直接
+- 數字用具體數值
+- 建議要有根據，引用本地數據
+- 報告格式整齊，用 emoji 標示重要資訊
+- 保持在 1000 字以內
+
+唔好講：
+- 「我可以保持活躍」（你係 stateless，每次對話獨立）
+- 「請確認優先順序」（直接給建議）
+- 「我理解你的意思」（直接答）"""
 
 
 def call_claude(user_msg: str, context: str, system: str = None,
@@ -334,7 +377,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/mode — 切換模式\n"
         "/sl breakeven — 移止損至開倉價\n"
         "/pause — 暫停交易\n"
-        "/resume — 恢復交易\n\n"
+        "/resume — 恢復交易\n"
+        "/cancel — 取消待確認訂單\n\n"
         "*下單*\n"
         "直接輸入：「買入 XAG 50蚊」\n"
         "或：「平倉 BTC」\n\n"
@@ -507,6 +551,21 @@ async def cmd_sl_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# ── /cancel ──
+
+async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Explicitly cancel pending order."""
+    if not is_allowed(update):
+        return
+    chat_id = update.effective_chat.id
+    if chat_id in pending_orders:
+        pending_orders.pop(chat_id)
+        _save_pending()
+        await update.message.reply_text("❌ 待確認訂單已取消")
+    else:
+        await update.message.reply_text("✅ 無待確認訂單")
+
+
 # ── /pause /resume ──
 
 async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -550,11 +609,23 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _handle_analysis(update, question)
 
 
+async def _safe_retrieve(query: str, top_k: int = 6) -> list:
+    """RAG search in executor (voyage-3 API won't block event loop)."""
+    try:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, lambda: retrieve_full(query, top_k=top_k)
+        )
+    except Exception as e:
+        log.warning(f"RAG 搜尋失敗: {e}")
+        return []
+
+
 async def _handle_analysis(update: Update, text: str):
     """RAG + local state + Claude analysis."""
     await update.message.reply_text("🤔 思考中...")
 
-    memories = retrieve_full(text, top_k=6)
+    memories = await _safe_retrieve(text, top_k=6)
     mem_text = format_for_prompt(memories, max_chars=2000)
     local_text = read_local_context()
 
@@ -650,6 +721,7 @@ async def _request_order_confirmation(update: Update, order: dict):
         "expire_at": expire_at,
         "msg_id":    msg.message_id,
     }
+    _save_pending()
 
 
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -679,17 +751,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not pending or datetime.now(timezone.utc) > pending["expire_at"]:
         await query.edit_message_text("⏱ 已過期，訂單取消")
         pending_orders.pop(chat_id, None)
+        _save_pending()
         return
 
     if data == "order_cancel":
         await query.edit_message_text("❌ 訂單已取消")
         pending_orders.pop(chat_id, None)
+        _save_pending()
         return
 
     if data == "order_confirm":
         order = pending["order"]
         await query.edit_message_text("⏳ 下單中...")
         pending_orders.pop(chat_id, None)
+        _save_pending()
 
         result = execute_order(order)
 
@@ -722,9 +797,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ════════════════════════════════════════════════════
 
 async def check_and_push_alerts(app):
-    """Background task: monitor for position closes + agent stalls."""
-    last_positions = set()
-    last_alert_time = {}
+    """Background task: monitor for position closes + agent stalls.
+
+    Fix: None sentinel prevents false close reports on bot restart.
+    Fix: stall_warned flag prevents repeated warnings.
+    """
+    last_positions = None   # None = not yet initialized (NOT empty set)
+    stall_warned   = False
 
     while True:
         try:
@@ -738,17 +817,26 @@ async def check_and_push_alerts(app):
             except Exception:
                 continue
 
+            # First run: snapshot only, no comparison
+            if last_positions is None:
+                last_positions = current
+                log.info(f"初始持倉快照: {current or '無持倉'}")
+                continue
+
             # Detect closed positions
             closed = last_positions - current
-            if closed and last_positions:  # skip first run
+            if closed:
                 for symbol in closed:
-                    memories = retrieve_full(f"{symbol} 交易 平倉", top_k=4)
-                    mem_text = format_for_prompt(memories, max_chars=1000)
-                    local    = read_local_context()
-                    context  = (mem_text + "\n\n" + local) if mem_text else local
+                    try:
+                        memories = retrieve_full(f"{symbol} 交易 平倉", top_k=4)
+                        mem_text = format_for_prompt(memories, max_chars=1000)
+                    except Exception:
+                        mem_text = ""
+                    local   = read_local_context()
+                    context = (mem_text + "\n\n" + local) if mem_text else local
 
                     report = call_claude(
-                        f"{symbol} 剛剛平倉了。請生成交易報告：入場/出場分析、盈虧、下次建議",
+                        f"{symbol} 剛剛平倉。請用廣東話生成交易報告：入場/出場分析、盈虧、下次建議",
                         context,
                     )
 
@@ -761,21 +849,20 @@ async def check_and_push_alerts(app):
 
             last_positions = current
 
-            # Agent health: warn if main brain stalls > 15min (max once per hour)
+            # Agent health: warn if main brain stalls > 15min
             main_mem = BASE_DIR / "agents/main/sessions/sessions.json"
             if main_mem.exists():
                 mtime = datetime.fromtimestamp(main_mem.stat().st_mtime)
                 mins  = int((datetime.now() - mtime).total_seconds() / 60)
-                now_ts = datetime.now(timezone.utc)
-                last_main = last_alert_time.get("main_stall")
 
-                if mins > 15 and (not last_main or
-                        (now_ts - last_main).total_seconds() > 3600):
+                if mins > 15 and not stall_warned:
                     await app.bot.send_message(
                         ALLOWED_CHAT_ID,
                         f"⚠️ 主腦已 {mins} 分鐘無活動！請檢查系統。",
                     )
-                    last_alert_time["main_stall"] = now_ts
+                    stall_warned = True
+                elif mins <= 15:
+                    stall_warned = False  # reset after recovery
 
         except asyncio.CancelledError:
             break
@@ -800,6 +887,8 @@ def main():
     log.info(f"  Claude: {CLAUDE_MODEL} via {PROXY_BASE_URL}")
     log.info(f"  Memory: {BASE_DIR / 'memory'}")
 
+    _load_pending()
+
     app = Application.builder().token(TG_TOKEN).build()
 
     # Deterministic commands (zero AI cost)
@@ -817,6 +906,7 @@ def main():
     app.add_handler(CommandHandler("sl",      cmd_sl_handler))
     app.add_handler(CommandHandler("pause",   cmd_pause))
     app.add_handler(CommandHandler("resume",  cmd_resume_handler))
+    app.add_handler(CommandHandler("cancel",  cmd_cancel))
 
     # AI-powered
     app.add_handler(CommandHandler("ask",     cmd_ask))
