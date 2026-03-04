@@ -152,6 +152,19 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .bdiv{height:1px;background:var(--border-s);margin:16px 0}
 .bpills{display:flex;gap:8px;flex-wrap:wrap}
 
+/* ═══ POSITION TABLE ═══ */
+.pos-section{padding:14px 20px;flex-shrink:0}
+.pos-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pos-empty{text-align:center;padding:16px;color:var(--tm);font-size:12px}
+.pos-tbl{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px}
+.pos-tbl th{text-align:left;padding:6px 8px;color:var(--tm);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border-s);white-space:nowrap}
+.pos-tbl td{padding:7px 8px;border-bottom:1px solid var(--border-d);white-space:nowrap}
+.pos-tbl tr:last-child td{border-bottom:none}
+.pos-dir{font-weight:700;padding:2px 6px;border-radius:4px;font-size:10px}
+.pos-long{background:rgba(0,184,148,.15);color:var(--pos)}
+.pos-short{background:rgba(255,71,87,.15);color:var(--neg)}
+.pos-pnl{font-weight:600}
+
 /* (old flat market rows .mr/.ms/.mp/.mk/.mc/.ma removed — replaced by OKX ticker) */
 
 /* ═══ LOWER: ROW 1 + ROW 2 ═══ */
@@ -369,7 +382,7 @@ button:active{transform:scale(0.97);transition:transform .08s}
         <div class="bv" id="bal-num">$0.00</div>
         <div class="bsub">
           <div><div class="bl">今日盈虧</div><div class="bs" id="bal-pnl" style="color:var(--ts)">$0.00</div></div>
-          <div><div class="bl">持倉</div><div class="bs" id="bal-pos" style="color:var(--ts)">無</div></div>
+          <div><div class="bl">持倉數</div><div class="bs" id="bal-pos" style="color:var(--ts)">0</div></div>
         </div>
         <div class="bdiv"></div>
         <div class="bpills">
@@ -388,6 +401,36 @@ button:active{transform:scale(0.97);transition:transform .08s}
           </div>
         </div>
         <div id="ticker-list"></div>
+      </div>
+    </section>
+
+    <!-- POSITIONS -->
+    <section class="cd pos-section" id="pos-section">
+      <div class="pos-header">
+        <span class="panel-title">持倉</span>
+        <span class="pos-summary" id="pos-summary" style="font-size:11px;color:var(--tm)">無持倉</span>
+      </div>
+      <div id="pos-table-wrap">
+        <div class="pos-empty" id="pos-empty">無持倉</div>
+        <table class="pos-tbl" id="pos-tbl" style="display:none">
+          <thead>
+            <tr>
+              <th>幣種</th>
+              <th>方向</th>
+              <th>入場</th>
+              <th>現價</th>
+              <th>數量</th>
+              <th>名義</th>
+              <th>保證金</th>
+              <th>槓桿</th>
+              <th>SL</th>
+              <th>TP</th>
+              <th>清算</th>
+              <th>盈虧</th>
+            </tr>
+          </thead>
+          <tbody id="pos-tbody"></tbody>
+        </table>
       </div>
     </section>
 
@@ -558,8 +601,40 @@ function render(){if(!D)return;
   if(!balInit){countUp(document.getElementById('bal-num'),bal);balInit=true}else{document.getElementById('bal-num').textContent='$'+bal.toFixed(2)}
   var todayPnl=D.today_pnl||0;var tpClr=todayPnl>=0?'var(--pos)':'var(--neg)';var tpSign=todayPnl>=0?'+':'';
   document.getElementById('bal-pnl').textContent=tpSign+'$'+todayPnl.toFixed(2);document.getElementById('bal-pnl').style.color=tpClr;
+  /* Position count in balance card */
   var ep=document.getElementById('bal-pos');
-  if(D.in_position){var posLbl=D.position+(D.direction&&D.direction!=='—'?' '+D.direction:'');if(D.unrealized_pnl!==undefined&&D.unrealized_pnl!==0){var up=D.unrealized_pnl,uc=up>=0?'var(--pos)':'var(--neg)',us=up>=0?'+':'';posLbl+=' ('+us+'$'+up.toFixed(2)+')'}ep.textContent=posLbl;ep.style.color='var(--warn)'}else{ep.textContent='無';ep.style.color='var(--ts)'}
+  var lp=D.live_positions||[];
+  ep.textContent=lp.length;ep.style.color=lp.length>0?'var(--warn)':'var(--ts)';
+
+  /* Position table */
+  var ptbl=document.getElementById('pos-tbl'),pempty=document.getElementById('pos-empty'),ptb=document.getElementById('pos-tbody'),psum=document.getElementById('pos-summary');
+  if(lp.length>0){
+    var totalUp=0;ptb.innerHTML='';
+    for(var i=0;i<lp.length;i++){
+      var p=lp[i],up=p.unrealized_pnl||0,upct=p.unrealized_pct||0;
+      totalUp+=up;
+      var uc=up>=0?'var(--pos)':'var(--neg)',us=up>=0?'+':'';
+      var dc=p.direction==='LONG'?'pos-long':'pos-short';
+      var mt=(p.margin_type==='isolated'?'逐倉':'全倉');
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td style="font-weight:600">'+p.pair.replace('USDT','')+'</td>'
+        +'<td><span class="pos-dir '+dc+'">'+p.direction+'</span></td>'
+        +'<td>$'+p.entry_price.toFixed(4)+'</td>'
+        +'<td>$'+p.mark_price.toFixed(4)+'</td>'
+        +'<td>'+p.size+'</td>'
+        +'<td>$'+p.notional.toFixed(2)+'</td>'
+        +'<td>$'+p.margin.toFixed(2)+'</td>'
+        +'<td>'+p.leverage+'x '+mt+'</td>'
+        +'<td style="color:var(--neg)">'+(p.sl_price>0?'$'+p.sl_price.toFixed(4):'—')+'</td>'
+        +'<td style="color:var(--pos)">'+(p.tp_price>0?'$'+p.tp_price.toFixed(4):'—')+'</td>'
+        +'<td style="color:var(--tm)">$'+(p.liq_price||0).toFixed(4)+'</td>'
+        +'<td class="pos-pnl" style="color:'+uc+'">'+us+'$'+up.toFixed(2)+' ('+us+upct.toFixed(1)+'%)</td>';
+      ptb.appendChild(tr);
+    }
+    var tuc=totalUp>=0?'var(--pos)':'var(--neg)',tus=totalUp>=0?'+':'';
+    psum.innerHTML=lp.length+'個持倉 · 總盈虧 <span style="color:'+tuc+';font-weight:600">'+tus+'$'+totalUp.toFixed(2)+'</span>';
+    ptbl.style.display='table';pempty.style.display='none';
+  }else{ptbl.style.display='none';pempty.style.display='block';psum.textContent='無持倉'}
   document.getElementById('bp-mode').textContent=D.mode||'?';
   document.getElementById('bp-trg').textContent='觸發: '+(t==='ON'?'開':'關');
   document.getElementById('bp-sig').textContent='訊號: '+(s==='YES'?'有':'無');
