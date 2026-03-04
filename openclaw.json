@@ -128,17 +128,17 @@
         "model": "tier3/gpt-5-mini"
       },
       {
-        "id": "scanner",
-        "name": "scanner",
-        "workspace": "/Users/wai/.openclaw/agents/scanner/workspace",
-        "agentDir": "/Users/wai/.openclaw/agents/scanner/agent",
+        "id": "aster_scanner",
+        "name": "aster_scanner",
+        "workspace": "/Users/wai/.openclaw/agents/aster_scanner/workspace",
+        "agentDir": "/Users/wai/.openclaw/agents/aster_scanner/agent",
         "model": "tier2/claude-haiku-4-5-20251001"
       },
       {
-        "id": "trader",
-        "name": "trader",
-        "workspace": "/Users/wai/.openclaw/agents/trader/workspace",
-        "agentDir": "/Users/wai/.openclaw/agents/trader/agent",
+        "id": "aster_trader",
+        "name": "aster_trader",
+        "workspace": "/Users/wai/.openclaw/agents/aster_trader/workspace",
+        "agentDir": "/Users/wai/.openclaw/agents/aster_trader/agent",
         "model": "tier1/claude-sonnet-4-6"
       }
     ]

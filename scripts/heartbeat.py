@@ -44,10 +44,10 @@ from trader_cycle.state.file_lock import FileLock
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/trader/TRADE_STATE.md")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/trader/config/SCAN_CONFIG.md")
+TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
+SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
 COST_TRACKER_PATH = os.path.join(WORKSPACE, "routing/COST_TRACKER.md")
-SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/trader/logs/SCAN_LOG.md")
+SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
 
 # Thresholds
 COST_SOFT_LIMIT = 0.50

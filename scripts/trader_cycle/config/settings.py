@@ -8,10 +8,10 @@ from datetime import timezone, timedelta
 
 # ─── Paths ───
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/trader/config/SCAN_CONFIG.md")
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/trader/TRADE_STATE.md")
-TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/trader/TRADE_LOG.md")
-SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/trader/logs/SCAN_LOG.md")
+SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
+TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
+TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
+SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
 API_KEYS_PATH = os.path.join(WORKSPACE, "keys/API_KEYS.md")
 LOG_DIR = os.path.expanduser("~/.openclaw/logs")
 

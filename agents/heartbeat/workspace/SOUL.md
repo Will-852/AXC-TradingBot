@@ -41,6 +41,6 @@ python3 /Users/wai/.openclaw/workspace/tools/heartbeat.py
 ## 共享狀態路徑
 
 - TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/trader/config/SCAN_CONFIG.md
+- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
 - COST_TRACKER: ~/.openclaw/workspace/routing/COST_TRACKER.md
-- SCAN_LOG: ~/.openclaw/workspace/agents/trader/logs/SCAN_LOG.md
+- SCAN_LOG: ~/.openclaw/workspace/agents/aster_trader/logs/SCAN_LOG.md

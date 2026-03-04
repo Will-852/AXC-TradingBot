@@ -16,9 +16,9 @@ from datetime import datetime, timezone, timedelta
 
 HKT = timezone(timedelta(hours=8))
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/trader/TRADE_STATE.md")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/trader/config/SCAN_CONFIG.md")
-TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/trader/TRADE_LOG.md")
+TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
+SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
+TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"

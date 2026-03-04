@@ -119,12 +119,75 @@ class CheckPositionsStep:
         # ─── Orphan Detection ───
         self._detect_orphans(ctx)
 
+        # ─── Auto-detect SL/TP close ───
+        self._detect_exchange_close(ctx)
+
         if ctx.verbose:
             print(f"    [LIVE] Balance: ${ctx.account_balance:.2f} | Positions: {len(ctx.open_positions)}")
             for pos in ctx.open_positions:
                 print(f"      {pos.pair} {pos.direction} size={pos.size} entry={pos.entry_price} pnl={pos.unrealized_pnl:.2f}")
 
         return ctx
+
+    def _detect_exchange_close(self, ctx: CycleContext) -> None:
+        """
+        Detect positions closed by exchange (SL/TP fill).
+        If TRADE_STATE says POSITION_OPEN=YES but exchange has 0 positions,
+        the position was closed externally. Query income for PnL and auto-log.
+        Pure Python — zero AI tokens.
+        """
+        ts = ctx.trade_state
+        was_open = str(ts.get("POSITION_OPEN", "NO")).upper() == "YES"
+        if not was_open or ctx.open_positions:
+            return  # No transition — either wasn't open or still is
+
+        pair = str(ts.get("PAIR", "—")).replace("/", "")
+        direction = str(ts.get("DIRECTION", "—"))
+        entry_price = _parse_float(ts.get("ENTRY_PRICE", 0))
+        size = _parse_float_with_unit(ts.get("SIZE", 0))
+
+        if not pair or pair == "—":
+            return
+
+        # Query exchange for realized PnL
+        realized_pnl = 0.0
+        exit_reason = "SL/TP"
+        try:
+            income = ctx.exchange_client.get_income(
+                income_type="REALIZED_PNL", limit=10
+            )
+            # Find most recent PnL for this pair
+            for entry in reversed(income):
+                if entry.get("symbol", "") == pair:
+                    realized_pnl = float(entry.get("income", 0))
+                    break
+        except Exception as e:
+            logger.warning(f"Income query for close detection failed: {e}")
+
+        # Log the close
+        ctx.trade_log_entries.append(
+            f"[{ctx.timestamp_str}] EXIT {direction} {pair} "
+            f"size={size} entry={entry_price} "
+            f"pnl={realized_pnl:.4f} reason={exit_reason}"
+        )
+
+        # Clear position in trade state
+        ctx.trade_state_updates.update({
+            "POSITION_OPEN": "NO",
+            "PAIR": "—",
+            "DIRECTION": "—",
+            "ENTRY_PRICE": "0",
+            "SIZE": "0",
+            "SL_PRICE": "0",
+            "TP_PRICE": "0",
+        })
+
+        logger.info(
+            f"[AUTO-CLOSE] {pair} {direction} closed by exchange "
+            f"(entry={entry_price}, pnl={realized_pnl:.4f})"
+        )
+        if ctx.verbose:
+            print(f"    ⚠ AUTO-CLOSE detected: {pair} {direction} pnl={realized_pnl:.4f}")
 
     def _detect_orphans(self, ctx: CycleContext) -> None:
         """

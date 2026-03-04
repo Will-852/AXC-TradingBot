@@ -190,14 +190,14 @@
 
 □ Step 2  更新以下檔案（全部）：
 
-  agents/trader/config/SCAN_CONFIG.md:
+  agents/aster_trader/config/SCAN_CONFIG.md:
     - [PRICES] 加入 PAIR_price / PAIR_price_ts
     - [ATR] 加入 PAIR_ATR
     - [SR_LEVELS] 加入 PAIR_support / PAIR_resistance
     - [SR_ZONES] 加入 PAIR_support_zone / PAIR_resistance_zone
     - [FUNDING] 加入 PAIR_funding_last
 
-  agents/trader/EXCHANGE_CONFIG.md:
+  agents/aster_trader/EXCHANGE_CONFIG.md:
     - 交易對設定表格加入新 pair
 
   core/STRATEGY.md:
