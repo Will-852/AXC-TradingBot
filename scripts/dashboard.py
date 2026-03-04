@@ -29,6 +29,7 @@ PORT = 5555
 HOME = os.path.expanduser("~/.openclaw")
 HKT = timezone(timedelta(hours=8))
 PRICE_HISTORY_PATH = os.path.join(HOME, "shared", "price_history.json")
+PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 
 
@@ -288,6 +289,37 @@ def get_trigger_summary():
     return {"total": total, "by_asset": asset_list, "by_reason": reason_list}
 
 
+def update_pnl_history(balance):
+    """Track PnL history, persist to shared/pnl_history.json."""
+    data = {"baseline": None, "history": []}
+    if os.path.exists(PNL_HISTORY_PATH):
+        try:
+            with open(PNL_HISTORY_PATH) as f:
+                data = json.load(f)
+        except Exception:
+            data = {"baseline": None, "history": []}
+    try:
+        bal = float(balance)
+    except (ValueError, TypeError):
+        return data.get("history", [])
+    if data.get("baseline") is None:
+        data["baseline"] = bal
+    now = int(time.time())
+    pnl = round(bal - data["baseline"], 2)
+    hist = data.get("history", [])
+    if hist and now - hist[-1]["t"] < 30:
+        hist[-1] = {"t": now, "v": pnl}
+    else:
+        hist.append({"t": now, "v": pnl})
+    data["history"] = hist[-200:]
+    try:
+        with open(PNL_HISTORY_PATH, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+    return data["history"]
+
+
 def update_price_history(prices):
     history = {}
     if os.path.exists(PRICE_HISTORY_PATH):
@@ -315,6 +347,9 @@ def collect_data():
     trade_state = parse_md(os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md"))
     signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
     scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
+
+    balance = trade_state.get("BALANCE_USDT", trade_state.get("ACCOUNT_BALANCE", "0"))
+    pnl_history = update_pnl_history(balance)
 
     prices = {
         "BTC": scan_config.get("BTC_price", "0"),
@@ -361,7 +396,7 @@ def collect_data():
 
     return {
         "timestamp": ts,
-        "balance": trade_state.get("BALANCE_USDT", trade_state.get("ACCOUNT_BALANCE", "0")),
+        "balance": balance,
         "mode": scan_config.get("MARKET_MODE", trade_state.get("MARKET_MODE", "?")),
         "signal_active": signal.get("SIGNAL_ACTIVE", "NO"),
         "signal_pair": signal.get("PAIR", "---"),
@@ -381,6 +416,7 @@ def collect_data():
         "git": get_git_info(),
         "telegram": get_telegram_status(),
         "trigger_summary": get_trigger_summary(),
+        "pnl_history": pnl_history,
     }
 
 
