@@ -849,19 +849,20 @@ async def check_and_push_alerts(app):
 
             last_positions = current
 
-            # Agent health: warn if main brain stalls > 15min
-            main_mem = BASE_DIR / "agents/main/sessions/sessions.json"
-            if main_mem.exists():
-                mtime = datetime.fromtimestamp(main_mem.stat().st_mtime)
+            # Agent health: warn if SCANNER stalls > 10min
+            # (scanner runs every 3min; main agent is on-demand, not monitored)
+            scan_log = BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md"
+            if scan_log.exists():
+                mtime = datetime.fromtimestamp(scan_log.stat().st_mtime)
                 mins  = int((datetime.now() - mtime).total_seconds() / 60)
 
-                if mins > 15 and not stall_warned:
+                if mins > 10 and not stall_warned:
                     await app.bot.send_message(
                         ALLOWED_CHAT_ID,
-                        f"⚠️ 主腦已 {mins} 分鐘無活動！請檢查系統。",
+                        f"⚠️ 掃描器已 {mins} 分鐘無更新！請檢查 lightscan。",
                     )
                     stall_warned = True
-                elif mins <= 15:
+                elif mins <= 10:
                     stall_warned = False  # reset after recovery
 
         except asyncio.CancelledError:
