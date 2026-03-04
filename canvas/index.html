@@ -13,24 +13,46 @@
   --tp:#f0f4f8;--ts:#8b95a1;--tm:#4a5568;
   --pos:#34d399;--neg:#f87171;--warn:#fbbf24;--info:#60a5fa;--purp:#a78bfa;
 }
-html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter',system-ui,sans-serif;font-size:15px;line-height:1.5;overflow:hidden}
+html,body{height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter',system-ui,sans-serif;font-size:15px;line-height:1.5;overflow:hidden}
 .mono{font-family:'JetBrains Mono',monospace}
 
-#sidebar{position:fixed;left:0;top:0;bottom:0;width:56px;background:var(--bg-0);border-right:1px solid var(--border-s);z-index:100;display:flex;flex-direction:column;align-items:center;padding:12px 0}
-.si{position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;margin:4px 0;cursor:pointer;border-left:2px solid transparent;opacity:0.35;transition:opacity .15s}
-.si:hover{opacity:0.7}.si.on{opacity:1;border-left-color:var(--pos)}.si.won{opacity:1;border-left-color:var(--warn)}
-.si-sp{position:absolute;top:8px;left:8px}
-.si-dot{position:absolute;bottom:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--tm)}
-.si-dot.dl{background:var(--pos);animation:sp 3s ease infinite}.si-dot.dok{background:var(--pos);opacity:.6}
-.si-dot.dw{background:var(--warn);animation:sb .5s step-end infinite}
-@keyframes sp{0%,100%{opacity:1}50%{opacity:.4}}@keyframes sb{50%{opacity:0}}
-.si-sep{width:24px;height:1px;background:var(--border-s);margin:8px 0}
-.si[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);background:var(--bg-2);color:var(--tp);font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid var(--border-d);white-space:nowrap;z-index:200;pointer-events:none}
+/* ═══ SIDEBAR 200px ═══ */
+#sidebar{position:fixed;left:0;top:0;bottom:0;width:200px;background:var(--bg-0);border-right:1px solid rgba(255,255,255,0.06);z-index:100;display:flex;flex-direction:column;overflow:hidden}
+.sb-logo{padding:16px 16px 12px}
+.sb-brand{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--pos);letter-spacing:.12em}
+.sb-sub{font-size:10px;color:var(--tm);margin-top:2px}
+.sb-label{padding:12px 16px 6px;font-size:10px;text-transform:uppercase;color:var(--tm);letter-spacing:.1em;font-weight:500}
 
-#header{height:52px;background:var(--bg-0);border-bottom:1px solid var(--border-s);display:flex;align-items:center;padding:0 20px;gap:16px}
-.hb{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.15em;flex-shrink:0}
-.hb-g{color:var(--pos)}.hb-m{color:var(--tm)}
-#ecg{width:160px;height:32px;flex-shrink:0;opacity:.9}
+.sb-agent{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;margin:1px 8px;border-radius:6px;cursor:default;transition:background .15s}
+.sb-agent:hover{background:rgba(255,255,255,0.03)}
+.sb-asp{width:26px;height:26px;flex-shrink:0;position:relative;overflow:hidden}
+.sb-asp .organ-sprite{position:absolute;top:0;left:0}
+.sb-ai{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.sb-an{font-size:12px;font-weight:500;color:var(--tp);line-height:1.2}
+.sb-am{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tm);line-height:1.2}
+.sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sb-dot.dl{background:var(--pos);box-shadow:0 0 4px var(--pos)}
+.sb-dot.dok{background:var(--warn)}
+.sb-dot.dw{background:var(--neg)}
+.sb-dot.doff{background:var(--tm)}
+
+.sb-layer{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;margin:1px 8px;border-radius:6px;cursor:pointer;transition:background .15s;position:relative}
+.sb-layer:hover{background:rgba(255,255,255,0.03)}
+.sb-ld{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sb-ln{font-size:12px;font-weight:500;color:var(--tp);flex:1}
+.sb-lf{font-size:9px;font-weight:500;letter-spacing:.05em;padding:2px 7px;border-radius:20px;flex-shrink:0}
+.sb-tip{display:none;position:absolute;left:190px;top:50%;transform:translateY(-50%);background:var(--bg-3);color:var(--info);font-family:'JetBrains Mono',monospace;font-size:11px;padding:6px 10px;border-radius:6px;border:1px solid var(--border-d);white-space:nowrap;z-index:200;pointer-events:none}
+.sb-layer:hover .sb-tip{display:block}
+
+.sb-bottom{margin-top:auto;border-top:1px solid var(--border-s)}
+.sb-settings{display:flex;align-items:center;gap:6px;height:32px;padding:8px 16px;font-size:12px;color:var(--tm);cursor:pointer}
+.sb-settings:hover{color:var(--ts)}
+
+/* ═══ HEADER 52px ═══ */
+#header{height:52px;background:var(--bg-0);border-bottom:1px solid var(--border-s);display:flex;align-items:center;padding:0 16px 0 16px;gap:12px}
+.ecg-wrap{display:flex;flex-direction:column;flex-shrink:0}
+#ecg{width:160px;height:32px;opacity:.9}
+.ecg-label{font-size:10px;color:var(--tm);margin-top:-2px}
 .hr{display:flex;gap:8px;margin-left:auto;align-items:center;flex-shrink:0}
 .pill{font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border-s);color:var(--tm);white-space:nowrap}
 .pill-on{color:var(--pos);border-color:rgba(52,211,153,.3)}
@@ -39,12 +61,14 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .ldot{width:6px;height:6px;border-radius:50%;background:var(--pos);animation:lp 2s ease infinite;flex-shrink:0}
 @keyframes lp{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
 
-#main{margin-left:56px;height:100vh;display:flex;flex-direction:column}
-#content{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:16px;overflow:hidden}
+/* ═══ MAIN ═══ */
+#main{margin-left:200px;height:100vh;display:flex;flex-direction:column}
+#content{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:16px;overflow:hidden;height:calc(100vh - 52px - 36px)}
 
 .hero{display:grid;grid-template-columns:35fr 65fr;gap:16px;height:280px;flex-shrink:0}
 .cd{background:var(--bg-1);border:1px solid var(--border-d);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 
+/* Balance card */
 .bl{font-size:11px;text-transform:uppercase;color:var(--tm);letter-spacing:.1em;font-weight:500}
 .bv{font-family:'JetBrains Mono',monospace;font-size:56px;font-weight:700;line-height:1.1;margin:12px 0 16px}
 .bsub{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -52,6 +76,7 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .bdiv{height:1px;background:var(--border-s);margin:16px 0}
 .bpills{display:flex;gap:8px;flex-wrap:wrap}
 
+/* Market card */
 .mhd{padding:16px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-s);flex-shrink:0}
 .ml{font-size:13px;color:var(--ts);font-weight:500}
 .mtabs{display:flex}.mt{font-size:11px;color:var(--tm);padding:4px 12px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
@@ -68,23 +93,16 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .pfl{animation:pf .8s ease}@keyframes pf{0%{background:rgba(52,211,153,.15)}100%{background:transparent}}
 .pfn{animation:pfn .8s ease}@keyframes pfn{0%{background:rgba(248,113,113,.15)}100%{background:transparent}}
 
-.drow{display:grid;grid-template-columns:32fr 28fr 40fr;gap:16px;flex:1;min-height:0}
-.dc{display:flex;flex-direction:column;min-height:0}.dc .cd{flex:1;min-height:0}
-.sl{font-size:11px;text-transform:uppercase;color:var(--tm);letter-spacing:.1em;font-weight:500;margin-bottom:8px}
+/* ═══ LOWER ROW: 2 columns ═══ */
+.drow{display:grid;grid-template-columns:42fr 58fr;gap:16px;flex:1;min-height:0;overflow:hidden}
+.dc-left{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
+.dc-right{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.dc-right .cd{flex:1;min-height:0}
 
-.lr{display:flex;align-items:center;height:54px;padding:0 16px;cursor:pointer;transition:background .15s}
-.lr:hover{background:var(--bg-3)}
-.ld{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.li{flex:1;margin-left:14px;min-width:0}
-.ln{font-size:14px;font-weight:500}.lp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lf{font-size:10px;font-weight:500;letter-spacing:.05em;padding:3px 10px;border-radius:20px;flex-shrink:0}
-.lch{font-size:18px;color:var(--tm);margin-left:8px;flex-shrink:0;transition:transform .2s}
-.lr.open .lch{transform:rotate(90deg)}
-.lsep{height:1px;background:var(--border-s);margin-left:36px}
-.lex{max-height:0;overflow:hidden;transition:max-height .2s ease}
-.lex.open{max-height:60px}
-.lex-in{padding:4px 16px 12px 36px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--info)}
+/* Section label */
+.sl{font-size:11px;text-transform:uppercase;color:var(--tm);letter-spacing:.1em;font-weight:500;margin-bottom:6px;flex-shrink:0}
 
+/* Activity */
 .ar{display:flex;align-items:center;height:52px;padding:0 16px;gap:12px}
 .ac{width:28px;height:32px;flex-shrink:0;position:relative}
 .chr-sprite{position:absolute;top:0;left:0;width:1px;height:1px;background:transparent;transform:scale(2);transform-origin:top left;image-rendering:pixelated}
@@ -94,7 +112,18 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .as{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tm);width:48px;text-align:right;flex-shrink:0}
 .aft{padding:12px 16px;border-top:1px solid var(--border-s);font-size:11px;color:var(--tm);margin-top:auto}
 
-.lgb{flex:1;overflow-y:auto;padding:4px 0}.lgb::-webkit-scrollbar{width:0}
+/* Trigger summary */
+.tg-n{font-family:'JetBrains Mono',monospace;font-size:36px;font-weight:700;line-height:1.1;margin:4px 0 10px}
+.tg-sec{font-size:10px;text-transform:uppercase;color:var(--tm);letter-spacing:.08em;font-weight:500;margin:8px 0 4px}
+.tg-r{display:flex;align-items:center;gap:8px;height:22px}
+.tg-rl{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ts);width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tg-bar{flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.tg-bf{height:100%;border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.tg-rc{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tm);width:28px;text-align:right;flex-shrink:0}
+.tg-empty{padding:16px 0;font-size:12px;color:var(--tm);text-align:center}
+
+/* Scan log */
+.lgb{flex:1;overflow-y:scroll;padding:4px 0;scrollbar-width:none}.lgb::-webkit-scrollbar{display:none}
 .ll{display:flex;align-items:center;height:36px;padding:0 16px;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;transition:background .15s}
 .ll:hover{background:var(--bg-3)}
 .lt{color:var(--tm);font-size:11px;flex-shrink:0;width:40px}
@@ -105,26 +134,42 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .lb-d{background:var(--bg-3);color:var(--tm);border:1px solid var(--border-s)}
 .lb-e{background:rgba(248,113,113,.2);color:#fff;border:1px solid rgba(248,113,113,.3)}
 
+/* Footer */
 #footer{height:36px;background:var(--bg-0);border-top:1px solid var(--border-s);display:flex;align-items:center;padding:0 20px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tm);gap:6px;flex-shrink:0}
 .fh{color:var(--info)}.fc{margin:0 auto}.fr{display:flex;align-items:center;gap:6px;margin-left:auto}
 .ftd{width:6px;height:6px;border-radius:50%;display:inline-block}
+
+/* Pixel sprites */
 .organ-sprite{width:1px;height:1px;background:transparent;transform:scale(3);transform-origin:top left;image-rendering:pixelated}
 </style>
 </head>
 <body>
+
+<!-- ═══ SIDEBAR ═══ -->
 <nav id="sidebar">
-  <div class="si on" data-agent="main" data-tip="大腦"><span class="si-sp"><span class="organ-sprite organ-brain"></span></span><span class="si-dot"></span></div>
-  <div class="si" data-agent="scanner" data-tip="眼"><span class="si-sp"><span class="organ-sprite organ-eye"></span></span><span class="si-dot"></span></div>
-  <div class="si" data-agent="trader" data-tip="心臟"><span class="si-sp"><span class="organ-sprite organ-heart"></span></span><span class="si-dot"></span></div>
-  <div class="si" data-agent="heartbeat" data-tip="神經"><span class="si-sp"><span class="organ-sprite organ-nerve"></span></span><span class="si-dot"></span></div>
-  <div class="si-sep"></div>
-  <div style="flex:1"></div>
-  <div class="si" data-tip="設定"><span style="font-size:18px">⚙</span></div>
+  <div class="sb-logo">
+    <div class="sb-brand">OPENCLAW</div>
+    <div class="sb-sub">ICU MONITOR</div>
+  </div>
+
+  <div class="sb-label">AGENTS</div>
+  <div id="sb-agents"></div>
+
+  <div class="sb-label" style="margin-top:8px">SYSTEM</div>
+  <div id="sb-layers"></div>
+
+  <div class="sb-bottom">
+    <div class="sb-settings"><span>⚙</span> <span>設定</span></div>
+  </div>
 </nav>
+
+<!-- ═══ MAIN ═══ -->
 <div id="main">
   <header id="header">
-    <span class="hb"><span class="hb-g">OPENCLAW</span><span class="hb-m"> 深切治療</span></span>
-    <canvas id="ecg" width="160" height="32"></canvas>
+    <div class="ecg-wrap">
+      <canvas id="ecg" width="160" height="32"></canvas>
+      <span class="ecg-label">1 pulse / 3分鐘</span>
+    </div>
     <div class="hr">
       <span class="pill" id="p-trg">觸發: 關</span>
       <span class="pill" id="p-sig">訊號: 無</span>
@@ -156,9 +201,20 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
       </div>
     </section>
     <section class="drow">
-      <div class="dc"><div class="sl">系統層級</div><div class="cd" id="lay-card"></div></div>
-      <div class="dc"><div class="sl">代理活動</div><div class="cd"><div id="act-body"></div><div class="aft" id="act-foot">—</div></div></div>
-      <div class="dc"><div class="sl" style="display:flex;justify-content:space-between;align-items:center"><span>掃描記錄</span><button class="lb-d" id="btn-pause" style="cursor:pointer;background:transparent;font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px">暫停</button></div><div class="cd"><div class="lgb" id="log-body"></div></div></div>
+      <div class="dc-left">
+        <div>
+          <div class="sl">代理活動</div>
+          <div class="cd"><div id="act-body"></div><div class="aft" id="act-foot">—</div></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+          <div class="sl">觸發摘要</div>
+          <div class="cd" style="flex:1;padding:14px 16px;min-height:0;overflow-y:auto"><div id="trg-body"></div></div>
+        </div>
+      </div>
+      <div class="dc-right">
+        <div class="sl" style="display:flex;justify-content:space-between;align-items:center"><span>掃描記錄</span><button id="btn-pause" style="cursor:pointer;background:transparent;font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border-s);color:var(--tm)">暫停</button></div>
+        <div class="cd"><div class="lgb" id="log-body"></div></div>
+      </div>
     </section>
   </div>
   <footer id="footer">
@@ -167,16 +223,24 @@ html,body{height:100%;background:var(--bg-0);color:var(--tp);font-family:'Inter'
     <span class="fr" id="ft-tg">📱 —</span>
   </footer>
 </div>
+
 <script>
 let D=null,pH={},paused=false,prevP={},balInit=false;
+
+/* ═══ ECG ═══ */
 const ecg=document.getElementById('ecg').getContext('2d');
 const EW=160,EH=32,EM=16;let eX=0;
 ecg.fillStyle='#080b10';ecg.fillRect(0,0,EW,EH);
 function ecgStep(){ecg.fillStyle='rgba(8,11,16,.15)';ecg.fillRect(eX,0,5,EH);const ph=eX%90;let y=EM;if(ph>35&&ph<39)y=EM-3;else if(ph>42&&ph<45)y=EM+5;else if(ph>45&&ph<50)y=EM-14;else if(ph>50&&ph<53)y=EM+6;else if(ph>58&&ph<66)y=EM-3;ecg.strokeStyle='rgba(52,211,153,0.4)';ecg.lineWidth=1;ecg.shadowColor='#34d399';ecg.shadowBlur=3;ecg.beginPath();ecg.moveTo(eX,EM);ecg.lineTo(eX+2,y);ecg.stroke();ecg.shadowBlur=0;eX=(eX+2)%EW}
 setInterval(ecgStep,45);
+
+/* ═══ Helpers ═══ */
 function fP(p){const n=parseFloat(p);if(isNaN(n))return p;return n>=1000?'$'+n.toLocaleString('en',{maximumFractionDigits:0}):n>=10?'$'+n.toFixed(2):'$'+n.toFixed(4)}
 function spark(pts,clr){if(!pts||pts.length<2)return'';const mn=Math.min(...pts),mx=Math.max(...pts),rng=mx-mn||1,W=160,H=28,p=3;let d='M';pts.forEach((v,i)=>{const x=p+i/(pts.length-1)*(W-p*2);const y=H-p-(v-mn)/rng*(H-p*2);d+=(i?'L':'')+x.toFixed(1)+','+y.toFixed(1)});return'<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="'+d+'" fill="none" stroke="'+clr+'" stroke-width="1.5"/></svg>'}
 function countUp(el,t){const t0=performance.now();(function f(now){const p=Math.min((now-t0)/600,1),e=1-Math.pow(1-p,3);el.textContent='$'+(t*e).toFixed(2);if(p<1)requestAnimationFrame(f)})(t0)}
+function hexRgba(h,a){return'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'}
+
+/* ═══ Pixel sprites ═══ */
 const ORG={
 brain:{d:'..PPPP..\n.PVPVPP.\nPPVPPVPP\nPPPPPPVP\nPVPPPPPP\nPPPVPPPP\n.PPPPPP.\n..PPPP..',c:{P:'#ff6b9d',V:'#c44dff'}},
 eye:{d:'..WWWW..\n.WWWWWW.\nWWBBBBWW\nWBBDDBBW\nWBBDDBBW\nWWBBBBWW\n.WWWWWW.\n..WWWW..',c:{W:'#e6edf3',B:'#58a6ff',D:'#1f6feb'}},
@@ -187,20 +251,39 @@ brain:{d:'...BBBBBBBB.....\n..BBBBBBBBBB....\n.BBSSSSSSSSBB...\n.BBSSSSSSSSBB...
 eyes:{d:'...GGGGGGG......\n..GGGGGGGGG.....\n.GGMMMMMMMGG....\n.GMMWWWWWMMG....\n.GMWWBBBWWMG....\n.GMWBBGBBWMG....\n.GMWWBBBWWMG....\n.GMMWWWWWMMG....\n.GGMMMMMMMGG....\n..GGMMMMMGG.....\n...MM...MM......\n..GMMMMMMMG.....\n.GGMBMMMBMGG....\n.GMMMMMMMMMG....\n..GG....GG......\n..G......G......',c:{G:'#3fb950',M:'#30363d',B:'#58a6ff',W:'#e6edf3'}},
 heart:{d:'...DDDDDDDD.....\n..DDDDDDDDDD....\n.DDSSSSSSSSDD...\n.DDSSSSSSSSDD...\n.DDSDSSSSDSDD...\n.DDSSSSSSSSDD...\n.DDSS.SS.SSDD...\n..DDSSSSSSDD....\n...WWWWWWWW.....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n..WWRWWWWRWW....\n.WWWGGGGGWWWW...\n.WWGG.G.GGWW....\n..WW.....WW.....\n..D.......D.....',c:{D:'#161b22',S:'#f0883e',W:'#e6edf3',R:'#f85149',G:'#3fb950'}},
 nerves:{d:'...WWWWWWW......\n..WWRRRRRWW.....\n.WWWWRWRWWWW....\n.WWSSSSSSSWW....\n.WWSDSSSSDWW....\n.WWSSSSSSSWW....\n.WWSS.S.SSWW....\n..WWSSSSSWW.....\n...WWWWWWW......\n..WWWAWWAWWW....\n..WAAAWWAAAW....\n..WWWAWWAWWW....\n..WWWWWWWWWW....\n...WW....WW.....\n...W......W.....\n...D......D.....',c:{W:'#e6edf3',R:'#f85149',S:'#f0883e',D:'#161b22',A:'#d29922'}}};
+
 function genShadow(sp){const rows=sp.d.split('\n'),sh=[];rows.forEach((r,y)=>{for(let x=0;x<r.length;x++){const ch=r[x];if(ch!=='.'&&sp.c[ch])sh.push(x+'px '+y+'px 0 '+sp.c[ch])}});return sh.join(',')}
 (function(){const s=document.createElement('style');s.textContent=Object.entries(ORG).map(([n,v])=>'.organ-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n')+'\n'+Object.entries(CHR).map(([n,v])=>'.chr-'+n+'{box-shadow:'+genShadow(v)+'}').join('\n');document.head.appendChild(s)})();
+
+/* ═══ Data maps ═══ */
 const ACLR={main:'var(--info)',trader:'var(--pos)',scanner:'var(--warn)',heartbeat:'var(--purp)'};
 const ANAME={main:'主腦',trader:'交易員',scanner:'掃描器',heartbeat:'心跳'};
 const ACHR={main:'brain',trader:'heart',scanner:'eyes',heartbeat:'nerves'};
-const LAYERS=[{name:'骨架',code:'SOUL',p:'agents/*/SOUL.md',freq:'從不',clr:'#a78bfa'},{name:'記憶',code:'MEMORY',p:'workspace/MEMORY.md',freq:'每日',clr:'#60a5fa'},{name:'基因',code:'DNA',p:'config/params.py',freq:'每週',clr:'#34d399'},{name:'肌肉',code:'MUSCLES',p:'scripts/',freq:'穩定',clr:'#fbbf24'},{name:'血液',code:'BLOOD',p:'shared/',freq:'實時',clr:'#f87171'},{name:'鏡子',code:'MIRROR',p:'CLAUDE.md',freq:'參考',clr:'#8b95a1'}];
-function hexRgba(h,a){return'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+a+')'}
-document.getElementById('lay-card').innerHTML=LAYERS.map((l,i)=>'<div class="lr" onclick="this.classList.toggle(\'open\');document.getElementById(\'lx'+i+'\').classList.toggle(\'open\')"><span class="ld" style="background:'+l.clr+'"></span><div class="li"><div class="ln">'+l.name+' <span style="color:var(--tm);font-weight:400">'+l.code+'</span></div><div class="lp">'+l.p+'</div></div><span class="lf" style="background:'+hexRgba(l.clr,.12)+';color:'+l.clr+'">'+l.freq+'</span><span class="lch">›</span></div>'+(i<LAYERS.length-1?'<div class="lsep"></div>':'')+'<div class="lex" id="lx'+i+'"><div class="lex-in">~/.openclaw/'+l.p+'</div></div>').join('');
+const AGENTS_META={main:{name:'主腦',organ:'brain'},scanner:{name:'掃描器',organ:'eye'},trader:{name:'交易員',organ:'heart'},heartbeat:{name:'心跳',organ:'nerve'}};
+const LAYERS=[
+  {name:'SOUL',p:'agents/*/SOUL.md',freq:'從不',clr:'#a78bfa'},
+  {name:'MEMORY',p:'workspace/MEMORY.md',freq:'每日',clr:'#60a5fa'},
+  {name:'DNA',p:'config/params.py',freq:'每週',clr:'#34d399'},
+  {name:'MUSCLES',p:'scripts/',freq:'穩定',clr:'#fbbf24'},
+  {name:'BLOOD',p:'shared/',freq:'實時',clr:'#f87171'},
+  {name:'MIRROR',p:'CLAUDE.md',freq:'參考',clr:'#8b95a1'}
+];
+
+/* ═══ Init sidebar layers (static) ═══ */
+document.getElementById('sb-layers').innerHTML=LAYERS.map(function(l){
+  return'<div class="sb-layer"><span class="sb-ld" style="background:'+l.clr+'"></span><span class="sb-ln">'+l.name+'</span><span class="sb-lf" style="background:'+hexRgba(l.clr,.12)+';color:'+l.clr+'">'+l.freq+'</span><div class="sb-tip">~/.openclaw/'+l.p+'</div></div>';
+}).join('');
+
+/* ═══ RENDER ═══ */
 function render(){if(!D)return;
+  /* Header pills */
   var t=D.trigger||'OFF',s=D.signal_active||'NO',e;
   e=document.getElementById('p-trg');e.textContent='觸發: '+(t==='ON'?'開':'關');e.className='pill'+(t==='ON'?' pill-on':'');
   e=document.getElementById('p-sig');e.textContent='訊號: '+(s==='YES'?'有':'無');e.className='pill'+(s==='YES'?' pill-on':'');
   document.getElementById('p-mode').textContent=D.mode||'?';
   document.getElementById('hd-ts').textContent=D.timestamp||'';
+
+  /* Balance */
   var bal=parseFloat(D.balance)||0;
   if(!balInit){countUp(document.getElementById('bal-num'),bal);balInit=true}else{document.getElementById('bal-num').textContent='$'+bal.toFixed(2)}
   var pos=D.position,dir=D.direction,ep=document.getElementById('bal-pos');
@@ -208,20 +291,69 @@ function render(){if(!D)return;
   document.getElementById('bp-mode').textContent=D.mode||'?';
   document.getElementById('bp-trg').textContent='觸發: '+(t==='ON'?'開':'關');
   document.getElementById('bp-sig').textContent='訊號: '+(s==='YES'?'有':'無');
+
+  /* Market */
   var syms=['BTC','ETH','XRP','XAG'],prices=D.prices||{},hist=D.price_history||{};
   syms.forEach(function(s){if(hist[s])pH[s]=hist[s]});
   document.getElementById('mkt-body').innerHTML=syms.map(function(s){var p=parseFloat(prices[s])||0,h=pH[s]||[],old=h.length>1?h[0]:p;var chg=old>0?((p-old)/old*100):0;var cls=chg>.01?'c-pos':chg<-.01?'c-neg':'c-flat';var str=(chg>=0?'+':'')+chg.toFixed(2)+'%';var clr=chg>=0?'#34d399':'#f87171';var arr=chg>.01?'▲':chg<-.01?'▼':'—';var fl=prevP[s]&&prevP[s]!==p;var fc=fl?(chg>=0?' pfl':' pfn'):'';return'<div class="mr'+fc+'"><span class="ms">'+s+'</span><span class="mp">'+fP(p)+'</span><span class="mk">'+spark(h,clr)+'</span><span class="mc '+cls+'">'+str+'</span><span class="ma '+cls+'">'+arr+'</span></div>'}).join('');
   syms.forEach(function(s){prevP[s]=parseFloat(prices[s])||0});
-  var aa=D.agent_activity||{},ids=['main','trader','scanner','heartbeat'];
+
+  /* Sidebar agents */
+  var ags=D.agents||[],ids=['main','scanner','trader','heartbeat'];
+  document.getElementById('sb-agents').innerHTML=ids.map(function(id){
+    var a=null;for(var i=0;i<ags.length;i++){if(ags[i].id===id){a=ags[i];break}}
+    var meta=AGENTS_META[id]||{name:id,organ:'brain'};
+    var st=(a&&a.status)||'off';
+    var dc=st==='live'?'dl':st==='ok'?'dok':st==='warn'?'dw':'doff';
+    var model=(a&&a.model)||'?';
+    return'<div class="sb-agent"><div class="sb-asp"><span class="organ-sprite organ-'+meta.organ+'"></span></div><div class="sb-ai"><span class="sb-an">'+meta.name+'</span><span class="sb-am">'+model+'</span></div><span class="sb-dot '+dc+'"></span></div>';
+  }).join('');
+
+  /* Activity */
+  var aa=D.agent_activity||{};
   var cn=ids.map(function(id){return(aa[id]||{}).calls||0}),mx=Math.max.apply(null,cn.concat([1]));
   document.getElementById('act-body').innerHTML=ids.map(function(id,i){var c=cn[i];return'<div class="ar"><span class="ac"><span class="chr-sprite chr-'+ACHR[id]+'"></span></span><span class="an">'+ANAME[id]+'</span><div class="ab"><div class="af" style="width:'+(c/mx*100).toFixed(0)+'%;background:'+ACLR[id]+'"></div></div><span class="as">'+c+'</span></div>'}).join('');
   document.getElementById('act-foot').textContent='今日 '+(aa.total_calls||0)+' 次  ·  費用由 OpenClaw 追蹤';
-  if(!paused){var lines=(D.scan_log||[]).slice(-20).reverse();document.getElementById('log-body').innerHTML=lines.map(function(l){var cls='',badge='';if(l.indexOf('TRIGGER')>=0){cls=' ll-trg';badge='<span class="lb lb-t">觸發</span>'}else if(l.indexOf('ERROR')>=0){badge='<span class="lb lb-e">錯誤</span>'}else if(l.indexOf('DEEP')>=0){badge='<span class="lb lb-d">深度</span>'}var tm=(l.match(/\d{2}:\d{2}/)||[''])[0];var rest=l.replace(/^\[.*?\]\s*/,'');return'<div class="ll'+cls+'">'+badge+'<span class="lt">'+tm+'</span><span class="lm">'+rest+'</span></div>'}).join('')}
-  var ags=D.agents||[];['main','scanner','trader','heartbeat'].forEach(function(k){var el=document.querySelector('.si[data-agent="'+k+'"]');if(!el)return;var a=null;for(var i=0;i<ags.length;i++){if(ags[i].id===k){a=ags[i];break}}var st=(a&&a.status)||'off';el.className='si'+(st==='live'||st==='ok'?' on':st==='warn'?' won':'');var dot=el.querySelector('.si-dot');if(dot)dot.className='si-dot'+(st==='live'?' dl':st==='ok'?' dok':st==='warn'?' dw':'')});
-  var gi=D.git||{};if(gi.hash&&gi.hash!=='—'){document.getElementById('ft-git').innerHTML='⎇ <span class="fh">'+gi.hash+'</span> · '+gi.message+' · '+gi.time_ago}
+
+  /* Trigger summary */
+  var ts=D.trigger_summary||{total:0,by_asset:[],by_reason:[]};
+  if(ts.total>0){
+    document.getElementById('trg-body').innerHTML=
+      '<div class="tg-n" style="color:var(--warn)">'+ts.total+' <span style="font-size:14px;color:var(--tm);font-weight:400">次</span></div>'+
+      '<div class="tg-sec">資產分佈</div>'+
+      ts.by_asset.map(function(a){return'<div class="tg-r"><span class="tg-rl">'+a.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(a.pct||0)+'%;background:var(--warn)"></div></div><span class="tg-rc">'+a.count+'</span></div>'}).join('')+
+      '<div class="tg-sec">觸發原因</div>'+
+      ts.by_reason.map(function(r){return'<div class="tg-r"><span class="tg-rl">'+r.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(r.pct||0)+'%;background:var(--info)"></div></div><span class="tg-rc">'+r.count+'</span></div>'}).join('');
+  }else{
+    document.getElementById('trg-body').innerHTML='<div class="tg-empty">今日暫無觸發</div>';
+  }
+
+  /* Scan log */
+  if(!paused){
+    var lines=(D.scan_log||[]).slice(-20).reverse();
+    document.getElementById('log-body').innerHTML=lines.map(function(l){
+      var cls='',badge='';
+      if(l.indexOf('TRIGGER')>=0){cls=' ll-trg';badge='<span class="lb lb-t">觸發</span>'}
+      else if(l.indexOf('ERROR')>=0){badge='<span class="lb lb-e">錯誤</span>'}
+      else if(l.indexOf('DEEP')>=0){badge='<span class="lb lb-d">深度</span>'}
+      var tm=(l.match(/\d{2}:\d{2}/)||[''])[0];
+      var rest=l.replace(/^\[.*?\]\s*/,'');
+      return'<div class="ll'+cls+'">'+badge+'<span class="lt">'+tm+'</span><span class="lm">'+rest+'</span></div>';
+    }).join('');
+  }
+
+  /* Footer */
+  var gi=D.git||{};
+  if(gi.hash&&gi.hash!=='unknown'){document.getElementById('ft-git').innerHTML='⎇ <span class="fh">'+gi.hash+'</span> · '+gi.message+(gi.ago?' · '+gi.ago:'')}
   var up=D.uptime||{};document.getElementById('ft-up').textContent=up.duration&&up.duration!=='—'?'運行 '+up.duration:'—';
-  var tg=D.telegram||{};var tc=tg.connected?'var(--pos)':'var(--neg)';var tl=tg.connected?'已連接':'離線';document.getElementById('ft-tg').innerHTML='📱 電報 <span class="ftd" style="background:'+tc+'"></span> <span style="color:'+tc+'">'+tl+'</span>'}
+  var tg=D.telegram||{};var tc=tg.connected?'var(--pos)':'var(--neg)';var tl=tg.connected?'已連接':'離線';
+  document.getElementById('ft-tg').innerHTML='📱 Telegram <span class="ftd" style="background:'+tc+'"></span> <span style="color:'+tc+'">'+tl+'</span>';
+}
+
+/* ═══ Events ═══ */
 document.getElementById('btn-pause').addEventListener('click',function(){paused=!paused;this.textContent=paused?'繼續':'暫停'});
+
+/* ═══ Load ═══ */
 async function load(){try{var r=await fetch('/api/data');D=await r.json();render()}catch(e){console.error(e)}}
 load();setInterval(load,30000);
 </script>
