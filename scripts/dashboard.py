@@ -377,7 +377,8 @@ def get_trading_params():
 
 
 def get_trade_state():
-    """Read full trade state dynamically from TRADE_STATE.md."""
+    """Read full trade state dynamically from TRADE_STATE.md.
+    Parses ALL fields including position details inside code blocks."""
     path = os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md")
     state = {
         "balance": 0, "pnl_today": 0, "pnl_total": 0,
@@ -385,6 +386,8 @@ def get_trade_state():
         "consecutive_losses": 0, "daily_loss": 0,
         "in_position": False, "market_mode": "RANGE",
         "system_status": "UNKNOWN", "cooldown_active": False,
+        "entry_price": 0, "mark_price": 0, "size": 0,
+        "sl_price": 0, "tp_price": 0, "unrealized_pnl": 0,
     }
     if not os.path.exists(path):
         return state
@@ -393,27 +396,38 @@ def get_trade_state():
             content = f.read()
     except Exception:
         return state
-    patterns = {
+    # Float fields
+    float_patterns = {
         "balance": r'BALANCE_USDT:\s*\$?([\d.]+)',
         "daily_loss": r'DAILY_LOSS:\s*\$?([\d.]+)',
         "consecutive_losses": r'CONSECUTIVE_LOSSES:\s*(\d+)',
+        "entry_price": r'ENTRY_PRICE:\s*\$?([\d.]+)',
+        "mark_price": r'MARK_PRICE:\s*\$?([\d.]+)',
+        "size": r'(?:^|\n)\s*SIZE:\s*([\d.]+)',
+        "sl_price": r'SL_PRICE:\s*\$?([\d.]+)',
+        "tp_price": r'TP_PRICE:\s*\$?([\d.]+)',
+        "unrealized_pnl": r'UNREALIZED_PNL:\s*\$?(-?[\d.]+)',
     }
-    for key, pattern in patterns.items():
+    for key, pattern in float_patterns.items():
         m = re.search(pattern, content)
         if m:
             state[key] = float(m.group(1))
-    m = re.search(r'MARKET_MODE:\s*(\w+)', content)
-    if m:
-        state["market_mode"] = m.group(1)
-    m = re.search(r'SYSTEM_STATUS:\s*(\w+)', content)
-    if m:
-        state["system_status"] = m.group(1)
+    # String fields
+    for key, pattern in [
+        ("market_mode", r'MARKET_MODE:\s*(\w+)'),
+        ("system_status", r'SYSTEM_STATUS:\s*(\w+)'),
+    ]:
+        m = re.search(pattern, content)
+        if m:
+            state[key] = m.group(1)
+    # Boolean fields
     m = re.search(r'COOLDOWN_ACTIVE:\s*(\w+)', content)
     if m:
         state["cooldown_active"] = m.group(1) == "YES"
     m = re.search(r'POSITION_OPEN:\s*(\w+)', content)
     if m:
         state["in_position"] = m.group(1) == "YES"
+    # Position details
     if not state["in_position"]:
         state["position"] = "無"
         state["direction"] = "—"
@@ -596,15 +610,24 @@ def update_price_history(prices):
     return history
 
 
-def _enrich_trades(trades, prices):
-    """Add current_price to open trades for unrealized PnL calculation."""
+def _enrich_trades(trades, prices, trade_state):
+    """Enrich trades: cross-reference TRADE_STATE for open/closed truth,
+    add current_price for unrealized PnL on genuinely open trades."""
+    position_open = trade_state.get("in_position", False)
     for t in trades:
         if t.get("open"):
-            sym = t["asset"].replace("USDT", "")
-            try:
-                t["current_price"] = float(prices.get(sym, 0))
-            except (ValueError, TypeError):
-                t["current_price"] = 0
+            if not position_open:
+                # TRADE_STATE says no position — this trade was closed
+                # (TRADE_LOG not yet updated by trader agent)
+                t["open"] = False
+                t["exit"] = "SL/TP"
+                t["stale_open"] = True  # flag for frontend
+            else:
+                sym = t["asset"].replace("USDT", "")
+                try:
+                    t["current_price"] = float(prices.get(sym, 0))
+                except (ValueError, TypeError):
+                    t["current_price"] = 0
     return trades
 
 
@@ -643,15 +666,30 @@ def collect_data():
                 display = f"{val}{unit}"
             params_display.append({"label": label, "value": display})
 
-    # Unrealized PnL from open trades
-    trades = _enrich_trades(get_trade_history(), prices)
+    # Enrich trades — cross-reference TRADE_STATE for open/closed truth
+    trades = _enrich_trades(get_trade_history(), prices, trade)
+
+    # Unrealized PnL: use TRADE_STATE as source of truth
     unrealized_pnl = 0.0
-    for t in trades:
-        if t.get("open") and t.get("current_price") and t.get("entry") and t.get("size"):
-            cp, ep, sz = float(t["current_price"]), float(t["entry"]), float(t["size"])
-            diff = (cp - ep) if t["dir"] == "LONG" else (ep - cp)
-            unrealized_pnl += diff * sz
-    unrealized_pnl = round(unrealized_pnl, 2)
+    if trade["in_position"]:
+        # Prefer TRADE_STATE fields directly
+        if trade["entry_price"] > 0 and trade["size"] > 0:
+            sym = trade["position"].replace("/", "").replace("USDT", "")
+            try:
+                current = float(prices.get(sym, 0))
+            except (ValueError, TypeError):
+                current = 0
+            if current > 0:
+                diff = (current - trade["entry_price"]) if trade["direction"] == "LONG" else (trade["entry_price"] - current)
+                unrealized_pnl = round(diff * trade["size"], 2)
+        else:
+            # Fallback: sum from open trades in trade log
+            for t in trades:
+                if t.get("open") and t.get("current_price") and t.get("entry") and t.get("size"):
+                    cp, ep, sz = float(t["current_price"]), float(t["entry"]), float(t["size"])
+                    diff = (cp - ep) if t["dir"] == "LONG" else (ep - cp)
+                    unrealized_pnl += diff * sz
+            unrealized_pnl = round(unrealized_pnl, 2)
     bal = trade["balance"] or 0
     unrealized_pct = round(unrealized_pnl / bal * 100, 2) if bal > 0 else 0.0
 
@@ -688,10 +726,91 @@ def collect_data():
     }
 
 
+def collect_debug():
+    """Debug endpoint: raw file contents, existence checks, processes."""
+    results = {}
+    files_to_check = [
+        "workspace/agents/trader/TRADE_STATE.md",
+        "shared/SIGNAL.md",
+        "workspace/routing/COST_TRACKER.md",
+        "workspace/agents/trader/config/SCAN_CONFIG.md",
+        "workspace/agents/trader/TRADE_LOG.md",
+        "config/params.py",
+        "scripts/trader_cycle/config/settings.py",
+        "secrets/.env",
+    ]
+    results["files"] = {}
+    for f in files_to_check:
+        p = os.path.join(HOME, f)
+        exists = os.path.exists(p)
+        results["files"][f] = {
+            "exists": exists,
+            "size": os.path.getsize(p) if exists else 0,
+            "modified": os.path.getmtime(p) if exists else 0,
+        }
+    # Raw TRADE_STATE.md
+    ts_path = os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md")
+    try:
+        with open(ts_path) as f:
+            results["trade_state_raw"] = f.read()
+    except Exception as e:
+        results["trade_state_raw"] = f"ERROR: {e}"
+    # Raw SIGNAL.md
+    sig_path = os.path.join(HOME, "shared/SIGNAL.md")
+    try:
+        with open(sig_path) as f:
+            results["signal_raw"] = f.read()
+    except Exception as e:
+        results["signal_raw"] = f"ERROR: {e}"
+    # Raw SCAN_CONFIG.md
+    sc_path = os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md")
+    try:
+        with open(sc_path) as f:
+            results["scan_config_raw"] = f.read()
+    except Exception as e:
+        results["scan_config_raw"] = f"ERROR: {e}"
+    # Raw TRADE_LOG.md
+    tl_path = os.path.join(HOME, "workspace/agents/trader/TRADE_LOG.md")
+    try:
+        with open(tl_path) as f:
+            results["trade_log_raw"] = f.read()
+    except Exception as e:
+        results["trade_log_raw"] = f"ERROR: {e}"
+    # Latest scan log
+    results["latest_scan"] = get_scan_log(3)
+    # Parsed results
+    results["parsed_trade_state"] = get_trade_state()
+    results["parsed_trade_history"] = get_trade_history()
+    # Launchctl agents
+    results["launchctl"] = get_launchagents()
+    # Python/claude processes
+    procs = []
+    if HAS_PSUTIL:
+        import psutil as _ps
+        for p in _ps.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                nm = p.info['name'].lower()
+                if 'python' in nm or 'claude' in nm or 'openclaw' in nm:
+                    cmd = p.info.get('cmdline') or []
+                    procs.append({"pid": p.info['pid'], "name": p.info['name'], "cmd": ' '.join(cmd[:4])})
+            except Exception:
+                pass
+    results["processes"] = procs
+    return results
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/data":
             data = collect_data()
+            body = json.dumps(data, ensure_ascii=False).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+        elif self.path == "/api/debug":
+            data = collect_debug()
             body = json.dumps(data, ensure_ascii=False).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")

@@ -412,7 +412,7 @@ function render(){if(!D)return;
     }).join('');
   }
 
-  /* Trade history — "持倉中" + unrealized PnL (⑧) */
+  /* Trade history — live status from TRADE_STATE cross-ref */
   var th=D.trade_history||[];
   if(th.length>0){
     document.getElementById('trade-card').innerHTML=th.map(function(t){
@@ -424,7 +424,11 @@ function render(){if(!D)return;
           var diff=t.dir==='LONG'?(t.current_price-t.entry):(t.entry-t.current_price);
           pnlVal=diff*t.size;
         }
-      }else{exitStr='$'+t.exit}
+      }else if(t.stale_open){
+        exitStr='已平倉';
+      }else{
+        exitStr=t.exit==='SL/TP'?'已平倉':'$'+t.exit;
+      }
       var pclr=pnlVal>=0?'var(--pos)':'var(--neg)';
       var psign=pnlVal>=0?'+':'';
       return'<div class="th-row"><span class="th-dir '+dc+'">'+t.dir+'</span><span class="th-asset">'+t.asset+'</span><span class="th-prices">$'+t.entry+' → '+exitStr+'</span><span class="th-pnl" style="color:'+pclr+'">'+psign+'$'+pnlVal.toFixed(2)+'</span></div>';
