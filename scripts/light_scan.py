@@ -31,8 +31,8 @@ from datetime import datetime, timezone, timedelta
 # CONFIG
 # ─────────────────────────────────────────
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/trader/config/SCAN_CONFIG.md")
-SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/trader/logs/SCAN_LOG.md")
+SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
+SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
 
 ASTER_BASE = "https://fapi.asterdex.com/fapi/v1"
 PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]

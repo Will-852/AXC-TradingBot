@@ -21,10 +21,10 @@ When the user sends `/new_2 [news text]`, perform a full news impact analysis.
 2. **Read shared state files**:
    - `~/.openclaw/shared/TRADE_STATE.md` — current position, balance, market mode
    - `~/.openclaw/shared/SIGNAL.md` — last scan result
-   - `~/.openclaw/workspace/agents/trader/config/SCAN_CONFIG.md` — latest prices, triggers
+   - `~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md` — latest prices, triggers
 
 3. **Read trading rules** for context on entry/exit criteria:
-   - `~/.openclaw/agents/trader/workspace/skills/trading-rules/SKILL.md`
+   - `~/.openclaw/agents/aster_trader/workspace/skills/trading-rules/SKILL.md`
 
 4. **Analyze the news text**:
    a. Identify affected assets (BTC, ETH, XRP, XAG, USD, macro)

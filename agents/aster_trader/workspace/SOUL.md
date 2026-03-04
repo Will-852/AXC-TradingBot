@@ -91,9 +91,9 @@ python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --live --teleg
 
 - TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
 - SIGNAL: ~/.openclaw/shared/SIGNAL.md (read)
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/trader/config/SCAN_CONFIG.md
-- TRADE_LOG: ~/.openclaw/workspace/agents/trader/TRADE_LOG.md
-- EXCHANGE_CONFIG: ~/.openclaw/workspace/agents/trader/EXCHANGE_CONFIG.md
+- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
+- TRADE_LOG: ~/.openclaw/workspace/agents/aster_trader/TRADE_LOG.md
+- EXCHANGE_CONFIG: ~/.openclaw/workspace/agents/aster_trader/EXCHANGE_CONFIG.md
 
 ## 對待用戶
 

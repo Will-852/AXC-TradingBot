@@ -16,6 +16,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -124,12 +125,25 @@ def parse_md(path):
 
 
 def get_agent_info():
-    """Dynamic agent info: model from SOUL.md → openclaw.json fallback, status from launchctl."""
+    """Dynamic agent info: model from SOUL.md → known map → openclaw.json fallback, status from launchctl."""
     agent_map = {
         "main": {"name": "主腦", "label": "ai.openclaw.gateway"},
-        "scanner": {"name": "掃描器", "label": "ai.openclaw.lightscan"},
-        "trader": {"name": "交易員", "label": "ai.openclaw.tradercycle"},
+        "aster_scanner": {"name": "掃描器", "label": "ai.openclaw.lightscan"},
+        "aster_trader": {"name": "交易員", "label": "ai.openclaw.tradercycle"},
         "heartbeat": {"name": "心跳", "label": "ai.openclaw.heartbeat"},
+        "haiku_filter": {"name": "過濾器", "label": None},
+        "analyst": {"name": "分析師", "label": None},
+        "decision": {"name": "決策者", "label": None},
+    }
+    # Known model assignments (from config/tier system)
+    KNOWN_MODELS = {
+        "main": "claude-haiku-4-5",
+        "aster_scanner": "claude-haiku-4-5",
+        "aster_trader": "claude-sonnet-4-6",
+        "heartbeat": "claude-haiku-4-5",
+        "haiku_filter": "claude-haiku-4-5",
+        "analyst": "claude-sonnet-4-6",
+        "decision": "claude-opus",
     }
     # Models from openclaw.json as fallback
     oc_models = {}
@@ -149,10 +163,16 @@ def get_agent_info():
         # Try SOUL.md for model string
         model = None
         soul_path = os.path.join(HOME, "agents", aid, "workspace", "SOUL.md")
+        if not os.path.exists(soul_path):
+            soul_path = os.path.join(HOME, "agents", aid, "SOUL.md")
         if os.path.exists(soul_path):
             try:
                 with open(soul_path) as f:
                     for line in f:
+                        stripped = line.strip()
+                        # Skip markdown table rows (greedy regex picks up wrong agent's model)
+                        if stripped.startswith("|"):
+                            continue
                         ll = line.lower()
                         if 'model:' in ll or 'model =' in ll:
                             model = line.split(':', 1)[-1].strip()
@@ -164,26 +184,32 @@ def get_agent_info():
                                 line,
                             )
                             if match:
-                                model = match.group(1)
+                                model = match.group(1).rstrip('.')
                                 break
             except Exception:
                 pass
         if not model:
-            model = oc_models.get(aid, "未知模型")
+            model = KNOWN_MODELS.get(aid, oc_models.get(aid, "未知模型"))
         # Status from launchagents
-        la_info = la.get(meta["label"], {})
-        if la_info.get("pid"):
-            status = "online"
-            pid = la_info["pid"]
-        elif la_info.get("exit") == 0:
-            status = "idle"
-            pid = None
-        elif la_info.get("exit") is not None:
-            status = "error"
+        label = meta.get("label")
+        if label is None:
+            # Pipeline agent — no launchd service yet
+            status = "planned"
             pid = None
         else:
-            status = "error"
-            pid = None
+            la_info = la.get(label, {})
+            if la_info.get("pid"):
+                status = "online"
+                pid = la_info["pid"]
+            elif la_info.get("exit") == 0:
+                status = "idle"
+                pid = None
+            elif la_info.get("exit") is not None:
+                status = "error"
+                pid = None
+            else:
+                status = "error"
+                pid = None
         agents.append({
             "id": aid, "name": meta["name"], "model": model,
             "pid": pid, "status": status,
@@ -210,7 +236,7 @@ def get_launchagents():
 
 
 def get_scan_log(n=20):
-    path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
+    path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
     if not os.path.exists(path):
         return []
     with open(path) as f:
@@ -223,8 +249,11 @@ def get_file_tree():
         ("config/", "DNA", "params.py, modes/"),
         ("scripts/", "Muscle", "trader_cycle/, scanner_runner.py"),
         ("agents/main/workspace/", "Brain", "SOUL.md, MEMORY.md, skills/"),
-        ("agents/trader/workspace/", "Heart", "SOUL.md, trading-rules/"),
-        ("agents/scanner/workspace/", "Eye", "SOUL.md, scan-rules/"),
+        ("agents/aster_trader/workspace/", "Heart", "SOUL.md, trading-rules/"),
+        ("agents/aster_scanner/workspace/", "Eye", "SOUL.md, scan-rules/"),
+        ("agents/haiku_filter/", "Filter", "SOUL.md"),
+        ("agents/analyst/", "Analyst", "SOUL.md"),
+        ("agents/decision/", "Decision", "SOUL.md"),
         ("agents/heartbeat/workspace/", "Nerve", "SOUL.md"),
         ("shared/", "Blood", "SIGNAL.md, TRADE_STATE.md"),
         ("logs/", "Logs", "lightscan.log, tradercycle.log"),
@@ -246,7 +275,7 @@ def get_agent_activity():
     daily_total = ct.get("DAILY_TOTAL", "$0.00") if ct_date == today else "—"
 
     today = datetime.now(HKT).strftime("%Y-%m-%d")
-    log_path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
+    log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
     scanner_calls = 0
     trader_calls = 0
     if os.path.exists(log_path):
@@ -265,8 +294,8 @@ def get_agent_activity():
     total_calls = scanner_calls + trader_calls + hb_calls
     return {
         "main": {"calls": trader_calls, "cost": 0.0},
-        "trader": {"calls": trader_calls, "cost": 0.0},
-        "scanner": {"calls": scanner_calls, "cost": 0.0},
+        "aster_trader": {"calls": trader_calls, "cost": 0.0},
+        "aster_scanner": {"calls": scanner_calls, "cost": 0.0},
         "heartbeat": {"calls": hb_calls, "cost": 0.0},
         "total_cost": daily_total,
         "total_calls": total_calls,
@@ -381,7 +410,7 @@ def get_telegram_status():
 def get_trigger_summary():
     """Parse today's LIGHT TRIGGER entries from scan log."""
     today = datetime.now(HKT).strftime("%Y-%m-%d")
-    log_path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
+    log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
     by_asset = {}
     by_reason = {}
     total = 0
@@ -442,7 +471,7 @@ def get_trading_params():
 def get_trade_state():
     """Read full trade state dynamically from TRADE_STATE.md.
     Parses ALL fields including position details inside code blocks."""
-    path = os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md")
+    path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md")
     state = {
         "balance": 0, "pnl_today": 0, "pnl_total": 0,
         "position": "無", "direction": "—",
@@ -506,7 +535,7 @@ def get_trade_state():
 
 def get_trade_history():
     """Parse trade history from TRADE_LOG.md markdown table."""
-    path = os.path.join(HOME, "workspace/agents/trader/TRADE_LOG.md")
+    path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_LOG.md")
     trades = []
     if not os.path.exists(path):
         return trades
@@ -583,7 +612,7 @@ def get_risk_status():
     except Exception:
         pass
     # Trade state
-    trade_state = parse_md(os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md"))
+    trade_state = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md"))
     cons_losses = 0
     try:
         cons_losses = int(trade_state.get("CONSECUTIVE_LOSSES", "0"))
@@ -680,7 +709,7 @@ def update_pnl_history(balance):
         hist[-1] = {"t": now, "v": pnl}
     else:
         hist.append({"t": now, "v": pnl})
-    data["history"] = hist[-200:]
+    data["history"] = hist[-500:]
     try:
         with open(PNL_HISTORY_PATH, "w") as f:
             json.dump(data, f)
@@ -747,12 +776,9 @@ def collect_data():
     live_positions = get_live_positions()
     has_position = len(live_positions) > 0
 
-    # LIVE today's PnL from exchange income
-    live_pnl = get_live_today_pnl()
-    today_pnl = round(live_pnl["net"], 2) if live_pnl else 0.0
-
-    # Balance baseline for total PnL tracking
+    # Balance baseline for PnL (single source of truth: balance delta)
     baseline = get_balance_baseline(live_bal)
+    today_pnl = baseline["today_pnl"]
     pnl_history = update_pnl_history(live_bal)
 
     # Unrealized PnL from live positions
@@ -769,7 +795,7 @@ def collect_data():
         direction_str = trade["direction"]
 
     # Prices from scan config
-    scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
+    scan_config = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md"))
     signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
     prices = {
         "BTC": scan_config.get("BTC_price", "0"),
@@ -778,6 +804,33 @@ def collect_data():
         "XAG": scan_config.get("XAG_price", "0"),
     }
     price_history = update_price_history(prices)
+
+    # Rich price objects for OKX-style ticker
+    prices_rich = []
+    for sym in ["BTC", "ETH", "XRP", "XAG"]:
+        p = 0.0
+        try:
+            p = float(prices.get(sym, 0))
+        except (ValueError, TypeError):
+            pass
+        hist = price_history.get(sym, [])
+        if len(hist) >= 2 and hist[0] > 0:
+            change = round((p - hist[0]) / hist[0] * 100, 2)
+            high = max(hist)
+            low = min(hist)
+        else:
+            change = 0.0
+            high = p
+            low = p
+        prices_rich.append({
+            "symbol": sym,
+            "price": p,
+            "change": change,
+            "high": round(high, 6),
+            "low": round(low, 6),
+            "history": hist,
+        })
+
     last_scan_ts = scan_config.get("last_updated", signal.get("TIMESTAMP", "?"))
 
     # Build params_display from whitelist
@@ -815,6 +868,7 @@ def collect_data():
         "scan_log": get_scan_log(),
         "file_tree": get_file_tree(),
         "prices": prices,
+        "prices_rich": prices_rich,
         "price_history": price_history,
         "trigger": scan_config.get("TRIGGER_PENDING", "OFF"),
         "scan_count": scan_config.get("LIGHT_SCAN_COUNT", "0"),
@@ -857,7 +911,7 @@ def handle_set_mode(body):
 
 def handle_suggest_mode():
     """GET /api/suggest_mode — suggest profile based on BTC 24h change."""
-    scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
+    scan_config = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md"))
     price_history = {}
     if os.path.exists(PRICE_HISTORY_PATH):
         try:
@@ -887,15 +941,131 @@ def handle_suggest_mode():
     return {"suggested": suggested, "reason": reason, "btc_change_24h": round(change, 2)}
 
 
+# ── Binance Connection API ────────────────────────────
+
+SECRETS_ENV_PATH = os.path.join(HOME, "secrets", ".env")
+
+
+def _get_binance_credentials():
+    """Read Binance keys from secrets/.env"""
+    api_key = api_secret = ""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("BINANCE_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip()
+                elif line.startswith("BINANCE_API_SECRET="):
+                    api_secret = line.split("=", 1)[1].strip()
+    return api_key, api_secret
+
+
+def _save_binance_credentials(api_key, api_secret):
+    """Write or update Binance keys in secrets/.env"""
+    os.makedirs(os.path.dirname(SECRETS_ENV_PATH), exist_ok=True)
+    lines = []
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f:
+                if not line.strip().startswith(("BINANCE_API_KEY=", "BINANCE_API_SECRET=")):
+                    lines.append(line.rstrip("\n"))
+    lines.append(f"BINANCE_API_KEY={api_key}")
+    lines.append(f"BINANCE_API_SECRET={api_secret}")
+    with open(SECRETS_ENV_PATH, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def handle_binance_status():
+    """GET /api/binance/status"""
+    api_key, api_secret = _get_binance_credentials()
+    if not api_key or not api_secret:
+        return 200, {"status": "disconnected", "label": "未連接", "balance": None}
+    try:
+        from binance.spot import Spot
+        client = Spot(api_key=api_key, api_secret=api_secret)
+        account = client.account()
+        balances = {
+            b["asset"]: float(b["free"]) + float(b["locked"])
+            for b in account["balances"]
+            if float(b["free"]) + float(b["locked"]) > 0
+        }
+        usdt_bal = balances.get("USDT", 0)
+        return 200, {
+            "status": "connected", "label": "已連接",
+            "balance": round(usdt_bal, 2),
+            "account_type": account.get("accountType", "SPOT"),
+            "key_preview": f"{api_key[:4]}...{api_key[-4:]}",
+        }
+    except Exception as e:
+        return 200, {"status": "error", "label": "驗證失敗", "balance": None, "error": str(e)[:80]}
+
+
+def handle_binance_connect(body):
+    """POST /api/binance/connect"""
+    try:
+        data = json.loads(body)
+    except Exception:
+        return 400, {"ok": False, "error": "Invalid JSON"}
+    api_key = (data.get("api_key") or "").strip()
+    api_secret = (data.get("api_secret") or "").strip()
+    if not api_key or not api_secret:
+        return 400, {"ok": False, "error": "API Key 和 Secret 不能為空"}
+    try:
+        from binance.spot import Spot
+        client = Spot(api_key=api_key, api_secret=api_secret)
+        account = client.account()
+    except Exception as e:
+        return 401, {"ok": False, "error": f"驗證失敗：{str(e)[:120]}"}
+    _save_binance_credentials(api_key, api_secret)
+    usdt = next((float(b["free"]) for b in account["balances"] if b["asset"] == "USDT"), 0)
+    return 200, {
+        "ok": True, "status": "connected",
+        "key_preview": f"{api_key[:4]}...{api_key[-4:]}",
+        "balance": round(usdt, 2),
+    }
+
+
+def handle_binance_disconnect():
+    """POST /api/binance/disconnect"""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            lines = [l for l in f.read().splitlines()
+                     if not l.startswith(("BINANCE_API_KEY=", "BINANCE_API_SECRET="))]
+        with open(SECRETS_ENV_PATH, "w") as f:
+            f.write("\n".join(lines) + "\n")
+    return 200, {"ok": True, "status": "disconnected"}
+
+
+def handle_file_read(rel_path):
+    """GET /api/file?path=docs/..."""
+    if not rel_path.startswith("docs/"):
+        return 403, "Forbidden"
+    fp = os.path.join(HOME, rel_path)
+    if not os.path.exists(fp):
+        return 404, "Not found"
+    with open(fp) as f:
+        return 200, f.read()
+
+
+def handle_open_folder(rel_path):
+    """GET /api/open_folder?path=docs/..."""
+    if not rel_path.startswith("docs/"):
+        return 403, {"error": "Forbidden"}
+    fp = os.path.join(HOME, rel_path)
+    if os.path.exists(fp):
+        subprocess.Popen(["open", fp])
+    return 200, {"ok": True}
+
+
 def collect_debug():
     """Debug endpoint: raw file contents, existence checks, processes."""
     results = {}
     files_to_check = [
-        "workspace/agents/trader/TRADE_STATE.md",
+        "workspace/agents/aster_trader/TRADE_STATE.md",
         "shared/SIGNAL.md",
         "workspace/routing/COST_TRACKER.md",
-        "workspace/agents/trader/config/SCAN_CONFIG.md",
-        "workspace/agents/trader/TRADE_LOG.md",
+        "workspace/agents/aster_trader/config/SCAN_CONFIG.md",
+        "workspace/agents/aster_trader/TRADE_LOG.md",
         "config/params.py",
         "scripts/trader_cycle/config/settings.py",
         "secrets/.env",
@@ -910,7 +1080,7 @@ def collect_debug():
             "modified": os.path.getmtime(p) if exists else 0,
         }
     # Raw TRADE_STATE.md
-    ts_path = os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md")
+    ts_path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md")
     try:
         with open(ts_path) as f:
             results["trade_state_raw"] = f.read()
@@ -924,14 +1094,14 @@ def collect_debug():
     except Exception as e:
         results["signal_raw"] = f"ERROR: {e}"
     # Raw SCAN_CONFIG.md
-    sc_path = os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md")
+    sc_path = os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md")
     try:
         with open(sc_path) as f:
             results["scan_config_raw"] = f.read()
     except Exception as e:
         results["scan_config_raw"] = f"ERROR: {e}"
     # Raw TRADE_LOG.md
-    tl_path = os.path.join(HOME, "workspace/agents/trader/TRADE_LOG.md")
+    tl_path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_LOG.md")
     try:
         with open(tl_path) as f:
             results["trade_log_raw"] = f.read()
@@ -970,12 +1140,33 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/api/data":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
+        if path == "/api/data":
             self._json_response(200, collect_data())
-        elif self.path == "/api/debug":
+        elif path == "/api/debug":
             self._json_response(200, collect_debug())
-        elif self.path == "/api/suggest_mode":
+        elif path == "/api/suggest_mode":
             self._json_response(200, handle_suggest_mode())
+        elif path == "/api/binance/status":
+            code, data = handle_binance_status()
+            self._json_response(code, data)
+        elif path == "/api/file":
+            rel = qs.get("path", [""])[0]
+            code, content = handle_file_read(rel)
+            if isinstance(content, str):
+                self.send_response(code)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(content.encode())
+            else:
+                self._json_response(code, {"error": content})
+        elif path == "/api/open_folder":
+            rel = qs.get("path", [""])[0]
+            code, data = handle_open_folder(rel)
+            self._json_response(code, data)
         else:
             try:
                 with open(CANVAS_HTML, "rb") as f:
@@ -990,13 +1181,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"canvas/index.html not found")
 
     def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode() if length > 0 else ""
         if self.path == "/api/set_mode":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode()
             code, data = handle_set_mode(body)
+            self._json_response(code, data)
+        elif self.path == "/api/binance/connect":
+            code, data = handle_binance_connect(body)
+            self._json_response(code, data)
+        elif self.path == "/api/binance/disconnect":
+            code, data = handle_binance_disconnect()
             self._json_response(code, data)
         else:
             self._json_response(404, {"error": "Not found"})
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def log_message(self, format, *args):
         pass

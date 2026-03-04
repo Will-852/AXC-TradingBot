@@ -81,7 +81,7 @@ REASONS: BB touch + RSI reversal + support
 
 ## 共享狀態路徑
 
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/trader/config/SCAN_CONFIG.md
-- SCAN_LOG: ~/.openclaw/workspace/agents/trader/logs/SCAN_LOG.md
+- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
+- SCAN_LOG: ~/.openclaw/workspace/agents/aster_trader/logs/SCAN_LOG.md
 - SIGNAL: ~/.openclaw/shared/SIGNAL.md
 - TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md (read-only)

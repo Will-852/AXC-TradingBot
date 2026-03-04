@@ -119,28 +119,63 @@ def is_allowed(update: Update) -> bool:
 # Claude API (via proxy, no SDK)
 # ════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """你係一個專業交易員，管理緊一個自動交易系統（OpenClaw），跑喺本地 Mac。
+SYSTEM_PROMPT = """你係 OpenClaw 交易系統嘅 AI，跑喺本地 Mac。
 
-語氣規則（最重要）：
-- 講嘢好似一個有經驗嘅香港交易員同行家傾偈
-- 用口語廣東話，唔係書面中文。例如：「睇落」唔係「看起來」，「入咗」唔係「已進入」，「蝕」唔係「虧損」
-- 直接、簡短、有態度。唔好囉嗦、唔好客套
-- 可以用交易術語（SL、TP、entry、breakeven、止蝕、追勢）
-- 回覆盡量短，2-5句搞掂。長嘢分點列出
+語氣：
+- 香港交易員口語廣東話，唔係書面中文
+- 直接、簡短、有態度。唔囉嗦唔客套
+- 交易術語照用（SL、TP、entry、breakeven、止蝕）
 
-風格示範：
-- ✅「BTC 升咗 6%，但 volume 唔跟，唔好追住入」
-- ✅「XAG 84.5 彈唔上，SL 設 83.2 合理」
-- ✅「冇倉，等緊 signal。市場太靜」
-- ❌「根據我的分析，目前市場狀況顯示...」（太書面）
-- ❌「我理解你的意思。讓我為你分析...」（太客服）
-- ❌「以下是我的建議：1. 首先...」（太囉嗦）
+格式（Telegram 專用，最重要）：
+- 絕對唔好用 Markdown：**、*、##、###、---、``` 全部禁止
+- Telegram 會原封不動顯示呢啲符號，好核突
+- 要強調用 <b>粗體</b>，其他 HTML tag 唔好用
+- 唔好用 - 做 bullet，要分點就 1. 2. 3. 或直接換行
+- 回覆 2-8 行。問數據答數據，唔使長篇解釋
 
-絕對唔好：
-- 用「您」「您好」「請問」
-- 用 bullet point 列出「我會做乜」「我唔會做乜」
-- 長篇大論解釋自己嘅功能
-- 講「同意嗎？」「需要我繼續嗎？」"""
+風格：
+✅ BTC 升咗 6%，volume 唔跟，唔好追
+✅ XAG 84.5 阻力，SL 83.2 合理
+✅ 冇倉，等 signal。市場靜
+❌ 根據我的分析，目前市場狀況顯示...
+❌ 我理解你的意思。讓我為你分析...
+❌ **信號狀態：NO SIGNAL**（Markdown 符號）
+
+禁止：
+- 用「您」「您好」「請問」「同意嗎？」
+- 講「分析中」「思考中」「等我睇吓」，直接答
+- 長篇大論、自我介紹、列出功能
+- 任何 Markdown 語法"""
+
+
+def _clean_for_telegram(text: str) -> str:
+    """Convert any leftover Markdown to Telegram HTML. Safety net."""
+    # ** bold ** → <b>bold</b>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    # * italic * → just text
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    # ## headers → just text
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # --- separators → empty
+    text = re.sub(r'^-{3,}$', '', text, flags=re.MULTILINE)
+    # ``` code blocks → keep content
+    text = re.sub(r'```\w*\n?', '', text)
+    # ` inline code ` → keep content
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    # - bullet → • (Telegram friendly)
+    text = re.sub(r'^- ', '• ', text, flags=re.MULTILINE)
+    # Clean up triple+ newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+async def _send_html(target, text: str):
+    """Send text as HTML, fallback to plain if HTML parse fails."""
+    try:
+        await target.reply_text(text, parse_mode="HTML")
+    except Exception:
+        clean = re.sub(r"<[^>]+>", "", text)
+        await target.reply_text(clean)
 
 
 def call_claude(user_msg: str, context: str, system: str = None,
@@ -242,7 +277,9 @@ def execute_order(order: dict) -> dict:
             return {"ok": False, "error": f"無法取得 {symbol} 價格"}
 
         leverage = 10  # default
-        qty      = round(amount * leverage / price, prec.get("qty_precision", 3))
+        qty_prec = int(prec.get("qty_precision", 3))
+        px_prec  = int(prec.get("price_precision", 2))
+        qty      = round(amount * leverage / price, qty_prec)
 
         # Set margin + leverage
         try:
@@ -255,30 +292,55 @@ def execute_order(order: dict) -> dict:
         entry_side = "BUY" if side == "LONG" else "SELL"
         result = client.create_market_order(symbol, entry_side, qty)
 
-        # SL
-        sl_pct   = order.get("sl_pct", 0.02)
+        # SL — sanity check: clamp to 1%-5% range
+        sl_pct = order.get("sl_pct", 0.02)
+        if sl_pct > 1:       # model returned e.g. 2 instead of 0.02
+            sl_pct = sl_pct / 100
+        sl_pct = max(0.01, min(sl_pct, 0.05))  # hard clamp 1%-5%
+
         sl_side  = "SELL" if side == "LONG" else "BUY"
         sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
-        sl_price = round(sl_price, prec.get("price_precision", 2))
+        sl_price = round(sl_price, px_prec)
+
+        # Validate SL is above liquidation price (for longs)
+        liq_margin = 1.0 / leverage * 0.9  # rough liquidation distance
+        liq_price  = price * (1 - liq_margin) if side == "LONG" else price * (1 + liq_margin)
+        if side == "LONG" and sl_price < liq_price:
+            sl_price = round(liq_price * 1.02, px_prec)  # 2% above liq
+            log.warning(f"SL adjusted above liquidation: ${sl_price}")
+        elif side == "SHORT" and sl_price > liq_price:
+            sl_price = round(liq_price * 0.98, px_prec)
+            log.warning(f"SL adjusted below liquidation: ${sl_price}")
+
         try:
             client.create_stop_market(symbol, sl_side, qty, sl_price)
         except Exception as e:
-            # SL failed → emergency close
             log.error(f"SL placement failed, emergency close: {e}")
             client.close_position_market(symbol)
             return {"ok": False, "error": f"SL 失敗，已緊急平倉: {e}"}
 
-        # TP (optional, best-effort)
+        # TP — sanity check: clamp to 1%-10% range
         tp_pct = order.get("tp_pct", 0.04)
-        if tp_pct > 0:
-            tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
-            tp_price = round(tp_price, prec.get("price_precision", 2))
-            try:
-                client.create_take_profit_market(symbol, sl_side, qty, tp_price)
-            except Exception:
-                pass
+        if tp_pct > 1:
+            tp_pct = tp_pct / 100
+        tp_pct = max(0.01, min(tp_pct, 0.10))  # hard clamp 1%-10%
 
-        return {"ok": True, "result": f"入場 {symbol} {side} qty={qty} @~${price:.2f}"}
+        tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
+        tp_price = round(tp_price, px_prec)
+        try:
+            client.create_take_profit_market(symbol, sl_side, qty, tp_price)
+        except Exception:
+            pass
+
+        notional = qty * price
+        return {
+            "ok": True,
+            "symbol": symbol, "side": side,
+            "entry": price, "qty": qty, "notional": notional,
+            "margin": amount, "leverage": leverage,
+            "sl_price": sl_price, "sl_pct": sl_pct,
+            "tp_price": tp_price, "tp_pct": tp_pct,
+        }
 
     except Exception as e:
         log.error(f"下單失敗: {e}")
@@ -370,28 +432,27 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     await update.message.reply_text(
-        "🦞 *OpenClaw v2.0*\n\n"
-        "*查詢（免費）*\n"
-        "/report — 完整倉位報告\n"
-        "/pos — 當前持倉\n"
+        "🦞 <b>OpenClaw v2.0</b>\n\n"
+        "<b>查詢</b>\n"
+        "/report — 倉位報告\n"
+        "/pos — 持倉\n"
         "/bal — 餘額\n"
-        "/pnl — 今日盈虧\n"
-        "/scan — 最新掃描\n"
-        "/log — 最近記錄\n"
+        "/pnl — 盈虧\n"
+        "/scan — 掃描\n"
+        "/log — 記錄\n"
         "/health — 系統狀態\n\n"
-        "*控制*\n"
+        "<b>控制</b>\n"
         "/mode — 切換模式\n"
-        "/sl breakeven — 移止損至開倉價\n"
-        "/pause — 暫停交易\n"
-        "/resume — 恢復交易\n"
+        "/sl breakeven — 止損移至開倉價\n"
+        "/pause — 暫停\n"
+        "/resume — 恢復\n"
         "/cancel — 取消待確認訂單\n\n"
-        "*下單*\n"
-        "直接輸入：「買入 XAG 50蚊」\n"
-        "或：「平倉 BTC」\n\n"
-        "*AI 分析*\n"
-        "/ask \\[問題\\] — 帶本地數據分析\n"
+        "<b>下單</b>\n"
+        "直接輸入：「買入 XAG 50蚊」\n\n"
+        "<b>AI</b>\n"
+        "/ask [問題] — 帶數據分析\n"
         "自由輸入 — 自動判斷意圖",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
@@ -478,9 +539,9 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         btns = [[InlineKeyboardButton(mode_labels.get(m, m), callback_data=f"mode_{m}")]
                 for m in VALID_MODES]
         await update.message.reply_text(
-            f"⚙️ 當前模式：*{current}*\n選擇新模式：",
+            f"⚙️ 當前模式：<b>{current}</b>\n選擇新模式：",
             reply_markup=InlineKeyboardMarkup(btns),
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
         return
 
@@ -490,7 +551,7 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     _apply_mode(mode)
-    await update.message.reply_text(f"✅ 已切換至 *{mode}*", parse_mode="Markdown")
+    await update.message.reply_text(f"✅ 已切換至 <b>{mode}</b>", parse_mode="HTML")
     write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
 
 
@@ -550,10 +611,9 @@ async def cmd_sl_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(
             "止損指令：\n"
-            "`/sl` — 查看當前止損\n"
-            "`/sl breakeven` — 所有倉位移至開倉價\n"
-            "`/sl breakeven XAGUSDT` — 指定幣種",
-            parse_mode="Markdown",
+            "/sl — 查看當前止損\n"
+            "/sl breakeven — 所有倉位移至開倉價\n"
+            "/sl breakeven XAGUSDT — 指定幣種",
         )
 
 
@@ -578,7 +638,7 @@ async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     _set_trading_enabled(False)
-    await update.message.reply_text("⏸ *交易已暫停*", parse_mode="Markdown")
+    await update.message.reply_text("⏸ <b>交易已暫停</b>", parse_mode="HTML")
     write_conversation("暫停交易", "已暫停")
 
 
@@ -586,7 +646,7 @@ async def cmd_resume_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     _set_trading_enabled(True)
-    await update.message.reply_text("▶️ *交易已恢復*", parse_mode="Markdown")
+    await update.message.reply_text("▶️ <b>交易已恢復</b>", parse_mode="HTML")
     write_conversation("恢復交易", "已恢復")
 
 
@@ -610,7 +670,7 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     question = " ".join(ctx.args) if ctx.args else ""
     if not question:
-        await update.message.reply_text("用法：`/ask 你的問題`", parse_mode="Markdown")
+        await update.message.reply_text("用法：/ask 你的問題")
         return
     await _handle_analysis(update, question)
 
@@ -629,7 +689,7 @@ async def _safe_retrieve(query: str, top_k: int = 6) -> list:
 
 async def _handle_analysis(update: Update, text: str):
     """RAG + local state + Claude analysis."""
-    await update.message.reply_text("🤔 思考中...")
+    await update.message.reply_text("...")
 
     memories = await _safe_retrieve(text, top_k=6)
     mem_text = format_for_prompt(memories, max_chars=2000)
@@ -640,15 +700,9 @@ async def _handle_analysis(update: Update, text: str):
         context += mem_text + "\n\n"
     context += local_text
 
-    reply = call_claude(text, context)
+    reply = _clean_for_telegram(call_claude(text, context))
 
-    try:
-        await update.message.reply_text(reply, parse_mode="HTML")
-    except Exception:
-        try:
-            await update.message.reply_text(reply, parse_mode="Markdown")
-        except Exception:
-            await update.message.reply_text(reply)
+    await _send_html(update.message, reply)
 
     write_conversation(text, reply)
 
@@ -669,7 +723,7 @@ async def handle_free_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     order_kw = ["買", "賣", "做多", "做空", "long", "short", "平倉", "close",
                 "入場", "開倉", "buy", "sell", "all in"]
     if any(kw in text.lower() for kw in order_kw):
-        await update.message.reply_text("🤔 分析中...")
+        await update.message.reply_text("...")
         order = parse_order_intent(text)
         if order:
             await _request_order_confirmation(update, order)
@@ -689,26 +743,59 @@ async def _request_order_confirmation(update: Update, order: dict):
     symbol  = order.get("symbol", "?")
     side    = order.get("side", "?")
     amount  = order.get("amount", 0)
-    sl_pct  = order.get("sl_pct", 0.02) * 100
-    tp_pct  = order.get("tp_pct", 0.04) * 100
-    desc    = order.get("description", "")
+    leverage = 10
+
+    # Apply same sanity clamp as execute_order
+    sl_raw = order.get("sl_pct", 0.02)
+    tp_raw = order.get("tp_pct", 0.04)
+    if sl_raw > 1:
+        sl_raw = sl_raw / 100
+    if tp_raw > 1:
+        tp_raw = tp_raw / 100
+    sl_pct = max(0.01, min(sl_raw, 0.05))
+    tp_pct = max(0.01, min(tp_raw, 0.10))
+
+    # Get current price for SL/TP preview
+    try:
+        prices = slash_cmd.get_prices()
+        price = prices.get(symbol, {}).get("price", 0)
+    except Exception:
+        price = 0
 
     balance      = slash_cmd.get_balance() or 0.0
     is_high_risk = (amount >= balance * 0.8) or (side == "CLOSE")
     risk_icon    = "🔴" if is_high_risk else "🟡"
-    risk_note    = "\n⚠️ *高風險操作*" if is_high_risk else ""
 
     timeout_sec = 90 if is_high_risk else 60
     expire_at   = datetime.now(timezone.utc) + timedelta(seconds=timeout_sec)
 
+    risk_html = "\n⚠️ <b>高風險操作</b>" if is_high_risk else ""
+
+    # Calculate preview values
+    if price > 0 and side != "CLOSE":
+        sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
+        tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
+        notional = amount * leverage
+        detail = (
+            f"幣種：{symbol}\n"
+            f"方向：{side}\n"
+            f"金額：${amount:.2f} | 槓桿：{leverage}x | 逐倉\n"
+            f"名義：~${notional:.1f}\n"
+            f"SL：${sl_price:.4f} ({sl_pct*100:.1f}%)\n"
+            f"TP：${tp_price:.4f} ({tp_pct*100:.1f}%)\n"
+            f"現價：${price:.4f}"
+        )
+    else:
+        detail = (
+            f"幣種：{symbol}\n"
+            f"方向：{side}\n"
+            f"金額：${amount:.2f}"
+        )
+
     msg_text = (
-        f"{risk_icon} *確認下單？*{risk_note}\n"
+        f"{risk_icon} <b>確認下單？</b>{risk_html}\n"
         f"━━━━━━━━━━━━━━━━\n"
-        f"幣種：`{symbol}`\n"
-        f"方向：`{side}`\n"
-        f"金額：`${amount:.2f}`\n"
-        f"止損：`{sl_pct:.1f}%`\n"
-        f"止盈：`{tp_pct:.1f}%`\n"
+        f"{detail}\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"⏱ {timeout_sec}秒內確認，否則自動取消"
     )
@@ -719,7 +806,7 @@ async def _request_order_confirmation(update: Update, order: dict):
     ]])
 
     msg = await update.message.reply_text(
-        msg_text, reply_markup=keyboard, parse_mode="Markdown",
+        msg_text, reply_markup=keyboard, parse_mode="HTML",
     )
 
     pending_orders[chat_id] = {
@@ -745,8 +832,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             _apply_mode(mode)
             mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
             await query.edit_message_text(
-                f"✅ 已切換至 *{mode_labels.get(mode, mode)}*",
-                parse_mode="Markdown",
+                f"✅ 已切換至 <b>{mode_labels.get(mode, mode)}</b>",
+                parse_mode="HTML",
             )
             write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
         return
@@ -775,25 +862,35 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         result = execute_order(order)
 
         if result["ok"]:
+            r = result
+            side_icon = "🟢" if r["side"] == "LONG" else "🔴"
             reply = (
-                f"✅ *下單成功*\n"
-                f"━━━━━━━━━━\n"
-                f"{order['symbol']} {order['side']}\n"
-                f"金額：${order.get('amount', 0):.2f}\n"
-                f"結果：{str(result.get('result', ''))[:200]}"
+                f"✅ <b>下單成功</b>\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"{side_icon} <b>{r['symbol']} {r['side']}</b>\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"入場    ${r['entry']:.4f}\n"
+                f"數量    {r['qty']} ({r['symbol'].replace('USDT','')})\n"
+                f"名義    ${r['notional']:.2f}\n"
+                f"保證金  ${r['margin']:.2f}\n"
+                f"槓桿    {r['leverage']}x 逐倉\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"🔴 SL  ${r['sl_price']:.4f}  ({r['sl_pct']*100:.1f}%)\n"
+                f"🟢 TP  ${r['tp_price']:.4f}  ({r['tp_pct']*100:.1f}%)\n"
+                f"━━━━━━━━━━━━━━━━"
             )
         else:
             reply = (
-                f"❌ *下單失敗*\n"
+                f"❌ <b>下單失敗</b>\n"
                 f"原因：{result.get('error', '未知')}"
             )
 
-        await ctx.bot.send_message(chat_id, reply, parse_mode="Markdown")
+        await ctx.bot.send_message(chat_id, reply, parse_mode="HTML")
 
         write_trade(
-            symbol=order.get("symbol", "?"),
-            side=order.get("side", "?"),
-            entry=order.get("amount", 0),
+            symbol=result.get("symbol", order.get("symbol", "?")),
+            side=result.get("side", order.get("side", "?")),
+            entry=result.get("entry", order.get("amount", 0)),
             notes=f"Telegram 下單 {'成功' if result['ok'] else '失敗'}",
         )
 
@@ -846,11 +943,19 @@ async def check_and_push_alerts(app):
                         context,
                     )
 
-                    await app.bot.send_message(
-                        ALLOWED_CHAT_ID,
-                        f"📋 *{symbol} 平倉報告*\n\n{report}",
-                        parse_mode="Markdown",
-                    )
+                    report = _clean_for_telegram(report)
+                    try:
+                        await app.bot.send_message(
+                            ALLOWED_CHAT_ID,
+                            f"📋 <b>{symbol} 平倉報告</b>\n\n{report}",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        clean = re.sub(r"<[^>]+>", "", report)
+                        await app.bot.send_message(
+                            ALLOWED_CHAT_ID,
+                            f"📋 {symbol} 平倉報告\n\n{clean}",
+                        )
                     write_analysis(f"{symbol} 平倉報告", report)
 
             last_positions = current
