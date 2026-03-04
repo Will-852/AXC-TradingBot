@@ -277,9 +277,18 @@ def execute_order(order: dict) -> dict:
             return {"ok": False, "error": f"無法取得 {symbol} 價格"}
 
         leverage = 10  # default
-        qty_prec = int(prec.get("qty_precision", 3))
-        px_prec  = int(prec.get("price_precision", 2))
+        # precision values are step sizes (0.001), convert to decimal places (3)
+        import math
+        def _step_to_dp(step):
+            s = float(step)
+            if s >= 1: return 0
+            return max(0, -int(math.floor(math.log10(abs(s)))))
+        qty_prec = _step_to_dp(prec.get("qty_precision", 0.001))
+        px_prec  = _step_to_dp(prec.get("price_precision", 0.01))
+        min_qty  = float(prec.get("min_qty", 0.001))
         qty      = round(amount * leverage / price, qty_prec)
+        if qty < min_qty:
+            qty = min_qty  # ensure minimum
 
         # Set margin + leverage
         try:
