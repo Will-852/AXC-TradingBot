@@ -289,6 +289,97 @@ def get_trigger_summary():
     return {"total": total, "by_asset": asset_list, "by_reason": reason_list}
 
 
+def get_trade_history():
+    """Parse trade history from TRADE_LOG.md markdown table."""
+    path = os.path.join(HOME, "workspace/agents/trader/TRADE_LOG.md")
+    trades = []
+    if not os.path.exists(path):
+        return trades
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line.startswith("|") or line.startswith("| #") or line.startswith("|---"):
+                continue
+            parts = [p.strip() for p in line.split("|")[1:-1]]
+            if len(parts) < 7:
+                continue
+            try:
+                date = parts[1].strip()
+                asset = parts[2].strip().replace("/", "")
+                direction = parts[3].strip()
+                entry_str = parts[4].replace("$", "").strip()
+                exit_str = parts[5].strip()
+                pnl_str = parts[6].strip()
+                entry = float(entry_str) if entry_str else 0.0
+                is_open = "OPEN" in exit_str
+                exit_price = 0.0
+                if not is_open:
+                    m = re.search(r'[\$]?([\d.]+)', exit_str)
+                    if m:
+                        exit_price = float(m.group(1))
+                pnl = 0.0
+                m = re.search(r'[\$]?([\d.]+)', pnl_str)
+                if m:
+                    pnl = float(m.group(1))
+                    if '-' in pnl_str:
+                        pnl = -pnl
+                trades.append({
+                    "dir": direction,
+                    "asset": asset,
+                    "entry": entry,
+                    "exit": exit_price if not is_open else None,
+                    "pnl": pnl,
+                    "time": date,
+                    "open": is_open,
+                })
+            except Exception:
+                continue
+    return trades[-5:]
+
+
+def get_risk_status():
+    """Read risk parameters from settings.py and current state."""
+    trade_state = parse_md(os.path.join(HOME, "workspace/agents/trader/TRADE_STATE.md"))
+    settings_path = os.path.join(HOME, "scripts/trader_cycle/config/settings.py")
+    circuit_daily = 0.15
+    cooldown_3 = 120
+    if os.path.exists(settings_path):
+        with open(settings_path) as f:
+            content = f.read()
+        m = re.search(r'CIRCUIT_BREAKER_DAILY\s*=\s*([\d.]+)', content)
+        if m:
+            circuit_daily = float(m.group(1))
+        m = re.search(r'COOLDOWN_3_LOSSES_MIN\s*=\s*(\d+)', content)
+        if m:
+            cooldown_3 = int(m.group(1))
+    cons_losses = 0
+    try:
+        cons_losses = int(trade_state.get("CONSECUTIVE_LOSSES", "0"))
+    except (ValueError, TypeError):
+        pass
+    balance = 0.0
+    try:
+        balance = float(trade_state.get("BALANCE_USDT",
+                        trade_state.get("ACCOUNT_BALANCE", "0")))
+    except (ValueError, TypeError):
+        pass
+    max_daily_loss = round(balance * circuit_daily, 2)
+    daily_loss = 0.0
+    dl_str = trade_state.get("DAILY_LOSS", "0")
+    m = re.search(r'[\$]?([\d.]+)', str(dl_str))
+    if m:
+        daily_loss = float(m.group(1))
+    market_mode = trade_state.get("MARKET_MODE", "RANGE")
+    return {
+        "consecutive_losses": cons_losses,
+        "max_consecutive_losses": 3,
+        "daily_loss": daily_loss,
+        "max_daily_loss": max_daily_loss,
+        "market_mode": market_mode,
+        "trigger_cooldown": cons_losses >= 2,
+    }
+
+
 def update_pnl_history(balance):
     """Track PnL history, persist to shared/pnl_history.json."""
     data = {"baseline": None, "history": []}
@@ -417,6 +508,8 @@ def collect_data():
         "telegram": get_telegram_status(),
         "trigger_summary": get_trigger_summary(),
         "pnl_history": pnl_history,
+        "trade_history": get_trade_history(),
+        "risk_status": get_risk_status(),
     }
 
 
