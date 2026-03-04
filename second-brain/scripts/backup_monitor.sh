@@ -7,8 +7,8 @@ if [ ! -d "$BACKUP_DIR" ]; then
   exit 0
 fi
 
-SIZE_MB=$(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1 | sed 's/[^0-9].*//')
-SIZE_INT=${SIZE_MB%.*}
+SIZE_INT=$(du -sm "$BACKUP_DIR" 2>/dev/null | cut -f1)
+SIZE_INT=${SIZE_INT:-0}
 
 if [ "$SIZE_INT" -ge "$LIMIT_MB" ]; then
   echo ""
