@@ -27,6 +27,7 @@ except ImportError:
 
 PORT = 5555
 HOME = os.path.expanduser("~/.openclaw")
+SCRIPTS_DIR = os.path.join(HOME, "scripts")
 HKT = timezone(timedelta(hours=8))
 PRICE_HISTORY_PATH = os.path.join(HOME, "shared", "price_history.json")
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
@@ -46,6 +47,65 @@ PARAMS_DISPLAY = {
     "RANGE_ENTRY_CONFIRM":     ("入場確認", ""),
     "TREND_ENTRY_CONFIRM":     ("趨勢確認", ""),
 }
+
+
+def _get_aster_client():
+    """Lazy-load AsterClient for live exchange queries."""
+    if SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, SCRIPTS_DIR)
+    from trader_cycle.exchange.aster_client import AsterClient
+    return AsterClient()
+
+
+def get_live_balance():
+    """Get USDT balance from Aster DEX. Falls back to TRADE_STATE.md."""
+    try:
+        return _get_aster_client().get_usdt_balance()
+    except Exception:
+        # Fallback to stale file
+        ts = parse_md(os.path.join(HOME, "shared/TRADE_STATE.md"))
+        try:
+            return float(ts.get("BALANCE_USDT", 0))
+        except (ValueError, TypeError):
+            return 0.0
+
+
+def get_live_positions():
+    """Get open positions from Aster DEX."""
+    try:
+        raw = _get_aster_client().get_positions()
+        positions = []
+        for p in raw:
+            amt = float(p.get("positionAmt", 0))
+            if amt == 0:
+                continue
+            positions.append({
+                "pair": p.get("symbol", ""),
+                "direction": "LONG" if amt > 0 else "SHORT",
+                "entry_price": float(p.get("entryPrice", 0)),
+                "mark_price": float(p.get("markPrice", 0)),
+                "size": abs(amt),
+                "unrealized_pnl": float(p.get("unRealizedProfit", 0)),
+            })
+        return positions
+    except Exception:
+        return []
+
+
+def get_live_today_pnl():
+    """Get today's realized PnL from exchange income history."""
+    try:
+        client = _get_aster_client()
+        now = datetime.now(HKT)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_ms = int(today_start.timestamp() * 1000)
+        income = client.get_income(start_time=start_ms, limit=100)
+        realized = sum(float(e["income"]) for e in income if e["incomeType"] == "REALIZED_PNL")
+        funding = sum(float(e["income"]) for e in income if e["incomeType"] == "FUNDING_FEE")
+        commission = sum(float(e["income"]) for e in income if e["incomeType"] == "COMMISSION")
+        return {"realized": realized, "funding": funding, "commission": commission, "net": realized + funding + commission}
+    except Exception:
+        return None
 
 
 def parse_md(path):
@@ -680,9 +740,33 @@ def collect_data():
     params = get_trading_params()
     trade = get_trade_state()
 
-    # Balance-based PnL — source of truth
-    baseline = get_balance_baseline(trade["balance"])
-    pnl_history = update_pnl_history(trade["balance"])
+    # LIVE balance from exchange (source of truth)
+    live_bal = get_live_balance()
+
+    # LIVE positions from exchange
+    live_positions = get_live_positions()
+    has_position = len(live_positions) > 0
+
+    # LIVE today's PnL from exchange income
+    live_pnl = get_live_today_pnl()
+    today_pnl = round(live_pnl["net"], 2) if live_pnl else 0.0
+
+    # Balance baseline for total PnL tracking
+    baseline = get_balance_baseline(live_bal)
+    pnl_history = update_pnl_history(live_bal)
+
+    # Unrealized PnL from live positions
+    unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 2)
+    unrealized_pct = round(unrealized_pnl / live_bal * 100, 2) if live_bal > 0 else 0.0
+
+    # Position display from live exchange
+    if has_position:
+        pos = live_positions[0]
+        position_str = pos["pair"]
+        direction_str = pos["direction"]
+    else:
+        position_str = trade["position"]  # fallback "無"
+        direction_str = trade["direction"]
 
     # Prices from scan config
     scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
@@ -709,44 +793,21 @@ def collect_data():
                 display = f"{val}{unit}"
             params_display.append({"label": label, "value": display})
 
-    # Enrich trades — cross-reference TRADE_STATE for open/closed truth
+    # Trade history (for log display only)
     trades = _enrich_trades(get_trade_history(), prices, trade)
-
-    # Unrealized PnL: use TRADE_STATE as source of truth
-    unrealized_pnl = 0.0
-    if trade["in_position"]:
-        # Prefer TRADE_STATE fields directly
-        if trade["entry_price"] > 0 and trade["size"] > 0:
-            sym = trade["position"].replace("/", "").replace("USDT", "")
-            try:
-                current = float(prices.get(sym, 0))
-            except (ValueError, TypeError):
-                current = 0
-            if current > 0:
-                diff = (current - trade["entry_price"]) if trade["direction"] == "LONG" else (trade["entry_price"] - current)
-                unrealized_pnl = round(diff * trade["size"], 2)
-        else:
-            # Fallback: sum from open trades in trade log
-            for t in trades:
-                if t.get("open") and t.get("current_price") and t.get("entry") and t.get("size"):
-                    cp, ep, sz = float(t["current_price"]), float(t["entry"]), float(t["size"])
-                    diff = (cp - ep) if t["dir"] == "LONG" else (ep - cp)
-                    unrealized_pnl += diff * sz
-            unrealized_pnl = round(unrealized_pnl, 2)
-    bal = trade["balance"] or 0
-    unrealized_pct = round(unrealized_pnl / bal * 100, 2) if bal > 0 else 0.0
 
     return {
         "timestamp": ts,
-        "balance": trade["balance"],
-        "today_pnl": baseline["today_pnl"],
+        "balance": live_bal,
+        "today_pnl": today_pnl,
         "total_pnl": baseline["total_pnl"],
         "mode": trade["market_mode"],
         "signal_active": signal.get("SIGNAL_ACTIVE", "NO"),
         "signal_pair": signal.get("PAIR", "---"),
-        "position": trade["position"],
-        "direction": trade["direction"],
-        "in_position": trade["in_position"],
+        "position": position_str,
+        "direction": direction_str,
+        "in_position": has_position,
+        "live_positions": live_positions,
         "consecutive_losses": int(trade["consecutive_losses"]),
         "agents": agents,
         "params": params,
