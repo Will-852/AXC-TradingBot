@@ -59,6 +59,13 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .ldot{width:6px;height:6px;border-radius:50%;background:var(--pos);animation:lp 2s ease infinite;flex-shrink:0}
 @keyframes lp{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
 
+/* Mode switcher */
+.mode-sw{display:flex;align-items:center;gap:4px}
+.mode-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;cursor:pointer;opacity:0.4;transition:opacity .2s,border-color .2s;font-size:14px;line-height:1}
+.mode-btn.active{opacity:1;border-color:#34d399}
+.mode-btn:hover{opacity:0.8}
+.mode-suggest{font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:4px;color:var(--warn)}
+
 /* ═══ MAIN ═══ */
 #main{margin-left:200px;display:flex;flex-direction:column;min-height:100vh}
 #content{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:16px}
@@ -203,6 +210,13 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
       <span class="pill" id="p-trg">觸發: 關</span>
       <span class="pill" id="p-sig">訊號: 無</span>
       <span class="pill pill-on" id="p-mode">—</span>
+      <span class="hsep"></span>
+      <div class="mode-sw">
+        <button class="mode-btn" data-mode="CONSERVATIVE" title="保守：RANGE only">C</button>
+        <button class="mode-btn" data-mode="BALANCED" title="平衡：RANGE + TREND">B</button>
+        <button class="mode-btn" data-mode="AGGRESSIVE" title="進取：追趨勢">A</button>
+        <span id="mode-suggest"></span>
+      </div>
       <span class="hsep"></span>
       <span class="hts" id="hd-ts">—</span>
       <span class="ldot"></span>
@@ -456,6 +470,10 @@ function render(){if(!D)return;
     '<div class="rk-mode"><span class="rk-mode-label">觸發冷卻</span><span style="color:'+(rk.trigger_cooldown?'var(--warn)':'var(--pos)')+';">'+(rk.trigger_cooldown?'冷卻中 ('+(rk.cooldown_3_min||'?')+'分鐘)':'無')+'</span></div>'+
     '<div class="rk-mode"><span class="rk-mode-label">最長持倉</span><span style="color:var(--ts)">'+(rk.max_hold_hours||'?')+'小時</span></div>';
 
+  /* Mode switcher — highlight active profile */
+  var ap=D.active_profile||'CONSERVATIVE';
+  document.querySelectorAll('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===ap)});
+
   var gi=D.git||{};
   if(gi.hash&&gi.hash!=='unknown'){document.getElementById('ft-git').innerHTML='⎇ <span class="fh">'+gi.hash+'</span> · '+gi.message+(gi.ago?' · '+gi.ago:'')}
   var up=D.uptime||{};document.getElementById('ft-up').textContent=up.duration&&up.duration!=='—'?'運行 '+up.duration:'—';
@@ -464,6 +482,18 @@ function render(){if(!D)return;
 }
 
 document.getElementById('btn-pause').addEventListener('click',function(){paused=!paused;this.textContent=paused?'繼續':'暫停'});
+
+/* Mode switcher click */
+document.querySelectorAll('.mode-btn').forEach(function(btn){
+  btn.addEventListener('click',async function(){
+    var mode=btn.dataset.mode;
+    try{
+      var r=await fetch('/api/set_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:mode})});
+      if(r.ok){document.querySelectorAll('.mode-btn').forEach(function(b){b.classList.remove('active')});btn.classList.add('active');load()}
+    }catch(e){console.error(e)}
+  });
+});
+
 async function load(){try{var r=await fetch('/api/data');D=await r.json();lastDataTime=Date.now();render()}catch(e){console.error(e)}}
 load();setInterval(load,30000);
 </script>

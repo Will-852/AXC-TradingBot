@@ -829,7 +829,62 @@ def collect_data():
         "risk_status": get_risk_status(),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
+        "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
     }
+
+
+def handle_set_mode(body):
+    """POST /api/set_mode — switch trading profile."""
+    try:
+        data = json.loads(body)
+    except Exception:
+        return 400, {"error": "Invalid JSON"}
+    mode = data.get("mode", "").upper()
+    valid = ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"]
+    if mode not in valid:
+        return 400, {"error": f"Invalid mode. Use: {valid}"}
+    params_path = os.path.join(HOME, "config/params.py")
+    try:
+        with open(params_path) as f:
+            content = f.read()
+        content = re.sub(r'ACTIVE_PROFILE\s*=\s*"[^"]*"', f'ACTIVE_PROFILE = "{mode}"', content)
+        with open(params_path, "w") as f:
+            f.write(content)
+        return 200, {"ok": True, "mode": mode, "message": f"已切換至 {mode} 模式"}
+    except Exception as e:
+        return 500, {"error": str(e)}
+
+
+def handle_suggest_mode():
+    """GET /api/suggest_mode — suggest profile based on BTC 24h change."""
+    scan_config = parse_md(os.path.join(HOME, "workspace/agents/trader/config/SCAN_CONFIG.md"))
+    price_history = {}
+    if os.path.exists(PRICE_HISTORY_PATH):
+        try:
+            with open(PRICE_HISTORY_PATH) as f:
+                price_history = json.load(f)
+        except Exception:
+            pass
+    btc_hist = price_history.get("BTC", [])
+    btc_now = 0
+    try:
+        btc_now = float(scan_config.get("BTC_price", 0))
+    except (ValueError, TypeError):
+        pass
+    # Estimate 24h change from price history or use 0
+    change = 0.0
+    if btc_hist and len(btc_hist) >= 2 and btc_hist[0] > 0:
+        change = abs((btc_now - btc_hist[0]) / btc_hist[0] * 100)
+    if change > 5.0:
+        suggested = "AGGRESSIVE"
+        reason = f"BTC 24H 變化 {change:.1f}% > 5%，市場波動大"
+    elif change > 2.0:
+        suggested = "BALANCED"
+        reason = f"BTC 24H 變化 {change:.1f}%，中等波動"
+    else:
+        suggested = "CONSERVATIVE"
+        reason = f"BTC 24H 變化 {change:.1f}%，市場平靜"
+    return {"suggested": suggested, "reason": reason, "btc_change_24h": round(change, 2)}
 
 
 def collect_debug():
@@ -906,23 +961,21 @@ def collect_debug():
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _json_response(self, code, data):
+        body = json.dumps(data, ensure_ascii=False).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         if self.path == "/api/data":
-            data = collect_data()
-            body = json.dumps(data, ensure_ascii=False).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(body)
+            self._json_response(200, collect_data())
         elif self.path == "/api/debug":
-            data = collect_debug()
-            body = json.dumps(data, ensure_ascii=False).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(body)
+            self._json_response(200, collect_debug())
+        elif self.path == "/api/suggest_mode":
+            self._json_response(200, handle_suggest_mode())
         else:
             try:
                 with open(CANVAS_HTML, "rb") as f:
@@ -935,6 +988,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 self.wfile.write(b"canvas/index.html not found")
+
+    def do_POST(self):
+        if self.path == "/api/set_mode":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode()
+            code, data = handle_set_mode(body)
+            self._json_response(code, data)
+        else:
+            self._json_response(404, {"error": "Not found"})
 
     def log_message(self, format, *args):
         pass
