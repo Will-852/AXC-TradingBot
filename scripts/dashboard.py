@@ -72,21 +72,52 @@ def get_live_balance():
 
 
 def get_live_positions():
-    """Get open positions from Aster DEX."""
+    """Get open positions from Aster DEX with full details."""
     try:
-        raw = _get_aster_client().get_positions()
+        client = _get_aster_client()
+        raw = client.get_positions()
         positions = []
         for p in raw:
             amt = float(p.get("positionAmt", 0))
             if amt == 0:
                 continue
+            symbol = p.get("symbol", "")
+            entry = float(p.get("entryPrice", 0))
+            mark = float(p.get("markPrice", 0))
+            leverage = int(p.get("leverage", 1))
+            size = abs(amt)
+            notional = size * mark
+            upnl = float(p.get("unRealizedProfit", 0))
+            upnl_pct = round(upnl / (notional / leverage) * 100, 2) if notional > 0 else 0
+
+            # Fetch SL/TP from open orders
+            sl_price = 0
+            tp_price = 0
+            try:
+                orders = client.get_open_orders(symbol)
+                for o in orders:
+                    if o.get("type") == "STOP_MARKET":
+                        sl_price = float(o.get("stopPrice", 0))
+                    elif o.get("type") == "TAKE_PROFIT_MARKET":
+                        tp_price = float(o.get("stopPrice", 0))
+            except Exception:
+                pass
+
             positions.append({
-                "pair": p.get("symbol", ""),
+                "pair": symbol,
                 "direction": "LONG" if amt > 0 else "SHORT",
-                "entry_price": float(p.get("entryPrice", 0)),
-                "mark_price": float(p.get("markPrice", 0)),
-                "size": abs(amt),
-                "unrealized_pnl": float(p.get("unRealizedProfit", 0)),
+                "entry_price": entry,
+                "mark_price": mark,
+                "size": size,
+                "notional": round(notional, 2),
+                "leverage": leverage,
+                "margin_type": p.get("marginType", "isolated"),
+                "margin": round(float(p.get("isolatedWallet", 0)), 2),
+                "liq_price": float(p.get("liquidationPrice", 0)),
+                "unrealized_pnl": upnl,
+                "unrealized_pct": upnl_pct,
+                "sl_price": sl_price,
+                "tp_price": tp_price,
             })
         return positions
     except Exception:

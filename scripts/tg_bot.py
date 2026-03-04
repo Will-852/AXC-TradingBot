@@ -292,24 +292,47 @@ def execute_order(order: dict) -> dict:
         entry_side = "BUY" if side == "LONG" else "SELL"
         result = client.create_market_order(symbol, entry_side, qty)
 
-        # SL — sanity check: clamp to 1%-5% range
-        sl_pct = order.get("sl_pct", 0.02)
-        if sl_pct > 1:       # model returned e.g. 2 instead of 0.02
-            sl_pct = sl_pct / 100
-        sl_pct = max(0.01, min(sl_pct, 0.05))  # hard clamp 1%-5%
+        # SL/TP — support absolute price OR percentage
+        DEFAULT_SL_PCT = 0.025  # 2.5%
+        DEFAULT_TP_PCT = 0.04   # 4%
+        sl_side = "SELL" if side == "LONG" else "BUY"
 
-        sl_side  = "SELL" if side == "LONG" else "BUY"
-        sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
-        sl_price = round(sl_price, px_prec)
+        # Resolve SL price
+        if "sl_price" in order and order["sl_price"]:
+            sl_price = round(float(order["sl_price"]), px_prec)
+            sl_pct = round(abs(price - sl_price) / price, 4)
+        else:
+            sl_pct = DEFAULT_SL_PCT
+            if "sl_pct" in order:
+                v = float(order["sl_pct"])
+                if v > 1: v = v / 100
+                if 0.005 <= v <= 0.05: sl_pct = v
+            sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
+            sl_price = round(sl_price, px_prec)
 
-        # Validate SL is above liquidation price (for longs)
-        liq_margin = 1.0 / leverage * 0.9  # rough liquidation distance
-        liq_price  = price * (1 - liq_margin) if side == "LONG" else price * (1 + liq_margin)
+        # Resolve TP price
+        if "tp_price" in order and order["tp_price"]:
+            tp_price = round(float(order["tp_price"]), px_prec)
+            tp_pct = round(abs(tp_price - price) / price, 4)
+        else:
+            tp_pct = DEFAULT_TP_PCT
+            if "tp_pct" in order:
+                v = float(order["tp_pct"])
+                if v > 1: v = v / 100
+                if 0.01 <= v <= 0.10: tp_pct = v
+            tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
+            tp_price = round(tp_price, px_prec)
+
+        # Validate SL above liquidation
+        liq_margin = 1.0 / leverage * 0.9
+        liq_price = price * (1 - liq_margin) if side == "LONG" else price * (1 + liq_margin)
         if side == "LONG" and sl_price < liq_price:
-            sl_price = round(liq_price * 1.02, px_prec)  # 2% above liq
+            sl_price = round(liq_price * 1.02, px_prec)
+            sl_pct = round(abs(price - sl_price) / price, 4)
             log.warning(f"SL adjusted above liquidation: ${sl_price}")
         elif side == "SHORT" and sl_price > liq_price:
             sl_price = round(liq_price * 0.98, px_prec)
+            sl_pct = round(abs(sl_price - price) / price, 4)
             log.warning(f"SL adjusted below liquidation: ${sl_price}")
 
         try:
@@ -318,15 +341,6 @@ def execute_order(order: dict) -> dict:
             log.error(f"SL placement failed, emergency close: {e}")
             client.close_position_market(symbol)
             return {"ok": False, "error": f"SL 失敗，已緊急平倉: {e}"}
-
-        # TP — sanity check: clamp to 1%-10% range
-        tp_pct = order.get("tp_pct", 0.04)
-        if tp_pct > 1:
-            tp_pct = tp_pct / 100
-        tp_pct = max(0.01, min(tp_pct, 0.10))  # hard clamp 1%-10%
-
-        tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
-        tp_price = round(tp_price, px_prec)
         try:
             client.create_take_profit_market(symbol, sl_side, qty, tp_price)
         except Exception:
@@ -394,7 +408,14 @@ def parse_order_intent(text: str) -> dict | None:
 訊息：「{text}」
 
 如果係下單指令，只返回 JSON：
-{{"is_order": true, "symbol": "XAGUSDT", "side": "LONG 或 SHORT 或 CLOSE", "amount": 50.0, "sl_pct": 0.02, "tp_pct": 0.04, "confidence": 0.95, "description": "買入XAG $50，止損2%"}}
+{{"is_order": true, "symbol": "ETHUSDT", "side": "LONG", "amount": 1.0, "confidence": 0.95, "description": "做多ETH $1"}}
+
+SL/TP 規則（最重要）：
+- 用戶冇講 → 唔好加任何 SL/TP 欄位
+- 用戶講百分比（如「止損2%」）→ 加 "sl_pct": 0.02
+- 用戶講實際價格（如「SL 2089」）→ 加 "sl_price": 2089
+- TP 同理：「止盈5%」→ "tp_pct": 0.05，「TP 2169」→ "tp_price": 2169
+- 只加用戶明確講嘅，唔好自己估
 
 如果唔係下單，返回：{{"is_order": false}}
 
@@ -745,15 +766,9 @@ async def _request_order_confirmation(update: Update, order: dict):
     amount  = order.get("amount", 0)
     leverage = 10
 
-    # Apply same sanity clamp as execute_order
-    sl_raw = order.get("sl_pct", 0.02)
-    tp_raw = order.get("tp_pct", 0.04)
-    if sl_raw > 1:
-        sl_raw = sl_raw / 100
-    if tp_raw > 1:
-        tp_raw = tp_raw / 100
-    sl_pct = max(0.01, min(sl_raw, 0.05))
-    tp_pct = max(0.01, min(tp_raw, 0.10))
+    # Resolve SL/TP same logic as execute_order
+    DEFAULT_SL_PCT = 0.025
+    DEFAULT_TP_PCT = 0.04
 
     # Get current price for SL/TP preview
     try:
@@ -773,8 +788,28 @@ async def _request_order_confirmation(update: Update, order: dict):
 
     # Calculate preview values
     if price > 0 and side != "CLOSE":
-        sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
-        tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
+        # SL
+        if "sl_price" in order and order["sl_price"]:
+            sl_price = float(order["sl_price"])
+            sl_pct = abs(price - sl_price) / price
+        else:
+            sl_pct = DEFAULT_SL_PCT
+            if "sl_pct" in order:
+                v = float(order["sl_pct"])
+                if v > 1: v = v / 100
+                if 0.005 <= v <= 0.05: sl_pct = v
+            sl_price = price * (1 - sl_pct) if side == "LONG" else price * (1 + sl_pct)
+        # TP
+        if "tp_price" in order and order["tp_price"]:
+            tp_price = float(order["tp_price"])
+            tp_pct = abs(tp_price - price) / price
+        else:
+            tp_pct = DEFAULT_TP_PCT
+            if "tp_pct" in order:
+                v = float(order["tp_pct"])
+                if v > 1: v = v / 100
+                if 0.01 <= v <= 0.10: tp_pct = v
+            tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
         notional = amount * leverage
         detail = (
             f"幣種：{symbol}\n"
