@@ -176,31 +176,34 @@ def get_uptime():
 
 
 def get_git_info():
-    """Get last git commit info."""
-    result = {"hash": "—", "message": "—", "date": "—", "time_ago": "—"}
+    """Get last git commit info (fresh on every call)."""
     try:
-        out = subprocess.check_output(
-            ["git", "-C", HOME, "log", "--format=%H|%s|%ai", "-1"],
-            text=True, timeout=5,
-        ).strip()
-        parts = out.split("|", 2)
-        if len(parts) >= 3:
-            full_hash, msg, date_str = parts
-            result["hash"] = full_hash[:7]
-            result["message"] = msg
-            result["date"] = date_str[:10]
-            commit_dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S %z")
-            now = datetime.now(commit_dt.tzinfo or HKT)
-            secs = (now - commit_dt).total_seconds()
-            if secs < 3600:
-                result["time_ago"] = f"{int(secs // 60)}m ago"
-            elif secs < 86400:
-                result["time_ago"] = f"{int(secs // 3600)}h ago"
-            else:
-                result["time_ago"] = f"{int(secs // 86400)}d ago"
+        result = subprocess.run(
+            ["git", "-C", HOME, "log", "--oneline", "-1"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            parts = result.stdout.strip().split(" ", 1)
+            hash_short = parts[0]
+            message = parts[1] if len(parts) > 1 else ""
+            ago = ""
+            ts_result = subprocess.run(
+                ["git", "-C", HOME, "log", "-1", "--format=%ct"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if ts_result.returncode == 0:
+                commit_time = int(ts_result.stdout.strip())
+                diff = int(time.time()) - commit_time
+                if diff < 3600:
+                    ago = f"{diff // 60}分前"
+                elif diff < 86400:
+                    ago = f"{diff // 3600}小時前"
+                else:
+                    ago = f"{diff // 86400}日前"
+            return {"hash": hash_short, "message": message, "ago": ago}
     except Exception:
         pass
-    return result
+    return {"hash": "unknown", "message": "", "ago": ""}
 
 
 def get_telegram_status():
@@ -243,6 +246,46 @@ def get_telegram_status():
         if result["last_sent"] != "—":
             break
     return result
+
+
+def get_trigger_summary():
+    """Parse today's LIGHT TRIGGER entries from scan log."""
+    today = datetime.now(HKT).strftime("%Y-%m-%d")
+    log_path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
+    by_asset = {}
+    by_reason = {}
+    total = 0
+    if os.path.exists(log_path):
+        with open(log_path) as f:
+            for line in f:
+                if today not in line or "LIGHT TRIGGER" not in line:
+                    continue
+                total += 1
+                m_asset = re.search(r'TRIGGER:(\w+)', line)
+                if m_asset:
+                    asset = m_asset.group(1)
+                    by_asset[asset] = by_asset.get(asset, 0) + 1
+                m_reason = re.search(r'REASON:(\w+?)_[+-]', line)
+                if m_reason:
+                    reason = m_reason.group(1)
+                    by_reason[reason] = by_reason.get(reason, 0) + 1
+                elif re.search(r'REASON:(\w+)', line):
+                    reason = re.search(r'REASON:(\w+)', line).group(1)
+                    by_reason[reason] = by_reason.get(reason, 0) + 1
+    asset_list = sorted(
+        [{"name": k, "count": v} for k, v in by_asset.items()],
+        key=lambda x: -x["count"],
+    )
+    reason_list = sorted(
+        [{"name": k, "count": v} for k, v in by_reason.items()],
+        key=lambda x: -x["count"],
+    )
+    if total > 0:
+        for item in asset_list:
+            item["pct"] = round(item["count"] / total * 100)
+        for item in reason_list:
+            item["pct"] = round(item["count"] / total * 100)
+    return {"total": total, "by_asset": asset_list, "by_reason": reason_list}
 
 
 def update_price_history(prices):
@@ -337,6 +380,7 @@ def collect_data():
         "uptime": get_uptime(),
         "git": get_git_info(),
         "telegram": get_telegram_status(),
+        "trigger_summary": get_trigger_summary(),
     }
 
 
