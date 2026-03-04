@@ -375,11 +375,12 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception:
         base = "基礎健康檢查失敗"
 
-    # Agent activity timestamps
+    # Agent activity timestamps (actual files updated by running processes)
     agents = {
-        "🧠 主腦":    BASE_DIR / "agents/main/workspace/MEMORY.md",
+        "🧠 主腦":    BASE_DIR / "agents/main/sessions/sessions.json",
         "👁 掃描器":  BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md",
-        "💓 心跳":    BASE_DIR / "agents/heartbeat/workspace/MEMORY.md",
+        "💓 心跳":    BASE_DIR / "logs/heartbeat.log",
+        "📡 信號":    BASE_DIR / "shared/SIGNAL.md",
     }
     lines = [base, "", "── AGENT 活躍度 ──"]
     for name, path in agents.items():
@@ -761,7 +762,7 @@ async def check_and_push_alerts(app):
             last_positions = current
 
             # Agent health: warn if main brain stalls > 15min (max once per hour)
-            main_mem = BASE_DIR / "agents/main/workspace/MEMORY.md"
+            main_mem = BASE_DIR / "agents/main/sessions/sessions.json"
             if main_mem.exists():
                 mtime = datetime.fromtimestamp(main_mem.stat().st_mtime)
                 mins  = int((datetime.now() - mtime).total_seconds() / 60)
