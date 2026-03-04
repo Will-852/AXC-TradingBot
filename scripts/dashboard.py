@@ -30,6 +30,7 @@ HOME = os.path.expanduser("~/.openclaw")
 HKT = timezone(timedelta(hours=8))
 PRICE_HISTORY_PATH = os.path.join(HOME, "shared", "price_history.json")
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
+BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 
 # Whitelist: only decision-relevant params with Chinese labels
@@ -180,7 +181,9 @@ def get_file_tree():
 def get_agent_activity():
     """Derive agent call counts from scan log + cost from tracker."""
     ct = parse_md(os.path.join(HOME, "workspace/routing/COST_TRACKER.md"))
-    daily_total = ct.get("DAILY_TOTAL", "$0.00")
+    today = datetime.now(HKT).strftime("%Y-%m-%d")
+    ct_date = ct.get("DATE", "")
+    daily_total = ct.get("DAILY_TOTAL", "$0.00") if ct_date == today else "—"
 
     today = datetime.now(HKT).strftime("%Y-%m-%d")
     log_path = os.path.join(HOME, "workspace/agents/trader/logs/SCAN_LOG.md")
@@ -557,23 +560,61 @@ def get_risk_status():
     }
 
 
+def get_balance_baseline(current_balance):
+    """Get or create balance baseline. Resets start_of_day on new day.
+    Returns {"today_pnl": float, "total_pnl": float, "start_of_day": float, "all_time_start": float}."""
+    try:
+        bal = float(current_balance)
+    except (ValueError, TypeError):
+        return {"today_pnl": 0, "total_pnl": 0, "start_of_day": 0, "all_time_start": 0}
+
+    today = datetime.now(HKT).strftime("%Y-%m-%d")
+    data = None
+    if os.path.exists(BALANCE_BASELINE_PATH):
+        try:
+            with open(BALANCE_BASELINE_PATH) as f:
+                data = json.load(f)
+        except Exception:
+            data = None
+
+    if data is None:
+        # First ever call — create baseline
+        data = {"start_of_day": bal, "date": today, "all_time_start": bal}
+        with open(BALANCE_BASELINE_PATH, "w") as f:
+            json.dump(data, f)
+    elif data.get("date") != today:
+        # New day — roll start_of_day to current balance
+        data["start_of_day"] = bal
+        data["date"] = today
+        with open(BALANCE_BASELINE_PATH, "w") as f:
+            json.dump(data, f)
+
+    today_pnl = round(bal - data["start_of_day"], 2)
+    total_pnl = round(bal - data["all_time_start"], 2)
+    return {
+        "today_pnl": today_pnl,
+        "total_pnl": total_pnl,
+        "start_of_day": data["start_of_day"],
+        "all_time_start": data["all_time_start"],
+    }
+
+
 def update_pnl_history(balance):
-    """Track PnL history, persist to shared/pnl_history.json."""
-    data = {"baseline": None, "history": []}
+    """Track PnL history for sparkline chart."""
+    data = {"history": []}
     if os.path.exists(PNL_HISTORY_PATH):
         try:
             with open(PNL_HISTORY_PATH) as f:
                 data = json.load(f)
         except Exception:
-            data = {"baseline": None, "history": []}
+            data = {"history": []}
     try:
         bal = float(balance)
     except (ValueError, TypeError):
         return data.get("history", [])
-    if data.get("baseline") is None:
-        data["baseline"] = bal
+    baseline = get_balance_baseline(bal)
     now = int(time.time())
-    pnl = round(bal - data["baseline"], 2)
+    pnl = baseline["today_pnl"]
     hist = data.get("history", [])
     if hist and now - hist[-1]["t"] < 30:
         hist[-1] = {"t": now, "v": pnl}
@@ -639,6 +680,8 @@ def collect_data():
     params = get_trading_params()
     trade = get_trade_state()
 
+    # Balance-based PnL — source of truth
+    baseline = get_balance_baseline(trade["balance"])
     pnl_history = update_pnl_history(trade["balance"])
 
     # Prices from scan config
@@ -696,6 +739,8 @@ def collect_data():
     return {
         "timestamp": ts,
         "balance": trade["balance"],
+        "today_pnl": baseline["today_pnl"],
+        "total_pnl": baseline["total_pnl"],
         "mode": trade["market_mode"],
         "signal_active": signal.get("SIGNAL_ACTIVE", "NO"),
         "signal_pair": signal.get("PAIR", "---"),

@@ -359,6 +359,8 @@ function render(){if(!D)return;
 
   var bal=parseFloat(D.balance)||0;
   if(!balInit){countUp(document.getElementById('bal-num'),bal);balInit=true}else{document.getElementById('bal-num').textContent='$'+bal.toFixed(2)}
+  var todayPnl=D.today_pnl||0;var tpClr=todayPnl>=0?'var(--pos)':'var(--neg)';var tpSign=todayPnl>=0?'+':'';
+  document.getElementById('bal-pnl').textContent=tpSign+'$'+todayPnl.toFixed(2);document.getElementById('bal-pnl').style.color=tpClr;
   var ep=document.getElementById('bal-pos');
   if(D.in_position){var posLbl=D.position+(D.direction&&D.direction!=='—'?' '+D.direction:'');if(D.unrealized_pnl!==undefined&&D.unrealized_pnl!==0){var up=D.unrealized_pnl,uc=up>=0?'var(--pos)':'var(--neg)',us=up>=0?'+':'';posLbl+=' ('+us+'$'+up.toFixed(2)+')'}ep.textContent=posLbl;ep.style.color='var(--warn)'}else{ep.textContent='無';ep.style.color='var(--ts)'}
   document.getElementById('bp-mode').textContent=D.mode||'?';
@@ -381,7 +383,10 @@ function render(){if(!D)return;
 
   var pnlH=D.pnl_history||[];
   var pnlEl=document.getElementById('pnl-body');
-  if(pnlH.length>=2){var curPnl=pnlH[pnlH.length-1].v;var pclr=curPnl>=0?'var(--pos)':'var(--neg)';var psign=curPnl>=0?'+':'';pnlEl.innerHTML='<div class="pnl-nums"><div><div class="pnl-lbl">今日</div><div class="pnl-val lg" style="color:'+pclr+'">'+psign+'$'+curPnl.toFixed(2)+'</div></div><div><div class="pnl-lbl">總計</div><div class="pnl-val md" style="color:'+pclr+'">'+psign+'$'+curPnl.toFixed(2)+'</div></div></div><div class="pnl-chart">'+pnlChart(pnlH)+'</div><div class="pnl-axis"><span>啟動時</span><span>現在</span></div>'}else{pnlEl.innerHTML='<div class="pnl-empty">等待首次交易</div>'}
+  var tPnl=D.today_pnl||0,aPnl=D.total_pnl||0;
+  var tC=tPnl>=0?'var(--pos)':'var(--neg)',tS=tPnl>=0?'+':'';
+  var aC=aPnl>=0?'var(--pos)':'var(--neg)',aS=aPnl>=0?'+':'';
+  pnlEl.innerHTML='<div class="pnl-nums"><div><div class="pnl-lbl">今日</div><div class="pnl-val lg" style="color:'+tC+'">'+tS+'$'+tPnl.toFixed(2)+'</div></div><div><div class="pnl-lbl">總計</div><div class="pnl-val md" style="color:'+aC+'">'+aS+'$'+aPnl.toFixed(2)+'</div></div></div>'+(pnlH.length>=2?'<div class="pnl-chart">'+pnlChart(pnlH)+'</div><div class="pnl-axis"><span>今日開始</span><span>現在</span></div>':'')
 
   var ts=D.trigger_summary||{total:0,by_asset:[],by_reason:[]};
   if(ts.total>0){document.getElementById('trg-body').innerHTML='<div class="tg-n" style="color:var(--warn)">'+ts.total+' <span style="font-size:14px;color:var(--tm);font-weight:400">次</span></div><div class="tg-sec">資產分佈</div>'+ts.by_asset.map(function(a){return'<div class="tg-r"><span class="tg-rl">'+a.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(a.pct||0)+'%;background:var(--warn)"></div></div><span class="tg-rc">'+a.count+'</span></div>'}).join('')+'<div class="tg-sec">觸發原因</div>'+ts.by_reason.map(function(r){return'<div class="tg-r"><span class="tg-rl">'+r.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(r.pct||0)+'%;background:var(--info)"></div></div><span class="tg-rc">'+r.count+'</span></div>'}).join('')}else{document.getElementById('trg-body').innerHTML='<div class="tg-empty">今日暫無觸發</div>'}
