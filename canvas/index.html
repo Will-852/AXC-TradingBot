@@ -302,7 +302,7 @@ button:active{transform:scale(0.97);transition:transform .08s}
   </div>
   <div class="sb-label">SYSTEM</div>
   <div id="sb-layers"></div>
-  <div class="sb-label" style="margin-top:8px">PARAMS</div>
+  <div class="sb-label" style="margin-top:8px">打法 <span id="sb-profile-name" style="color:#34d399;font-size:9px;text-transform:none;letter-spacing:0"></span></div>
   <div id="sb-params"></div>
   <div class="sb-bottom">
     <div class="sb-settings"><span>⚙</span> <span>設定</span></div>
@@ -662,11 +662,17 @@ function render(){if(!D)return;
   var ts=D.trigger_summary||{total:0,by_asset:[],by_reason:[]};
   if(ts.total>0){document.getElementById('trg-body').innerHTML='<div class="tg-n" style="color:var(--warn)">'+ts.total+' <span style="font-size:14px;color:var(--tm);font-weight:400">次</span></div><div class="tg-sec">資產分佈</div>'+ts.by_asset.map(function(a){return'<div class="tg-r"><span class="tg-rl">'+a.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(a.pct||0)+'%;background:var(--warn)"></div></div><span class="tg-rc">'+a.count+'</span></div>'}).join('')+'<div class="tg-sec">觸發原因</div>'+ts.by_reason.map(function(r){return'<div class="tg-r"><span class="tg-rl">'+r.name+'</span><div class="tg-bar"><div class="tg-bf" style="width:'+(r.pct||0)+'%;background:var(--info)"></div></div><span class="tg-rc">'+r.count+'</span></div>'}).join('')}else{document.getElementById('trg-body').innerHTML='<div class="tg-empty">今日暫無觸發</div>'}
 
-  /* Sidebar params — whitelisted Chinese labels (FIX 4) */
+  /* Sidebar params — profile-aware (shows active profile values) */
   var pd=D.params_display||[];
-  document.getElementById('sb-params').innerHTML=pd.map(function(p){
-    return'<div class="sb-param"><span class="sb-pk">'+p.label+'</span><span class="sb-pv">'+p.value+'</span></div>';
+  var pn=D.active_profile||'';
+  var nameMap={'CONSERVATIVE':'穩陣','BALANCED':'平衡','AGGRESSIVE':'進取'};
+  document.getElementById('sb-profile-name').textContent=nameMap[pn]||pn;
+  var paramsEl=document.getElementById('sb-params');
+  var newHtml=pd.map(function(p){
+    var vc=p.value==='關'?'color:rgba(255,255,255,0.25)':p.value==='開'?'color:#34d399':'';
+    return'<div class="sb-param"><span class="sb-pk">'+p.label+'</span><span class="sb-pv" style="'+vc+'">'+p.value+'</span></div>';
   }).join('');
+  if(paramsEl.innerHTML!==newHtml){paramsEl.innerHTML=newHtml;paramsEl.style.transition='none';paramsEl.style.opacity='0.5';setTimeout(function(){paramsEl.style.transition='opacity .4s';paramsEl.style.opacity='1'},50)};
 
   /* Scan log — FIX 1: correct badge logic */
   if(!paused){
