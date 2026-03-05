@@ -14,6 +14,9 @@
 ## 搵舊記憶
 python3 ~/.openclaw/memory/retriever.py "問題"
 
+## 系統健康檢查
+bash ~/.openclaw/scripts/health_check.sh
+
 ## 緊急操作
 | 問題 | 指令 |
 |---|---|
