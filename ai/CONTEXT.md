@@ -90,6 +90,7 @@ news_agent     ─┘ (sentiment overlay)
 | load_env.sh | LaunchAgent .env wrapper |
 | backup_agent.sh | git+push+zip backup |
 | integration_test.sh | 5 場景整合測試 |
+| health_check.sh | 7 類別系統健康檢查 |
 
 ## Gotchas
 - 改參數只改 config/params.py，唔改 scripts
