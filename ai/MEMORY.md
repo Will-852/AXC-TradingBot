@@ -31,6 +31,15 @@
 - news_agent 已實現（RSS scraper + Haiku sentiment，每 15 分鐘）
 - 交易記錄生命週期修復（position_sync.py + tg_bot.py → trades.jsonl 完整 entry+exit）
 - Dashboard get_trade_history() 改讀 trades.jsonl
+- 全局 ~/.claude/CLAUDE.md 建立（70行，V3 方案）
+- health_check.sh 建立（39 pass / 1 warn / 0 fail）
+- 5 LaunchAgent plist python3.11 → python3 統一
+- TAXONOMY.md 加 binary 文件夾說明（7 folders）
+- params.py 設計原則注釋（方案3：清晰分工）
+- OPS.md 加參數修改指引
+
+## 已知 Bugs
+- tp_atr_mult 覆蓋 MIN_RR（settings.py line 146-147）— 概念混用，BALANCED 可能自拒
 
 ## Maintenance
 - 每月1號：`bash scripts/integration_test.sh`

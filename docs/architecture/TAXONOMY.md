@@ -78,6 +78,34 @@ docs/architecture/AGENTS.md              ← 更新職責說明
 → 每層各加一個，唔影響其他任何嘢
 ```
 
+## ⚠️ 系統管理文件夾（Binary 自動管理，唔動）
+
+以下文件夾由 OpenClaw binary 自動建立和管理。
+唔係用戶代碼，唔可以移動、改名、刪除或加入自己嘅文件。
+
+| 文件夾 | 用途 | 管理者 |
+|--------|------|--------|
+| `completions/` | LLM response cache | Binary 自動清理 |
+| `cron/` | 定時任務配置 | Binary 內部 |
+| `delivery-queue/` | 訊息投遞隊列 | Binary 消費 |
+| `devices/` | 設備認證記錄 | Binary 寫入 |
+| `identity/` | 身份認證信息 | Binary 管理 |
+| `workspace/` | 臨時工作空間 | Binary 清理 |
+| `credentials/` | 交易所證書緩存 | Binary 刷新 |
+
+**判斷規則：**
+如果唔確定一個文件夾係咪 binary 管理，執行：
+```
+grep -r "[folder_name]" ~/.openclaw/scripts/ --include="*.py" -l
+```
+如果 zero results = binary 管理，唔動。
+如果有 results = 用戶代碼，按判斷樹處理。
+
+**新增文件夾時：**
+先執行上述 grep，確認來源。
+Binary 管理嘅文件夾加入呢個表格。
+用戶代碼嘅文件夾按判斷樹分類。
+
 ## 長期維護規則
 
 1. 新增文件前先查此判斷樹

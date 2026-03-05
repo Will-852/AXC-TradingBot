@@ -100,6 +100,22 @@ launchctl stop ai.openclaw.lightscan && launchctl start ai.openclaw.lightscan
 
 ---
 
+## 改交易參數
+
+想改交易行為（SL/TP/leverage）：
+```
+用戶層（UI 可見）：  config/params.py 的 TRADING_PROFILES
+引擎層（內部邏輯）：scripts/trader_cycle/config/settings.py
+```
+
+注意：TRADING_PROFILES 只能覆蓋 settings.py 已有的 key。
+新增 key 前先確認 settings.py 有對應定義：
+```bash
+grep "KEY_NAME" ~/.openclaw/scripts/trader_cycle/config/settings.py
+```
+
+---
+
 ## 出事排查
 
 | 症狀 | 檢查 |

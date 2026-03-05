@@ -1,6 +1,28 @@
 # config/params.py
-# 所有交易參數集中地
-# 後期調整：只改呢個文件
+# ═══════════════════════════════════════════════════════
+# 設計原則（方案3：清晰分工）
+# ═══════════════════════════════════════════════════════
+#
+# 呢個文件 = 用戶可見參數層
+# 讀取者：
+#   dashboard.py    → 顯示 UI 設定（get_params() 動態讀全部）
+#   settings.py     → profile override（只讀 TRADING_PROFILES 4 個 key）
+#   indicator_calc  → BB 參數
+#   async_scanner   → 幣種 + 掃描設定
+#   weekly_review   → trigger_pct
+#
+# 唔放喺呢度：
+#   交易引擎內部邏輯參數 → scripts/trader_cycle/config/settings.py
+#   敏感 API keys        → secrets/.env
+#
+# TRADING_PROFILES override 映射（settings.py line 141-148）：
+#   risk_per_trade_pct  → RANGE_RISK_PCT + TREND_RISK_PCT
+#   sl_atr_mult         → RANGE_SL_ATR_MULT + TREND_SL_ATR_MULT
+#   tp_atr_mult         → RANGE_MIN_RR + TREND_MIN_RR  ⚠️ BUG: 概念混用，待修
+#   max_open_positions  → MAX_CRYPTO_POSITIONS
+#
+# ⚠️ 加新 profile key 前：先 grep settings.py 確認有消費者
+# ═══════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════
 # Section 1: 掃描設定（async_scanner 讀）
