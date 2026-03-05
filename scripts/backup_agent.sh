@@ -33,7 +33,7 @@ fi
 # Guardian 4: Stale old-path reference warning
 OLD_REFS=$(grep -r "docs/ops\|docs/operations\|docs/telegram\|OPS_GUIDE\|ADDING_SYMBOLS" \
            "$HOME/.openclaw" --include="*.md" --include="*.py" \
-           --include="*.sh" -l 2>/dev/null | grep -v ".git" | grep -v "backups/" | grep -v "backup_agent.sh" | wc -l)
+           --include="*.sh" -l 2>/dev/null | grep -v ".git" | grep -v "backups/" | grep -v "backup_agent.sh" | grep -v "health_check.sh" | wc -l)
 if [ "$OLD_REFS" -gt 0 ]; then
     echo "⚠️  發現 $OLD_REFS 個文件仍引用舊路徑，請更新。"
 fi
