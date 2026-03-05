@@ -67,7 +67,9 @@ try:
     LOG_MAX_LINES   = int(getattr(_params,  "SCAN_LOG_MAX_LINES", 500))
     LOG_MAX_BYTES   = int(getattr(_params,  "SCAN_LOG_MAX_BYTES", 10_485_760))
     LOG_BACKUPS     = int(getattr(_params,  "SCAN_LOG_BACKUPS", 5))
-    TRIGGER_PCT     = float(getattr(_params, "TRIGGER_PCT", 0.05))
+    _FALLBACK_TRIGGER = float(getattr(_params, "TRIGGER_PCT", 0.05))
+    _PROFILES         = getattr(_params, "TRADING_PROFILES", {})
+    _ACTIVE           = getattr(_params, "ACTIVE_PROFILE", None)
 except ImportError as e:
     log.warning(f"params.py 載入失敗，使用預設值: {e}")
     ASTER_SYMBOLS   = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
@@ -78,7 +80,21 @@ except ImportError as e:
     LOG_MAX_LINES   = 500
     LOG_MAX_BYTES   = 10_485_760
     LOG_BACKUPS     = 5
-    TRIGGER_PCT     = 0.05
+    _FALLBACK_TRIGGER = 0.05
+    _PROFILES         = {}
+    _ACTIVE           = None
+
+
+def get_trigger_pct() -> float:
+    """
+    動態讀取當前 profile 的觸發門檻。
+    優先讀 ACTIVE_PROFILE → trigger_pct，fallback 到 TRIGGER_PCT。
+
+    R6 修復：之前 scanner 讀硬編碼 TRIGGER_PCT=0.05（5%），
+    完全唔讀 TRADING_PROFILES，導致市場 -4% 時永遠唔觸發。
+    """
+    profile = _PROFILES.get(_ACTIVE, {})
+    return profile.get("trigger_pct", _FALLBACK_TRIGGER)
 
 # Fix R1: Bounded ThreadPoolExecutor — thread hang 最多佔 SCAN_WORKERS 個 slot
 _executor = concurrent.futures.ThreadPoolExecutor(
@@ -225,7 +241,7 @@ async def fetch_binance_symbol(symbol: str) -> Optional[dict]:
 def evaluate_signal(data: dict) -> dict:
     """24H 變化幅度 → 信號強度。"""
     change    = abs(float(data.get("change", 0)))
-    threshold = TRIGGER_PCT * 100   # e.g. 0.05 → 5%
+    threshold = get_trigger_pct() * 100   # e.g. 0.025 → 2.5%
 
     if change >= threshold * 1.5:
         signal, reason = "STRONG", f"24H_{change:.1f}pct"

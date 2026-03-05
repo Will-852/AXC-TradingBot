@@ -55,7 +55,7 @@ RISK_PER_TRADE_PCT = 0.02
 TRADING_PROFILES = {
     "CONSERVATIVE": {
         "description": "保守：等待 RANGE 機會，最低風險",
-        "trigger_pct":          0.50,
+        "trigger_pct":          0.03,    # 3%（較嚴格，減少噪音）
         "risk_per_trade_pct":   0.01,
         "sl_atr_mult":          1.5,
         "tp_atr_mult":          2.0,
@@ -66,7 +66,7 @@ TRADING_PROFILES = {
     },
     "BALANCED": {
         "description": "平衡：RANGE 為主，容許部分 TREND",
-        "trigger_pct":          0.38,
+        "trigger_pct":          0.025,   # 2.5%（市場 -4% 可觸發）
         "risk_per_trade_pct":   0.02,
         "sl_atr_mult":          1.2,
         "tp_atr_mult":          2.0,
@@ -77,7 +77,7 @@ TRADING_PROFILES = {
     },
     "AGGRESSIVE": {
         "description": "進取：追趨勢，最高風險最高回報",
-        "trigger_pct":          0.25,
+        "trigger_pct":          0.02,    # 2%（最敏感，追趨勢用）
         "risk_per_trade_pct":   0.03,
         "sl_atr_mult":          1.0,
         "tp_atr_mult":          3.0,
@@ -122,7 +122,9 @@ SCAN_MAX_WORKERS    = 8           # 並發上限
 SCAN_LOG_MAX_LINES  = 500         # SCAN_LOG 保留行數
 SCAN_LOG_MAX_BYTES  = 10_485_760  # scanner.log 單文件上限（10MB）
 SCAN_LOG_BACKUPS    = 5           # scanner.log 保留備份數
-TRIGGER_PCT         = 0.05        # 信號觸發閾值（5%）
+# ⚠️  CRITICAL: 呢個係 fallback 值。Scanner 優先讀 ACTIVE_PROFILE 的 trigger_pct。
+# 只有 params.py import 失敗時先用呢個值。正常情況改 TRADING_PROFILES 就得。
+TRIGGER_PCT         = 0.05        # fallback 信號觸發閾值（5%）
 
 # ═══════════════════════════════════════
 # Section 6: 新聞/情緒設定（news agent 讀）
