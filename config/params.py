@@ -76,3 +76,31 @@ ACTIVE_PROFILE = "BALANCED"
 
 # 是否啟用自動切換
 AUTO_PROFILE_SWITCH = False
+
+# ══════════════════════════════════════════════
+# 掃描幣種設定
+# ⚠️ 修改後必須重啟 async_scanner.py 先生效
+# 重啟指令：pkill -f async_scanner && sleep 2 &&
+#            python3 ~/.openclaw/scripts/async_scanner.py &
+# ══════════════════════════════════════════════
+
+ASTER_SYMBOLS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "XRPUSDT",
+    "XAGUSDT",
+    # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
+]
+
+BINANCE_SYMBOLS = [
+    # Binance 整合後填入，同樣需要重啟
+    # "SOLUSDT",
+]
+
+# 掃描引擎設定
+SCAN_TIMEOUT_SEC    = 30          # 單幣種超時（秒）
+SCAN_MAX_WORKERS    = 8           # 並發上限
+SCAN_LOG_MAX_LINES  = 500         # SCAN_LOG 保留行數
+SCAN_LOG_MAX_BYTES  = 10_485_760  # scanner.log 單文件上限（10MB）
+SCAN_LOG_BACKUPS    = 5           # scanner.log 保留備份數
+TRIGGER_PCT         = 0.05        # 信號觸發閾值（5%）
