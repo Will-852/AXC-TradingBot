@@ -38,6 +38,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from scripts.write_activity import write_activity
+
 # ── 路徑設定 ─────────────────────────────────────
 BASE_DIR   = Path.home() / ".openclaw"
 SHARED_DIR = BASE_DIR / "shared"
@@ -438,6 +440,13 @@ async def scanner_loop():
     while True:
         round_count += 1
         t0 = time.monotonic()
+
+        # 每30輪寫活動日誌心跳
+        if round_count % 30 == 0:
+            try:
+                write_activity("heartbeat", f"Scanner 第 {round_count} 輪")
+            except Exception:
+                pass
 
         try:
             # 每10輪做維護

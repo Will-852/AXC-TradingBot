@@ -39,7 +39,9 @@ SCRIPTS_DIR = BASE_DIR / "scripts"
 sys.path.insert(0, str(BASE_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from memory.writer import write_conversation, write_analysis, write_trade
+from memory.writer import (write_conversation, write_analysis,
+                            write_trade)
+from scripts.write_activity import write_activity
 from memory.retriever import retrieve_full, format_for_prompt
 
 import slash_cmd
@@ -712,9 +714,18 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ 無效。可選：{' / '.join(VALID_MODES)}")
         return
 
+    # Read old profile before switching
+    old_mode = "未知"
+    pp = BASE_DIR / "config/params.py"
+    if pp.exists():
+        om = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']', pp.read_text())
+        if om:
+            old_mode = om.group(1)
+
     _apply_mode(mode)
     await update.message.reply_text(f"✅ 已切換至 <b>{mode}</b>", parse_mode="HTML")
     write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
+    write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
 
 
 def _apply_mode(mode: str):
@@ -1005,6 +1016,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("mode_"):
         mode = data.replace("mode_", "")
         if mode in VALID_MODES:
+            # Read old profile before switching
+            old_mode = "未知"
+            pp = BASE_DIR / "config/params.py"
+            if pp.exists():
+                om = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']', pp.read_text())
+                if om:
+                    old_mode = om.group(1)
             _apply_mode(mode)
             mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
             await query.edit_message_text(
@@ -1012,6 +1030,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
             )
             write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
+            write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
         return
 
     # ── Order buttons ──
