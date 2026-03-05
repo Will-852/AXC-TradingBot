@@ -29,18 +29,24 @@ python3 scripts/dashboard.py
 
 ## 文件索引
 
-| 文件 | 用途 |
-|------|------|
-| [安裝指南](setup/INSTALL.md) | 完整安裝步驟 |
-| [環境變數](setup/ENV_SETUP.md) | API keys 設定 |
-| [災難恢復](setup/RECOVERY.md) | 換電腦/文件遺失 |
-| [維運指南](ops/OPS_GUIDE.md) | Proxy 切換/Key Rotate |
-| [備份機制](ops/BACKUP.md) | 備份說明 |
-| [架構決策](architecture/ARCHITECTURE.md) | AI stack 選型 |
-| [Agent 說明](architecture/AGENTS.md) | 各 agent 職責 |
-| [發展路線](architecture/ROADMAP.md) | 未來計劃 |
-| [Telegram 指令](telegram/TELEGRAM.md) | Bot 完整指令 |
-| [朋友安裝](friends/INSTALL.md) | 評測用指南 |
+| 類型 | 文件 | 用途 |
+|------|------|------|
+| AI | [ai/CONTEXT.md](../ai/CONTEXT.md) | 系統概覽（Agent 讀） |
+| AI | [ai/MEMORY.md](../ai/MEMORY.md) | 記憶快照（backup 自動） |
+| AI | [ai/RULES.md](../ai/RULES.md) | 行為規則 |
+| AI | [ai/STRATEGY.md](../ai/STRATEGY.md) | 交易策略（weekly 自動） |
+| 安裝 | [setup/INSTALL.md](setup/INSTALL.md) | 完整安裝步驟 |
+| 安裝 | [setup/ENV_SETUP.md](setup/ENV_SETUP.md) | API keys 設定 |
+| 安裝 | [setup/RECOVERY.md](setup/RECOVERY.md) | 換電腦/文件遺失 |
+| 操作 | [guides/OPS.md](guides/OPS.md) | Proxy 切換/Key Rotate |
+| 操作 | [guides/BACKUP.md](guides/BACKUP.md) | 備份說明 |
+| 操作 | [guides/SYMBOLS.md](guides/SYMBOLS.md) | 加幣種操作 |
+| 操作 | [guides/TELEGRAM.md](guides/TELEGRAM.md) | Bot 完整指令 |
+| 架構 | [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) | AI stack 選型 |
+| 架構 | [architecture/AGENTS.md](architecture/AGENTS.md) | 各 agent 職責 |
+| 架構 | [architecture/ROADMAP.md](architecture/ROADMAP.md) | 未來計劃 |
+| 架構 | [architecture/TAXONOMY.md](architecture/TAXONOMY.md) | 文件分類判斷樹 |
+| 朋友 | [friends/INSTALL.md](friends/INSTALL.md) | 評測用指南 |
 
 ## 架構
 
