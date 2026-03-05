@@ -1,53 +1,66 @@
-# OpenClaw 安裝指南
+# OpenClaw 朋友評測指南
 
-**支援：** macOS | **Python：** 3.11+
+> 感謝你幫忙測試！
+> 評測只需 Dashboard，Telegram 和交易係獨立接口，唔設定都可以。
 
-## 前置要求
-- [ ] Python 3.11+（`python3 --version`）
-- [ ] Binance 帳號 + API Key（現貨交易權限）
-- [ ] Anthropic API Key（console.anthropic.com）
+## 快速開始（5分鐘）
 
-## 安裝步驟
+### 1. 安裝
 
-### 1. 複製系統
 ```bash
-git clone [REPO_URL] ~/.openclaw
+git clone https://github.com/Will-852/openclaw ~/.openclaw
+pip3 install -r ~/.openclaw/requirements.txt --break-system-packages
 ```
 
-### 2. 安裝依賴
+### 2. API Key（只需一個）
+
 ```bash
-pip3 install binance-connector anthropic \
-             requests psutil python-dotenv \
-             --break-system-packages
+cp ~/.openclaw/docs/friends/.env.example ~/.openclaw/secrets/.env
+# 填入 PROXY_API_KEY（向我索取測試 key）
+nano ~/.openclaw/secrets/.env
 ```
 
-### 3. 啟動 Dashboard
+### 3. 啟動
+
 ```bash
-python3 ~/.openclaw/scripts/dashboard.py &
-open http://127.0.0.1:5555
+python3 ~/.openclaw/scripts/dashboard.py
 ```
 
-### 4. 連接 Binance
-在 Dashboard sidebar 找到「平台連接」
-點擊「連接 Binance」按鈕
-輸入你的 API Key + Secret
-點擊「驗證並連接」
+打開：**http://127.0.0.1:5555**
 
-### 5. Binance API Key 安全設定
-✅ 開啟：讀取帳戶資訊、現貨交易
-❌ 關閉：提款權限（重要！）
-✅ 開啟：IP 白名單（填你的家居 IP）
+---
 
-## 功能狀態
-| 功能 | 狀態 |
-|------|------|
-| Dashboard 監控 | ✅ 可用 |
-| Binance 市場數據 | ✅ 可用 |
-| 掃描訊號分析 | ✅ 可用 |
-| Telegram 通知 | ✅ 可用 |
-| Binance 自動下單 | ⏳ 開發中 |
+## 評測重點
 
-## ⚠️ 安全提示
-- API Key 只存於本機 ~/.openclaw/secrets/.env
-- 絕不要把 .env 上傳至 Git 或分享給任何人
-- 建議開啟 Binance IP 白名單
+請告訴我：
+
+1. **Dashboard 可讀性** — 資訊清晰嗎？
+2. **市場走勢** — 價格/圖表準確嗎？
+3. **Agent 狀態** — 活躍度顯示正常嗎？
+4. **整體體驗** — 有什麼可以改善？
+
+---
+
+## 獨立接口說明
+
+```
+Dashboard    本地運行，唔需要額外設定
+Telegram     選填，需要自己建立 bot
+Aster DEX    選填，需要交易所 API key
+Binance      選填，需要交易所 API key
+
+= 唔設定交易接口，唔會有任何真實交易
+```
+
+---
+
+## 常見問題
+
+**Q: 安全嗎？**
+A: 完全本地運行。唔連接任何外部服務（除非你填入交易所 key）。
+
+**Q: 需要付費嗎？**
+A: Dashboard 本地免費。AI 分析功能需要 API key（向我索取測試用）。
+
+**Q: 支持 Windows？**
+A: 目前只測試 macOS。
