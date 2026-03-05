@@ -35,19 +35,19 @@ PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 
-# Whitelist: only decision-relevant params with Chinese labels
-PARAMS_DISPLAY = {
-    "SCAN_INTERVAL_SEC":       ("掃描間隔", "秒"),
-    "RISK_PER_TRADE_PCT":      ("風險/單", "%"),
-    "MAX_OPEN_POSITIONS":      ("最大倉位", ""),
-    "MAX_POSITION_SIZE_USDT":  ("倉位上限", "$"),
-    "RANGE_SL_ATR_MULT":       ("R:SL", "×ATR"),
-    "RANGE_TP_ATR_MULT":       ("R:TP", "×ATR"),
-    "TREND_SL_ATR_MULT":       ("T:SL", "×ATR"),
-    "TREND_TP_ATR_MULT":       ("T:TP", "×ATR"),
-    "RANGE_ENTRY_CONFIRM":     ("入場確認", ""),
-    "TREND_ENTRY_CONFIRM":     ("趨勢確認", ""),
-}
+# Whitelist: profile-aware params with Chinese labels
+# Keys starting with _ are resolved from TRADING_PROFILES[ACTIVE_PROFILE]
+PARAMS_DISPLAY = [
+    ("RISK_PER_TRADE_PCT",      "風險/單",   "%"),
+    ("MAX_OPEN_POSITIONS",      "最大倉位",  ""),
+    ("_SL_ATR_MULT",            "止損",      "×ATR"),
+    ("_TP_ATR_MULT",            "止盈",      "×ATR"),
+    ("_TRIGGER_PCT",            "觸發門檻",  "%"),
+    ("_ALLOW_TREND",            "趨勢",      "bool"),
+    ("_ALLOW_RANGE",            "區間",      "bool"),
+    ("MAX_POSITION_SIZE_USDT",  "倉位上限",  "$"),
+    ("SCAN_INTERVAL_SEC",       "掃描間隔",  "秒"),
+]
 
 
 def _get_aster_client():
@@ -479,7 +479,8 @@ def get_trigger_summary():
 
 
 def get_trading_params():
-    """Read ALL params dynamically from config/params.py. Zero hardcoded keys."""
+    """Read ALL params dynamically from config/params.py. Zero hardcoded keys.
+    Also resolves active profile into flat top-level keys for display."""
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
@@ -494,6 +495,25 @@ def get_trading_params():
             v = getattr(mod, k)
             if isinstance(v, (int, float, str, bool, list)):
                 params[k] = v
+            elif isinstance(v, dict) and k == "TRADING_PROFILES":
+                params[k] = v
+
+        # Resolve active profile → override top-level display values
+        profiles = getattr(mod, "TRADING_PROFILES", {})
+        active = getattr(mod, "ACTIVE_PROFILE", "CONSERVATIVE")
+        profile = profiles.get(active, {})
+        if profile:
+            params["_profile_name"] = active
+            params["_profile_desc"] = profile.get("description", "")
+            params["RISK_PER_TRADE_PCT"] = profile.get("risk_per_trade_pct", params.get("RISK_PER_TRADE_PCT", 0.02))
+            params["MAX_OPEN_POSITIONS"] = profile.get("max_open_positions", params.get("MAX_OPEN_POSITIONS", 2))
+            params["_SL_ATR_MULT"] = profile.get("sl_atr_mult", 1.2)
+            params["_TP_ATR_MULT"] = profile.get("tp_atr_mult", 2.0)
+            params["_ALLOW_TREND"] = profile.get("allow_trend", True)
+            params["_ALLOW_RANGE"] = profile.get("allow_range", True)
+            params["_TRIGGER_PCT"] = profile.get("trigger_pct", 0.38)
+            params["_TREND_MIN"] = profile.get("trend_min_change_pct")
+
         return params
     except Exception as e:
         return {"error": str(e)}
@@ -864,13 +884,15 @@ def collect_data():
 
     last_scan_ts = scan_config.get("last_updated", signal.get("TIMESTAMP", "?"))
 
-    # Build params_display from whitelist
+    # Build params_display from whitelist (profile-aware)
     params_display = []
-    for key, (label, unit) in PARAMS_DISPLAY.items():
+    for key, label, unit in PARAMS_DISPLAY:
         val = params.get(key)
         if val is not None:
-            if unit == "%" and isinstance(val, float) and val < 1:
-                display = f"{val*100:.0f}{unit}"
+            if unit == "bool":
+                display = "開" if val else "關"
+            elif unit == "%" and isinstance(val, (int, float)):
+                display = f"{val*100:.0f}{unit}" if val < 1 else f"{val:.0f}{unit}"
             elif unit == "$":
                 display = f"{unit}{val}"
             else:
