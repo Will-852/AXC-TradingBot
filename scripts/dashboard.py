@@ -30,7 +30,6 @@ PORT = 5555
 HOME = os.path.expanduser("~/.openclaw")
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 HKT = timezone(timedelta(hours=8))
-PRICE_HISTORY_PATH = os.path.join(HOME, "shared", "price_history.json")
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
@@ -266,13 +265,26 @@ def get_launchagents():
         return {}
 
 
-def get_scan_log(n=20):
+def get_scan_log(n=10):
     path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
     if not os.path.exists(path):
         return []
     with open(path) as f:
         lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
     return lines[-n:]
+
+
+def get_activity_log(n: int = 50) -> list:
+    """讀取最近 N 條活動記錄。前端顯示最新10條，傳50條供滾動。"""
+    log_path = os.path.join(HOME, "shared/activity_log.jsonl")
+    if not os.path.exists(log_path):
+        return []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            entries = [json.loads(l) for l in f if l.strip()]
+        return entries[-n:][::-1]  # 最新在前
+    except Exception:
+        return []
 
 
 def get_file_tree():
@@ -607,19 +619,30 @@ def get_trade_history():
                 exit_price = rec.get("exit")
                 pnl = rec.get("pnl")
                 is_open = exit_price is None
+                pnl_val = float(pnl) if pnl is not None else 0.0
+                # Derive status
+                if is_open:
+                    status = "open"
+                elif pnl_val > 0:
+                    status = "win"
+                elif pnl_val < 0:
+                    status = "loss"
+                else:
+                    status = "closed"
                 trades.append({
                     "dir": rec.get("side", "?"),
                     "asset": rec.get("symbol", "?"),
                     "entry": float(rec.get("entry", 0)),
                     "exit": float(exit_price) if exit_price is not None else None,
-                    "pnl": float(pnl) if pnl is not None else 0.0,
+                    "pnl": pnl_val,
                     "time": rec.get("ts", ""),
                     "open": is_open,
                     "size": 0,
+                    "status": status,
                 })
     except Exception:
         pass
-    return trades[-5:]
+    return trades[-10:]
 
 
 def get_risk_status():
@@ -751,26 +774,93 @@ def update_pnl_history(balance):
     return data["history"]
 
 
-def update_price_history(prices):
-    history = {}
-    if os.path.exists(PRICE_HISTORY_PATH):
-        try:
-            with open(PRICE_HISTORY_PATH) as f:
-                history = json.load(f)
-        except Exception:
-            history = {}
-    for sym, price in prices.items():
-        try:
-            p = float(price)
-        except (ValueError, TypeError):
+PRICES_CACHE_PATH = os.path.join(HOME, "shared/prices_cache.json")
+_action_cache = {"data": [], "ts": 0}
+
+
+def get_action_plan(scan_config, trade_state):
+    """計算每個幣種嘅行動部署。零額外 API call。30 秒 cache 防並發讀寫。"""
+    global _action_cache
+    now = time.time()
+    if now - _action_cache["ts"] < 30:
+        return _action_cache["data"]
+
+    # Dynamic load params (same pattern as get_trading_params)
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "params_ap", os.path.join(HOME, "config/params.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        all_symbols = sorted(set(
+            getattr(mod, "ASTER_SYMBOLS", []) + getattr(mod, "BINANCE_SYMBOLS", [])
+        ))
+        active_profile = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+        profiles = getattr(mod, "TRADING_PROFILES", {})
+    except Exception:
+        return _action_cache["data"]
+
+    profile = profiles.get(active_profile, {})
+    threshold = profile.get("trigger_pct", 0.025) * 100  # → 2.5%
+    sl_mult = profile.get("sl_atr_mult", 1.2)
+
+    # Read prices_cache.json
+    cache = {}
+    try:
+        with open(PRICES_CACHE_PATH) as f:
+            cache = json.load(f)
+    except Exception:
+        return _action_cache["data"]
+
+    consecutive = int(trade_state.get("consecutive_losses", 0))
+
+    plans = []
+    for sym in all_symbols:
+        short = sym.replace("USDT", "")
+        data = cache.get(sym, {})
+        price = float(data.get("price", 0))
+        if price <= 0:
             continue
-        if sym not in history:
-            history[sym] = []
-        history[sym].append(p)
-        history[sym] = history[sym][-20:]
-    with open(PRICE_HISTORY_PATH, "w") as f:
-        json.dump(history, f)
-    return history
+
+        change = abs(float(data.get("change", 0)))
+        atr = float(scan_config.get(f"{short}_ATR", 0))
+        support = float(scan_config.get(f"{short}_support", 0))
+        resistance = float(scan_config.get(f"{short}_resistance", 0))
+
+        # Status: ready / near / far
+        if change >= threshold:
+            status = "ready"
+        elif change >= threshold * 0.7:
+            status = "near"
+        else:
+            status = "far"
+
+        # SL/TP preview
+        sl_dist = atr * sl_mult if atr > 0 else 0
+        tp_dist = sl_dist * 2.0 if sl_dist > 0 else 0
+
+        # Global blocker
+        blocker = f"連虧 {consecutive}" if consecutive >= 2 else None
+
+        plans.append({
+            "symbol": sym, "price": price,
+            "change_pct": round(change, 2),
+            "threshold_pct": round(threshold, 2),
+            "distance": round(max(0, threshold - change), 2),
+            "status": status,
+            "blocker": blocker,
+            "atr": round(atr, 6),
+            "support": support, "resistance": resistance,
+            "sl_long": round(price - sl_dist, 6) if sl_dist else None,
+            "sl_short": round(price + sl_dist, 6) if sl_dist else None,
+            "tp_long": round(price + tp_dist, 6) if tp_dist else None,
+            "tp_short": round(price - tp_dist, 6) if tp_dist else None,
+            "sl_pct": round(sl_dist / price * 100, 2) if sl_dist else None,
+        })
+    _action_cache["data"] = plans
+    _action_cache["ts"] = now
+    return plans
 
 
 def _enrich_trades(trades, prices, trade_state):
@@ -836,34 +926,6 @@ def collect_data():
         "XRP": scan_config.get("XRP_price", "0"),
         "XAG": scan_config.get("XAG_price", "0"),
     }
-    price_history = update_price_history(prices)
-
-    # Rich price objects for OKX-style ticker
-    prices_rich = []
-    for sym in ["BTC", "ETH", "XRP", "XAG"]:
-        p = 0.0
-        try:
-            p = float(prices.get(sym, 0))
-        except (ValueError, TypeError):
-            pass
-        hist = price_history.get(sym, [])
-        if len(hist) >= 2 and hist[0] > 0:
-            change = round((p - hist[0]) / hist[0] * 100, 2)
-            high = max(hist)
-            low = min(hist)
-        else:
-            change = 0.0
-            high = p
-            low = p
-        prices_rich.append({
-            "symbol": sym,
-            "price": p,
-            "change": change,
-            "high": round(high, 6),
-            "low": round(low, 6),
-            "history": hist,
-        })
-
     last_scan_ts = scan_config.get("last_updated", signal.get("TIMESTAMP", "?"))
 
     # Build params_display from whitelist (profile-aware)
@@ -903,8 +965,7 @@ def collect_data():
         "scan_log": get_scan_log(),
         "file_tree": get_file_tree(),
         "prices": prices,
-        "prices_rich": prices_rich,
-        "price_history": price_history,
+        "action_plan": get_action_plan(scan_config, trade),
         "trigger": scan_config.get("TRIGGER_PENDING", "OFF"),
         "scan_count": scan_config.get("LIGHT_SCAN_COUNT", "0"),
         "last_scan": last_scan_ts,
@@ -919,6 +980,7 @@ def collect_data():
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
+        "activity_log": get_activity_log(50),
     }
 
 
@@ -946,24 +1008,14 @@ def handle_set_mode(body):
 
 def handle_suggest_mode():
     """GET /api/suggest_mode — suggest profile based on BTC 24h change."""
-    scan_config = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md"))
-    price_history = {}
-    if os.path.exists(PRICE_HISTORY_PATH):
-        try:
-            with open(PRICE_HISTORY_PATH) as f:
-                price_history = json.load(f)
-        except Exception:
-            pass
-    btc_hist = price_history.get("BTC", [])
-    btc_now = 0
-    try:
-        btc_now = float(scan_config.get("BTC_price", 0))
-    except (ValueError, TypeError):
-        pass
-    # Estimate 24h change from price history or use 0
+    # Read BTC change% from prices_cache.json (populated by scanner)
     change = 0.0
-    if btc_hist and len(btc_hist) >= 2 and btc_hist[0] > 0:
-        change = abs((btc_now - btc_hist[0]) / btc_hist[0] * 100)
+    try:
+        with open(PRICES_CACHE_PATH) as f:
+            cache = json.load(f)
+        change = abs(float(cache.get("BTCUSDT", {}).get("change", 0)))
+    except Exception:
+        pass
     if change > 5.0:
         suggested = "AGGRESSIVE"
         reason = f"BTC 24H 變化 {change:.1f}% > 5%，市場波動大"
@@ -1165,6 +1217,44 @@ def collect_debug():
     return results
 
 
+DOCS_ROOT = os.path.join(HOME, "docs")
+
+
+def get_docs_list() -> list:
+    """返回 docs/ 下所有 .md 文件嘅相對路徑。"""
+    result = []
+    if not os.path.isdir(DOCS_ROOT):
+        return result
+    for root, dirs, files in os.walk(DOCS_ROOT):
+        dirs[:] = [d for d in sorted(dirs) if not d.startswith(".")]
+        for f in sorted(files):
+            if f.endswith(".md"):
+                rel = os.path.relpath(os.path.join(root, f), DOCS_ROOT)
+                result.append(rel.replace("\\", "/"))
+    return result
+
+
+def serve_doc(filename: str):
+    """
+    提供 docs/ 文件內容。
+    雙重安全：只允許 .md + abspath 確認在 docs/ 範圍內。
+    Returns: (status_code, content, content_type)
+    """
+    if not filename.endswith(".md"):
+        return 403, "Not allowed", "text/plain; charset=utf-8"
+
+    safe_path = os.path.abspath(os.path.join(DOCS_ROOT, filename))
+    if not safe_path.startswith(os.path.abspath(DOCS_ROOT)):
+        return 403, "Forbidden", "text/plain; charset=utf-8"
+
+    if not os.path.exists(safe_path):
+        return 404, "Not found", "text/plain; charset=utf-8"
+
+    with open(safe_path, encoding="utf-8") as f:
+        content = f.read()
+    return 200, content, "text/plain; charset=utf-8"
+
+
 class Handler(BaseHTTPRequestHandler):
     def _json_response(self, code, data):
         body = json.dumps(data, ensure_ascii=False).encode()
@@ -1202,6 +1292,29 @@ class Handler(BaseHTTPRequestHandler):
             rel = qs.get("path", [""])[0]
             code, data = handle_open_folder(rel)
             self._json_response(code, data)
+        elif path == "/details":
+            details_path = os.path.join(HOME, "canvas/details.html")
+            try:
+                with open(details_path, "rb") as f:
+                    html = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html)
+            except FileNotFoundError:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"details.html not found")
+        elif path == "/api/docs-list":
+            self._json_response(200, get_docs_list())
+        elif path.startswith("/api/doc/"):
+            filename = urllib.parse.unquote(path[9:])
+            code, content, ctype = serve_doc(filename)
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(content.encode() if isinstance(content, str) else content)
         else:
             try:
                 with open(CANVAS_HTML, "rb") as f:

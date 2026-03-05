@@ -27,6 +27,7 @@ from ..exchange.exceptions import (
     ExchangeError, InsufficientFundsError, InvalidOrderError,
     AuthenticationError, CriticalError,
 )
+from memory.writer import write_trade
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,12 @@ class ExecuteTradeStep:
             if fill_qty <= 0:
                 ctx.warnings.append(f"Entry order {order_id} not filled (qty=0)")
                 return ctx
+
+            # ④-b Write entry to trades.jsonl
+            try:
+                write_trade(pair, side, fill_price, notes="auto entry via trader_cycle")
+            except Exception as wt_err:
+                logger.warning(f"[{pair}] write_trade failed: {wt_err}")
 
             # ⑤ Stop Loss (CRITICAL — must succeed)
             try:
