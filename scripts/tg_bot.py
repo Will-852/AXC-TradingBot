@@ -251,6 +251,116 @@ def _get_client():
     return AsterClient()
 
 
+def _sync_trade_state():
+    """Sync TRADE_STATE.md with live exchange data after trades."""
+    try:
+        client = _get_client()
+        balance = client.get_usdt_balance()
+        positions = slash_cmd.get_positions()
+        now = datetime.now(HKT).strftime("%Y-%m-%d %H:%M")
+
+        # Read existing state for fields we don't fetch from exchange
+        state_path = BASE_DIR / "shared/TRADE_STATE.md"
+        old_text = state_path.read_text() if state_path.exists() else ""
+        def _old_val(key, default=""):
+            m = re.search(rf'^{key}:\s*(.+)$', old_text, re.MULTILINE)
+            return m.group(1).strip() if m else default
+
+        # Find active position
+        active = None
+        for p in positions:
+            amt = float(p.get("positionAmt", 0))
+            if amt != 0:
+                active = p
+                break
+
+        # Build position block
+        if active:
+            amt = float(active.get("positionAmt", 0))
+            direction = "LONG" if amt > 0 else "SHORT"
+            entry = active.get("entryPrice", "0")
+            mark = active.get("markPrice", "0")
+            lev = active.get("leverage", "10")
+            margin_type = active.get("marginType", "isolated")
+            margin = active.get("isolatedMargin", "0")
+            liq = active.get("liquidationPrice", "0")
+            pnl = active.get("unRealizedProfit", "0")
+
+            # Try to get SL/TP from open orders
+            sl_price = "—"
+            tp_price = "—"
+            try:
+                orders = client.get_open_orders(active["symbol"])
+                for o in orders:
+                    otype = o.get("type", "")
+                    if "STOP_MARKET" in otype:
+                        sl_price = o.get("stopPrice", "—")
+                    elif "TAKE_PROFIT" in otype:
+                        tp_price = o.get("stopPrice", "—")
+            except Exception:
+                pass
+
+            pos_block = f"""```
+POSITION_OPEN: YES
+PAIR: {active['symbol']}
+DIRECTION: {direction}
+ENTRY_PRICE: {entry}
+MARK_PRICE: {mark}
+SIZE: {abs(amt)}
+LEVERAGE: {lev}
+MARGIN_TYPE: {margin_type}
+MARGIN: {margin}
+LIQUIDATION: {liq}
+UNREALIZED_PNL: {pnl}
+SL_PRICE: {sl_price}
+TP_PRICE: {tp_price}
+```"""
+        else:
+            pos_block = "POSITION_OPEN: NO"
+
+        md = f"""# TRADE_STATE.md — 當前交易狀態
+# 版本: {datetime.now(HKT).strftime('%Y-%m-%d')}
+# 寫入: tg_bot auto-sync
+
+## 系統狀態
+
+SYSTEM_STATUS: ACTIVE
+LAST_UPDATED: {now}
+DAILY_LOSS: {_old_val('DAILY_LOSS', '$0.00')}
+DAILY_LOSS_LIMIT: {_old_val('DAILY_LOSS_LIMIT', '15%')}
+CONSECUTIVE_LOSSES: {_old_val('CONSECUTIVE_LOSSES', '0')}
+COOLDOWN_ACTIVE: {_old_val('COOLDOWN_ACTIVE', 'NO')}
+COOLDOWN_ENDS: {_old_val('COOLDOWN_ENDS', '—')}
+
+## 當前模式
+
+MARKET_MODE: {_old_val('MARKET_MODE', 'TREND')}
+MODE_CONFIRMED_CYCLES: {_old_val('MODE_CONFIRMED_CYCLES', '0')}
+
+## 當前倉位
+
+{pos_block}
+
+## 帳戶資訊
+
+BALANCE_USDT: {balance}
+AVAILABLE_MARGIN: {balance}
+LAST_BALANCE_CHECK: {now}
+"""
+        # Write to both paths
+        paths = [
+            BASE_DIR / "shared/TRADE_STATE.md",
+            BASE_DIR / "workspace/agents/aster_trader/TRADE_STATE.md",
+        ]
+        for p in paths:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(md)
+
+        log.info(f"TRADE_STATE synced: balance={balance}, pos={'YES' if active else 'NO'}")
+    except Exception as e:
+        log.error(f"TRADE_STATE sync failed: {e}")
+
+
 def execute_order(order: dict) -> dict:
     """
     Execute an order via AsterClient.
@@ -263,6 +373,7 @@ def execute_order(order: dict) -> dict:
 
         if side == "CLOSE":
             result = client.close_position_market(symbol)
+            _sync_trade_state()
             return {"ok": True, "result": str(result)}
 
         # Calculate qty from USDT amount
@@ -938,6 +1049,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             notes=f"Telegram 下單 {'成功' if result['ok'] else '失敗'}",
         )
 
+        # Sync TRADE_STATE.md with live exchange data
+        if result["ok"]:
+            _sync_trade_state()
+
 
 # ════════════════════════════════════════════════════
 # Auto push alerts (position close + agent health)
@@ -1001,6 +1116,9 @@ async def check_and_push_alerts(app):
                             f"📋 {symbol} 平倉報告\n\n{clean}",
                         )
                     write_analysis(f"{symbol} 平倉報告", report)
+
+                # Sync TRADE_STATE after position close
+                _sync_trade_state()
 
             last_positions = current
 
