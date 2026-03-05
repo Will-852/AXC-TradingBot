@@ -630,7 +630,6 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Agent activity timestamps (actual files updated by running processes)
     agents = {
         "🧠 主腦":    BASE_DIR / "agents/main/sessions/sessions.json",
-        "👁 掃描器":  BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md",
         "💓 心跳":    BASE_DIR / "logs/heartbeat.log",
         "📡 信號":    BASE_DIR / "shared/SIGNAL.md",
     }
@@ -643,6 +642,28 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lines.append(f"{icon} {name}：{mins}分鐘前")
         else:
             lines.append(f"❓ {name}：無記錄")
+
+    # Scanner heartbeat — detailed status
+    hb_path = BASE_DIR / "logs/scanner_heartbeat.txt"
+    if hb_path.exists():
+        hb = hb_path.read_text().strip()
+        parts = hb.split(" ", 2)
+        status = parts[1] if len(parts) > 1 else "unknown"
+        detail = parts[2] if len(parts) > 2 else ""
+        try:
+            ts = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
+            age_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
+            if age_min > (SCAN_INTERVAL * 2 / 60) if 'SCAN_INTERVAL' in dir() else age_min > 6:
+                s_icon, s_note = "⚠️", f"可能 hang ({age_min:.0f}分鐘無更新)"
+            elif status == "error":
+                s_icon, s_note = "❌", detail[:50]
+            else:
+                s_icon, s_note = "✅", detail[:50]
+        except Exception:
+            s_icon, s_note = "❓", hb[:50]
+        lines.append(f"{s_icon} 👁 掃描器：{s_note}")
+    else:
+        lines.append(f"❓ 👁 掃描器：無心跳文件")
 
     # Memory count
     import numpy as np
