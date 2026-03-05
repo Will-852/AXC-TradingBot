@@ -67,7 +67,7 @@ TRADING_PROFILES = {
 }
 
 # 當前啟用模式（可手動改 或 由 /api/set_mode 自動寫入）
-ACTIVE_PROFILE = "BALANCED"
+ACTIVE_PROFILE = "AGGRESSIVE"
 
 # 是否啟用自動切換
 AUTO_PROFILE_SWITCH = False
