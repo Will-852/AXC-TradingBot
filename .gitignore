@@ -52,3 +52,10 @@ agents/*/workspace/HEARTBEAT.md
 agents/*/workspace/IDENTITY.md
 agents/*/workspace/TOOLS.md
 agents/*/workspace/USER.md
+logs/*.log
+logs/**/*.log
+shared/SCAN_LOG.md
+memory/index/embed_cache.json
+backups/
+*.zip
+secrets/.env
