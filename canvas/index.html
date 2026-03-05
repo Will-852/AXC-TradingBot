@@ -133,9 +133,9 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 
 /* Mode switcher */
 .mode-sw{display:flex;align-items:center;gap:4px}
-.mode-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;cursor:pointer;opacity:0.4;transition:opacity .2s,border-color .2s;font-size:14px;line-height:1}
-.mode-btn.active{opacity:1;border-color:#34d399}
-.mode-btn:hover{opacity:0.8}
+.mode-btn{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;cursor:pointer;opacity:0.55;transition:opacity .2s,border-color .2s,background .15s;font-size:14px;line-height:1;color:rgba(255,255,255,0.85)}
+.mode-btn.active{opacity:1;border-color:#34d399;background:rgba(52,211,153,0.1)}
+.mode-btn:hover:not(.active){opacity:1;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.3)}
 .mode-suggest{font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:4px;color:var(--warn)}
 
 /* ═══ MAIN ═══ */
