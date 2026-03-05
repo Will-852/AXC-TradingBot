@@ -124,3 +124,28 @@ ORDER_TIMEOUT_SEC = 300              # 5 min unfilled → cancel
 PAPER_GATE_HOURS = 48                # minimum DRY_RUN hours before --live
 PAPER_GATE_FILE = os.path.join(LOG_DIR, "paper_gate_start.txt")
 CYCLE_LOG_DIR = os.path.join(LOG_DIR, "cycles")
+
+# ─── Profile Override ───
+# Read ACTIVE_PROFILE from config/params.py → override strategy constants
+# This makes 打法 (穩/平/攻) actually control trading behavior
+try:
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location(
+        "_params", os.path.expanduser("~/.openclaw/config/params.py")
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _profiles = getattr(_mod, "TRADING_PROFILES", {})
+    _active = getattr(_mod, "ACTIVE_PROFILE", None)
+    _p = _profiles.get(_active, {}) if _active else {}
+    if _p:
+        RANGE_RISK_PCT = _p.get("risk_per_trade_pct", RANGE_RISK_PCT)
+        TREND_RISK_PCT = _p.get("risk_per_trade_pct", TREND_RISK_PCT)
+        RANGE_SL_ATR_MULT = _p.get("sl_atr_mult", RANGE_SL_ATR_MULT)
+        TREND_SL_ATR_MULT = _p.get("sl_atr_mult", TREND_SL_ATR_MULT)
+        RANGE_MIN_RR = _p.get("tp_atr_mult", RANGE_MIN_RR)
+        TREND_MIN_RR = _p.get("tp_atr_mult", TREND_MIN_RR)
+        MAX_CRYPTO_POSITIONS = _p.get("max_open_positions", MAX_CRYPTO_POSITIONS)
+    del _ilu, _spec, _mod, _profiles, _active, _p
+except Exception:
+    pass  # fallback to hardcoded defaults above
