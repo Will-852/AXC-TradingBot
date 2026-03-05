@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
 async_scanner.py — 並行多幣種掃描引擎
-版本：v4 | 2026-03-05 | 10年長期運行設計
+版本：v5 | 2026-03-05 | 根源修復版
 
-v4 修正：
-  [1] LOGS_DIR.mkdir() 必須在 FileHandler 之前
-  [2] RotatingFileHandler 取代 FileHandler（防止無限增長）
-  [3] _rotate_log 用原子寫入（防止 dashboard 讀到一半）
-  [4] 空結果保護 prev_cache（防止價格消失）
+v5 根源修復：
+  [R1] Bounded ThreadPoolExecutor — 防止 thread 洩漏（第8日爆滿問題）
+  [R4] 磁碟空間監控 — 500MB 告警，100MB critical
+  [+]  Thread 數量監控 — 每10輪檢查
+  [+]  Round counter — 長期運行追蹤
 
-設計原則：
-  A. 任何單點錯誤唔殺死整個系統
-  B. 所有狀態可從外部觀察（心跳文件）
-  C. 所有覆寫操作用原子寫入（臨時文件 + rename）
-  D. 日誌文件有 rotation（10年唔爆磁碟）
-  E. 空結果唔覆寫上次成功的快取
+v4 保留：
+  [1] LOGS_DIR.mkdir() before FileHandler
+  [2] RotatingFileHandler (10MB x 5)
+  [3] atomic_write for SCAN_LOG rotation
+  [4] Empty results preserves prev_cache (stale=True)
 
 已知限制（接受）：
   - params.py 修改需重啟掃描器（模組層級 import）
@@ -23,13 +22,16 @@ v4 修正：
 """
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import logging.handlers
 import os
+import shutil
 import sys
-import time
 import tempfile
+import threading
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -76,6 +78,12 @@ except ImportError as e:
     LOG_MAX_BYTES   = 10_485_760
     LOG_BACKUPS     = 5
     TRIGGER_PCT     = 0.05
+
+# Fix R1: Bounded ThreadPoolExecutor — thread hang 最多佔 SCAN_WORKERS 個 slot
+_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=SCAN_WORKERS,
+    thread_name_prefix="scanner",
+)
 
 _semaphore: Optional[asyncio.Semaphore] = None
 
@@ -163,10 +171,9 @@ async def fetch_aster_symbol(symbol: str) -> Optional[dict]:
                 "ts":       datetime.now(timezone.utc).isoformat(),
             }
 
-        return await asyncio.wait_for(
-            loop.run_in_executor(None, _sync_fetch),
-            timeout=SCAN_TIMEOUT + 5,
-        )
+        # Fix R1: 用 bounded _executor，唔用預設 executor
+        fut = loop.run_in_executor(_executor, _sync_fetch)
+        return await asyncio.wait_for(fut, timeout=SCAN_TIMEOUT)
 
     except asyncio.TimeoutError:
         log.warning(f"⏱ {symbol}@aster 超時 ({SCAN_TIMEOUT}s)")
@@ -350,23 +357,52 @@ def write_scan_results(results: list[dict], prev_cache: dict) -> dict:
 # 主循環
 # ════════════════════════════════════════════════════
 
+def check_disk_space() -> bool:
+    """Fix R4: 磁碟空間監控。<500MB 告警，<100MB critical。"""
+    try:
+        usage = shutil.disk_usage(BASE_DIR)
+        free_mb = usage.free // (1024 * 1024)
+        if free_mb < 100:
+            log.critical(f"🚨 磁碟空間極危：{free_mb}MB 剩餘！")
+            write_heartbeat("disk_critical", f"free={free_mb}MB")
+            return False
+        elif free_mb < 500:
+            log.warning(f"⚠️ 磁碟空間低：{free_mb}MB 剩餘")
+        return True
+    except Exception as e:
+        log.warning(f"磁碟檢查失敗: {e}")
+        return True
+
+
 async def scanner_loop():
     """持續掃描循環。頂層 try/except → log → sleep(30) → 重試。"""
     total = len(ASTER_SYMBOLS) + len(BINANCE_SYMBOLS)
 
-    log.info("🔍 並行掃描器 v4 啟動")
+    log.info("🔍 並行掃描器 v5 啟動（根源修復版）")
     log.info(f"   幣種：{total}個 | 間隔：{SCAN_INTERVAL}s | 並發：{SCAN_WORKERS}")
     log.info(f"   Aster:   {ASTER_SYMBOLS}")
     log.info(f"   Binance: {BINANCE_SYMBOLS or ['(未整合)']}")
+    log.info(f"   Executor: ThreadPool(max={SCAN_WORKERS})")
 
     write_heartbeat("starting")
 
     prev_cache: dict = {}
+    round_count = 0
 
     while True:
+        round_count += 1
         t0 = time.monotonic()
 
         try:
+            # 每10輪做維護
+            if round_count % 10 == 0:
+                check_disk_space()
+                active = threading.active_count()
+                log.info(f"🧵 R{round_count} 線程數：{active}")
+                if active > SCAN_WORKERS * 3:
+                    log.warning(f"⚠️ 線程數異常：{active}（警戒線：{SCAN_WORKERS * 3}）")
+                    write_heartbeat("thread_warning", f"threads={active}")
+
             results    = await scan_all_symbols()
             prev_cache = write_scan_results(results, prev_cache)
 
@@ -375,17 +411,17 @@ async def scanner_loop():
             triggered = sum(1 for r in results if r["signal"] != "NO_SIGNAL")
             stale     = " ⚠️stale" if not results else ""
 
-            status = f"{ok_count}/{total}成功 觸發:{triggered} 耗時:{elapsed:.1f}s{stale}"
+            status = f"{ok_count}/{total}成功 觸發:{triggered} 耗時:{elapsed:.1f}s R{round_count}{stale}"
             log.info(f"✅ {status}")
             write_heartbeat("running", status)
 
         except Exception as e:
             elapsed = time.monotonic() - t0
             log.error(
-                f"❌ 掃描輪次錯誤 ({elapsed:.1f}s): {type(e).__name__}: {e}",
+                f"❌ 掃描輪次錯誤 R{round_count} ({elapsed:.1f}s): {type(e).__name__}: {e}",
                 exc_info=True,
             )
-            write_heartbeat("error", f"{type(e).__name__}: {str(e)[:80]}")
+            write_heartbeat("error", f"R{round_count} {type(e).__name__}: {str(e)[:80]}")
             await asyncio.sleep(30)
             continue
 
@@ -421,9 +457,12 @@ def main():
 
     try:
         asyncio.run(scanner_loop())
-    except KeyboardInterrupt:
-        log.info("掃描器已停止（Ctrl+C）")
-        write_heartbeat("stopped", "KeyboardInterrupt")
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        _executor.shutdown(wait=False)
+        log.info("掃描器已停止")
+        write_heartbeat("stopped")
 
 
 if __name__ == "__main__":
