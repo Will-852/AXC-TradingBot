@@ -51,7 +51,8 @@ class ExecuteTradeStep:
             return ctx
 
         # ─── LIVE EXECUTION ───
-        client = ctx.exchange_client
+        # Multi-exchange: use signal.platform to select client
+        client = ctx.exchange_clients.get(signal.platform, ctx.exchange_client)
         pair = signal.pair
         side = "BUY" if signal.direction == "LONG" else "SELL"
         exit_side = "SELL" if signal.direction == "LONG" else "BUY"

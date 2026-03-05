@@ -53,6 +53,7 @@ log = logging.getLogger("scanner")
 
 # ── API Endpoints ────────────────────────────────
 ASTER_FAPI = "https://fapi.asterdex.com/fapi/v1"
+BINANCE_FAPI = "https://fapi.binance.com/fapi/v1"
 
 # ── 模組層級 import params（啟動一次，修改需重啟）───
 try:
@@ -184,8 +185,37 @@ async def fetch_aster_symbol(symbol: str) -> Optional[dict]:
 
 
 async def fetch_binance_symbol(symbol: str) -> Optional[dict]:
-    """Binance 幣種（整合前靜默返回 None）。"""
-    return None  # Binance 整合後替換
+    """抓取單個 Binance Futures 幣種。同 Aster 一致模式。"""
+    try:
+        loop = asyncio.get_running_loop()
+
+        def _sync_fetch():
+            data = _fetch_json(
+                f"{BINANCE_FAPI}/ticker/24hr?symbol={symbol}",
+                timeout=SCAN_TIMEOUT,
+            )
+            if not data or "lastPrice" not in data:
+                return None
+            return {
+                "symbol":   symbol,
+                "platform": "binance",
+                "price":    float(data.get("lastPrice", 0)),
+                "change":   float(data.get("priceChangePercent", 0)),
+                "high":     float(data.get("highPrice", 0)),
+                "low":      float(data.get("lowPrice", 0)),
+                "volume":   float(data.get("quoteVolume", 0)),
+                "ts":       datetime.now(timezone.utc).isoformat(),
+            }
+
+        fut = loop.run_in_executor(_executor, _sync_fetch)
+        return await asyncio.wait_for(fut, timeout=SCAN_TIMEOUT)
+
+    except asyncio.TimeoutError:
+        log.warning(f"⏱ {symbol}@binance 超時 ({SCAN_TIMEOUT}s)")
+        return None
+    except Exception as e:
+        log.error(f"❌ {symbol}@binance {type(e).__name__}: {e}")
+        return None
 
 
 # ════════════════════════════════════════════════════

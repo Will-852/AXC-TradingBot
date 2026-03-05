@@ -47,11 +47,28 @@
 - 職責：最終交易決策
 - SOUL：agents/decision/SOUL.md
 
-### Placeholder
+### Binance（已整合）
 
-#### binance_trader / binance_scanner
-- 狀態：預留，未啟用
-- 用途：日後 Binance 整合
+#### 掃描器（binance_scanner）
+- 模型：唔需要 LLM（純數學）
+- 職責：Binance Futures 市場掃描，整合入 async_scanner.py
+- SOUL：agents/binance_scanner/SOUL.md
+- 更新頻率：同 aster_scanner 一致（每 3 分鐘）
+
+#### 交易員（binance_trader）
+- 模型：tier1 claude-sonnet-4-6（共用 pipeline）
+- 職責：Binance Futures 交易執行
+- SOUL：agents/binance_trader/SOUL.md
+- 更新頻率：有信號時觸發
+- 依賴：BINANCE_API_KEY + BINANCE_API_SECRET
+
+### 新聞（已實現）
+
+#### 新聞情緒（news_agent）
+- 模型：tier2 claude-haiku-4-5
+- 職責：RSS 新聞收集 + 情緒分析
+- SOUL：agents/news_agent/workspace/SOUL.md
+- 更新頻率：每 15 分鐘（LaunchAgent）
 
 ---
 
@@ -62,22 +79,25 @@
 | Agent | 需要判斷/思考 | LLM 有價值 |
 | Script | 搬運數據/執行 | Python 更快更平 |
 
-## Scripts（13個）
+## Scripts（16個）
 
 | Script | 職責 |
 |--------|------|
 | tg_bot.py | Telegram 交易 bot 主程式 |
 | slash_cmd.py | Slash command 處理 |
 | dashboard.py | Web dashboard |
+| async_scanner.py | 並行掃描器（Aster + Binance） |
 | scanner_runner.py | Scanner 調度（fcntl.flock） |
 | light_scan.py | 輕量市場掃描 |
 | heartbeat.py | 系統健康檢查 |
-| indicator_calc.py | 技術指標計算 |
+| indicator_calc.py | 技術指標計算（多平台） |
+| weekly_strategy_review.py | 每週策略回顧 → STRATEGY.md |
+| news_scraper.py | RSS 新聞收集 |
+| news_sentiment.py | Claude Haiku 情緒分析 |
 | telegram_sender.py | Telegram 發送工具 |
 | memory_init.py | 記憶索引重建 |
 | backup_agent.sh | 備份腳本 |
-| binance_feed.py | Binance 數據源（預留） |
-| trader_cycle/ | 16-step 交易 pipeline |
+| trader_cycle/ | 17-step 交易 pipeline（+ReadSentimentStep） |
 
 ---
 
@@ -85,13 +105,11 @@
 
 | Agent | 職責 | 狀態 |
 |-------|------|------|
-| news_agent | Twitter/新聞信號解讀 | 計劃中 |
 | recorder_agent | 交易報告生成 | 計劃中 |
 
 | Script | 職責 | 狀態 |
 |--------|------|------|
-| twitter_scraper.py | 爬 Twitter 指定帳號 | 計劃中 |
-| weekly_strategy_review.py | 歸納個人交易規則 | 計劃中 |
+| twitter_scraper.py | 爬 Twitter 指定帳號 | Phase 2（news_agent 擴展） |
 
 ---
 

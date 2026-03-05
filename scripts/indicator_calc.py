@@ -29,8 +29,12 @@ BB_TOUCH_TOL_DEFAULT = _params.BB_TOUCH_TOL_DEFAULT
 BB_TOUCH_TOL_XRP = _params.BB_TOUCH_TOL_XRP
 BB_WIDTH_MIN = _params.BB_WIDTH_MIN
 
-# ─── Aster DEX API ───
+# ─── Exchange API bases ───
 API_BASE = "https://fapi.asterdex.com"
+API_BASES = {
+    "aster": "https://fapi.asterdex.com",
+    "binance": "https://fapi.binance.com",
+}
 HKT = timezone(timedelta(hours=8))
 
 # ─── 時間框參數表（來自 range-strategies spec）───
@@ -71,9 +75,10 @@ PRODUCT_OVERRIDES = {
 }
 
 
-def fetch_klines(symbol: str, interval: str, limit: int = 200) -> pd.DataFrame:
-    """從 Aster DEX 抓取 K 線數據"""
-    url = f"{API_BASE}/fapi/v1/klines"
+def fetch_klines(symbol: str, interval: str, limit: int = 200, platform: str = "aster") -> pd.DataFrame:
+    """抓取 K 線數據（支持 aster/binance）"""
+    base = API_BASES.get(platform, API_BASE)
+    url = f"{base}/fapi/v1/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     resp = requests.get(url, params=params, timeout=10)
     resp.raise_for_status()

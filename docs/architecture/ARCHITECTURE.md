@@ -49,9 +49,10 @@ voyage-3 免費額度 = 約 40 萬條
 = 20 年唔需要升級
 ```
 
-## 待實現
+## 已實現
 
-### 方案C：weekly_strategy_review.py
-每週自動分析歷史交易 -> Claude Sonnet 歸納個人規則 -> STRATEGY_RULES.md
+### 方案C：weekly_strategy_review.py ✅
+每週自動分析歷史交易 → Claude Sonnet 歸納個人規則 → ai/STRATEGY.md
+排程：每週一 10:00 HKT via LaunchAgent
 
 *唔好因為「新方案」而偏離呢個選型。*

@@ -585,58 +585,40 @@ def get_trade_state():
 
 
 def get_trade_history():
-    """Parse trade history from TRADE_LOG.md markdown table."""
-    path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_LOG.md")
+    """Read trade history from trades.jsonl (structured records).
+
+    Design: entry records (exit=null) = in progress,
+    complete records (exit+pnl) = closed.
+    """
+    jsonl_path = os.path.join(HOME, "memory/store/trades.jsonl")
     trades = []
-    if not os.path.exists(path):
+    if not os.path.exists(jsonl_path):
         return trades
-    with open(path) as f:
-        content = f.read()
-    for line in content.split('\n'):
-        line = line.strip()
-        if not line.startswith("|") or line.startswith("| #") or line.startswith("|---"):
-            continue
-        parts = [p.strip() for p in line.split("|")[1:-1]]
-        if len(parts) < 7:
-            continue
-        try:
-            date = parts[1].strip()
-            asset = parts[2].strip().replace("/", "")
-            direction = parts[3].strip()
-            entry_str = parts[4].replace("$", "").strip()
-            exit_str = parts[5].strip()
-            pnl_str = parts[6].strip()
-            entry = float(entry_str) if entry_str else 0.0
-            is_open = "OPEN" in exit_str
-            exit_price = 0.0
-            if not is_open:
-                m = re.search(r'[\$]?([\d.]+)', exit_str)
-                if m:
-                    exit_price = float(m.group(1))
-            pnl = 0.0
-            m = re.search(r'[\$]?([\d.]+)', pnl_str)
-            if m:
-                pnl = float(m.group(1))
-                if '-' in pnl_str:
-                    pnl = -pnl
-            trade = {
-                "dir": direction,
-                "asset": asset,
-                "entry": entry,
-                "exit": exit_price if not is_open else None,
-                "pnl": pnl,
-                "time": date,
-                "open": is_open,
-                "size": 0,
-            }
-            # For open trades, try to parse size from detail sections
-            if is_open:
-                m_size = re.search(r'大小[:：]\s*([\d.]+)', content)
-                if m_size:
-                    trade["size"] = float(m_size.group(1))
-            trades.append(trade)
-        except Exception:
-            continue
+    try:
+        with open(jsonl_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                exit_price = rec.get("exit")
+                pnl = rec.get("pnl")
+                is_open = exit_price is None
+                trades.append({
+                    "dir": rec.get("side", "?"),
+                    "asset": rec.get("symbol", "?"),
+                    "entry": float(rec.get("entry", 0)),
+                    "exit": float(exit_price) if exit_price is not None else None,
+                    "pnl": float(pnl) if pnl is not None else 0.0,
+                    "time": rec.get("ts", ""),
+                    "open": is_open,
+                    "size": 0,
+                })
+    except Exception:
+        pass
     return trades[-5:]
 
 

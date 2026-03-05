@@ -1138,6 +1138,14 @@ async def check_and_push_alerts(app):
                         )
                     write_analysis(f"{symbol} 平倉報告", report)
 
+                    # Persist exit record to trades.jsonl
+                    try:
+                        write_trade(symbol, "CLOSED", 0, exit_price=0,
+                                    pnl=0.0,
+                                    notes="exchange close detected by tg_bot")
+                    except Exception:
+                        log.warning(f"write_trade for {symbol} close failed")
+
                 # Sync TRADE_STATE after position close
                 _sync_trade_state()
 

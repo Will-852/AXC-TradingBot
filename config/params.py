@@ -88,8 +88,10 @@ ASTER_SYMBOLS = [
 ]
 
 BINANCE_SYMBOLS = [
-    # Binance 整合後填入，同樣需要重啟
-    # "SOLUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
 ]
 
 # 掃描引擎設定
@@ -99,3 +101,11 @@ SCAN_LOG_MAX_LINES  = 500         # SCAN_LOG 保留行數
 SCAN_LOG_MAX_BYTES  = 10_485_760  # scanner.log 單文件上限（10MB）
 SCAN_LOG_BACKUPS    = 5           # scanner.log 保留備份數
 TRIGGER_PCT         = 0.05        # 信號觸發閾值（5%）
+
+# ═══════════════════════════════════════
+# Section 6: 新聞/情緒設定（news agent 讀）
+# ═══════════════════════════════════════
+NEWS_ARCHIVE_WINDOW_HOURS = 6     # RSS 文章保留時間
+NEWS_ANALYSIS_WINDOW_HOURS = 1    # Sentiment 分析只看最近 N 小時
+NEWS_STALE_MINUTES = 30           # Sentiment 數據過期閾值
+NEWS_SCRAPE_INTERVAL_MIN = 15     # LaunchAgent 排程間隔

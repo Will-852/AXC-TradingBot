@@ -53,6 +53,7 @@ from trader_cycle.risk.position_sizer import SizePositionStep
 from trader_cycle.state.trade_log import WriteTradeLogStep
 from trader_cycle.notify.telegram import SendReportsStep, send_telegram, format_urgent_alert
 from trader_cycle.state.memory_keeper import WriteMemoryStep
+from trader_cycle.state.read_sentiment import ReadSentimentStep
 
 
 # ─── Pipeline Steps ───
@@ -316,6 +317,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(SafetyCheckStep())        # 2
     pipeline.add_step(FetchMarketDataStep())    # 3
     pipeline.add_step(CalcIndicatorsStep())     # 4
+    pipeline.add_step(ReadSentimentStep())      # 4.5 — news sentiment overlay
     pipeline.add_step(DetectModeStep())         # 5
     pipeline.add_step(NoTradeCheckStep())       # 6
     pipeline.add_step(CheckPositionsStep())     # 7
@@ -379,10 +381,11 @@ def main():
         verbose=args.verbose,
     )
 
-    # ─── Live mode: inject exchange client ───
+    # ─── Live mode: inject exchange clients ───
     if args.live:
         try:
             ctx.exchange_client = init_exchange_client(args.verbose)
+            ctx.exchange_clients["aster"] = ctx.exchange_client
             if args.verbose:
                 print(f"  AsterClient initialized (balance: ${ctx.exchange_client.get_usdt_balance():.2f})")
         except Exception as e:
@@ -393,6 +396,19 @@ def main():
             except Exception:
                 pass
             sys.exit(2)
+
+        # Binance: optional — missing keys = skip
+        try:
+            from trader_cycle.exchange.binance_client import BinanceClient
+            ctx.exchange_clients["binance"] = BinanceClient()
+            if args.verbose:
+                print(f"  BinanceClient initialized (balance: ${ctx.exchange_clients['binance'].get_usdt_balance():.2f})")
+        except CriticalError:
+            if args.verbose:
+                print("  BinanceClient skipped (no API keys)")
+        except Exception as e:
+            if args.verbose:
+                print(f"  BinanceClient skipped: {e}")
 
     # ─── Register strategies ───
     register_strategies()
