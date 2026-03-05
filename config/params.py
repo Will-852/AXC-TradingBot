@@ -2,35 +2,30 @@
 # 所有交易參數集中地
 # 後期調整：只改呢個文件
 
-# ── 掃描設定 ──
+# ═══════════════════════════════════════
+# Section 1: 掃描設定（async_scanner 讀）
+# ═══════════════════════════════════════
 SCAN_INTERVAL_SEC = 180
 SCHEDULED_CYCLE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21]
-MIN_VOLUME_THRESHOLD = 50000
 
-# ── RANGE 模式參數 ──
-RANGE_SL_ATR_MULT = 1.2
-RANGE_TP_ATR_MULT = 2.0
-RANGE_ENTRY_CONFIRM = "bb_squeeze"
-
-# ── TREND 模式參數 ──
-TREND_SL_ATR_MULT = 1.5
-TREND_TP_ATR_MULT = 3.0
-TREND_ENTRY_CONFIRM = "ema_cross"
-
-# ── Bollinger Band 參數 ──
+# ═══════════════════════════════════════
+# Section 2: BB 指標參數（indicator_calc 讀）
+# ═══════════════════════════════════════
 BB_TOUCH_TOL_DEFAULT = 0.005   # BTC, ETH, XAG
 BB_TOUCH_TOL_XRP = 0.008       # XRP 較大容忍度
 BB_WIDTH_MIN = 0.05            # 最小BB寬度過濾
 
-# ── 倉位管理 ──
+# ═══════════════════════════════════════
+# Section 3: 倉位管理（dashboard 讀）
+# ═══════════════════════════════════════
 MAX_POSITION_SIZE_USDT = 50
 MAX_OPEN_POSITIONS = 3
 RISK_PER_TRADE_PCT = 0.02
 
 # ═══════════════════════════════════════
-# Trading Mode Profiles
+# Section 4: 打法 Profiles（dashboard + settings 讀）
 # ═══════════════════════════════════════
-# 三個模式對應不同市場狀況：
+# 三個打法對應不同風險偏好：
 #   CONSERVATIVE → 低波動市場，RANGE only
 #   BALANCED     → 中等波動，RANGE + 部分 TREND
 #   AGGRESSIVE   → 高波動市場，追趨勢
@@ -77,12 +72,12 @@ ACTIVE_PROFILE = "BALANCED"
 # 是否啟用自動切換
 AUTO_PROFILE_SWITCH = False
 
-# ══════════════════════════════════════════════
-# 掃描幣種設定
+# ═══════════════════════════════════════
+# Section 5: 幣種 + 引擎設定（scanner 讀）
+# ═══════════════════════════════════════
 # ⚠️ 修改後必須重啟 async_scanner.py 先生效
 # 重啟指令：pkill -f async_scanner && sleep 2 &&
 #            python3 ~/.openclaw/scripts/async_scanner.py &
-# ══════════════════════════════════════════════
 
 ASTER_SYMBOLS = [
     "BTCUSDT",
