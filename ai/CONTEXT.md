@@ -34,32 +34,35 @@ Proxy：https://tao.plus7.plus/v1（PROXY_API_KEY）
 │   ├── guides/            OPS + BACKUP + SYMBOLS + TELEGRAM
 │   ├── architecture/      ARCHITECTURE + AGENTS + ROADMAP + TAXONOMY
 │   └── friends/           INSTALL + .env.example
-├── agents/                ← 9 agents，各自 SOUL.md
+├── agents/                ← 10 agents，各自 SOUL.md
 ├── scripts/               ← Python/Bash 執行層
 ├── config/                ← params.py + modes/
-├── secrets/.env           ← 7 API keys
+├── secrets/.env           ← 9 API keys（+Binance placeholder）
 ├── shared/                ← Agent 間通信（SIGNAL.md, TRADE_STATE.md）
 ├── memory/                ← RAG 記憶系統
 ├── logs/                  ← 日誌 + 心跳
 └── backups/               ← auto zip（keep 10）
 ```
 
-## 九個 Agents
+## 十個 Agents
 | Agent | Model | Role |
 |-------|-------|------|
 | main | tier3/haiku | 🧠 大腦：決策、對話、路由 |
 | aster_scanner | tier2/haiku | 👁️ 眼：Aster DEX 掃描 |
 | aster_trader | tier1/sonnet | 💓 心臟：Aster DEX 交易 |
+| binance_scanner | — | 👁️ 眼：Binance Futures 掃描 |
+| binance_trader | — | 💓 心臟：Binance Futures 交易 |
 | heartbeat | tier3/haiku | 🌡️ 神經：健康檢查 |
 | haiku_filter | tier2/haiku | 🔬 過濾：信號壓縮 |
 | analyst | tier1/sonnet | 📊 分析：模式偵測 |
 | decision | opus | 🎯 決策：最終交易決策 |
-| binance_trader | — | (placeholder) |
-| binance_scanner | — | (placeholder) |
+| news_agent | tier2/haiku | 📰 新聞：RSS 收集 + 情緒分析 |
 
 ## Signal Pipeline
 ```
-aster_scanner → haiku_filter → analyst → decision → aster_trader
+aster_scanner  ─┐
+binance_scanner─┤→ haiku_filter → analyst → decision → aster_trader / binance_trader
+news_agent     ─┘ (sentiment overlay)
 ```
 
 ## LaunchAgents（常駐服務）
@@ -72,13 +75,18 @@ aster_scanner → haiku_filter → analyst → decision → aster_trader
 | ai.openclaw.heartbeat | interval |
 | ai.openclaw.lightscan | interval（被 scanner 取代） |
 | ai.openclaw.report | interval |
+| ai.openclaw.strategyreview | 每週一 10:00 HKT |
+| ai.openclaw.newsagent | 每 15 分鐘 |
 
 ## Scripts（關鍵）
 | Script | 用途 |
 |--------|------|
-| async_scanner.py | v5 並行掃描器（根源修復版） |
+| async_scanner.py | v5 並行掃描器（Aster + Binance） |
 | tg_bot.py | Telegram trading bot |
 | dashboard.py | ICU dashboard (port 5555) |
+| weekly_strategy_review.py | 每週策略回顧 → STRATEGY.md |
+| news_scraper.py | RSS 新聞收集 |
+| news_sentiment.py | Claude Haiku 情緒分析 |
 | load_env.sh | LaunchAgent .env wrapper |
 | backup_agent.sh | git+push+zip backup |
 | integration_test.sh | 5 場景整合測試 |

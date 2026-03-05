@@ -39,6 +39,7 @@ class Signal:
     position_notional: float = 0.0  # notional value in USDT
     margin_required: float = 0.0    # margin = notional / leverage
     leverage: int = 0               # leverage used for this signal
+    platform: str = "aster"         # "aster" or "binance"
 
 
 @dataclass
@@ -89,6 +90,7 @@ class CycleContext:
     # ─── Market Data ───
     market_data: dict[str, MarketSnapshot] = field(default_factory=dict)
     indicators: dict[str, dict] = field(default_factory=dict)
+    news_sentiment: dict = field(default_factory=dict)  # from shared/news_sentiment.json
     # indicators = {"BTCUSDT": {"4h": {...}, "1h": {...}}, ...}
 
     # ─── Mode Detection ───
@@ -117,6 +119,7 @@ class CycleContext:
 
     # ─── Execution (Phase 3) ───
     exchange_client: Any = None      # AsterClient instance (injected in --live mode)
+    exchange_clients: dict = field(default_factory=dict)  # multi-exchange: {"aster": ..., "binance": ...}
     order_result: OrderResult | None = None
     entry_order_id: str = ""
     sl_order_id: str = ""

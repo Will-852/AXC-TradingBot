@@ -32,6 +32,12 @@
 
 ---
 
+### 2026-03-06 完成
+- weekly_strategy_review.py（方案C）✅
+- news_agent（RSS 收集 + Haiku 情緒分析）✅
+- Binance scanner + trader 整合 ✅
+- 交易記錄生命週期修復（entry+exit → trades.jsonl）✅
+
 ## 進行中
 
 - Dashboard 持續優化
@@ -42,16 +48,14 @@
 ## 計劃中
 
 ### 短期
-- weekly_strategy_review.py（方案C）
 - VOYAGE_API_KEY rotate
 
 ### 中期
-- news_agent（Twitter 信號解讀）
-- twitter_scraper.py（爬取指定帳號）
+- twitter_scraper.py（news_agent Phase 2 — 爬取指定帳號）
+- news_agent Phase 2: sentiment 做 risk filter（強 bearish + long = no_trade_reason）
 - recorder_agent（平倉報告獨立化）
 - Dashboard 開源準備
 
 ### 長期
-- Binance 交易完整整合
 - 開源發布
 - CONTRIBUTING.md

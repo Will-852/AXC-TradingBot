@@ -1,6 +1,6 @@
 # OpenClaw — 系統狀態快照
 > 自動更新：backup_agent.sh 每次觸發
-> 最後更新：2026-03-06 03:00
+> 最後更新：2026-03-06 03:34
 
 ## 當前運行服務
 - scanner (PID active) — async_scanner.py v5，根源修復版
@@ -22,9 +22,15 @@
 - 2026-03-05: 完整 docs/ 結構建立（12 files）
 
 ## 已知待處理問題
-- weekly_strategy_review.py 未實現（ai/STRATEGY.md 仍為空白）
-- Binance 整合未開始（placeholder agents）
 - memory/ RAG 系統待完善
+- VOYAGE_API_KEY rotate
+
+## 2026-03-06 完成項目
+- weekly_strategy_review.py 已實現（每週一 10:00 HKT via LaunchAgent）
+- Binance scanner + trader 已整合（async_scanner.py + binance_client.py）
+- news_agent 已實現（RSS scraper + Haiku sentiment，每 15 分鐘）
+- 交易記錄生命週期修復（position_sync.py + tg_bot.py → trades.jsonl 完整 entry+exit）
+- Dashboard get_trade_history() 改讀 trades.jsonl
 
 ## Maintenance
 - 每月1號：`bash scripts/integration_test.sh`

@@ -12,9 +12,16 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+import sys
+from pathlib import Path
+_base = str(Path.home() / ".openclaw")
+if _base not in sys.path:
+    sys.path.insert(0, _base)
+
 from ..core.context import CycleContext, Position
 from ..config.settings import HKT
 from ..config.pairs import get_pair
+from memory.writer import write_trade
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +177,24 @@ class CheckPositionsStep:
             f"size={size} entry={entry_price} "
             f"pnl={realized_pnl:.4f} reason={exit_reason}"
         )
+
+        # Calculate exit price from PnL: LONG = entry + pnl/size, SHORT = entry - pnl/size
+        if size > 0 and entry_price > 0:
+            pnl_per_unit = realized_pnl / size
+            if direction == "LONG":
+                calc_exit = entry_price + pnl_per_unit
+            else:
+                calc_exit = entry_price - pnl_per_unit
+        else:
+            calc_exit = entry_price
+
+        # Persist exit record to trades.jsonl
+        try:
+            write_trade(pair, direction, entry_price, exit_price=calc_exit,
+                        pnl=realized_pnl,
+                        notes=f"auto-close {exit_reason}")
+        except Exception as e:
+            logger.warning(f"write_trade for close failed: {e}")
 
         # Clear position in trade state
         ctx.trade_state_updates.update({
