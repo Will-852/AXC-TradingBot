@@ -133,6 +133,7 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 
 /* Mode switcher */
 .mode-sw{display:flex;align-items:center;gap:4px}
+.mode-label{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-right:2px}
 .mode-btn{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;cursor:pointer;opacity:0.55;transition:opacity .2s,border-color .2s,background .15s;font-size:14px;line-height:1;color:rgba(255,255,255,0.85)}
 .mode-btn.active{opacity:1;border-color:#34d399;background:rgba(52,211,153,0.1)}
 .mode-btn:hover:not(.active){opacity:1;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.3)}
@@ -347,9 +348,10 @@ button:active{transform:scale(0.97);transition:transform .08s}
       <span class="pill pill-on" id="p-mode">—</span>
       <span class="hsep"></span>
       <div class="mode-sw">
-        <button class="mode-btn" data-mode="CONSERVATIVE" title="保守：RANGE only">C</button>
-        <button class="mode-btn" data-mode="BALANCED" title="平衡：RANGE + TREND">B</button>
-        <button class="mode-btn" data-mode="AGGRESSIVE" title="進取：追趨勢">A</button>
+        <span class="mode-label">打法</span>
+        <button class="mode-btn" data-mode="CONSERVATIVE" title="穩陣：淨做 RANGE">穩</button>
+        <button class="mode-btn" data-mode="BALANCED" title="平衡：RANGE + 部分 TREND">平</button>
+        <button class="mode-btn" data-mode="AGGRESSIVE" title="進取：追趨勢，高風險">攻</button>
         <span id="mode-suggest"></span>
       </div>
       <span class="hsep"></span>
