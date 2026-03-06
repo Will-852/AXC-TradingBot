@@ -18,7 +18,7 @@ _base = str(Path.home() / ".openclaw")
 if _base not in sys.path:
     sys.path.insert(0, _base)
 
-from ..core.context import CycleContext, Position
+from ..core.context import CycleContext, Position, ClosedPosition
 from ..config.settings import HKT
 from ..config.pairs import get_pair
 from memory.writer import write_trade
@@ -196,6 +196,13 @@ class CheckPositionsStep:
         except Exception as e:
             logger.warning(f"write_trade for close failed: {e}")
 
+        ctx.closed_positions.append(ClosedPosition(
+            pair=pair, direction=direction,
+            entry_price=entry_price, exit_price=calc_exit,
+            size=size, pnl=realized_pnl,
+            reason=exit_reason, timestamp=ctx.timestamp_str,
+        ))
+
         # Clear position in trade state
         ctx.trade_state_updates.update({
             "POSITION_OPEN": "NO",
@@ -266,6 +273,20 @@ class CheckPositionsStep:
                         try:
                             client.close_position_market(pos.pair)
                             ctx.warnings.append(f"Force closed orphan: {pos.pair}")
+                            try:
+                                write_trade(pos.pair, pos.direction, pos.entry_price,
+                                            exit_price=pos.mark_price,
+                                            pnl=pos.unrealized_pnl,
+                                            notes="orphan force close (SL placement failed)")
+                            except Exception:
+                                pass
+                            ctx.closed_positions.append(ClosedPosition(
+                                pair=pos.pair, direction=pos.direction,
+                                entry_price=pos.entry_price, exit_price=pos.mark_price,
+                                size=pos.size, pnl=pos.unrealized_pnl,
+                                reason="orphan force close",
+                                timestamp=ctx.timestamp_str,
+                            ))
                         except Exception as e2:
                             ctx.errors.append(
                                 f"CRITICAL: Cannot close orphan {pos.pair}: {e2}"

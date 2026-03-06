@@ -51,6 +51,7 @@ from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalSt
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
 from trader_cycle.risk.position_sizer import SizePositionStep
 from trader_cycle.state.trade_log import WriteTradeLogStep
+from trader_cycle.state.trade_journal import WriteTradeJournalStep
 from trader_cycle.notify.telegram import SendReportsStep, send_telegram, format_urgent_alert
 from trader_cycle.state.memory_keeper import WriteMemoryStep
 from trader_cycle.state.read_sentiment import ReadSentimentStep
@@ -291,26 +292,28 @@ def register_strategies() -> None:
 
 def build_pipeline() -> Pipeline:
     """
-    Build the Phase 3 pipeline (16 steps).
+    Build the Phase 3 pipeline (17 steps).
     Same pipeline for DRY_RUN and LIVE — each step checks ctx.dry_run internally.
 
     Pipeline order:
-      1. read_state       — SCAN_CONFIG + TRADE_STATE
-      2. safety_check     — circuit breakers, cooldowns
-      3. fetch_market     — 4 pairs live data
-      4. calc_indicators  — 4H + 1H technical indicators
-      5. detect_mode      — 5-indicator voting (RANGE/TREND)
-      6. no_trade_check   — volume, funding, position limits
-      7. check_positions  — sync positions + balance from exchange
-      8. manage_positions — exit rules (circuit breaker, max hold, funding)
-      9. evaluate_signals — run active strategy on all pairs
-     10. select_signal    — pick strongest signal
-     11. size_position    — SL/TP/size calculation
-     12. execute_trade    — place orders on Aster DEX
-     13. write_state      — update SCAN_CONFIG + TRADE_STATE
-     14. write_trade_log  — append to TRADE_LOG.md
-     15. write_memory     — noteworthy events → MEMORY.md
-     16. send_reports     — Telegram
+      1. read_state          — SCAN_CONFIG + TRADE_STATE
+      2. safety_check        — circuit breakers, cooldowns
+      3. fetch_market        — 4 pairs live data
+      4. calc_indicators     — 4H + 1H technical indicators
+      4.5 read_sentiment     — news sentiment overlay
+      5. detect_mode         — 5-indicator voting (RANGE/TREND)
+      6. no_trade_check      — volume, funding, position limits
+      7. check_positions     — sync positions + balance from exchange
+      8. manage_positions    — exit rules (circuit breaker, max hold, funding)
+      9. evaluate_signals    — run active strategy on all pairs
+     10. select_signal       — pick strongest signal
+     11. size_position       — SL/TP/size calculation
+     12. execute_trade       — place orders on Aster DEX
+     13. write_state         — update SCAN_CONFIG + TRADE_STATE
+     14. write_trade_log     — append to TRADE_LOG.md
+     14.5 write_trade_journal — closed positions → data_analysis
+     15. write_memory        — noteworthy events → MEMORY.md
+     16. send_reports        — Telegram + close notifications
     """
     pipeline = Pipeline()
     pipeline.add_step(ReadStateStep())          # 1
@@ -328,6 +331,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(ExecuteTradeStep())       # 12
     pipeline.add_step(WriteStateStep())         # 13
     pipeline.add_step(WriteTradeLogStep())      # 14
+    pipeline.add_step(WriteTradeJournalStep())  # 14.5
     pipeline.add_step(WriteMemoryStep())        # 15
     pipeline.add_step(SendReportsStep())        # 16
     return pipeline

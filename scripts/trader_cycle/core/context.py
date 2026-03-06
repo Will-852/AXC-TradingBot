@@ -58,6 +58,19 @@ class Position:
 
 
 @dataclass
+class ClosedPosition:
+    """Record of a position closed during this cycle."""
+    pair: str
+    direction: str
+    entry_price: float = 0.0
+    exit_price: float = 0.0
+    size: float = 0.0
+    pnl: float = 0.0
+    reason: str = ""
+    timestamp: str = ""
+
+
+@dataclass
 class OrderResult:
     """Result from order execution."""
     success: bool = False
@@ -130,6 +143,7 @@ class CycleContext:
     trade_state_updates: dict = field(default_factory=dict)
     trade_log_entry: str | None = None
     trade_log_entries: list[str] = field(default_factory=list)
+    closed_positions: list[ClosedPosition] = field(default_factory=list)
     scan_log_entry: str = ""
     telegram_messages: list[str] = field(default_factory=list)
 

@@ -1,3 +1,42 @@
+## 2026-03-07 | Dashboard 大改 + Scanner 優化 + TG Bot 記憶
+
+### Dashboard 真實數據接入
+- `get_live_trade_history()` — Aster API `/fapi/v1/userTrades?limit=30`，60s cache
+- `exchange_trades` + `fee_breakdown` 加入 `collect_data()` response
+- 持倉明細卡 `renderPositionDetail()` — 11 欄完整持倉信息
+- 交易記錄改用 exchange 真實數據，最新排前
+
+### Dashboard UI 重設計
+- OpenClaw → AXC 品牌重命名（8 處）
+- Emoji → FontAwesome + SVG icons（BTC/ETH/XRP/XAG/XAU/ADA）
+- SVG 靜態文件 serve route `/svg/*.svg`
+- 交易模式切換 dropdown（CONSERVATIVE/BALANCED/AGGRESSIVE）
+- Aster DEX + Binance CEX 專業登入 modal（branded colors）
+- Sidebar layers：路徑可複製 + 簡短描述
+- 多輪 screenshot feedback 修正（icon 大小、間距、header 移除）
+
+### Scanner v6 — 梅花間竹 + 熱載入
+- Aster/Binance 單雙數交替掃描，各減半 request rate
+- `reload_params()` 每 10 round 熱載入 config/params.py（免重啟）
+- 共用幣種（BTC/ETH）交替、獨佔幣種固定平台
+
+### TG Bot 短期對話記憶
+- `_chat_history` deque(maxlen=10) — 最近 5 組對話
+- 10 分鐘無活動自動過期
+- `call_claude()` 支援 multi-turn messages array
+- `/forget` 手動清除短期記憶
+- System prompt 更新：指示 Claude 接住上文
+
+### 健康檢查 03:09
+- 38 pass / 2 warn / 0 fail
+- ⚠️ STRATEGY.md 9 行（weekly_review 未跑）
+- ⚠️ 5 個 .bak 已移至 backups/
+- Dashboard: 1 持倉, 23 交易, fee_breakdown ✅
+- TG Bot: running (PID 45240)
+- Scanner: running (PID 39591)
+
+---
+
 ## 2026-03-05 | OpenClaw 續集開發日誌
 
 ### AI Stack 架構決策（最重要）

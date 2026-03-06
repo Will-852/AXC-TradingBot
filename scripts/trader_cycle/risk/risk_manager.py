@@ -7,7 +7,15 @@ No LLM discretion — pure if-else enforcement.
 """
 
 from __future__ import annotations
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
+
+_base = str(Path.home() / ".openclaw")
+if _base not in sys.path:
+    sys.path.insert(0, _base)
+
+from memory.writer import write_trade
 
 from ..config.settings import (
     CIRCUIT_BREAKER_SINGLE, CIRCUIT_BREAKER_DAILY,
@@ -18,7 +26,7 @@ from ..config.settings import (
     POSITION_GROUPS, HKT,
 )
 from ..config.pairs import get_pair
-from ..core.context import CycleContext
+from ..core.context import CycleContext, ClosedPosition
 
 
 class SafetyCheckStep:
@@ -225,7 +233,7 @@ class ManagePositionsStep:
                     # LIVE: actually close position + cancel SL/TP orders
                     for r in exit_reasons:
                         ctx.warnings.append(f"EXIT {pos.pair} {pos.direction}: {r}")
-                    self._execute_close(pos, ctx)
+                    self._execute_close(pos, ctx, exit_reasons)
 
             if ctx.verbose and exit_reasons:
                 prefix = "[DRY_RUN]" if ctx.dry_run else "[LIVE]"
@@ -234,7 +242,8 @@ class ManagePositionsStep:
 
         return ctx
 
-    def _execute_close(self, pos, ctx: CycleContext) -> None:
+    def _execute_close(self, pos, ctx: CycleContext,
+                       exit_reasons: list[str] | None = None) -> None:
         """Close position on exchange and cancel associated orders."""
         client = ctx.exchange_client
 
@@ -254,12 +263,30 @@ class ManagePositionsStep:
         # Market close
         try:
             result = client.close_position_market(pos.pair)
+            reason_str = "; ".join(exit_reasons) if exit_reasons else "risk"
             ctx.warnings.append(f"Position closed: {pos.pair} {pos.direction}")
             ctx.trade_log_entries.append(
                 f"[{ctx.timestamp_str}] EXIT {pos.direction} {pos.pair} "
                 f"size={pos.size} entry={pos.entry_price} "
-                f"mark={pos.mark_price} pnl={pos.unrealized_pnl:.2f}"
+                f"mark={pos.mark_price} pnl={pos.unrealized_pnl:.2f} "
+                f"reason={reason_str}"
             )
+
+            # Persist to trades.jsonl
+            try:
+                write_trade(pos.pair, pos.direction, pos.entry_price,
+                            exit_price=pos.mark_price,
+                            pnl=pos.unrealized_pnl,
+                            notes=f"risk close: {reason_str}")
+            except Exception as e:
+                logger.warning(f"write_trade for risk close failed: {e}")
+
+            ctx.closed_positions.append(ClosedPosition(
+                pair=pos.pair, direction=pos.direction,
+                entry_price=pos.entry_price, exit_price=pos.mark_price,
+                size=pos.size, pnl=pos.unrealized_pnl,
+                reason=reason_str, timestamp=ctx.timestamp_str,
+            ))
 
             # Clear trade state (keys must match TRADE_STATE.md format)
             ctx.trade_state_updates.update({

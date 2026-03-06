@@ -197,6 +197,12 @@ class SendReportsStep:
                 if ctx.verbose:
                     print(f"    Telegram order confirmation: sent")
 
+        # Position close notifications
+        for cp in ctx.closed_positions:
+            msg = format_position_close(cp.pair, cp.direction, cp.pnl, cp.reason)
+            send_telegram(msg)
+            ctx.telegram_messages.append(msg)
+
         if ctx.selected_signal:
             msg = format_signal_alert(ctx.selected_signal, ctx.dry_run)
             result = send_telegram(msg)
