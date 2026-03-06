@@ -1,0 +1,131 @@
+name: Release Package
+
+on:
+  push:
+    tags:
+      - 'v*'          # 推 v1.0.0 等 tag 就觸發
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate setup package
+        run: |
+          python3 - << 'PYEOF'
+          import zipfile, os, io
+          from datetime import datetime
+
+          ROOT = "."
+          TAG = os.environ.get("GITHUB_REF_NAME", "latest")
+
+          EXCLUDE_DIRS = {
+              "secrets", "logs", "memory", "shared",
+              "backups", "mlx_model", ".git", ".github",
+          }
+
+          def should_exclude(rel_path):
+              parts = rel_path.replace("\\", "/").split("/")
+              if parts[0] in EXCLUDE_DIRS:
+                  return True
+              if (len(parts) >= 3 and parts[0] == "agents"
+                      and parts[2] in ("workspace", "agent")):
+                  return True
+              if "__pycache__" in parts:
+                  return True
+              if rel_path.startswith("agents/main/sessions"):
+                  return True
+              return False
+
+          buf = io.BytesIO()
+          with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+              INCLUDE_DIRS = ["scripts", "config", "canvas", "docs"]
+              for inc in INCLUDE_DIRS:
+                  if not os.path.exists(inc):
+                      continue
+                  for dirpath, dirs, files in os.walk(inc):
+                      dirs[:] = [d for d in dirs if d != "__pycache__"]
+                      for fname in files:
+                          fpath = os.path.join(dirpath, fname)
+                          rel = os.path.relpath(fpath, ROOT)
+                          if not should_exclude(rel):
+                              zf.write(fpath, rel)
+
+              # agents SOUL.md only
+              if os.path.exists("agents"):
+                  for dirpath, dirs, files in os.walk("agents"):
+                      dirs[:] = [d for d in dirs
+                                 if d not in ("workspace", "agent", "__pycache__")]
+                      for fname in files:
+                          if fname == "SOUL.md":
+                              fpath = os.path.join(dirpath, fname)
+                              zf.write(fpath, os.path.relpath(fpath, ROOT))
+
+              # Root files
+              for rf in ["CLAUDE.md", "requirements.txt", "openclaw.json"]:
+                  if os.path.exists(rf):
+                      zf.write(rf, rf)
+
+              # .env.example (keys only, no values)
+              env_lines = [
+                  "# OpenClaw .env.example",
+                  "# 複製為 secrets/.env 並填入你的 API Key",
+                  "# cp secrets/.env.example secrets/.env",
+                  "",
+                  "# ── AI 推理（必填）────────────────",
+                  "PROXY_API_KEY=",
+                  "PROXY_BASE_URL=https://tao.plus7.plus/v1",
+                  "",
+                  "# ── 交易所（交易功能必填）──────────",
+                  "ASTER_API_KEY=",
+                  "ASTER_API_SECRET=",
+                  "BINANCE_API_KEY=",
+                  "BINANCE_API_SECRET=",
+                  "",
+                  "# ── Telegram（選填）────────────────",
+                  "TELEGRAM_BOT_TOKEN=",
+                  "TELEGRAM_CHAT_ID=",
+                  "",
+                  "# ── 向量記憶（選填）────────────────",
+                  "VOYAGE_API_KEY=",
+              ]
+              zf.writestr("secrets/.env.example", "\n".join(env_lines))
+
+              # INSTALL.md
+              install = open("docs/guides/00-install.md").read() \
+                        if os.path.exists("docs/guides/00-install.md") \
+                        else "# 見 http://localhost:5555/details"
+              zf.writestr("INSTALL.md", install)
+
+          filename = f"openclaw-setup-{TAG}.zip"
+          with open(filename, "wb") as f:
+              f.write(buf.getvalue())
+          print(f"Generated {filename} ({os.path.getsize(filename)//1024}KB)")
+          PYEOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: openclaw-setup-*.zip
+          generate_release_notes: true
+          body: |
+            ## OpenClaw ${{ github.ref_name }}
+
+            ### 快速安裝
+            1. 下載下方 `openclaw-setup-${{ github.ref_name }}.zip`
+            2. 解壓到 `~/.openclaw/`
+            3. 跟住 `INSTALL.md` 完成設定
+
+            完整安裝指引：見壓縮包內 `INSTALL.md`
+
+            ### 變更
