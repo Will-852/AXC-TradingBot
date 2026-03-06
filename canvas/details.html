@@ -5,356 +5,1392 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenClaw 系統說明</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0d0d0d; color: #e0e0e0;
-      font-family: -apple-system, sans-serif;
-      max-width: 860px; margin: 0 auto;
-      padding: 2rem 1.2rem 4rem;
-      line-height: 1.7;
-    }
-    h1 { color: #f59e0b; font-size: 1.8rem; margin-bottom: 0.3rem; }
-    .tagline { color: #555; font-size: 0.9rem; margin-bottom: 2rem; }
-    h2 {
-      color: #6366f1; font-size: 1.1rem;
-      margin: 2.2rem 0 0.8rem;
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid #1e1e3a;
-    }
-    h3 { color: #888; font-size: 0.95rem; margin: 1.2rem 0 0.4rem; }
-    p { color: #bbb; font-size: 0.88rem; margin-bottom: 0.6rem; }
-    ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
-    li { color: #bbb; font-size: 0.88rem; margin-bottom: 0.3rem; }
-    strong { color: #e0e0e0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* 指令區：複製貼上用 */
-    .cmd-block {
-      background: #0a0a1a;
-      border: 1px solid #1e3a5f;
-      border-radius: 6px;
-      padding: 0.8rem 1rem;
-      margin: 0.6rem 0 1rem;
-      font-family: monospace;
-      font-size: 0.82rem;
-      color: #7dd3fc;
-      white-space: pre;
-      overflow-x: auto;
-    }
-    .cmd-label {
-      font-size: 0.72rem;
-      color: #444;
-      margin-bottom: 0.3rem;
-      font-family: monospace;
-    }
+:root {
+  --bg:        #0a0a0f;
+  --bg-card:   #10111a;
+  --bg-hover:  #16182a;
+  --border:    #1e2030;
+  --text:      #d4d8e8;
+  --text-dim:  #5a6080;
+  --text-muted:#343650;
+  --accent:    #6366f1;
+  --accent-dim:rgba(99,102,241,0.12);
+  --green:     #10b981;
+  --yellow:    #f59e0b;
+  --red:       #ef4444;
+  --blue:      #60a5fa;
+  --cyan:      #7dd3fc;
+  --purple:    #a78bfa;
+  --sidebar-w: 220px;
+  --content-w: 680px;
+  --font:      -apple-system, 'Segoe UI', sans-serif;
+  --mono:      'SF Mono', 'Fira Code', monospace;
+}
 
-    /* 提示方塊 */
-    .tip {
-      background: #0f1a0f;
-      border-left: 3px solid #10b981;
-      padding: 0.6rem 0.8rem;
-      border-radius: 0 4px 4px 0;
-      margin: 0.6rem 0;
-      font-size: 0.84rem;
-      color: #86efac;
-    }
-    .warn {
-      background: #1a0f0f;
-      border-left: 3px solid #ef4444;
-      padding: 0.6rem 0.8rem;
-      border-radius: 0 4px 4px 0;
-      margin: 0.6rem 0;
-      font-size: 0.84rem;
-      color: #fca5a5;
-    }
+html { scroll-behavior: smooth; }
 
-    /* 架構圖 */
-    .arch {
-      background: #0a0a1a;
-      border: 1px solid #1e3a5f;
-      border-radius: 6px;
-      padding: 1rem;
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: #7dd3fc;
-      white-space: pre;
-      overflow-x: auto;
-      margin: 0.6rem 0 1rem;
-    }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
 
-    /* 系統組件表 */
-    .layer-table { width: 100%; border-collapse: collapse; margin: 0.6rem 0 1rem; }
-    .layer-table th {
-      background: #1a1a2e; color: #6366f1;
-      font-size: 0.78rem; padding: 6px 10px;
-      text-align: left; font-weight: normal;
-    }
-    .layer-table td {
-      padding: 6px 10px; font-size: 0.82rem;
-      border-bottom: 1px solid #111; color: #bbb;
-    }
-    .layer-table td:first-child { color: #e0e0e0; font-family: monospace; }
+/* ── 整體佈局 ─────────────────────────────── */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
 
-    /* 返回按鈕 */
-    .back { color: #444; font-size: 0.8rem; text-decoration: none;
-            display: inline-block; margin-bottom: 1.5rem; }
-    .back:hover { color: #888; }
+/* ── TOC Sidebar（永遠可見）─────────────────── */
+.toc-sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 0;
+  background: var(--bg);
+  z-index: 60;
+}
 
-    /* GitHub 連結 */
-    .gh-link {
-      display: inline-block;
-      margin-top: 0.4rem;
-      padding: 6px 14px;
-      background: #161b22;
-      border: 1px solid #333;
-      border-radius: 6px;
-      color: #58a6ff;
-      text-decoration: none;
-      font-size: 0.84rem;
-    }
-    .gh-link:hover { background: #1f2937; }
+.toc-sidebar::-webkit-scrollbar { width: 3px; }
+.toc-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-    /* 文件清單 */
-    #doc-list { margin: 0.4rem 0 0.6rem; }
-    .doc-item {
-      display: inline-block;
-      margin: 3px 4px 3px 0;
-      padding: 3px 8px;
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 4px;
-      color: #6366f1;
-      font-size: 0.78rem;
-      cursor: pointer;
-      font-family: monospace;
-    }
-    .doc-item:hover { background: #1a1a2e; }
-    #doc-content {
-      background: #080810;
-      border: 1px solid #1e1e3a;
-      border-radius: 6px;
-      padding: 1rem;
-      margin-top: 0.6rem;
-      font-size: 0.78rem;
-      font-family: monospace;
-      white-space: pre-wrap;
-      max-height: 500px;
-      overflow-y: auto;
-      color: #bbb;
-      display: none;
-    }
+.toc-logo {
+  padding: 0 1.2rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+.toc-logo-name { font-size: 1rem; font-weight: 700; color: var(--yellow); }
+.toc-logo-sub  { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.toc-section-label {
+  padding: 0.8rem 1.2rem 0.3rem;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.toc-link {
+  display: block;
+  padding: 0.28rem 1.2rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all 0.12s;
+}
+.toc-link:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.toc-link.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--accent-dim);
+}
+.toc-link.sub {
+  padding-left: 1.8rem;
+  font-size: 0.75rem;
+}
+
+.toc-back {
+  position: absolute;
+  bottom: 1rem;
+  left: 0; right: 0;
+  padding: 0 1.2rem;
+}
+.toc-back a {
+  display: block;
+  padding: 0.4rem 0.8rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.75rem;
+  text-align: center;
+  transition: all 0.12s;
+}
+.toc-back a:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── 主內容區 ────────────────────────────── */
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── 搜尋欄（sticky）─────────────────── */
+.search-bar-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  background: rgba(10,10,15,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 2rem;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: var(--content-w);
+  margin: 0 auto;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  transition: border-color 0.15s;
+}
+.search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.search-icon { color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; }
+.search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: var(--font);
+}
+.search-input::placeholder { color: var(--text-muted); }
+.search-kbd {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+}
+.search-results {
+  max-width: var(--content-w);
+  margin: 0.5rem auto 0;
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.search-result-item {
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--bg-hover); color: var(--text); }
+.search-result-item mark { background: none; color: var(--accent); font-weight: 600; }
+
+/* ── 文章內容 ────────────────────────────── */
+.article {
+  width: 100%;
+  max-width: var(--content-w);
+  padding: 2.5rem 1.5rem 6rem;
+}
+
+.page-header { margin-bottom: 2.5rem; }
+.page-title  { font-size: 2rem; font-weight: 800; color: var(--yellow); }
+.page-sub    { color: var(--text-dim); font-size: 0.88rem; margin-top: 0.4rem; }
+
+/* Section */
+.section { margin-bottom: 3rem; scroll-margin-top: 70px; }
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.section-num {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--mono);
+}
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  flex: 1;
+}
+
+h3 {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin: 1.4rem 0 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+p  { color: #a0a8c0; font-size: 0.87rem; margin-bottom: 0.6rem; }
+ul, ol { padding-left: 1.3rem; margin-bottom: 0.8rem; }
+li { color: #a0a8c0; font-size: 0.87rem; margin-bottom: 0.25rem; }
+strong { color: var(--text); }
+code {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--cyan);
+}
+
+/* 指令區塊 */
+.cmd-block {
+  background: #05060f;
+  border: 1px solid #1e2a4a;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  padding-right: 3.5rem;
+  margin: 0.5rem 0 1rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  white-space: pre;
+  overflow-x: auto;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.3s;
+  line-height: 1.6;
+}
+.cmd-copy-btn {
+  position: absolute; top: 0.5rem; right: 0.6rem;
+  font-size: 0.65rem; color: var(--text-muted);
+  cursor: pointer; border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--bg-card);
+  font-family: var(--font);
+  transition: all 0.12s;
+  pointer-events: none;
+}
+.cmd-block:hover .cmd-copy-btn { color: var(--accent); border-color: var(--accent); }
+.cmd-block.copied { border-color: var(--green) !important; }
+.cmd-block.copied .cmd-copy-btn { color: var(--green); border-color: var(--green); }
+
+/* 架構圖 */
+.arch {
+  background: #05060f;
+  border: 1px solid #1e2a4a;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--cyan);
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.9;
+}
+
+/* 表格 */
+.data-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.82rem; }
+.data-table th {
+  background: var(--bg-card); color: var(--accent);
+  font-size: 0.72rem; padding: 7px 12px;
+  text-align: left; font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.data-table td {
+  padding: 7px 12px; color: #a0a8c0;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td:first-child { color: var(--text); font-family: var(--mono); font-size: 0.8rem; }
+.data-table tr:hover td { background: var(--bg-hover); }
+
+/* Tip / Warn */
+.tip, .warn {
+  border-radius: 0 6px 6px 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem;
+  margin: 0.6rem 0;
+  line-height: 1.5;
+}
+.tip  { background:#0a1a10; border-left:3px solid var(--green); color:#86efac; }
+.warn { background:#1a0a0a; border-left:3px solid var(--red);   color:#fca5a5; }
+
+/* Collapsible */
+details { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; }
+summary {
+  padding: 0.6rem 1rem; cursor: pointer; color: var(--text-dim);
+  font-size: 0.85rem; list-style: none;
+  display: flex; align-items: center; gap: 8px; user-select: none;
+}
+summary::before { content: '▸'; font-size: 10px; color: var(--accent); transition: transform 0.15s; }
+details[open] summary::before { transform: rotate(90deg); }
+summary::-webkit-details-marker { display: none; }
+details[open] summary { color: var(--text); border-bottom: 1px solid var(--border); }
+.db { padding: 0.8rem 1rem; }
+.db h3:first-child { margin-top: 0; }
+
+/* Layer cards */
+.lc {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.9rem 1.1rem; margin: 0.5rem 0;
+  transition: border-color 0.15s;
+}
+.lc:hover { border-color: #2a2a4a; }
+.lc-h { display: flex; align-items: center; gap: 8px; margin-bottom: 0.4rem; }
+.lc-d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.lc-t { font-size: 14px; font-weight: 600; }
+.lc-m { font-size: 11px; color: #555; font-family: var(--mono); margin-bottom: 0.35rem; }
+
+/* Card */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin: 0.6rem 0 0.8rem; }
+
+/* GitHub 連結 */
+.gh-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 6px; color: #58a6ff;
+  text-decoration: none; font-size: 0.83rem;
+  transition: all 0.12s; margin-top: 0.4rem;
+}
+.gh-link:hover { background: var(--bg-hover); border-color: #58a6ff; }
+
+/* 文件清單 */
+#doc-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.5rem 0; }
+.doc-item {
+  padding: 3px 10px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 4px;
+  color: var(--accent); font-size: 0.75rem;
+  cursor: pointer; font-family: var(--mono);
+  transition: all 0.12s;
+}
+.doc-item:hover { background: var(--accent-dim); }
+#doc-content {
+  background: #05060f; border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem 1.2rem;
+  font-size: 0.78rem; font-family: var(--mono);
+  white-space: pre-wrap; max-height: 450px;
+  overflow-y: auto; color: #a0a8c0; display: none;
+  margin-top: 0.6rem;
+}
+
+/* Page footer */
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+
+/* Back to top */
+.top-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 90;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 14px; cursor: pointer;
+  opacity: 0; transition: opacity 0.2s;
+}
+.top-btn.show { opacity: 1; }
+.top-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Search hidden */
+.search-hidden { display: none !important; }
+
+/* Mobile hamburger */
+.toc-hamburger {
+  display: none;
+  position: fixed; top: 12px; left: 12px; z-index: 70;
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 16px; cursor: pointer;
+  align-items: center; justify-content: center;
+}
+.toc-hamburger:hover { border-color: var(--accent); color: var(--accent); }
+.toc-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 55;
+  background: rgba(0,0,0,0.5);
+}
+
+/* ── 手機響應式 ──────────────────────────── */
+@media (max-width: 768px) {
+  .toc-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+  }
+  .toc-sidebar.open { transform: translateX(0); }
+  .toc-hamburger { display: flex; }
+  .toc-overlay.open { display: block; }
+  .main-content { margin-left: 0; }
+  .article { padding: 1.5rem 1rem 4rem; }
+  .search-bar-wrap { padding: 0.6rem 1rem; padding-left: 56px; }
+}
   </style>
 </head>
 <body>
 
-<a href="/" class="back">&larr; 返回儀表板</a>
+<div class="layout">
 
-<h1>OpenClaw</h1>
-<p class="tagline">一個自動幫你做加密貨幣交易嘅 AI 系統</p>
+<!-- ── TOC Sidebar ──────────────────────── -->
+<nav class="toc-sidebar" id="toc-sidebar">
+  <div class="toc-logo">
+    <div class="toc-logo-name">OpenClaw</div>
+    <div class="toc-logo-sub">系統說明文件</div>
+  </div>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>OpenClaw 係咩？</h2>
+  <div class="toc-section-label">快速入門</div>
+  <a class="toc-link" href="#what">OpenClaw 係咩？</a>
+  <a class="toc-link sub" href="#how">系統運作流程</a>
+  <a class="toc-link sub" href="#dashboard">儀表板各區域</a>
 
-<p>想像你請咗一個助手，<strong>24小時不停地盯著加密貨幣市場</strong>。佢會：</p>
-<ul>
-  <li>每隔幾分鐘掃描市場，睇下邊隻幣有異動</li>
-  <li>分析價格走勢，判斷係咪值得入場</li>
-  <li>自動下單入場，設好止蝕止賺</li>
-  <li>用 Telegram 通知你每一個動作</li>
-</ul>
+  <div class="toc-section-label">操作指南</div>
+  <a class="toc-link" href="#modes">交易模式</a>
+  <a class="toc-link" href="#risk">風控機制</a>
+  <a class="toc-link" href="#telegram">Telegram 指令</a>
+  <a class="toc-link" href="#api-key">換 API Key</a>
+  <a class="toc-link" href="#terminal">Terminal 指令</a>
+  <a class="toc-link" href="#faq">常見問題</a>
 
-<p>你唔需要一直盯住電腦。OpenClaw 會幫你做。</p>
+  <div class="toc-section-label">人體架構</div>
+  <a class="toc-link" href="#layers-intro">點解叫「人體架構」？</a>
+  <a class="toc-link sub" href="#layers-detail">六大 LAYERS</a>
+  <a class="toc-link sub" href="#layers-flow">協作流程</a>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>系統係點運作嘅？</h2>
+  <div class="toc-section-label">機械體架構</div>
+  <a class="toc-link" href="#agents">10 個 Agents</a>
+  <a class="toc-link" href="#strategy">交易策略</a>
+  <a class="toc-link sub" href="#scripts">15 個 Scripts</a>
+  <a class="toc-link sub" href="#launchagents">10 個 LaunchAgents</a>
+  <a class="toc-link sub" href="#models">推理模型</a>
+  <a class="toc-link sub" href="#data-flow">數據流</a>
+  <a class="toc-link sub" href="#file-structure">文件結構</a>
+  <a class="toc-link sub" href="#params">參數管理</a>
 
-<div class="arch">掃描員 ──→ 分析員 ──→ 決策員 ──→ 交易員
+  <div class="toc-section-label">附錄</div>
+  <a class="toc-link" href="#api-endpoints">Dashboard API</a>
+  <a class="toc-link" href="#memory-rag">RAG 記憶系統</a>
+  <a class="toc-link" href="#doc-nav">文件導航</a>
+
+  <div class="toc-back">
+    <a href="/">← 返回儀表板</a>
+  </div>
+</nav>
+
+<!-- Mobile hamburger + overlay -->
+<button class="toc-hamburger" id="toc-hamburger" onclick="toggleMobileToc()">&#x2630;</button>
+<div class="toc-overlay" id="toc-overlay" onclick="toggleMobileToc()"></div>
+
+<!-- ── 主內容 ────────────────────────────── -->
+<div class="main-content">
+
+  <!-- 搜尋欄（sticky） -->
+  <div class="search-bar-wrap">
+    <div class="search-bar">
+      <span class="search-icon">&#x1F50D;</span>
+      <input class="search-input" id="search-input" type="text"
+             placeholder="搜尋... 例如「止蝕」「Telegram」「API」" autocomplete="off">
+      <span class="search-kbd">/</span>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <!-- 文章 -->
+  <div class="article">
+
+    <div class="page-header">
+      <h1 class="page-title">OpenClaw</h1>
+      <p class="page-sub">AI 加密貨幣交易系統 — 系統說明文件</p>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  01 — OpenClaw 係咩                    -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="what">
+      <div class="section-label">
+        <span class="section-num">01</span>
+        <h2 class="section-title">OpenClaw 係咩？</h2>
+      </div>
+      <p>一個 24 小時自動運行嘅 AI 助手，幫你監察加密貨幣市場、分析走勢、自動下單、Telegram 通知結果。你唔需要盯住電腦。</p>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  02 — 系統運作流程                      -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="how">
+      <div class="section-label">
+        <span class="section-num">02</span>
+        <h2 class="section-title">系統運作流程</h2>
+      </div>
+      <div class="arch">掃描員 ──→ 分析員 ──→ 決策員 ──→ 交易員
   ↑                                        ↓
 心跳監察                           Telegram 通知你
 
 新聞員 ──→ 情緒分析 ──→ 輔助判斷</div>
+      <ul>
+        <li><strong>掃描員</strong> — 每 3 分鐘掃描市場，搵大波動</li>
+        <li><strong>分析員</strong> — 計算技術指標（BB、ATR、支撐阻力）</li>
+        <li><strong>決策員</strong> — 綜合數據判斷入唔入場</li>
+        <li><strong>交易員</strong> — 向交易所落盤、設止蝕止賺</li>
+        <li><strong>新聞員</strong> — 抓取新聞、分析市場情緒</li>
+      </ul>
+    </div>
 
-<p>就好似一間公司咁：</p>
-<ul>
-  <li><strong>掃描員</strong>（Scanner）— 負責四圍「望」，睇邊隻幣有大波動</li>
-  <li><strong>分析員</strong>（Analyst）— 計算技術指標，判斷入場時機</li>
-  <li><strong>交易員</strong>（Trader）— 真正落盤買賣</li>
-  <li><strong>心跳</strong>（Heartbeat）— 確保系統冇死機</li>
-  <li><strong>新聞員</strong>（News Agent）— 睇新聞判斷市場情緒</li>
-</ul>
+    <!-- ══════════════════════════════════════ -->
+    <!--  03 — 儀表板各區域                      -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="dashboard">
+      <div class="section-label">
+        <span class="section-num">03</span>
+        <h2 class="section-title">儀表板各區域</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>區域</th><th>顯示咩</th></tr>
+        <tr><td>行動部署</td><td>每隻幣嘅觸發狀態（🟢 可入場 / 🟡 接近 / ⚫ 等候）+ SL/TP 預覽</td></tr>
+        <tr><td>累積盈虧</td><td>今日 + 總計盈虧曲線</td></tr>
+        <tr><td>交易記錄</td><td>每筆交易入場價、出場價、盈虧</td></tr>
+        <tr><td>系統活動</td><td>心跳、模式切換、入場出場事件</td></tr>
+        <tr><td>掃描記錄</td><td>掃描器最近信號同結果</td></tr>
+      </table>
+      <details><summary>行動部署縮寫詳解（SL / TP / S / R / ATR / CHG）</summary><div class="db">
+        <table class="data-table">
+          <tr><th>縮寫</th><th>全名</th><th>意思</th></tr>
+          <tr><td>SL</td><td>Stop Loss</td><td>止蝕位 — 輸到呢個價自動出場</td></tr>
+          <tr><td>TP</td><td>Take Profit</td><td>止賺位 — 賺到呢個價自動出場</td></tr>
+          <tr><td>S</td><td>Support</td><td>支撐位 — 價格容易反彈嘅底部</td></tr>
+          <tr><td>R</td><td>Resistance</td><td>阻力位 — 價格容易回落嘅頂部</td></tr>
+          <tr><td>ATR</td><td>Average True Range</td><td>平均波幅，用嚟計 SL/TP 距離</td></tr>
+          <tr><td>CHG</td><td>24h Change %</td><td>過去 24 小時價格變化</td></tr>
+        </table>
+      </div></details>
+    </div>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>左邊欄 LAYERS 係咩意思？</h2>
+    <!-- ══════════════════════════════════════ -->
+    <!--  04 — 交易模式                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="modes">
+      <div class="section-label">
+        <span class="section-num">04</span>
+        <h2 class="section-title">交易模式</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>模式</th><th>觸發門檻</th><th>風險</th><th>適合</th></tr>
+        <tr><td>CONSERVATIVE</td><td>3%</td><td>低（1% risk, max 1 倉）</td><td>市場平靜</td></tr>
+        <tr><td>BALANCED</td><td>2.5%</td><td>中（2% risk, max 2 倉）</td><td>一般市況</td></tr>
+        <tr><td>AGGRESSIVE</td><td>2%</td><td>高（3% risk, max 3 倉）</td><td>市場活躍</td></tr>
+      </table>
+      <div class="tip">揀定一個模式後，最少跑 30 次交易先換。頻繁切換令數據冇參考價值。</div>
+    </div>
 
-<table class="layer-table">
-  <tr><th>名稱</th><th>中文意思</th><th>更新頻率</th><th>解釋</th></tr>
-  <tr><td>SOUL</td><td>靈魂 / 人格</td><td>從不自動</td><td>每個 AI agent 嘅性格設定，決定佢點思考、點決策</td></tr>
-  <tr><td>MEMORY</td><td>記憶</td><td>每日</td><td>系統記住之前嘅交易，學習成功同失敗嘅經驗</td></tr>
-  <tr><td>DNA</td><td>基因 / 策略</td><td>每週</td><td>根據歷史交易歸納出嘅交易規則，越交越精準</td></tr>
-  <tr><td>MUSCLES</td><td>肌肉 / 引擎</td><td>穩定不變</td><td>實際執行交易嘅核心代碼，止蝕止賺嘅計算邏輯</td></tr>
-  <tr><td>BLOOD</td><td>血液 / 數據</td><td>實時</td><td>來自交易所嘅實時價格數據，系統嘅「養分」</td></tr>
-  <tr><td>MIRROR</td><td>鏡子 / 對照</td><td>參考用</td><td>回測系統，用歷史數據驗證策略係咪有效</td></tr>
-</table>
+    <!-- ══════════════════════════════════════ -->
+    <!--  05 — 風控機制                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="risk">
+      <div class="section-label">
+        <span class="section-num">05</span>
+        <h2 class="section-title">風控機制</h2>
+      </div>
+      <p>系統有多重自動保護，唔需要手動操作：</p>
+      <table class="data-table">
+        <tr><th>機制</th><th>觸發條件</th><th>行為</th></tr>
+        <tr><td>單筆熔斷</td><td>單倉虧損 &ge; 25%</td><td>即時強制平倉</td></tr>
+        <tr><td>日度熔斷</td><td>當日虧損 &ge; 15%</td><td>停止當日所有交易</td></tr>
+        <tr><td>連虧冷卻</td><td>連輸 2 次</td><td>暫停 30 分鐘</td></tr>
+        <tr><td>重度冷卻</td><td>連輸 3 次</td><td>暫停 2 小時</td></tr>
+        <tr><td>持倉上限</td><td>3 天未平倉</td><td>自動平倉（MAX_HOLD_HOURS=72）</td></tr>
+        <tr><td>資金費率</td><td>資金費 &gt; 50% 未實現盈虧</td><td>強制平倉</td></tr>
+        <tr><td>低流動性</td><td>成交量 &lt; 50% 均值</td><td>唔入場</td></tr>
+        <tr><td>極端費率</td><td>資金費率 &ge; 0.2%</td><td>唔入場</td></tr>
+        <tr><td>再入場縮減</td><td>虧損後再入場</td><td>倉位自動縮減 30%</td></tr>
+      </table>
+      <div class="tip">如果你見到系統冇交易，最常見原因係連虧冷卻或者市場波動唔夠。呢啲都係正常保護機制。</div>
+    </div>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>儀表板各部分說明</h2>
+    <!-- ══════════════════════════════════════ -->
+    <!--  06 — Telegram 指令                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="telegram">
+      <div class="section-label">
+        <span class="section-num">06</span>
+        <h2 class="section-title">Telegram 指令（完整版）</h2>
+      </div>
+      <p>同 OpenClaw Bot 對話，可用以下指令：</p>
 
-<h3>行動部署</h3>
-<p>顯示每隻幣當前狀態：</p>
-<ul>
-  <li><strong>綠點</strong>：已達觸發條件，系統可能入場</li>
-  <li><strong>黃點</strong>：接近觸發，仲差少少</li>
-  <li><strong>灰點</strong>：未達條件，繼續等</li>
-  <li><strong>SL</strong>（Stop Loss）= 止蝕位，輸到呢個價就自動出場</li>
-  <li><strong>TP</strong>（Take Profit）= 止賺位，賺到呢個價就自動出場</li>
-  <li><strong>S / R</strong>（Support / Resistance）= 支撐位 / 阻力位</li>
-</ul>
+      <h3>查詢類</h3>
+      <table class="data-table">
+        <tr><th>指令</th><th>功能</th><th>成本</th></tr>
+        <tr><td>/health</td><td>系統狀態 + agent 心跳 + 記憶數量</td><td>零</td></tr>
+        <tr><td>/report</td><td>完整持倉報告</td><td>零</td></tr>
+        <tr><td>/pos</td><td>當前持倉</td><td>零</td></tr>
+        <tr><td>/bal</td><td>帳戶餘額</td><td>零</td></tr>
+        <tr><td>/pnl</td><td>今日 + 累計盈虧</td><td>零</td></tr>
+        <tr><td>/scan</td><td>最新掃描結果</td><td>零</td></tr>
+        <tr><td>/log</td><td>最近日誌</td><td>零</td></tr>
+        <tr><td>/sl</td><td>查看當前止蝕位</td><td>零</td></tr>
+      </table>
 
-<h3>累積盈虧</h3>
-<p>顯示今日同總計嘅盈虧。曲線向上 = 賺緊錢，向下 = 蝕緊錢。</p>
+      <h3>操控類</h3>
+      <table class="data-table">
+        <tr><th>指令</th><th>功能</th><th>成本</th></tr>
+        <tr><td>/mode</td><td>查看/切換模式（有按鈕選擇）</td><td>零</td></tr>
+        <tr><td>/mode BALANCED</td><td>直接切換到指定模式</td><td>零</td></tr>
+        <tr><td>/sl breakeven</td><td>全部持倉止蝕移到入場價</td><td>零</td></tr>
+        <tr><td>/sl breakeven XAGUSDT</td><td>指定幣種止蝕移到入場價</td><td>零</td></tr>
+        <tr><td>/pause</td><td>暫停交易</td><td>零</td></tr>
+        <tr><td>/resume</td><td>恢復交易</td><td>零</td></tr>
+        <tr><td>/cancel</td><td>取消掛單確認</td><td>零</td></tr>
+      </table>
 
-<h3>交易記錄</h3>
-<p>每一筆交易嘅入場價同出場價。<br>
-⚠️ 符號 = 測試記錄（唔係真實交易），可以忽略。</p>
+      <h3>AI 分析類</h3>
+      <table class="data-table">
+        <tr><th>指令</th><th>功能</th><th>成本</th></tr>
+        <tr><td>/ask BTC 走勢如何？</td><td>AI 分析 + RAG 記憶查詢</td><td>Haiku</td></tr>
+        <tr><td>直接打字</td><td>自動偵測：下單意圖 or 分析請求</td><td>Haiku</td></tr>
+      </table>
+    </div>
 
-<h3>系統活動</h3>
-<p>系統最近做咗咩：心跳確認、模式切換、入場出場等等。</p>
+    <!-- ══════════════════════════════════════ -->
+    <!--  07 — 換 API Key                        -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="api-key">
+      <div class="section-label">
+        <span class="section-num">07</span>
+        <h2 class="section-title">換 API Key</h2>
+      </div>
+      <p>OpenClaw 有<strong>兩個地方</strong>存 API key，兩邊都要改：</p>
+      <table class="data-table">
+        <tr><th>文件</th><th>管邊個</th><th>點改</th></tr>
+        <tr><td>openclaw.json</td><td>Gateway + AI agents</td><td><code>openclaw config set</code></td></tr>
+        <tr><td>secrets/.env</td><td>Python scripts（掃描、TG、新聞）</td><td><code>nano</code> 編輯</td></tr>
+      </table>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>交易模式（打法）</h2>
+      <div class="card">
+        <h3>換 AI API Key（最常見）</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 第 1 步：改 Gateway（3 個 tier）
+openclaw config set models.providers.tier1.apiKey "sk-新key"
+openclaw config set models.providers.tier2.apiKey "sk-新key"
+openclaw config set models.providers.tier3.apiKey "sk-新key"
 
-<p>系統有三種打法，用 Telegram 指令切換：</p>
-<table class="layer-table">
-  <tr><th>模式</th><th>觸發門檻</th><th>風險</th><th>適合市況</th></tr>
-  <tr><td>CONSERVATIVE</td><td>高（較難觸發）</td><td>低</td><td>市場平靜時</td></tr>
-  <tr><td>BALANCED</td><td>中（2%波動）</td><td>中</td><td>一般市況</td></tr>
-  <tr><td>AGGRESSIVE</td><td>低（較易觸發）</td><td>高</td><td>市場活躍時</td></tr>
-</table>
+# 第 2 步：改 Scripts
+nano ~/.openclaw/secrets/.env
+# 搵 PROXY_API_KEY=舊key → 改成新key
+# Ctrl+O 存檔，Ctrl+X 退出
 
-<div class="tip">建議：揀定一個模式後，最少跑 30 次交易先換。頻繁切換會令數據冇參考價值。</div>
-
-<!-- ═══════════════════════════════════════════════ -->
-<h2>Telegram 指令大全</h2>
-
-<p>喺 Telegram 同 OpenClaw bot 對話，可以用以下指令：</p>
-
-<h3>查詢狀態</h3>
-<div class="cmd-label">發送畀 Bot：</div>
-<div class="cmd-block">/status</div>
-<p>顯示系統當前狀態、運行中嘅服務、最近交易。</p>
-
-<h3>切換打法</h3>
-<div class="cmd-label">發送畀 Bot：</div>
-<div class="cmd-block">/mode BALANCED
-/mode CONSERVATIVE
-/mode AGGRESSIVE</div>
-
-<h3>查詢持倉</h3>
-<div class="cmd-label">發送畀 Bot：</div>
-<div class="cmd-block">/positions</div>
-
-<h3>手動平倉</h3>
-<div class="cmd-label">發送畀 Bot：</div>
-<div class="cmd-block">/close BTCUSDT</div>
-
-<!-- ═══════════════════════════════════════════════ -->
-<h2>電腦指令（Terminal 用）</h2>
-
-<div class="warn">以下指令需要喺 Mac 嘅 Terminal 執行。唔熟悉指令嘅話，唔需要理呢部分，用 Telegram 就夠。</div>
-
-<h3>啟動所有服務</h3>
-<div class="cmd-label">Terminal 入面，複製以下全部貼上：</div>
-<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh start</div>
-
-<h3>停止所有服務</h3>
-<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh stop</div>
-
-<h3>查看服務狀態</h3>
-<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh status</div>
-
-<h3>健康檢查（確認系統正常）</h3>
-<div class="cmd-block">bash ~/.openclaw/scripts/health_check.sh</div>
-<p>期望看到：<strong>39+ pass / 0 fail</strong>。如果有 fail，截圖記錄。</p>
-
-<h3>備份系統</h3>
-<div class="cmd-block">bash ~/.openclaw/scripts/backup_agent.sh</div>
-
-<h3>手動跑策略回顧</h3>
-<div class="cmd-block">python3 ~/.openclaw/scripts/weekly_strategy_review.py</div>
-<p>會分析歷史交易，輸出建議到 ai/STRATEGY.md。</p>
-
-<h3>查看儀表板</h3>
-<div class="cmd-label">瀏覽器打開：</div>
-<div class="cmd-block">http://localhost:5555</div>
-
-<!-- ═══════════════════════════════════════════════ -->
-<h2>常見問題</h2>
-
-<h3>系統冇交易，點解？</h3>
-<ul>
-  <li>市場波動唔夠大（低於觸發門檻）→ 正常，繼續等</li>
-  <li>熔斷器觸發（連輸太多次）→ 系統自動暫停保護</li>
-  <li>服務停咗 → 跑 <code>/status</code> 或 health check</li>
-</ul>
-
-<h3>Telegram 冇收到通知？</h3>
-<div class="cmd-block">launchctl list | grep openclaw</div>
-<p>確認 ai.openclaw.telegram 有 PID（第一欄有數字）。</p>
-
-<h3>儀表板開唔到？</h3>
-<div class="cmd-block">cd ~/.openclaw && python3 scripts/dashboard.py &</div>
-<p>然後開 http://localhost:5555</p>
-
-<h3>想重置所有服務？</h3>
-<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh stop
+# 第 3 步：重啟全部服務
+launchctl stop ai.openclaw.scanner
+launchctl stop ai.openclaw.telegram
+launchctl stop ai.openclaw.gateway
 sleep 3
-bash ~/.openclaw/scripts/openclaw.sh start</div>
+launchctl start ai.openclaw.scanner
+launchctl start ai.openclaw.telegram
+launchctl start ai.openclaw.gateway</div>
+        <div class="warn">兩邊嘅 key 必須一致，否則部分服務用舊 key 失敗。</div>
+      </div>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>文件導航</h2>
-<p>點擊查看系統內部文件：</p>
-<div id="doc-list"><span style="color:#333">載入中…</span></div>
-<pre id="doc-content"></pre>
+      <details><summary>其他 API Key 場景（Proxy 地址 / 交易所 / Telegram）</summary><div class="db">
+        <h3>換 API Proxy 地址</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># Gateway
+openclaw config set models.providers.tier1.baseUrl "https://新地址/v1"
+openclaw config set models.providers.tier2.baseUrl "https://新地址/v1"
+openclaw config set models.providers.tier3.baseUrl "https://新地址/v1"
+# Scripts
+nano ~/.openclaw/secrets/.env    # 改 PROXY_BASE_URL
+# 重啟
+launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner</div>
+        <h3>換交易所 API</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 只需改 secrets/.env（Gateway 唔直接用交易所 key）
+nano ~/.openclaw/secrets/.env    # 改 ASTER_API_KEY + ASTER_API_SECRET
+# 重啟
+launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner</div>
+        <h3>換 Telegram Bot</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 1. 同 @BotFather 拎新 token
+# 2. Gateway
+openclaw config set channels.telegram.botToken "新token"
+# 3. Scripts
+nano ~/.openclaw/secrets/.env    # 改 TELEGRAM_BOT_TOKEN
+# 4. 重啟
+launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram</div>
+      </div></details>
 
-<!-- ═══════════════════════════════════════════════ -->
-<h2>GitHub</h2>
-<p>完整源碼同安裝指南：</p>
-<a href="https://github.com/Will-852/openclaw" target="_blank" class="gh-link">
-  github.com/Will-852/openclaw
-</a>
+      <details><summary>secrets/.env 完整 Key 清單（9 個）</summary><div class="db">
+        <table class="data-table">
+          <tr><th>Key</th><th>用途</th><th>換完重啟</th></tr>
+          <tr><td>PROXY_API_KEY</td><td>Claude / GPT 推理</td><td>scanner + tg_bot + news</td></tr>
+          <tr><td>PROXY_BASE_URL</td><td>API proxy 地址</td><td>scanner + tg_bot + news</td></tr>
+          <tr><td>ASTER_API_KEY</td><td>Aster DEX 交易</td><td>scanner + tradercycle</td></tr>
+          <tr><td>ASTER_API_SECRET</td><td>Aster DEX 簽名</td><td>scanner + tradercycle</td></tr>
+          <tr><td>BINANCE_API_KEY</td><td>Binance 交易</td><td>scanner</td></tr>
+          <tr><td>BINANCE_API_SECRET</td><td>Binance 簽名</td><td>scanner</td></tr>
+          <tr><td>TELEGRAM_BOT_TOKEN</td><td>Telegram Bot</td><td>tg_bot</td></tr>
+          <tr><td>TELEGRAM_CHAT_ID</td><td>通知對象</td><td>tg_bot</td></tr>
+          <tr><td>VOYAGE_API_KEY</td><td>向量 embedding（RAG）</td><td>memory_init</td></tr>
+        </table>
+        <div class="warn">永遠唔好將 key commit 到 Git 或分享畀人。</div>
+      </div></details>
+    </div>
 
-<br><br>
-<div class="warn">
-  安全提示：API 密鑰、交易數據、資金資訊不會在此頁面顯示。<br>
-  敏感設定請直接編輯 <code>~/.openclaw/secrets/.env</code>
-</div>
+    <!-- ══════════════════════════════════════ -->
+    <!--  08 — Terminal 指令                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="terminal">
+      <div class="section-label">
+        <span class="section-num">08</span>
+        <h2 class="section-title">Terminal 指令</h2>
+      </div>
+      <div class="warn" style="margin-bottom:.6rem">以下指令需要喺 Mac Terminal 執行。唔熟悉嘅話，Telegram 指令已經夠用。</div>
+
+      <h3>服務管理</h3>
+      <table class="data-table">
+        <tr><th>動作</th><th>指令</th></tr>
+        <tr><td>查看所有服務</td><td><code>launchctl list | grep openclaw</code></td></tr>
+        <tr><td>停止指定服務</td><td><code>launchctl stop ai.openclaw.scanner</code></td></tr>
+        <tr><td>啟動指定服務</td><td><code>launchctl start ai.openclaw.scanner</code></td></tr>
+        <tr><td>重啟全部</td><td>逐個 stop → sleep 3 → 逐個 start</td></tr>
+      </table>
+
+      <h3>診斷</h3>
+      <table class="data-table">
+        <tr><th>動作</th><th>指令</th></tr>
+        <tr><td>健康檢查</td><td><code>bash ~/.openclaw/scripts/health_check.sh</code></td></tr>
+        <tr><td>查看掃描日誌</td><td><code>tail -20 ~/.openclaw/logs/scanner.log</code></td></tr>
+        <tr><td>查看掃描心跳</td><td><code>cat ~/.openclaw/logs/scanner_heartbeat.txt</code></td></tr>
+        <tr><td>清除掃描鎖</td><td><code>rm ~/.openclaw/shared/scanner_runner.lock</code></td></tr>
+        <tr><td>集成測試</td><td><code>bash ~/.openclaw/scripts/integration_test.sh</code></td></tr>
+      </table>
+
+      <h3>備份</h3>
+      <table class="data-table">
+        <tr><th>動作</th><th>指令</th></tr>
+        <tr><td>手動備份</td><td><code>bash ~/.openclaw/scripts/backup_agent.sh</code></td></tr>
+        <tr><td>自動備份</td><td>crontab 每日 03:00 自動執行</td></tr>
+        <tr><td>儀表板</td><td>瀏覽器開 <code>http://localhost:5555</code></td></tr>
+      </table>
+
+      <details><summary>進階指令（手動交易、策略回顧、加幣種、RAG、CLI）</summary><div class="db">
+        <h3>手動交易</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>cd ~/.openclaw/workspace/tools && python3 -m trader_cycle.main --live --verbose</div>
+        <h3>策略回顧</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>python3 ~/.openclaw/scripts/weekly_strategy_review.py</div>
+        <h3>加幣種</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 1. 編輯 config/params.py，加 "XXXUSDT" 到 SYMBOLS list
+# 2. 重啟掃描器
+launchctl stop ai.openclaw.scanner && sleep 2 && launchctl start ai.openclaw.scanner</div>
+        <h3>查詢 RAG 記憶</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>python3 ~/.openclaw/memory/retriever.py "BTC 上次入場點解輸？"</div>
+        <h3>重建 RAG 索引</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>python3 ~/.openclaw/scripts/memory_init.py</div>
+        <h3>OpenClaw CLI</h3>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>openclaw config get models.providers.tier1.apiKey  # 查 API key
+openclaw config set &lt;path&gt; "&lt;value&gt;"               # 改設定
+openclaw config file                               # 設定文件路徑
+openclaw channels status --probe                   # Telegram 狀態
+openclaw gateway health                            # Gateway 健康
+openclaw status                                    # 頻道健康 + 最近 session</div>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  09 — 常見問題                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="faq">
+      <div class="section-label">
+        <span class="section-num">09</span>
+        <h2 class="section-title">常見問題</h2>
+      </div>
+      <details><summary>系統冇交易，點解？</summary><div class="db"><ul>
+        <li>市場波動唔夠大（低於觸發門檻）→ 正常，繼續等</li>
+        <li>連虧冷卻中（2 次暫停 30min，3 次暫停 2hr）→ Telegram <code>/health</code> 查看</li>
+        <li>日度熔斷（當日虧 &ge;15%）→ 第二日自動恢復</li>
+        <li>暫停模式 → Telegram <code>/resume</code> 恢復</li>
+        <li>服務停咗 → <code>launchctl list | grep openclaw</code> 確認</li>
+      </ul></div></details>
+      <details><summary>Telegram 冇收到通知？</summary><div class="db">
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>launchctl list | grep openclaw</div>
+        <p>確認 <code>ai.openclaw.telegram</code> 有 PID（第一欄有數字）。冇嘅話：</p>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>launchctl start ai.openclaw.telegram</div>
+      </div></details>
+      <details><summary>儀表板開唔到？</summary><div class="db">
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span>cd ~/.openclaw && python3 scripts/dashboard.py &</div>
+        <p>然後瀏覽器開 <code>http://localhost:5555</code></p>
+      </div></details>
+      <details><summary>掃描器停咗？</summary><div class="db">
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 1. 檢查狀態
+launchctl list | grep scanner
+# 2. 檢查日誌
+tail -20 ~/.openclaw/logs/scanner.log
+# 3. 如果有鎖死
+rm ~/.openclaw/shared/scanner_runner.lock
+# 4. 重啟
+launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner</div>
+      </div></details>
+      <details><summary>災難恢復（系統壞晒點算？）</summary><div class="db">
+        <p>完整恢復約 15 分鐘，7 個步驟：</p>
+        <ol>
+          <li>Clone repo：<code>git clone https://github.com/Will-852/openclaw.git ~/.openclaw</code></li>
+          <li>還原 .env：從 iCloud 或備份 zip 複製 <code>secrets/.env</code></li>
+          <li>安裝依賴：<code>pip3 install numpy requests</code></li>
+          <li>重建 RAG：<code>python3 scripts/memory_init.py</code></li>
+          <li>驗證：<code>bash scripts/health_check.sh</code></li>
+          <li>還原 LaunchAgents：複製 plist 到 <code>~/Library/LaunchAgents/</code></li>
+          <li>還原 crontab：<code>crontab -e</code> 加回 03:00 備份</li>
+        </ol>
+        <p>詳見 <code>docs/setup/RECOVERY.md</code></p>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  10 — 人體架構                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="layers-intro">
+      <div class="section-label">
+        <span class="section-num">10</span>
+        <h2 class="section-title">點解叫「人體架構」？</h2>
+      </div>
+      <p>OpenClaw 用人體器官做隱喻。每個部分對應一個器官：有「大腦」負責思考、有「記憶」學習經驗、有「肌肉」負責行動。</p>
+      <div class="arch">     ┌─────────┐
+     │  SOUL   │  ← 大腦：性格、決策風格
+     └────┬────┘
+     ┌────┴────┐
+     │ MEMORY  │  ← 海馬體：過去經驗
+     └────┬────┘
+     ┌────┴────┐
+     │   DNA   │  ← 基因：策略規則
+     └────┬────┘
+  ┌───────┴───────┐
+  │   MUSCLES     │  ← 肌肉：交易引擎
+  └───────┬───────┘
+     ┌────┴────┐
+     │  BLOOD  │  ← 血液：實時數據
+     └────┬────┘
+     ┌────┴────┐
+     │ MIRROR  │  ← 鏡子：回測對照
+     └─────────┘</div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  11 — 六大 LAYERS                       -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="layers-detail">
+      <div class="section-label">
+        <span class="section-num">11</span>
+        <h2 class="section-title">六大 LAYERS</h2>
+      </div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:var(--purple)"></div><span class="lc-t" style="color:var(--purple)">SOUL — 靈魂</span></div><div class="lc-m">agents/*/SOUL.md | 從不自動改</div><p>每個 AI agent 嘅性格設定。掃描員著重「發現異常」，交易員著重「風險控制」。</p></div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:var(--blue)"></div><span class="lc-t" style="color:var(--blue)">MEMORY — 記憶</span></div><div class="lc-m">workspace/MEMORY.md | 每日自動</div><p>記住每次交易經驗。用 RAG 向量搜索儲存，AI 決策時自動翻查。</p></div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:var(--green)"></div><span class="lc-t" style="color:var(--green)">DNA — 基因</span></div><div class="lc-m">config/params.py | 每週回顧</div><p>從交易經驗歸納出嘅規則。每週策略回顧分析近期交易，成功嘅寫入，失敗嘅淘汰。</p></div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:var(--yellow)"></div><span class="lc-t" style="color:var(--yellow)">MUSCLES — 肌肉</span></div><div class="lc-m">scripts/ | 穩定不變</div><p>實際執行交易嘅核心代碼 — 計算入場位、止蝕止賺，向交易所下單。</p></div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:var(--red)"></div><span class="lc-t" style="color:var(--red)">BLOOD — 血液</span></div><div class="lc-m">shared/ | 實時</div><p>來自交易所嘅實時價格數據，係決策嘅「養分」。</p></div>
+      <div class="lc"><div class="lc-h"><div class="lc-d" style="background:#8b95a1"></div><span class="lc-t" style="color:#8b95a1">MIRROR — 鏡子</span></div><div class="lc-m">CLAUDE.md | 參考用</div><p>用歷史數據驗證策略有效性。回測結果影響 DNA 嘅更新方向。</p></div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  12 — 協作流程                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="layers-flow">
+      <div class="section-label">
+        <span class="section-num">12</span>
+        <h2 class="section-title">協作流程</h2>
+      </div>
+      <div class="arch">1. BLOOD  送入實時數據
+2. MUSCLES 計算技術指標（BB、ATR、S/R）
+3. DNA    提供觸發門檻同風險參數
+4. MEMORY 提供歷史經驗
+5. SOUL   綜合以上做最終決策
+6. MIRROR 事後覈查決策質素</div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  13 — 10 個 Agents                      -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="agents">
+      <div class="section-label">
+        <span class="section-num">13</span>
+        <h2 class="section-title">10 個 Agents</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>Agent</th><th>職責</th><th>模型</th></tr>
+        <tr><td>main</td><td>主控，協調所有 agent</td><td>Sonnet</td></tr>
+        <tr><td>aster_scanner</td><td>Aster DEX 掃描</td><td>Haiku</td></tr>
+        <tr><td>aster_trader</td><td>Aster DEX 下單</td><td>Sonnet</td></tr>
+        <tr><td>binance_scanner</td><td>Binance 掃描</td><td>Haiku</td></tr>
+        <tr><td>binance_trader</td><td>Binance 下單</td><td>Sonnet</td></tr>
+        <tr><td>analyst</td><td>技術分析</td><td>Sonnet</td></tr>
+        <tr><td>decision</td><td>入場決策 + 風控</td><td>Sonnet</td></tr>
+        <tr><td>heartbeat</td><td>系統健康監察</td><td>—</td></tr>
+        <tr><td>haiku_filter</td><td>快速預篩信號</td><td>Haiku</td></tr>
+        <tr><td>news_agent</td><td>新聞 + 情緒分析</td><td>Haiku</td></tr>
+      </table>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  14 — 交易策略                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="strategy">
+      <div class="section-label">
+        <span class="section-num">14</span>
+        <h2 class="section-title">交易策略</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>策略</th><th>觸發條件</th><th>SL</th><th>TP (Min R:R)</th><th>槓桿</th></tr>
+        <tr><td>RANGE（橫行）</td><td>BB 觸碰 + RSI 反轉 + S/R + Stoch</td><td>1.2x ATR</td><td>2.3:1</td><td>8x</td></tr>
+        <tr><td>TREND（趨勢）</td><td>4 指標對齊 + 回調買入 + 4H+1H 確認</td><td>1.5x ATR</td><td>3.0:1</td><td>7x</td></tr>
+      </table>
+      <details><summary>模式偵測（點樣分辨橫行 vs 趨勢）</summary><div class="db">
+        <p>系統用 4H K 線上嘅 5 個指標自動判斷市場模式：</p>
+        <ul>
+          <li>RSI 位置（超買/超賣/中性）</li>
+          <li>MACD 方向（上升/下降/中性）</li>
+          <li>成交量趨勢（放量/縮量）</li>
+          <li>資金費率（正/負/極端）</li>
+          <li>BB 寬度（收窄 = RANGE，擴張 = TREND）</li>
+        </ul>
+        <p>五票制：多數決定用 RANGE 定 TREND 策略。</p>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  15 — 15 個 Scripts                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="scripts">
+      <div class="section-label">
+        <span class="section-num">15</span>
+        <h2 class="section-title">15 個 Scripts</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>Script</th><th>功能</th></tr>
+        <tr><td>async_scanner.py</td><td>主掃描循環（每 3 分鐘）</td></tr>
+        <tr><td>dashboard.py</td><td>Web 儀表板（port 5555）</td></tr>
+        <tr><td>tg_bot.py</td><td>Telegram Bot（14 指令 + NLP）</td></tr>
+        <tr><td>indicator_calc.py</td><td>BB / RSI / ADX / EMA / Stoch / ATR</td></tr>
+        <tr><td>scanner_runner.py</td><td>掃描編排（light_scan → trader_cycle，fcntl 鎖）</td></tr>
+        <tr><td>light_scan.py</td><td>輕量掃描（純數學，零 LLM）</td></tr>
+        <tr><td>binance_feed.py</td><td>Binance WebSocket 數據（唔需 API key）</td></tr>
+        <tr><td>heartbeat.py</td><td>心跳監察（23:00-08:00 靜音）</td></tr>
+        <tr><td>telegram_sender.py</td><td>Telegram 發送封裝</td></tr>
+        <tr><td>news_scraper.py</td><td>RSS 新聞抓取（原子寫入）</td></tr>
+        <tr><td>news_sentiment.py</td><td>新聞情緒分析（Haiku）</td></tr>
+        <tr><td>weekly_strategy_review.py</td><td>每週策略回顧 → ai/STRATEGY.md</td></tr>
+        <tr><td>write_activity.py</td><td>活動日誌（append mode，max 500）</td></tr>
+        <tr><td>memory_init.py</td><td>RAG 記憶初始化</td></tr>
+        <tr><td>slash_cmd.py</td><td>指令解析（零 LLM）</td></tr>
+      </table>
+
+      <details><summary>Trader Cycle 子模組（28 個 Python 文件）</summary><div class="db">
+        <table class="data-table">
+          <tr><th>子目錄</th><th>功能</th><th>關鍵文件</th></tr>
+          <tr><td>core/</td><td>主循環 + pipeline</td><td>main.py (--dry-run / --live), pipeline.py</td></tr>
+          <tr><td>exchange/</td><td>交易所 API</td><td>aster_client.py (HMAC-SHA256), execute_trade.py (30秒下單流程)</td></tr>
+          <tr><td>strategies/</td><td>RANGE + TREND</td><td>range_strategy.py, trend_strategy.py, mode_detector.py</td></tr>
+          <tr><td>risk/</td><td>風控</td><td>risk_manager.py (熔斷器), position_sizer.py (2% Kelly sizing)</td></tr>
+          <tr><td>state/</td><td>狀態管理</td><td>trade_state.py, position_sync.py (crash recovery)</td></tr>
+          <tr><td>notify/</td><td>通知</td><td>telegram.py（繁體中文模板）</td></tr>
+          <tr><td>config/</td><td>引擎參數</td><td>settings.py (60+ 常數), pairs.py (幣種精度)</td></tr>
+        </table>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  16 — 10 個 LaunchAgents                -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="launchagents">
+      <div class="section-label">
+        <span class="section-num">16</span>
+        <h2 class="section-title">10 個 LaunchAgents</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>Agent</th><th>類型</th><th>間隔</th></tr>
+        <tr><td>ai.openclaw.scanner</td><td>常駐</td><td>—</td></tr>
+        <tr><td>ai.openclaw.telegram</td><td>常駐</td><td>—</td></tr>
+        <tr><td>ai.openclaw.gateway</td><td>常駐</td><td>—</td></tr>
+        <tr><td>ai.openclaw.lightscan</td><td>排程</td><td>每 3 分鐘</td></tr>
+        <tr><td>ai.openclaw.tradercycle</td><td>排程</td><td>每 30 分鐘</td></tr>
+        <tr><td>ai.openclaw.heartbeat</td><td>排程</td><td>每 25 分鐘</td></tr>
+        <tr><td>ai.openclaw.report</td><td>排程</td><td>每 30 分鐘</td></tr>
+        <tr><td>ai.openclaw.newsagent</td><td>排程</td><td>每 15 分鐘</td></tr>
+        <tr><td>ai.openclaw.strategyreview</td><td>排程</td><td>每週一</td></tr>
+        <tr><td>ai.openclaw.newsmonitor</td><td>常駐</td><td>—（stale）</td></tr>
+      </table>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  17 — 推理模型                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="models">
+      <div class="section-label">
+        <span class="section-num">17</span>
+        <h2 class="section-title">推理模型</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>Tier</th><th>模型</th><th>用途</th></tr>
+        <tr><td>tier1</td><td>claude-sonnet-4-6</td><td>決策 + 交易</td></tr>
+        <tr><td>tier2</td><td>claude-haiku-4-5</td><td>掃描 + Telegram</td></tr>
+        <tr><td>tier3</td><td>gpt-5-mini</td><td>報告 / 默認</td></tr>
+      </table>
+      <p>API proxy: <code>tao.plus7.plus/v1</code></p>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  18 — 數據流                            -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="data-flow">
+      <div class="section-label">
+        <span class="section-num">18</span>
+        <h2 class="section-title">數據流（shared/ 文件）</h2>
+      </div>
+      <table class="data-table">
+        <tr><th>文件</th><th>寫入者</th><th>讀取者</th></tr>
+        <tr><td>SIGNAL.md</td><td>aster_scanner</td><td>main, trader</td></tr>
+        <tr><td>TRADE_STATE.md</td><td>aster_trader</td><td>main, dashboard</td></tr>
+        <tr><td>SCAN_LOG.md</td><td>aster_scanner</td><td>dashboard</td></tr>
+        <tr><td>prices_cache.json</td><td>async_scanner</td><td>dashboard, light_scan</td></tr>
+        <tr><td>news_feed.json</td><td>news_scraper</td><td>news_sentiment</td></tr>
+        <tr><td>news_sentiment.json</td><td>news_sentiment</td><td>trader_cycle</td></tr>
+        <tr><td>activity_log.jsonl</td><td>write_activity</td><td>dashboard</td></tr>
+        <tr><td>SYSTEM_STATUS.md</td><td>heartbeat</td><td>dashboard</td></tr>
+      </table>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  19 — 文件結構                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="file-structure">
+      <div class="section-label">
+        <span class="section-num">19</span>
+        <h2 class="section-title">文件結構</h2>
+      </div>
+      <div class="arch">~/.openclaw/
+├── openclaw.json          ← Gateway 設定（agents + 模型 + TG）
+├── CLAUDE.md              ← Claude Code 入口
+├── ai/                    ← AI 讀（CONTEXT / MEMORY / RULES / STRATEGY）
+├── docs/                  ← 人類文件（setup / guides / architecture）
+├── agents/                ← 10 agents，各有 SOUL.md
+├── scripts/               ← 15 scripts + trader_cycle/（28 files）
+├── config/                ← params.py + modes/（RANGE/TREND/VOLATILE）
+├── secrets/.env           ← 9 API keys
+├── shared/                ← 實時數據（8 文件，見上方數據流）
+├── memory/                ← RAG（retriever + writer + embedder + store/）
+├── canvas/                ← 前端（index.html / details.html）
+├── logs/                  ← scanner.log / telegram.log / heartbeat
+└── backups/               ← 自動備份（保留 10 份）</div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  20 — 參數管理                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="params">
+      <div class="section-label">
+        <span class="section-num">20</span>
+        <h2 class="section-title">參數管理</h2>
+      </div>
+      <p>所有可調參數集中喺 <code>config/params.py</code>（25+ 參數）：</p>
+      <table class="data-table">
+        <tr><th>Section</th><th>關鍵參數</th><th>當前值</th></tr>
+        <tr><td>掃描</td><td>SCAN_INTERVAL_SEC</td><td>180 秒</td></tr>
+        <tr><td>掃描</td><td>SCHEDULED_CYCLE_HOURS</td><td>[0,3,6,9,12,15,18,21]</td></tr>
+        <tr><td>BB</td><td>BB_TOUCH_TOL_DEFAULT / XRP</td><td>0.005 / 0.008</td></tr>
+        <tr><td>倉位</td><td>MAX_POSITION_SIZE_USDT</td><td>$50</td></tr>
+        <tr><td>倉位</td><td>MAX_OPEN_POSITIONS</td><td>3</td></tr>
+        <tr><td>倉位</td><td>RISK_PER_TRADE_PCT</td><td>2%</td></tr>
+        <tr><td>打法</td><td>ACTIVE_PROFILE</td><td>AGGRESSIVE</td></tr>
+        <tr><td>幣種</td><td>ASTER_SYMBOLS</td><td>BTC, ETH, XRP, XAG, XAU</td></tr>
+        <tr><td>幣種</td><td>BINANCE_SYMBOLS</td><td>BTC, ETH, SOL</td></tr>
+        <tr><td>新聞</td><td>NEWS_SCRAPE_INTERVAL_MIN</td><td>15 分鐘</td></tr>
+      </table>
+      <div class="warn">改完 params.py 必須重啟相關服務先生效。</div>
+
+      <details><summary>引擎內部參數（settings.py，60+ 常數）</summary><div class="db">
+        <table class="data-table">
+          <tr><th>參數</th><th>值</th><th>說明</th></tr>
+          <tr><td>CIRCUIT_BREAKER_SINGLE</td><td>25%</td><td>單倉虧損上限</td></tr>
+          <tr><td>CIRCUIT_BREAKER_DAILY</td><td>15%</td><td>日度虧損上限</td></tr>
+          <tr><td>COOLDOWN_2_LOSSES_MIN</td><td>30 min</td><td>連輸 2 次冷卻</td></tr>
+          <tr><td>COOLDOWN_3_LOSSES_MIN</td><td>120 min</td><td>連輸 3 次冷卻</td></tr>
+          <tr><td>MAX_HOLD_HOURS</td><td>72</td><td>最長持倉時間</td></tr>
+          <tr><td>RANGE_LEVERAGE / TREND</td><td>8x / 7x</td><td>槓桿</td></tr>
+          <tr><td>RANGE_SL_ATR / TREND</td><td>1.2x / 1.5x</td><td>止蝕倍數</td></tr>
+          <tr><td>RANGE_MIN_RR / TREND</td><td>2.3 / 3.0</td><td>最低風險回報比</td></tr>
+          <tr><td>REENTRY_SIZE_REDUCTION</td><td>30%</td><td>虧損後再入場縮減</td></tr>
+          <tr><td>ORDER_TIMEOUT_SEC</td><td>300</td><td>未成交取消（5min）</td></tr>
+          <tr><td>MAX_CRYPTO_POSITIONS</td><td>2</td><td>加密貨幣同時持倉上限</td></tr>
+          <tr><td>MAX_XAG_POSITIONS</td><td>1</td><td>XAG 同時持倉上限</td></tr>
+        </table>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  21 — Dashboard API                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="api-endpoints">
+      <div class="section-label">
+        <span class="section-num">21</span>
+        <h2 class="section-title">Dashboard API</h2>
+      </div>
+      <details><summary>13 個 API 端點</summary><div class="db">
+        <table class="data-table">
+          <tr><th>端點</th><th>Method</th><th>功能</th></tr>
+          <tr><td>/api/data</td><td>GET</td><td>主數據（持倉、PnL、agents、掃描、風控、行動計劃）</td></tr>
+          <tr><td>/api/debug</td><td>GET</td><td>Debug 資訊</td></tr>
+          <tr><td>/api/suggest_mode</td><td>GET</td><td>AI 建議交易模式</td></tr>
+          <tr><td>/api/binance/status</td><td>GET</td><td>Binance 連接狀態</td></tr>
+          <tr><td>/api/file?path=...</td><td>GET</td><td>讀取文件（白名單）</td></tr>
+          <tr><td>/api/docs-list</td><td>GET</td><td>文件列表</td></tr>
+          <tr><td>/api/doc/&lt;name&gt;</td><td>GET</td><td>讀取文件內容</td></tr>
+          <tr><td>/details</td><td>GET</td><td>呢個頁面</td></tr>
+          <tr><td>/api/set_mode</td><td>POST</td><td>切換交易模式</td></tr>
+          <tr><td>/api/binance/connect</td><td>POST</td><td>連接 Binance（存 key）</td></tr>
+          <tr><td>/api/binance/disconnect</td><td>POST</td><td>斷開 Binance（清 key）</td></tr>
+        </table>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  22 — RAG 記憶系統                      -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="memory-rag">
+      <div class="section-label">
+        <span class="section-num">22</span>
+        <h2 class="section-title">RAG 記憶系統</h2>
+      </div>
+      <details><summary>向量記憶架構</summary><div class="db">
+        <table class="data-table">
+          <tr><th>組件</th><th>路徑</th><th>功能</th></tr>
+          <tr><td>retriever.py</td><td>memory/</td><td>RAG 查詢（cosine similarity）</td></tr>
+          <tr><td>writer.py</td><td>memory/</td><td>寫入信號 / 對話 / 交易記錄</td></tr>
+          <tr><td>embedder.py</td><td>memory/</td><td>voyage-3 向量化（有快取）</td></tr>
+          <tr><td>trades.jsonl</td><td>memory/store/</td><td>交易記錄</td></tr>
+          <tr><td>signals.jsonl</td><td>memory/store/</td><td>信號記錄</td></tr>
+          <tr><td>embeddings.npy</td><td>memory/index/</td><td>numpy 向量索引</td></tr>
+        </table>
+        <div class="cmd-block"><span class="cmd-copy-btn">複製</span># 查詢記憶
+python3 ~/.openclaw/memory/retriever.py "上次 BTC 入場嘅結果"
+
+# 重建索引
+python3 ~/.openclaw/scripts/memory_init.py</div>
+      </div></details>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  23 — 文件導航                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="section" id="doc-nav">
+      <div class="section-label">
+        <span class="section-num">23</span>
+        <h2 class="section-title">文件導航</h2>
+      </div>
+      <p>點擊查看系統內部文件：</p>
+      <div id="doc-list"><span style="color:#333">載入中…</span></div>
+      <pre id="doc-content"></pre>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!--  Footer                                 -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="page-footer">
+      <a href="https://github.com/Will-852/openclaw" target="_blank" class="gh-link">github.com/Will-852/openclaw</a>
+      <div class="warn" style="margin-top:1rem">安全提示：API 密鑰、資金資訊不會在此頁面顯示。敏感設定：<code>secrets/.env</code> + <code>openclaw.json</code></div>
+    </div>
+
+  </div><!-- /article -->
+</div><!-- /main-content -->
+</div><!-- /layout -->
+
+<!-- Back to top -->
+<button class="top-btn" id="top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="返回頂部">&#x2191;</button>
 
 <script>
-  fetch('/api/docs-list')
-    .then(r => r.json())
-    .then(files => {
-      const el = document.getElementById('doc-list');
-      if (!files.length) {
-        el.innerHTML = '<span style="color:#333">無文件</span>';
-        return;
-      }
-      el.innerHTML = files.map(f =>
-        `<span class="doc-item" onclick="loadDoc('${f}')">${f}</span>`
-      ).join('');
-    })
-    .catch(() => {
-      document.getElementById('doc-list').innerHTML =
-        '<span style="color:#444">文件清單載入失敗</span>';
-    });
+// ── Mobile TOC toggle ───────────────────────
+function toggleMobileToc() {
+  document.getElementById('toc-sidebar').classList.toggle('open');
+  document.getElementById('toc-overlay').classList.toggle('open');
+}
 
-  function loadDoc(filename) {
-    const el = document.getElementById('doc-content');
-    el.style.display = 'block';
-    el.textContent = '載入中…';
-    fetch(`/api/doc/${filename}`)
-      .then(r => r.text())
-      .then(t => { el.textContent = t; })
-      .catch(() => { el.textContent = '載入失敗'; });
+// Close mobile TOC on link click
+document.querySelectorAll('.toc-link').forEach(function(link) {
+  link.addEventListener('click', function() {
+    if (window.innerWidth <= 768) {
+      document.getElementById('toc-sidebar').classList.remove('open');
+      document.getElementById('toc-overlay').classList.remove('open');
+    }
+  });
+});
+
+// ── TOC scroll-spy + back to top ────────────
+var tocLinks = document.querySelectorAll('.toc-link');
+var sectionEls = [];
+tocLinks.forEach(function(a) {
+  var id = a.getAttribute('href').slice(1);
+  var el = document.getElementById(id);
+  if (el) sectionEls.push({ id: id, el: el, link: a });
+});
+
+var topBtn = document.getElementById('top-btn');
+var ticking = false;
+window.addEventListener('scroll', function() {
+  if (!ticking) {
+    requestAnimationFrame(function() {
+      var sy = window.scrollY;
+      topBtn.classList.toggle('show', sy > 400);
+
+      var cur = '';
+      for (var i = sectionEls.length - 1; i >= 0; i--) {
+        if (sectionEls[i].el.getBoundingClientRect().top <= 90) {
+          cur = sectionEls[i].id;
+          break;
+        }
+      }
+      sectionEls.forEach(function(s) {
+        s.link.classList.toggle('active', s.id === cur);
+      });
+      ticking = false;
+    });
+    ticking = true;
   }
+});
+
+// ── Search ──────────────────────────────────
+var searchInput = document.getElementById('search-input');
+var searchResults = document.getElementById('search-results');
+
+// Build search index from sections
+var searchIndex = [];
+document.querySelectorAll('.section').forEach(function(sec) {
+  var id = sec.id;
+  var titleEl = sec.querySelector('.section-title');
+  var title = titleEl ? titleEl.textContent : '';
+  var num = sec.querySelector('.section-num');
+  var numText = num ? num.textContent : '';
+  searchIndex.push({ id: id, title: title, num: numText, text: sec.textContent });
+});
+
+var searchTimer = null;
+searchInput.addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 150);
+});
+
+function doSearch() {
+  var q = searchInput.value.trim().toLowerCase();
+  if (!q) {
+    searchResults.style.display = 'none';
+    // Unhide all sections
+    document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('search-hidden'); });
+    return;
+  }
+
+  var matches = searchIndex.filter(function(s) {
+    return s.text.toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 8);
+
+  // Show results dropdown
+  if (!matches.length) {
+    searchResults.innerHTML = '<div class="search-result-item">搵唔到「' + q + '」</div>';
+  } else {
+    searchResults.innerHTML = matches.map(function(m) {
+      var hi = m.title.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
+      return '<div class="search-result-item" data-id="' + m.id + '">' +
+        '<span style="color:var(--accent);font-family:var(--mono);font-size:0.7rem;margin-right:6px">' + m.num + '</span>' +
+        hi + '</div>';
+    }).join('');
+  }
+  searchResults.style.display = 'block';
+
+  // Highlight/hide sections
+  document.querySelectorAll('.section').forEach(function(sec) {
+    var found = sec.textContent.toLowerCase().indexOf(q) !== -1;
+    sec.classList.toggle('search-hidden', !found);
+  });
+}
+
+// Click search result to jump
+searchResults.addEventListener('click', function(e) {
+  var item = e.target.closest('.search-result-item');
+  if (item && item.dataset.id) {
+    document.getElementById(item.dataset.id).scrollIntoView({ behavior: 'smooth' });
+    searchResults.style.display = 'none';
+    searchInput.value = '';
+    document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('search-hidden'); });
+  }
+});
+
+// ── Keyboard shortcuts ──────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key === '/' && document.activeElement !== searchInput) {
+    e.preventDefault();
+    searchInput.focus();
+  }
+  if (e.key === 'Escape') {
+    searchInput.blur();
+    searchInput.value = '';
+    searchResults.style.display = 'none';
+    document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('search-hidden'); });
+    // Close mobile TOC
+    if (window.innerWidth <= 768) {
+      document.getElementById('toc-sidebar').classList.remove('open');
+      document.getElementById('toc-overlay').classList.remove('open');
+    }
+  }
+});
+
+// ── Click to copy command blocks ────────────
+document.querySelectorAll('.cmd-block').forEach(function(block) {
+  block.title = '點擊複製';
+  block.addEventListener('click', function() {
+    // Get text content excluding the copy button
+    var btn = block.querySelector('.cmd-copy-btn');
+    var text = block.textContent;
+    if (btn) text = text.replace(btn.textContent, '').trim();
+
+    navigator.clipboard.writeText(text).then(function() {
+      block.classList.add('copied');
+      if (btn) btn.textContent = '已複製';
+      setTimeout(function() {
+        block.classList.remove('copied');
+        if (btn) btn.textContent = '複製';
+      }, 1200);
+    });
+  });
+});
+
+// ── Doc file list ───────────────────────────
+fetch('/api/docs-list')
+  .then(function(r) { return r.json(); })
+  .then(function(files) {
+    var el = document.getElementById('doc-list');
+    if (!files.length) { el.innerHTML = '<span style="color:#333">無文件</span>'; return; }
+    el.innerHTML = files.map(function(f) {
+      return '<span class="doc-item" onclick="loadDoc(\'' + f.replace(/'/g, "\\'") + '\')">' + f + '</span>';
+    }).join('');
+  })
+  .catch(function() {
+    document.getElementById('doc-list').innerHTML = '<span style="color:#444">載入失敗</span>';
+  });
+
+function loadDoc(f) {
+  var el = document.getElementById('doc-content');
+  el.style.display = 'block';
+  el.textContent = '載入中…';
+  fetch('/api/doc/' + encodeURIComponent(f))
+    .then(function(r) { return r.text(); })
+    .then(function(t) { el.textContent = t; })
+    .catch(function() { el.textContent = '載入失敗'; });
+}
 </script>
 </body>
 </html>
