@@ -597,15 +597,17 @@ def get_trade_state():
 
 
 def get_trade_history():
-    """Read trade history from trades.jsonl (structured records).
+    """Read trade history from trades.jsonl, merge entry + exit records.
 
-    Design: entry records (exit=null) = in progress,
-    complete records (exit+pnl) = closed.
+    trades.jsonl has separate entry (exit=null) and exit (exit+pnl) records.
+    We merge them: exit record overwrites the matching entry's exit/pnl fields.
+    Matching key: same symbol + side + entry price.
     """
     jsonl_path = os.path.join(HOME, "memory/store/trades.jsonl")
-    trades = []
     if not os.path.exists(jsonl_path):
-        return trades
+        return []
+
+    raw = []
     try:
         with open(jsonl_path, encoding="utf-8") as f:
             for line in f:
@@ -613,35 +615,96 @@ def get_trade_history():
                 if not line:
                     continue
                 try:
-                    rec = json.loads(line)
+                    raw.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
-                exit_price = rec.get("exit")
-                pnl = rec.get("pnl")
-                is_open = exit_price is None
-                pnl_val = float(pnl) if pnl is not None else 0.0
-                # Derive status
-                if is_open:
-                    status = "open"
-                elif pnl_val > 0:
-                    status = "win"
-                elif pnl_val < 0:
-                    status = "loss"
-                else:
-                    status = "closed"
-                trades.append({
-                    "dir": rec.get("side", "?"),
-                    "asset": rec.get("symbol", "?"),
-                    "entry": float(rec.get("entry", 0)),
-                    "exit": float(exit_price) if exit_price is not None else None,
-                    "pnl": pnl_val,
-                    "time": rec.get("ts", ""),
-                    "open": is_open,
-                    "size": 0,
-                    "status": status,
-                })
     except Exception:
-        pass
+        return []
+
+    # Separate entry (exit=null) and exit (exit!=null) records
+    entries = []  # list of dicts
+    exits = {}    # key → exit record (last one wins)
+
+    for rec in raw:
+        symbol = rec.get("symbol", "?")
+        side = rec.get("side", "?")
+        entry_val = float(rec.get("entry", 0))
+        exit_price = rec.get("exit")
+
+        if exit_price is not None:
+            # Exit record — store by matching key
+            key = f"{symbol}|{side}|{entry_val}"
+            exits[key] = rec
+        else:
+            entries.append(rec)
+
+    # Build merged trade list
+    trades = []
+    for rec in entries:
+        symbol = rec.get("symbol", "?")
+        side = rec.get("side", "?")
+        entry_val = float(rec.get("entry", 0))
+        key = f"{symbol}|{side}|{entry_val}"
+
+        # Try to find matching exit
+        exit_rec = exits.pop(key, None)
+        if exit_rec:
+            exit_price = float(exit_rec["exit"])
+            pnl_val = float(exit_rec.get("pnl", 0))
+            is_open = False
+        else:
+            exit_price = None
+            pnl_val = 0.0
+            is_open = True
+
+        # Derive status
+        if is_open:
+            status = "open"
+        elif pnl_val > 0:
+            status = "win"
+        elif pnl_val < 0:
+            status = "loss"
+        else:
+            status = "closed"
+
+        suspicious = entry_val < 10 and symbol.endswith("USDT")
+        trades.append({
+            "dir": side,
+            "asset": symbol,
+            "entry": entry_val,
+            "exit": exit_price,
+            "pnl": pnl_val,
+            "time": rec.get("ts", ""),
+            "open": is_open,
+            "size": 0,
+            "status": status,
+            "suspicious": suspicious,
+        })
+
+    # Also include orphan exit records (exit without matching entry)
+    for key, rec in exits.items():
+        pnl_val = float(rec.get("pnl", 0))
+        if pnl_val > 0:
+            status = "win"
+        elif pnl_val < 0:
+            status = "loss"
+        else:
+            status = "closed"
+        entry_val = float(rec.get("entry", 0))
+        symbol = rec.get("symbol", "?")
+        trades.append({
+            "dir": rec.get("side", "?"),
+            "asset": symbol,
+            "entry": entry_val,
+            "exit": float(rec["exit"]),
+            "pnl": pnl_val,
+            "time": rec.get("ts", ""),
+            "open": False,
+            "size": 0,
+            "status": status,
+            "suspicious": entry_val < 10 and symbol.endswith("USDT"),
+        })
+
     return trades[-10:]
 
 
@@ -875,6 +938,7 @@ def _enrich_trades(trades, prices, trade_state):
                 t["open"] = False
                 t["exit"] = "SL/TP"
                 t["stale_open"] = True  # flag for frontend
+                t["status"] = "closed"
             else:
                 sym = t["asset"].replace("USDT", "")
                 try:

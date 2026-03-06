@@ -41,7 +41,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from memory.writer import (write_conversation, write_analysis,
                             write_trade)
-from scripts.write_activity import write_activity
+from write_activity import write_activity
 from memory.retriever import retrieve_full, format_for_prompt
 
 import slash_cmd

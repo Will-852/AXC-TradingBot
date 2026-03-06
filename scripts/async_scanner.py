@@ -38,8 +38,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from scripts.write_activity import write_activity
-
 # ── 路徑設定 ─────────────────────────────────────
 BASE_DIR   = Path.home() / ".openclaw"
 SHARED_DIR = BASE_DIR / "shared"
@@ -50,6 +48,9 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 SHARED_DIR.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(BASE_DIR / "config"))
+sys.path.insert(0, str(BASE_DIR / "scripts"))
+
+from write_activity import write_activity
 
 log = logging.getLogger("scanner")
 
