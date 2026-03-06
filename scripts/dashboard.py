@@ -225,6 +225,38 @@ def get_live_positions():
         return []
 
 
+_trade_history_cache = {"data": [], "ts": 0}
+TRADE_HISTORY_CACHE_TTL = 60  # seconds
+
+
+def get_live_trade_history():
+    """Get last 30 trades from Aster DEX. 60s cache to avoid 429."""
+    now = time.time()
+    if now - _trade_history_cache["ts"] < TRADE_HISTORY_CACHE_TTL:
+        return _trade_history_cache["data"]
+    try:
+        client = _get_aster_client()
+        raw = client._private_request("GET", "/fapi/v1/userTrades", {"limit": 30})
+        trades = []
+        for t in raw:
+            ts_ms = int(t.get("time", 0))
+            dt = datetime.fromtimestamp(ts_ms / 1000, tz=HKT)
+            trades.append({
+                "time": dt.strftime("%m-%d %H:%M"),
+                "symbol": t.get("symbol", ""),
+                "side": t.get("side", ""),
+                "price": float(t.get("price", 0)),
+                "qty": float(t.get("qty", 0)),
+                "realizedPnl": float(t.get("realizedPnl", 0)),
+                "commission": float(t.get("commission", 0)),
+            })
+        _trade_history_cache["data"] = trades
+        _trade_history_cache["ts"] = now
+        return trades
+    except Exception:
+        return _trade_history_cache["data"] or []
+
+
 def get_live_today_pnl():
     """Get today's realized PnL from exchange income history."""
     try:
@@ -1112,6 +1144,9 @@ def collect_data():
     # Trade history (for log display only)
     trades = _enrich_trades(get_trade_history(), prices, trade)
 
+    # Exchange trade history (real fills from API)
+    exchange_trades = get_live_trade_history()
+
     return {
         "timestamp": ts,
         "balance": live_bal,
@@ -1142,6 +1177,7 @@ def collect_data():
         "trigger_summary": get_trigger_summary(),
         "pnl_history": pnl_history,
         "trade_history": trades,
+        "exchange_trades": exchange_trades,
         "risk_status": get_risk_status(),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
