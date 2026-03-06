@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenClaw — 分享給朋友</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0a0a0f; --card:#10111a; --hover:#16182a;
+      --border:#1e2030; --text:#d4d8e8; --dim:#5a6080; --muted:#343650;
+      --accent:#6366f1; --adim:rgba(99,102,241,0.12);
+      --green:#10b981; --yellow:#f59e0b; --red:#ef4444;
+      --mono:'SF Mono','Fira Code',monospace;
+    }
+    body {
+      background:var(--bg); color:var(--text);
+      font-family:-apple-system,sans-serif;
+      max-width:700px; margin:0 auto;
+      padding:2.5rem 1.5rem 5rem; line-height:1.7;
+    }
+    .back { color:var(--dim); font-size:.8rem; text-decoration:none;
+            display:inline-block; margin-bottom:2rem; }
+    .back:hover { color:var(--text); }
+
+    /* Header */
+    .hero { margin-bottom:2rem; }
+    .hero h1 { font-size:1.8rem; font-weight:800; color:var(--yellow); }
+    .hero p  { color:var(--dim); font-size:.88rem; margin-top:.3rem; }
+
+    /* Download buttons */
+    .dl-wrap { margin:1.5rem 0 .5rem; }
+    .dl-btn {
+      display:flex; align-items:center; justify-content:center; gap:.6rem;
+      width:100%; padding:1rem 2rem;
+      background:var(--accent); color:#fff; border-radius:10px;
+      font-size:1rem; font-weight:700; text-decoration:none;
+      transition:opacity .15s,transform .1s;
+    }
+    .dl-btn:hover { opacity:.9; transform:translateY(-1px); }
+    .dl-note { text-align:center; font-size:.75rem; color:var(--dim); margin-top:.5rem; }
+    .gh-btn {
+      display:flex; align-items:center; justify-content:center; gap:.5rem;
+      width:100%; padding:.65rem; margin-top:.6rem;
+      background:var(--card); border:1px solid var(--border);
+      border-radius:8px; color:#58a6ff; font-size:.85rem;
+      text-decoration:none; transition:all .12s;
+    }
+    .gh-btn:hover { background:var(--hover); border-color:#58a6ff; }
+
+    /* Section */
+    h2 { font-size:1rem; font-weight:700; color:var(--text);
+         margin:2rem 0 .8rem; border-bottom:1px solid var(--border);
+         padding-bottom:.4rem; }
+
+    /* Steps */
+    .steps { display:flex; flex-direction:column; gap:.8rem; }
+    .step {
+      display:flex; gap:.9rem; align-items:flex-start;
+      padding:.9rem 1rem; background:var(--card);
+      border:1px solid var(--border); border-radius:8px;
+    }
+    .sn {
+      background:var(--adim); color:var(--accent);
+      font-size:.72rem; font-weight:800;
+      min-width:26px; height:26px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius:50%; flex-shrink:0; margin-top:2px;
+    }
+    .sb { flex:1; }
+    .st { font-size:.9rem; font-weight:600; color:var(--text); margin-bottom:.3rem; }
+    .sd { font-size:.82rem; color:var(--dim); margin-bottom:.4rem; }
+    .cmd {
+      background:#05060f; border:1px solid #1e2a4a; border-radius:6px;
+      padding:.55rem .9rem; font-family:var(--mono);
+      font-size:.78rem; color:#7dd3fc; white-space:pre;
+      overflow-x:auto; cursor:pointer; transition:border-color .2s;
+      margin-top:.3rem; position:relative;
+    }
+    .cmd:hover { border-color:var(--accent); }
+    .cmd:hover::after {
+      content:'點擊複製'; position:absolute; top:.3rem; right:.5rem;
+      font-size:.65rem; color:var(--dim); font-family:-apple-system,sans-serif;
+    }
+    .cmd.copied { border-color:var(--green)!important; }
+
+    /* API Key table */
+    table { width:100%; border-collapse:collapse; font-size:.82rem; margin:.6rem 0; }
+    th { background:var(--card); color:var(--accent); padding:6px 10px;
+         text-align:left; font-size:.72rem; border-bottom:1px solid var(--border); }
+    td { padding:7px 10px; border-bottom:1px solid var(--border); color:#a0a8c0; }
+    td:first-child { font-family:var(--mono); color:var(--text); font-size:.78rem; }
+    tr:hover td { background:var(--hover); }
+    .req { color:var(--yellow); font-size:.7rem; }
+    .opt { color:var(--muted); font-size:.7rem; }
+
+    /* FAQ */
+    .faq { margin-bottom:.9rem; }
+    .fq { font-size:.88rem; font-weight:600; color:var(--text); margin-bottom:.25rem; }
+    .fa { font-size:.83rem; color:#a0a8c0; }
+
+    .tip  { background:#0a1a10; border-left:3px solid var(--green);
+            padding:.6rem .8rem; border-radius:0 6px 6px 0;
+            font-size:.83rem; color:#86efac; margin:.8rem 0; }
+    .warn { background:#1a0a0a; border-left:3px solid var(--red);
+            padding:.6rem .8rem; border-radius:0 6px 6px 0;
+            font-size:.83rem; color:#fca5a5; margin:.8rem 0; }
+    code { font-family:var(--mono); font-size:.8em; background:var(--card);
+           border:1px solid var(--border); border-radius:3px; padding:1px 5px; color:#7dd3fc; }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+
+<a href="/" class="back">&larr; 返回儀表板</a>
+
+<div class="hero">
+  <h1>OpenClaw</h1>
+  <p>分享給朋友 — 一鍵下載安裝包</p>
+</div>
+
+<!-- Download -->
+<div class="dl-wrap">
+  <a href="/api/share/package" download class="dl-btn">
+    下載 Setup Package（今日版本）
+  </a>
+  <p class="dl-note">包含所有必要文件 — 不含 API Keys 及個人數據</p>
+  <a href="https://github.com/Will-852/openclaw/releases/latest"
+     target="_blank" class="gh-btn">
+    GitHub 下載最新 Release（推薦）
+  </a>
+</div>
+
+<div class="tip">
+  如果唔係用家本人，建議去 GitHub Releases 下載正式版本。
+</div>
+
+<!-- Install steps -->
+<h2>安裝步驟（大約 10 分鐘）</h2>
+<div class="steps">
+  <div class="step">
+    <div class="sn">1</div>
+    <div class="sb">
+      <div class="st">解壓文件</div>
+      <div class="sd">下載完成後，打開 Terminal（Mac 搜尋「Terminal」），貼上：</div>
+      <div class="cmd" onclick="copy(this)">mkdir -p ~/.openclaw
+unzip ~/Downloads/openclaw-setup-*.zip -d ~/.openclaw/</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">2</div>
+    <div class="sb">
+      <div class="st">複製設定文件</div>
+      <div class="cmd" onclick="copy(this)">cp ~/.openclaw/secrets/.env.example ~/.openclaw/secrets/.env</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">3</div>
+    <div class="sb">
+      <div class="st">填入 API Key</div>
+      <div class="sd">用以下指令打開文件，填入你的 <code>PROXY_API_KEY</code>：</div>
+      <div class="cmd" onclick="copy(this)">nano ~/.openclaw/secrets/.env</div>
+      <div class="sd" style="margin-top:.4rem">
+        填完按 <strong>Ctrl+X &rarr; Y &rarr; Enter</strong> 儲存退出
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">4</div>
+    <div class="sb">
+      <div class="st">安裝依賴</div>
+      <div class="cmd" onclick="copy(this)">pip3 install -r ~/.openclaw/requirements.txt</div>
+      <div class="sd">等待約 1-2 分鐘，看到 <code>Successfully installed</code> 就完成</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">5</div>
+    <div class="sb">
+      <div class="st">啟動 Dashboard</div>
+      <div class="cmd" onclick="copy(this)">cd ~/.openclaw && python3 scripts/dashboard.py &</div>
+      <div class="sd" style="margin-top:.4rem">
+        然後打開瀏覽器：
+        <a href="http://localhost:5555" target="_blank">http://localhost:5555</a>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">&check;</div>
+    <div class="sb">
+      <div class="st">確認安裝成功</div>
+      <div class="cmd" onclick="copy(this)">bash ~/.openclaw/scripts/health_check.sh</div>
+      <div class="sd">看到 <strong>39 pass / 0 fail</strong> 代表一切正常</div>
+    </div>
+  </div>
+</div>
+
+<!-- API Key table -->
+<h2>需要哪些 API Key？</h2>
+<table>
+  <tr><th>Key 名稱</th><th>用途</th><th>去哪申請</th><th></th></tr>
+  <tr>
+    <td>PROXY_API_KEY</td>
+    <td>AI 大腦（決策分析）</td>
+    <td>問介紹你的朋友 / console.anthropic.com</td>
+    <td><span class="req">必填</span></td>
+  </tr>
+  <tr>
+    <td>PROXY_BASE_URL</td>
+    <td>AI Proxy 地址</td>
+    <td>填 https://tao.plus7.plus/v1</td>
+    <td><span class="req">必填</span></td>
+  </tr>
+  <tr>
+    <td>ASTER_API_KEY/SECRET</td>
+    <td>交易所下單</td>
+    <td>Aster Exchange &rarr; API 管理</td>
+    <td><span class="req">交易必填</span></td>
+  </tr>
+  <tr>
+    <td>TELEGRAM_BOT_TOKEN</td>
+    <td>手機通知+遙控</td>
+    <td>Telegram 搜尋 @BotFather</td>
+    <td><span class="opt">選填</span></td>
+  </tr>
+  <tr>
+    <td>BINANCE_API_KEY/SECRET</td>
+    <td>Binance 行情</td>
+    <td>Binance &rarr; API 管理</td>
+    <td><span class="opt">選填</span></td>
+  </tr>
+  <tr>
+    <td>VOYAGE_API_KEY</td>
+    <td>AI 記憶搜尋</td>
+    <td>voyageai.com（免費）</td>
+    <td><span class="opt">選填</span></td>
+  </tr>
+</table>
+
+<div class="warn">
+  API Key 只填到 <code>secrets/.env</code>，唔好分享給任何人，唔好放上網。
+</div>
+
+<!-- FAQ -->
+<h2>常見問題</h2>
+<div class="faq">
+  <div class="fq">安全嗎？你會唔會攞到我的 Key？</div>
+  <div class="fa">Setup Package 唔包含任何 API Key。你的 Key 只存在自己電腦的
+    <code>secrets/.env</code> 文件，唔會上傳任何地方。</div>
+</div>
+<div class="faq">
+  <div class="fq">費用係點？</div>
+  <div class="fa">OpenClaw 本身免費開源。需要付費的只有 Claude API（按用量，Proxy 通常更便宜）
+    同交易所手續費。</div>
+</div>
+<div class="faq">
+  <div class="fq">Windows 得唔得？</div>
+  <div class="fa">而家主要支持 macOS。Windows 可以跑 Dashboard 睇數據，
+    但自動排程（LaunchAgents）係 macOS 專屬。</div>
+</div>
+<div class="faq">
+  <div class="fq">出現錯誤點算？</div>
+  <div class="fa">
+    先跑健康檢查：<br>
+    <code>bash ~/.openclaw/scripts/health_check.sh</code><br>
+    再睇完整安裝指南：<a href="/details">http://localhost:5555/details</a>
+  </div>
+</div>
+
+<p style="margin-top:2.5rem;font-size:.8rem;color:var(--dim)">
+  完整說明：<a href="/details">localhost:5555/details</a> &middot;
+  源碼：<a href="https://github.com/Will-852/openclaw" target="_blank">GitHub</a> &middot;
+  <a href="/">返回儀表板</a>
+</p>
+
+<script>
+function copy(el) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 800);
+  });
+}
+</script>
+</body>
+</html>

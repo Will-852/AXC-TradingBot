@@ -8,6 +8,7 @@ Usage:
   python3 dashboard.py --port 8080
 """
 
+import io
 import json
 import os
 import re
@@ -17,6 +18,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
+import zipfile
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -47,6 +49,106 @@ PARAMS_DISPLAY = [
     ("MAX_POSITION_SIZE_USDT",  "倉位上限",  "$"),
     ("SCAN_INTERVAL_SEC",       "掃描間隔",  "秒"),
 ]
+
+
+def generate_share_package() -> bytes:
+    """
+    生成 OpenClaw setup zip（io.BytesIO，記憶體操作）。
+    包含：scripts/, config/, canvas/, docs/,
+          agents/*/SOUL.md, CLAUDE.md, requirements.txt, openclaw.json
+    排除：secrets/, logs/, memory/, shared/, backups/,
+          mlx_model/, __pycache__/, .git/,
+          agents/*/workspace/, agents/*/agent/,
+          agents/main/sessions/
+    自動生成 secrets/.env.example（變數名，值清空）
+    """
+    ROOT = HOME
+    EXCLUDE_TOP = {
+        "secrets", "logs", "memory", "shared",
+        "backups", "mlx_model", ".git", ".github",
+    }
+
+    def should_exclude(rel: str) -> bool:
+        parts = rel.replace("\\", "/").split("/")
+        if parts[0] in EXCLUDE_TOP:
+            return True
+        if (len(parts) >= 3 and parts[0] == "agents"
+                and parts[2] in ("workspace", "agent")):
+            return True
+        if "__pycache__" in parts:
+            return True
+        if rel.startswith(os.path.join("agents", "main", "sessions")):
+            return True
+        return False
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 包含主要目錄
+        for inc in ["scripts", "config", "canvas", "docs"]:
+            inc_path = os.path.join(ROOT, inc)
+            if not os.path.exists(inc_path):
+                continue
+            for dirpath, dirs, files in os.walk(inc_path):
+                dirs[:] = [d for d in dirs if d != "__pycache__"]
+                for fname in files:
+                    fpath = os.path.join(dirpath, fname)
+                    rel = os.path.relpath(fpath, ROOT)
+                    if not should_exclude(rel):
+                        zf.write(fpath, rel)
+
+        # agents/ 只包含 SOUL.md
+        agents_path = os.path.join(ROOT, "agents")
+        if os.path.exists(agents_path):
+            for dirpath, dirs, files in os.walk(agents_path):
+                dirs[:] = [d for d in dirs
+                           if d not in ("workspace", "agent", "__pycache__")]
+                for fname in files:
+                    if fname == "SOUL.md":
+                        fpath = os.path.join(dirpath, fname)
+                        rel = os.path.relpath(fpath, ROOT)
+                        zf.write(fpath, rel)
+
+        # 根目錄文件（存在先加）
+        for rf in ["CLAUDE.md", "requirements.txt", "openclaw.json"]:
+            rpath = os.path.join(ROOT, rf)
+            if os.path.exists(rpath):
+                zf.write(rpath, rf)
+
+        # 動態生成 .env.example（從現有 .env 取 key 名，清空值）
+        env_example = [
+            "# OpenClaw .env.example",
+            "# 複製為 secrets/.env 並填入你的 API Key",
+            "# cp secrets/.env.example secrets/.env",
+            "",
+            "# ── AI 推理（必填）────────────────",
+            "PROXY_API_KEY=",
+            "PROXY_BASE_URL=https://tao.plus7.plus/v1",
+            "",
+        ]
+        env_path = os.path.join(ROOT, "secrets", ".env")
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        key = line.split("=")[0]
+                        if key not in ("PROXY_API_KEY", "PROXY_BASE_URL"):
+                            env_example.append(f"{key}=")
+        else:
+            env_example += [
+                "ASTER_API_KEY=", "ASTER_API_SECRET=",
+                "BINANCE_API_KEY=", "BINANCE_API_SECRET=",
+                "TELEGRAM_BOT_TOKEN=", "TELEGRAM_CHAT_ID=",
+                "VOYAGE_API_KEY=",
+            ]
+        zf.writestr("secrets/.env.example", "\n".join(env_example))
+
+        # INSTALL.md（從 guides 搬）
+        install_path = os.path.join(ROOT, "docs", "guides", "00-install.md")
+        if os.path.exists(install_path):
+            zf.write(install_path, "INSTALL.md")
+
+    return buf.getvalue()
 
 
 def _get_aster_client():
@@ -1379,6 +1481,40 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(content.encode() if isinstance(content, str) else content)
+        elif path == "/share":
+            share_path = os.path.join(HOME, "canvas", "share.html")
+            if os.path.exists(share_path):
+                with open(share_path, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+        elif path == "/api/share/package":
+            try:
+                zip_bytes = generate_share_package()
+                date_str = datetime.now().strftime("%Y%m%d")
+                filename = f"openclaw-setup-{date_str}.zip"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{filename}"'
+                )
+                self.send_header("Content-Length", str(len(zip_bytes)))
+                self.end_headers()
+                self.wfile.write(zip_bytes)
+            except Exception as e:
+                err = f"Error: {e}".encode()
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
         else:
             try:
                 with open(CANVAS_HTML, "rb") as f:
