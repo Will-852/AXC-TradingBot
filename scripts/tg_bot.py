@@ -71,6 +71,41 @@ log = logging.getLogger("tg_bot")
 pending_orders: dict = {}
 PENDING_FILE = BASE_DIR / "shared/pending_orders.json"
 
+# ── Short-term conversation memory (last 5 exchanges) ──
+# 每個 chat_id 保留最近 5 組對話，10 分鐘無活動自動清除
+from collections import deque
+_chat_history: dict[int, deque] = {}   # {chat_id: deque([{role, content, ts}], maxlen=10)}
+_CHAT_HISTORY_MAX_PAIRS = 5            # 5 組 = 10 條 (user+assistant)
+_CHAT_HISTORY_EXPIRE_SEC = 600         # 10 分鐘
+
+
+def _get_history(chat_id: int) -> list[dict]:
+    """取得未過期嘅對話歷史，格式為 Claude messages array。"""
+    if chat_id not in _chat_history:
+        return []
+    now = datetime.now(timezone.utc).timestamp()
+    hist = _chat_history[chat_id]
+    # 清除過期（以最後一條計）
+    if hist and (now - hist[-1]["ts"]) > _CHAT_HISTORY_EXPIRE_SEC:
+        hist.clear()
+        return []
+    return [{"role": m["role"], "content": m["content"]} for m in hist]
+
+
+def _append_history(chat_id: int, user_msg: str, assistant_msg: str):
+    """追加一組對話到短期記憶。"""
+    if chat_id not in _chat_history:
+        _chat_history[chat_id] = deque(maxlen=_CHAT_HISTORY_MAX_PAIRS * 2)
+    now = datetime.now(timezone.utc).timestamp()
+    _chat_history[chat_id].append({"role": "user", "content": user_msg, "ts": now})
+    _chat_history[chat_id].append({"role": "assistant", "content": assistant_msg, "ts": now})
+
+
+def _clear_history(chat_id: int):
+    """清除指定 chat 嘅短期記憶。"""
+    if chat_id in _chat_history:
+        _chat_history[chat_id].clear()
+
 
 def _save_pending():
     """Persist pending orders to disk."""
@@ -143,6 +178,11 @@ SYSTEM_PROMPT = """你係 OpenClaw 交易系統嘅 AI，跑喺本地 Mac。
 ❌ 我理解你的意思。讓我為你分析...
 ❌ **信號狀態：NO SIGNAL**（Markdown 符號）
 
+對話記憶：
+- 你可能收到之前嘅對話歷史（最近 5 組）
+- 用戶 follow-up 時要接住上文，唔好當新對話
+- 如果用戶指代「嗰個」「上面」「點解」，查返歷史
+
 禁止：
 - 用「您」「您好」「請問」「同意嗎？」
 - 講「分析中」「思考中」「等我睇吓」，直接答
@@ -181,17 +221,34 @@ async def _send_html(target, text: str):
 
 
 def call_claude(user_msg: str, context: str, system: str = None,
-                max_tokens: int = 1200) -> str:
-    """Call Claude via proxy (Anthropic messages format)."""
+                max_tokens: int = 1200,
+                history: list[dict] | None = None) -> str:
+    """Call Claude via proxy (Anthropic messages format).
+
+    history: 可選嘅多輪對話 [{role, content}, ...]，會放喺當前訊息前面。
+    """
     url = f"{PROXY_BASE_URL}/messages"
+    # 組裝 messages：history + 當前用戶訊息（context 塞入第一條）
+    messages = []
+    if history:
+        # 第一條 user message 加 context prefix
+        for i, m in enumerate(history):
+            messages.append({"role": m["role"], "content": m["content"]})
+        # 當前用戶訊息（帶 context）
+        messages.append({
+            "role": "user",
+            "content": f"{context}\n\n---\n\n用戶：{user_msg}",
+        })
+    else:
+        messages = [{
+            "role": "user",
+            "content": f"{context}\n\n---\n\n用戶：{user_msg}",
+        }]
     body = json.dumps({
         "model": CLAUDE_MODEL,
         "max_tokens": max_tokens,
         "system": system or SYSTEM_PROMPT,
-        "messages": [{
-            "role": "user",
-            "content": f"{context}\n\n---\n\n用戶：{user_msg}",
-        }],
+        "messages": messages,
     }).encode()
 
     req = urllib.request.Request(url, body, headers={
@@ -594,8 +651,22 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "直接輸入：「買入 XAG 50蚊」\n\n"
         "<b>AI</b>\n"
         "/ask [問題] — 帶數據分析\n"
-        "自由輸入 — 自動判斷意圖",
+        "自由輸入 — 自動判斷意圖\n"
+        "/forget — 清除短期記憶\n\n"
+        "<i>對話記憶：最近 5 組對話，10 分鐘無活動自動清除</i>",
         parse_mode="HTML",
+    )
+
+
+async def cmd_forget(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """清除短期對話記憶。"""
+    if not is_allowed(update):
+        return
+    chat_id = update.effective_chat.id
+    count = len(_chat_history.get(chat_id, [])) // 2
+    _clear_history(chat_id)
+    await update.message.reply_text(
+        f"已清除 {count} 組對話記憶" if count else "冇記憶要清",
     )
 
 
@@ -861,8 +932,9 @@ async def _safe_retrieve(query: str, top_k: int = 6) -> list:
 
 
 async def _handle_analysis(update: Update, text: str):
-    """RAG + local state + Claude analysis."""
+    """RAG + local state + Claude analysis + 短期對話記憶（最近 5 組）。"""
     await update.message.reply_text("...")
+    chat_id = update.effective_chat.id
 
     memories = await _safe_retrieve(text, top_k=6)
     mem_text = format_for_prompt(memories, max_chars=2000)
@@ -873,10 +945,15 @@ async def _handle_analysis(update: Update, text: str):
         context += mem_text + "\n\n"
     context += local_text
 
-    reply = _clean_for_telegram(call_claude(text, context))
+    # 取短期對話歷史（最近 5 組，10 分鐘過期）
+    history = _get_history(chat_id)
+
+    reply = _clean_for_telegram(call_claude(text, context, history=history))
 
     await _send_html(update.message, reply)
 
+    # 寫入短期記憶 + 長期記憶
+    _append_history(chat_id, text, reply)
     write_conversation(text, reply)
 
     analysis_kw = ["分析", "策略", "建議", "點睇", "應唔應該", "如果", "compare"]
@@ -1232,6 +1309,7 @@ def main():
 
     # AI-powered
     app.add_handler(CommandHandler("ask",     cmd_ask))
+    app.add_handler(CommandHandler("forget",  cmd_forget))
 
     # Inline buttons (order confirm/cancel + mode switch)
     app.add_handler(CallbackQueryHandler(handle_callback))

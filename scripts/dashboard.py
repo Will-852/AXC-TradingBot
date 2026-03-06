@@ -250,6 +250,7 @@ def get_live_trade_history():
                 "realizedPnl": float(t.get("realizedPnl", 0)),
                 "commission": float(t.get("commission", 0)),
             })
+        trades.reverse()  # 最新在前
         _trade_history_cache["data"] = trades
         _trade_history_cache["ts"] = now
         return trades
@@ -641,7 +642,7 @@ def get_trading_params():
             v = getattr(mod, k)
             if isinstance(v, (int, float, str, bool, list)):
                 params[k] = v
-            elif isinstance(v, dict) and k == "TRADING_PROFILES":
+            elif isinstance(v, dict) and k in ("TRADING_PROFILES", "TIMEFRAME_PARAMS"):
                 params[k] = v
 
         # Resolve active profile → override top-level display values
@@ -1102,6 +1103,9 @@ def collect_data():
     today_pnl = baseline["today_pnl"]
     pnl_history = update_pnl_history(live_bal)
 
+    # Today fee breakdown from exchange income API
+    fee_breakdown = get_live_today_pnl() or {"realized": 0, "funding": 0, "commission": 0, "net": 0}
+
     # Unrealized PnL from live positions
     unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 2)
     unrealized_pct = round(unrealized_pnl / live_bal * 100, 2) if live_bal > 0 else 0.0
@@ -1181,6 +1185,7 @@ def collect_data():
         "risk_status": get_risk_status(),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
+        "fee_breakdown": fee_breakdown,
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
         "activity_log": get_activity_log(50),
     }
@@ -1233,6 +1238,86 @@ def handle_suggest_mode():
 # ── Binance Connection API ────────────────────────────
 
 SECRETS_ENV_PATH = os.path.join(HOME, "secrets", ".env")
+
+
+def _get_aster_credentials():
+    """Read Aster keys from secrets/.env"""
+    api_key = api_secret = ""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("ASTER_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip()
+                elif line.startswith("ASTER_API_SECRET="):
+                    api_secret = line.split("=", 1)[1].strip()
+    return api_key, api_secret
+
+
+def _save_aster_credentials(api_key, api_secret):
+    """Write or update Aster keys in secrets/.env"""
+    os.makedirs(os.path.dirname(SECRETS_ENV_PATH), exist_ok=True)
+    lines = []
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f:
+                if not line.strip().startswith(("ASTER_API_KEY=", "ASTER_API_SECRET=")):
+                    lines.append(line.rstrip("\n"))
+    lines.append(f"ASTER_API_KEY={api_key}")
+    lines.append(f"ASTER_API_SECRET={api_secret}")
+    with open(SECRETS_ENV_PATH, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def handle_aster_status():
+    """GET /api/aster/status"""
+    api_key, api_secret = _get_aster_credentials()
+    if not api_key or not api_secret:
+        return 200, {"status": "disconnected", "label": "未連接", "balance": None}
+    try:
+        client = _get_aster_client()
+        bal = client.get_usdt_balance()
+        return 200, {
+            "status": "connected", "label": "已連接",
+            "balance": round(bal, 2),
+            "key_preview": f"{api_key[:4]}...{api_key[-4:]}",
+        }
+    except Exception as e:
+        return 200, {"status": "error", "label": "驗證失敗", "balance": None, "error": str(e)[:80]}
+
+
+def handle_aster_connect(body):
+    """POST /api/aster/connect"""
+    try:
+        data = json.loads(body)
+    except Exception:
+        return 400, {"ok": False, "error": "Invalid JSON"}
+    api_key = (data.get("api_key") or "").strip()
+    api_secret = (data.get("api_secret") or "").strip()
+    if not api_key or not api_secret:
+        return 400, {"ok": False, "error": "API Key 和 Secret 不能為空"}
+    _save_aster_credentials(api_key, api_secret)
+    try:
+        # Reimport with new creds
+        if SCRIPTS_DIR not in sys.path:
+            sys.path.insert(0, SCRIPTS_DIR)
+        from trader_cycle.exchange.aster_client import AsterClient
+        client = AsterClient()
+        bal = client.get_usdt_balance()
+        return 200, {"ok": True, "status": "connected", "key_preview": f"{api_key[:4]}...{api_key[-4:]}", "balance": round(bal, 2)}
+    except Exception as e:
+        return 401, {"ok": False, "error": f"驗證失敗：{str(e)[:120]}"}
+
+
+def handle_aster_disconnect():
+    """POST /api/aster/disconnect"""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            lines = [l for l in f.read().splitlines()
+                     if not l.strip().startswith(("ASTER_API_KEY=", "ASTER_API_SECRET="))]
+        with open(SECRETS_ENV_PATH, "w") as f:
+            f.write("\n".join(lines) + "\n")
+    return 200, {"ok": True, "status": "disconnected"}
 
 
 def _get_binance_credentials():
@@ -1479,6 +1564,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/binance/status":
             code, data = handle_binance_status()
             self._json_response(code, data)
+        elif path == "/api/aster/status":
+            code, data = handle_aster_status()
+            self._json_response(code, data)
         elif path == "/api/file":
             rel = qs.get("path", [""])[0]
             code, content = handle_file_read(rel)
@@ -1551,6 +1639,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(err)))
                 self.end_headers()
                 self.wfile.write(err)
+        elif path.startswith("/svg/") and path.endswith(".svg"):
+            svg_path = os.path.join(HOME, "canvas", path.lstrip("/"))
+            if os.path.isfile(svg_path):
+                with open(svg_path, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self.send_response(404)
+                self.end_headers()
         else:
             try:
                 with open(CANVAS_HTML, "rb") as f:
@@ -1575,6 +1676,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/binance/disconnect":
             code, data = handle_binance_disconnect()
+            self._json_response(code, data)
+        elif self.path == "/api/aster/connect":
+            code, data = handle_aster_connect(body)
+            self._json_response(code, data)
+        elif self.path == "/api/aster/disconnect":
+            code, data = handle_aster_disconnect()
             self._json_response(code, data)
         else:
             self._json_response(404, {"error": "Not found"})

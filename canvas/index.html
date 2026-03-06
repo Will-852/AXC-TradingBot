@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AXC ICU</title>
+  <title>AXC</title>
 
   <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
 
   <style>
     /* ═══════════════════════════════════════════════
-       AXC ICU — Stripe-inspired Design System
+       AXC — Stripe-inspired Design System
        Palette: slate + teal(pos) + rose(neg) + purple(accent)
        ═══════════════════════════════════════════════ */
 
@@ -308,13 +308,7 @@
         </a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="/" class="nav-link">主頁</a>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-        <span class="nav-link text-muted">/</span>
-      </li>
-      <li class="nav-item d-none d-sm-inline-block">
-        <span class="nav-link">ICU 監控</span>
+        <a href="/" class="nav-link">主控台</a>
       </li>
     </ul>
 
@@ -334,12 +328,38 @@
         </div>
       </li>
 
-      <!-- 當前模式 -->
-      <li class="nav-item d-none d-sm-inline-block">
-        <span class="nav-link">
+      <!-- 模式切換 -->
+      <li class="nav-item dropdown d-none d-sm-inline-block">
+        <a class="nav-link" href="#" data-toggle="dropdown" style="cursor:pointer">
           <span id="nav-profile" class="profile-badge profile-BALANCED">BALANCED</span>
-          <span id="refresh-dot"></span>
-        </span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-right" style="min-width:160px">
+          <a class="dropdown-item" href="#" onclick="switchProfile('CONSERVATIVE');return false">
+            <span class="profile-badge profile-CONSERVATIVE" style="font-size:.7rem">CONSERVATIVE</span>
+          </a>
+          <a class="dropdown-item" href="#" onclick="switchProfile('BALANCED');return false">
+            <span class="profile-badge profile-BALANCED" style="font-size:.7rem">BALANCED</span>
+          </a>
+          <a class="dropdown-item" href="#" onclick="switchProfile('AGGRESSIVE');return false">
+            <span class="profile-badge profile-AGGRESSIVE" style="font-size:.7rem">AGGRESSIVE</span>
+          </a>
+        </div>
+      </li>
+
+      <!-- Exchange 連接 -->
+      <li class="nav-item">
+        <a class="nav-link py-1" href="#" onclick="openExchangeModal('aster');return false" title="Aster DEX" style="padding:0 4px">
+          <span id="aster-conn-btn" class="badge" style="background:#1a1a2e;color:#fff;font-size:.7rem;padding:3px 8px;vertical-align:middle">
+            <i class="fas fa-circle mr-1" style="font-size:.45rem" id="aster-conn-dot"></i>Aster
+          </span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link py-1" href="#" onclick="openExchangeModal('binance');return false" title="Binance" style="padding:0 4px">
+          <span id="binance-conn-btn" class="badge" style="background:#f0b90b;color:#1e2329;font-size:.7rem;padding:3px 8px;vertical-align:middle">
+            <i class="fas fa-circle mr-1" style="font-size:.45rem" id="binance-conn-dot"></i>Binance
+          </span>
+        </a>
       </li>
 
       <!-- Fix 7: 刷新按鈕 -->
@@ -366,7 +386,7 @@
 
     <!-- Brand -->
     <a href="/" class="brand-link">
-      <span class="brand-image" style="margin-left:8px"><i class="fas fa-crosshairs" style="font-size:1.2rem;color:var(--accent)"></i></span>
+      <span class="brand-image" style="margin-left:8px"><img src="/svg/axc.svg" style="width:32px;height:32px;vertical-align:middle;filter:brightness(0) invert(1)"></span>
       <span class="brand-text ml-2">AXC</span>
     </a>
 
@@ -392,7 +412,7 @@
           <li class="nav-item">
             <a href="/" class="nav-link active">
               <i class="nav-icon fas fa-tachometer-alt"></i>
-              <p>ICU 主控台</p>
+              <p>主控台</p>
             </a>
           </li>
 
@@ -413,44 +433,7 @@
           </li>
 
           <li class="nav-header" style="color:#4a5568;font-size:.68rem;margin-top:.5rem">LAYERS</li>
-
-          <!-- LAYERS 展示（唔係連結，係狀態顯示）-->
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#8b5cf6"></i>
-              <p>SOUL <span class="right badge badge-secondary" style="font-size:.68rem">從不</span></p>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#3b82f6"></i>
-              <p>MEMORY <span class="right badge badge-info" style="font-size:.68rem">每日</span></p>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#10b981"></i>
-              <p>DNA <span class="right badge badge-success" style="font-size:.68rem">每週</span></p>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#f59e0b"></i>
-              <p>MUSCLES <span class="right badge badge-warning" style="font-size:.68rem">穩定</span></p>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#ef4444"></i>
-              <p>BLOOD <span class="right badge badge-danger" style="font-size:.68rem">實時</span></p>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a href="#" class="nav-link" onclick="return false">
-              <i class="nav-icon fas fa-circle" style="color:#6b7280"></i>
-              <p>MIRROR <span class="right badge badge-secondary" style="font-size:.68rem">參考</span></p>
-            </a>
-          </li>
+          <div id="sidebar-layers"><!-- JS 動態填入 --></div>
 
         </ul>
       </nav>
@@ -462,26 +445,8 @@
   ══════════════════════════════════════════════ -->
   <div class="content-wrapper">
 
-    <!-- Content Header (Breadcrumb) -->
-    <div class="content-header">
-      <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-            <h1 class="m-0" style="font-size:1.1rem;font-weight:700">
-              ICU 主控台
-              <small class="text-muted" style="font-size:.78rem;font-weight:400"
-                     id="last-update">–</small>
-            </h1>
-          </div>
-          <div class="col-sm-6">
-            <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="/">AXC</a></li>
-              <li class="breadcrumb-item active">ICU</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- last-update hidden anchor for JS -->
+    <span id="last-update" style="display:none"></span>
 
     <!-- Main Content -->
     <section class="content">
@@ -669,6 +634,9 @@
                   </div>
                 </div>
                 <canvas id="pnl-chart"></canvas>
+                <div id="fee-breakdown" class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:.78rem">
+                  <div class="text-muted text-center">載入中…</div>
+                </div>
               </div>
             </div>
 
@@ -807,7 +775,7 @@
 
   <!-- Footer -->
   <footer class="main-footer">
-    <strong><i class="fas fa-crosshairs mr-1" style="color:var(--accent)"></i> AXC ICU</strong>
+    <strong><img src="/svg/axc.svg" style="width:16px;height:16px;vertical-align:middle;margin-right:4px"> AXC</strong>
     <span class="ml-2 text-muted" style="font-size:.75rem">
       今日 <span id="footer-api-calls">–</span> 次 API
     </span>
@@ -816,6 +784,29 @@
       <a href="/share" class="text-muted">分享</a>
     </div>
   </footer>
+
+  <!-- Exchange Modal -->
+  <div class="modal fade" id="exchange-modal" tabindex="-1">
+    <div class="modal-dialog" style="max-width:380px">
+      <div class="modal-content" style="border:none;border-radius:12px;overflow:hidden">
+        <div id="exchange-modal-header" style="padding:20px 24px 12px;background:#1a1a2e">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <img id="exchange-modal-logo" src="" style="width:24px;height:24px;margin-right:10px">
+              <div>
+                <div style="color:#fff;font-weight:700;font-size:1rem" id="exchange-modal-title">Exchange</div>
+                <div style="color:#94a3b8;font-size:.72rem" id="exchange-modal-type">DEX</div>
+              </div>
+            </div>
+            <button type="button" class="close" data-dismiss="modal" style="color:#94a3b8;text-shadow:none;opacity:.7"><span>&times;</span></button>
+          </div>
+        </div>
+        <div class="modal-body" id="exchange-modal-body" style="padding:20px 24px">
+          <div class="text-center text-muted py-3">載入中…</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </div><!-- /wrapper -->
 
@@ -841,6 +832,13 @@ function setText(id, val) { var el = byId(id); if (el) el.textContent = val; }
 function fmtPnl(n) {
   var v = parseFloat(n) || 0;
   return (v >= 0 ? '+' : '') + v.toFixed(2);
+}
+var _SVG_MAP = {BTC:'btc',ETH:'eth',XRP:'xrp',XAG:'xag',XAU:'xau',ADA:'ada',SOL:'sol',BINANCE:'binance'};
+function symbolIcon(sym) {
+  var name = (sym||'').replace('USDT','').toUpperCase();
+  var file = _SVG_MAP[name];
+  if (!file) return '';
+  return '<img src="/svg/' + file + '.svg" style="width:16px;height:16px;vertical-align:middle;margin-right:3px">';
 }
 function fmtPrice(n) {
   var v = parseFloat(n) || 0;
@@ -872,10 +870,12 @@ function render(D) {
   });
 
   renderNavbar(D);
+  renderSidebarLayers(D);
   renderStatsCards(D, todayTriggers);
   renderRiskBoxes(D);
   renderActionPlan(D);
   renderPnlChart(D);
+  renderFeeBreakdown(D);
   renderTriggerSummary(D);
   renderPositionDetail(D);
   renderTrades(D);
@@ -906,6 +906,48 @@ function renderNavbar(D) {
         '</a>';
     }).join('') || '<div class="dropdown-item text-muted text-center">暫無活動</div>';
   }
+}
+
+// ── Sidebar Layers ────────────────────────────
+var _LAYER_META = {
+  "DNA":      {icon: "fa-dna",        color: "#10b981", desc: "參數設定"},
+  "Muscle":   {icon: "fa-cogs",       color: "#f59e0b", desc: "執行腳本"},
+  "Brain":    {icon: "fa-brain",      color: "#8b5cf6", desc: "主腦決策"},
+  "Heart":    {icon: "fa-heartbeat",  color: "#ef4444", desc: "交易引擎"},
+  "Eye":      {icon: "fa-eye",        color: "#3b82f6", desc: "市場掃描"},
+  "Filter":   {icon: "fa-filter",     color: "#06b6d4", desc: "信號過濾"},
+  "Analyst":  {icon: "fa-chart-bar",  color: "#6366f1", desc: "深度分析"},
+  "Decision": {icon: "fa-gavel",      color: "#d946ef", desc: "最終決定"},
+  "Nerve":    {icon: "fa-bolt",       color: "#eab308", desc: "健康監控"},
+  "Blood":    {icon: "fa-exchange-alt",color: "#ef4444", desc: "實時數據"},
+  "Logs":     {icon: "fa-scroll",     color: "#6b7280", desc: "運行日誌"},
+};
+
+function renderSidebarLayers(D) {
+  var layers = D.file_tree || [];
+  var el = byId('sidebar-layers');
+  if (!el || !layers.length) return;
+
+  el.innerHTML = layers.map(function(l) {
+    var m = _LAYER_META[l.role] || {icon: "fa-folder", color: "#6b7280", desc: ""};
+    var fullPath = '~/.openclaw/' + l.path;
+    return '<li class="nav-item">' +
+      '<a href="#" class="nav-link layer-link py-2" onclick="copyPath(this,\'' + fullPath + '\');return false" title="' + fullPath + '">' +
+        '<i class="nav-icon fas ' + m.icon + '" style="color:' + m.color + ';font-size:1rem"></i>' +
+        '<p style="font-size:.82rem;margin:0">' + l.role +
+          ' <span style="font-size:.65rem;color:#64748b;opacity:.7">' + m.desc + '</span>' +
+        '</p>' +
+      '</a>' +
+      '</li>';
+  }).join('');
+}
+
+function copyPath(el, path) {
+  navigator.clipboard.writeText(path).then(function() {
+    var orig = el.querySelector('p').innerHTML;
+    el.querySelector('p').innerHTML = '<span style="color:var(--pos);font-size:.75rem">copied!</span>';
+    setTimeout(function() { el.querySelector('p').innerHTML = orig; }, 800);
+  });
 }
 
 // ── Stats Cards（Fix 4: 用 todayTriggers）────
@@ -1009,8 +1051,13 @@ function renderActionPlan(D) {
       srHtml = '<small style="color:#6c757d;white-space:nowrap">S' + distS + '% R+' + distR + '%</small>';
     }
 
+    var icon = symbolIcon(p.symbol);
+    var symbolCell = icon
+      ? icon + '<strong style="margin-left:2px">' + displayName + '</strong>'
+      : dot + '<strong>' + displayName + '</strong>';
+
     return '<tr>' +
-      '<td>' + dot + '<strong>' + displayName + '</strong></td>' +
+      '<td style="white-space:nowrap">' + symbolCell + '</td>' +
       '<td class="ap-price">' + fmtPrice(p.price) + '</td>' +
       '<td>' + chgHtml + '</td>' +
       '<td>' + longSltp + '</td>' +
@@ -1077,6 +1124,37 @@ function renderPnlChart(D) {
 }
 
 // ── Trigger Summary（用 API trigger_summary）──
+function renderFeeBreakdown(D) {
+  var el = byId('fee-breakdown');
+  if (!el) return;
+  var fb = D.fee_breakdown;
+  if (!fb) { el.innerHTML = '<div class="text-muted text-center">--</div>'; return; }
+
+  var realized = parseFloat(fb.realized) || 0;
+  var funding = parseFloat(fb.funding) || 0;
+  var commission = parseFloat(fb.commission) || 0;
+  var net = parseFloat(fb.net) || 0;
+
+  function fmtFee(v) {
+    var c = v >= 0 ? 'var(--pos)' : 'var(--neg)';
+    return '<span style="color:' + c + ';font-weight:600">' + (v >= 0 ? '+' : '') + v.toFixed(2) + '</span>';
+  }
+
+  el.innerHTML =
+    '<div class="d-flex justify-content-between">' +
+      '<span class="text-muted">已實現</span>' + fmtFee(realized) +
+    '</div>' +
+    '<div class="d-flex justify-content-between">' +
+      '<span class="text-muted">資金費率</span>' + fmtFee(funding) +
+    '</div>' +
+    '<div class="d-flex justify-content-between">' +
+      '<span class="text-muted">手續費</span>' + fmtFee(commission) +
+    '</div>' +
+    '<div class="d-flex justify-content-between mt-1 pt-1" style="border-top:1px dashed var(--border)">' +
+      '<span style="font-weight:600">淨收益</span>' + fmtFee(net) +
+    '</div>';
+}
+
 function renderTriggerSummary(D) {
   var ts = D.trigger_summary || {};
   var el = byId('trigger-summary');
@@ -1150,7 +1228,7 @@ function renderPositionDetail(D) {
     var liqHtml = p.liq_price > 0 ? fmtPrice(p.liq_price) : '<span class="text-muted">—</span>';
 
     html += '<tr>' +
-      '<td style="font-weight:600">' + (p.pair || '?') + '</td>' +
+      '<td style="font-weight:600;white-space:nowrap">' + symbolIcon(p.pair) + (p.pair || '?') + '</td>' +
       '<td>' + dirBadge + '</td>' +
       '<td style="font-family:monospace">' + p.size + '</td>' +
       '<td>' + p.leverage + 'x</td>' +
@@ -1199,7 +1277,7 @@ function renderTrades(D) {
     return '<tr>' +
       '<td style="font-size:.85rem;color:var(--text-2)">' + (t.time || '') + '</td>' +
       '<td>' + badge + '</td>' +
-      '<td style="font-weight:600">' + (t.symbol || '?') + '</td>' +
+      '<td style="font-weight:600;white-space:nowrap">' + symbolIcon(t.symbol) + (t.symbol || '?') + '</td>' +
       '<td style="font-family:monospace;font-size:.85rem">' + fmtPrice(t.price) + '</td>' +
       '<td style="font-family:monospace;font-size:.85rem">' + t.qty + '</td>' +
       '<td>' + pnlHtml + '</td>' +
@@ -1287,6 +1365,112 @@ async function fetchData() {
   }
 }
 
+// ── Exchange 連接（Aster + Binance）────────────
+var _currentExchange = '';
+var _exchMeta = {
+  aster:  {name:'Aster DEX', type:'Decentralized Exchange', color:'#1a1a2e', logo:'/svg/axc.svg', btnColor:'#635bff'},
+  binance:{name:'Binance',   type:'Centralized Exchange',   color:'#1e2329', logo:'/svg/binance.svg', btnColor:'#f0b90b'}
+};
+
+function openExchangeModal(exch) {
+  _currentExchange = exch;
+  var meta = _exchMeta[exch];
+  byId('exchange-modal-title').textContent = meta.name;
+  byId('exchange-modal-type').textContent = meta.type;
+  byId('exchange-modal-logo').src = meta.logo;
+  byId('exchange-modal-header').style.background = meta.color;
+  $('#exchange-modal').modal('show');
+  var body = byId('exchange-modal-body');
+  body.innerHTML = '<div class="text-center py-4"><i class="fas fa-circle-notch fa-spin" style="color:' + meta.btnColor + ';font-size:1.5rem"></i></div>';
+  fetch('/api/' + exch + '/status').then(function(r){return r.json()}).then(function(d) {
+    if (d.status === 'connected') {
+      body.innerHTML =
+        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">' +
+          '<div style="color:#16a34a;font-weight:700;font-size:.9rem"><i class="fas fa-check-circle mr-1"></i>Connected</div>' +
+          '<div style="color:#64748b;font-size:.75rem;margin-top:4px">' + (d.key_preview||'') + '</div>' +
+        '</div>' +
+        '<div class="d-flex justify-content-between mb-2" style="font-size:.85rem">' +
+          '<span style="color:#64748b">Balance</span>' +
+          '<span style="font-weight:700">$' + (d.balance||0).toFixed(2) + '</span>' +
+        '</div>' +
+        (d.account_type ? '<div class="d-flex justify-content-between mb-3" style="font-size:.85rem"><span style="color:#64748b">Account</span><span style="font-weight:600">' + d.account_type + '</span></div>' : '') +
+        '<button class="btn btn-block btn-sm" onclick="exchangeDisconnect()" style="border:1px solid #fca5a5;color:#dc2626;border-radius:8px;font-size:.8rem;padding:8px">Disconnect</button>';
+    } else if (d.status === 'error') {
+      body.innerHTML =
+        '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px">' +
+          '<div style="color:#dc2626;font-size:.82rem"><i class="fas fa-exclamation-triangle mr-1"></i>' + (d.error||'Connection failed') + '</div>' +
+        '</div>' + _exchangeForm();
+    } else {
+      body.innerHTML = _exchangeForm();
+    }
+    _updateConnDot(exch, d.status);
+  });
+}
+
+function _exchangeForm() {
+  var meta = _exchMeta[_currentExchange];
+  return '<div>' +
+    '<div class="mb-3">' +
+      '<label style="font-weight:600;font-size:.78rem;color:#334155">API Key</label>' +
+      '<input type="text" class="form-control" id="ex-key" placeholder="Enter your API key" style="border-radius:8px;font-size:.85rem;padding:10px 12px;border-color:#e2e8f0">' +
+    '</div>' +
+    '<div class="mb-3">' +
+      '<label style="font-weight:600;font-size:.78rem;color:#334155">API Secret</label>' +
+      '<input type="password" class="form-control" id="ex-secret" placeholder="Enter your secret key" style="border-radius:8px;font-size:.85rem;padding:10px 12px;border-color:#e2e8f0">' +
+    '</div>' +
+    '<button class="btn btn-block" onclick="exchangeConnect()" style="background:' + meta.btnColor + ';color:' + (meta.btnColor === '#f0b90b' ? '#1e2329' : '#fff') + ';border:none;border-radius:8px;font-weight:600;font-size:.85rem;padding:10px">Connect ' + meta.name + '</button>' +
+    '<div class="text-center mt-3" style="font-size:.7rem;color:#94a3b8"><i class="fas fa-lock mr-1"></i>Keys stored locally in secrets/.env</div>' +
+  '</div>';
+}
+
+function exchangeConnect() {
+  var key = byId('ex-key').value.trim();
+  var secret = byId('ex-secret').value.trim();
+  if (!key || !secret) return;
+  var meta = _exchMeta[_currentExchange];
+  var body = byId('exchange-modal-body');
+  body.innerHTML = '<div class="text-center py-4"><i class="fas fa-circle-notch fa-spin" style="color:' + meta.btnColor + ';font-size:1.5rem"></i><div class="mt-2" style="font-size:.85rem;color:#64748b">Verifying credentials...</div></div>';
+  fetch('/api/' + _currentExchange + '/connect', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({api_key:key, api_secret:secret})
+  }).then(function(r){return r.json()}).then(function(d) {
+    if (d.ok) { openExchangeModal(_currentExchange); }
+    else {
+      body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px"><div style="color:#dc2626;font-size:.82rem">' + (d.error||'Failed') + '</div></div>' + _exchangeForm();
+    }
+  });
+}
+
+function exchangeDisconnect() {
+  fetch('/api/' + _currentExchange + '/disconnect', {method:'POST'}).then(function(){
+    openExchangeModal(_currentExchange);
+  });
+}
+
+function _updateConnDot(exch, status) {
+  var dot = byId(exch + '-conn-dot');
+  if (!dot) return;
+  dot.style.color = status === 'connected' ? '#0d9488' : status === 'error' ? '#ef4444' : '#6b7280';
+}
+
+// ── 模式切換 ──────────────────────────────────
+function switchProfile(mode) {
+  fetch('/api/set_mode', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode: mode})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      fetchData();  // 即時 refresh
+    } else {
+      alert(d.error || 'Failed');
+    }
+  })
+  .catch(function(e) { alert('Error: ' + e); });
+}
+
 // ── 鍵盤快捷鍵 ──────────────────────────────
 document.addEventListener('keydown', function(e) {
   if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -1295,10 +1479,10 @@ document.addEventListener('keydown', function(e) {
     if (refreshTimer) {
       clearInterval(refreshTimer);
       refreshTimer = null;
-      document.title = 'AXC ICU [暫停]';
+      document.title = 'AXC [暫停]';
     } else {
       refreshTimer = setInterval(fetchData, REFRESH_MS);
-      document.title = 'AXC ICU';
+      document.title = 'AXC';
     }
   }
 });
@@ -1320,6 +1504,9 @@ if (reloadBtn) {
 // ── 啟動 ─────────────────────────────────────
 fetchData();
 refreshTimer = setInterval(fetchData, REFRESH_MS);
+// Exchange connection status on load
+fetch('/api/aster/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('aster',d.status)}).catch(function(){});
+fetch('/api/binance/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('binance',d.status)}).catch(function(){});
 </script>
 </body>
 </html>

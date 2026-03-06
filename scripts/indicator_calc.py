@@ -28,6 +28,16 @@ _spec.loader.exec_module(_params)
 BB_TOUCH_TOL_DEFAULT = _params.BB_TOUCH_TOL_DEFAULT
 BB_TOUCH_TOL_XRP = _params.BB_TOUCH_TOL_XRP
 BB_WIDTH_MIN = _params.BB_WIDTH_MIN
+TIMEFRAME_PARAMS = _params.TIMEFRAME_PARAMS
+MACD_FAST = _params.MACD_FAST
+MACD_SLOW = _params.MACD_SLOW
+MACD_SIGNAL = _params.MACD_SIGNAL
+STOCH_K_PERIOD = _params.STOCH_K_PERIOD
+STOCH_K_SMOOTH = _params.STOCH_K_SMOOTH
+STOCH_D_SMOOTH = _params.STOCH_D_SMOOTH
+STOCH_OVERSOLD = _params.STOCH_OVERSOLD
+STOCH_OVERBOUGHT = _params.STOCH_OVERBOUGHT
+SR_PROXIMITY_TOL = _params.SR_PROXIMITY_TOL
 
 # ─── Exchange API bases ───
 API_BASE = "https://fapi.asterdex.com"
@@ -37,36 +47,8 @@ API_BASES = {
 }
 HKT = timezone(timedelta(hours=8))
 
-# ─── 時間框參數表（來自 range-strategies spec）───
-TIMEFRAME_PARAMS = {
-    "15m": {
-        "bb_length": 20, "bb_mult": 2,
-        "rsi_period": 14, "adx_period": 14,
-        "ema_fast": 8, "ema_slow": 20, "atr_period": 14,
-        "rsi_long": 30, "rsi_short": 70,
-        "adx_range_max": 20,
-        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
-        "lookback_support": 50,
-    },
-    "1h": {
-        "bb_length": 20, "bb_mult": 2,
-        "rsi_period": 14, "adx_period": 14,
-        "ema_fast": 10, "ema_slow": 30, "atr_period": 14,
-        "rsi_long": 35, "rsi_short": 65,
-        "adx_range_max": 20,
-        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
-        "lookback_support": 30,
-    },
-    "4h": {
-        "bb_length": 20, "bb_mult": 2,
-        "rsi_period": 14, "adx_period": 14,
-        "ema_fast": 10, "ema_slow": 50, "atr_period": 14,
-        "rsi_long": 35, "rsi_short": 65,
-        "adx_range_max": 18,
-        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
-        "lookback_support": 30,
-    },
-}
+# ─── 時間框參數表（從 config/params.py 載入）───
+# TIMEFRAME_PARAMS 已從 params.py import，見上方
 
 # ─── 產品參數覆蓋 ───
 PRODUCT_OVERRIDES = {
@@ -141,7 +123,7 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
 
     # Stochastic
     try:
-        stoch_result = tv.slow_stoch(close, high, low, 14, 1, 3)
+        stoch_result = tv.slow_stoch(close, high, low, STOCH_K_PERIOD, STOCH_K_SMOOTH, STOCH_D_SMOOTH)
         stoch_k = stoch_result[0]
         stoch_d = stoch_result[1]
     except Exception:
@@ -154,7 +136,7 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
 
     # MACD（現有策略用）— returns DataFrame with columns: macd, signal, histogram
     try:
-        macd_df = tv.MACD(close, 12, 26, 9)
+        macd_df = tv.MACD(close, MACD_FAST, MACD_SLOW, MACD_SIGNAL)
         macd_line = macd_df["macd"]
         macd_signal = macd_df["signal"]
         macd_hist = macd_df["histogram"]
@@ -250,10 +232,10 @@ def evaluate_range_signal(ind: dict, params: dict) -> dict:
     c2_long = (ind["rsi"] is not None and ind["rsi_prev"] is not None and
                ind["rsi"] < params["rsi_long"] and ind["rsi"] > ind["rsi_prev"])
     c3_long = (ind["rolling_low"] is not None and
-               price <= ind["rolling_low"] * 1.005) if ind["rolling_low"] else False
+               price <= ind["rolling_low"] * (1 + SR_PROXIMITY_TOL)) if ind["rolling_low"] else False
     c4_long = (ind["stoch_k"] is not None and ind["stoch_d"] is not None and
                ind["stoch_k_prev"] is not None and ind["stoch_d_prev"] is not None and
-               ind["stoch_k"] < 20 and
+               ind["stoch_k"] < STOCH_OVERSOLD and
                ind["stoch_k"] > ind["stoch_d"] and
                ind["stoch_k_prev"] <= ind["stoch_d_prev"])
 
@@ -268,10 +250,10 @@ def evaluate_range_signal(ind: dict, params: dict) -> dict:
     c2_short = (ind["rsi"] is not None and ind["rsi_prev"] is not None and
                 ind["rsi"] > params["rsi_short"] and ind["rsi"] < ind["rsi_prev"])
     c3_short = (ind["rolling_high"] is not None and
-                price >= ind["rolling_high"] * 0.995) if ind["rolling_high"] else False
+                price >= ind["rolling_high"] * (1 - SR_PROXIMITY_TOL)) if ind["rolling_high"] else False
     c4_short = (ind["stoch_k"] is not None and ind["stoch_d"] is not None and
                 ind["stoch_k_prev"] is not None and ind["stoch_d_prev"] is not None and
-                ind["stoch_k"] > 80 and
+                ind["stoch_k"] > STOCH_OVERBOUGHT and
                 ind["stoch_k"] < ind["stoch_d"] and
                 ind["stoch_k_prev"] >= ind["stoch_d_prev"])
 

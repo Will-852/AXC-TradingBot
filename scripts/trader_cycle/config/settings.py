@@ -137,6 +137,14 @@ try:
     _spec.loader.exec_module(_mod)
     _profiles = getattr(_mod, "TRADING_PROFILES", {})
     _active = getattr(_mod, "ACTIVE_PROFILE", None)
+    # ─── Mode Detection overrides from params.py ───
+    MODE_RSI_TREND_LOW = getattr(_mod, "MODE_RSI_TREND_LOW", MODE_RSI_TREND_LOW)
+    MODE_RSI_TREND_HIGH = getattr(_mod, "MODE_RSI_TREND_HIGH", MODE_RSI_TREND_HIGH)
+    MODE_VOLUME_LOW = getattr(_mod, "MODE_VOLUME_LOW", MODE_VOLUME_LOW)
+    MODE_VOLUME_HIGH = getattr(_mod, "MODE_VOLUME_HIGH", MODE_VOLUME_HIGH)
+    MODE_FUNDING_THRESHOLD = getattr(_mod, "MODE_FUNDING_THRESHOLD", MODE_FUNDING_THRESHOLD)
+    MODE_CONFIRMATION_REQUIRED = getattr(_mod, "MODE_CONFIRMATION_REQUIRED", MODE_CONFIRMATION_REQUIRED)
+
     _p = _profiles.get(_active, {}) if _active else {}
     if _p:
         RANGE_RISK_PCT = _p.get("risk_per_trade_pct", RANGE_RISK_PCT)

@@ -7,6 +7,7 @@ All 4 conditions on 4H + 1H must align before entry.
 """
 
 from __future__ import annotations
+import os
 from datetime import datetime
 
 from ..config.settings import (
@@ -17,15 +18,26 @@ from ..core.context import CycleContext, Signal
 from .base import StrategyBase, PositionParams
 
 
-# ─── Trend-specific thresholds ───
-# Price within this % of 1H MA50 counts as "pullback to MA"
-PULLBACK_TOLERANCE = 0.015  # 1.5%
-
-# RSI ranges for trend confirmation (on 1H timeframe)
-TREND_RSI_LONG_LOW = 40     # Not oversold
-TREND_RSI_LONG_HIGH = 55    # Not overbought
-TREND_RSI_SHORT_LOW = 45    # Not oversold
-TREND_RSI_SHORT_HIGH = 60   # Not overbought
+# ─── Trend-specific thresholds (from config/params.py) ───
+try:
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location(
+        "_params", os.path.expanduser("~/.openclaw/config/params.py")
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    PULLBACK_TOLERANCE = getattr(_mod, "PULLBACK_TOLERANCE", 0.015)
+    TREND_RSI_LONG_LOW = getattr(_mod, "TREND_RSI_LONG_LOW", 40)
+    TREND_RSI_LONG_HIGH = getattr(_mod, "TREND_RSI_LONG_HIGH", 55)
+    TREND_RSI_SHORT_LOW = getattr(_mod, "TREND_RSI_SHORT_LOW", 45)
+    TREND_RSI_SHORT_HIGH = getattr(_mod, "TREND_RSI_SHORT_HIGH", 60)
+    del _ilu, _spec, _mod
+except Exception:
+    PULLBACK_TOLERANCE = 0.015
+    TREND_RSI_LONG_LOW = 40
+    TREND_RSI_LONG_HIGH = 55
+    TREND_RSI_SHORT_LOW = 45
+    TREND_RSI_SHORT_HIGH = 60
 
 
 def _check_day_bias(now: datetime) -> str | None:
