@@ -26,6 +26,9 @@ telegram/
 update-check.json
 .openclaw/
 
+# Large model files (local LLM — rejected in architecture)
+mlx_model/
+
 # Workspace runtime (not core config)
 workspace/.openclaw/
 workspace/AGENTS.md
