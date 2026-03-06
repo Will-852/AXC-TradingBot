@@ -1,110 +1,360 @@
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenClaw — 系統說明</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d0d0d;color:#e0e0e0;font-family:'JetBrains Mono',monospace;max-width:900px;margin:0 auto;padding:2rem 1rem}
-h1{color:#f59e0b;font-size:1.6rem;margin-bottom:.3rem}
-h2{color:#6366f1;font-size:1.1rem;margin:1.5rem 0 .5rem;border-bottom:1px solid #222;padding-bottom:.3rem}
-h3{color:#888;font-size:.9rem;margin:1rem 0 .3rem}
-p,li{font-size:.85rem;color:#aaa;line-height:1.6}
-ul{padding-left:1.2rem}
-a{color:#3b82f6;text-decoration:none}
-a:hover{text-decoration:underline}
-.badge{background:#1a1a2e;border:1px solid #333;padding:2px 8px;border-radius:4px;font-size:.75rem;color:#888;margin-right:.5rem}
-.warn{color:#ef4444;font-size:.75rem;margin-top:2rem;border:1px solid #3a1a1a;padding:.5rem;border-radius:4px}
-.cmd{background:#111;border:1px solid #222;padding:.3rem .6rem;border-radius:4px;font-size:.8rem;color:#10b981;margin:.2rem 0;display:block}
-#doc-list{margin-top:.5rem}
-.doc-item{padding:3px 0;cursor:pointer;color:#3b82f6;font-size:.82rem}
-.doc-item:hover{text-decoration:underline}
-#doc-content{background:#111;border:1px solid #222;border-radius:6px;padding:1rem;margin-top:1rem;font-size:.8rem;white-space:pre-wrap;max-height:400px;overflow-y:auto;display:none;color:#ccc}
-.arch-box{background:#111;border:1px solid #1e3a5f;border-radius:6px;padding:.8rem;font-size:.8rem;color:#7dd3fc;white-space:pre;overflow-x:auto}
-.back-btn{display:inline-block;margin-bottom:1.5rem;color:#555;font-size:.8rem}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenClaw 系統說明</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d0d; color: #e0e0e0;
+      font-family: -apple-system, sans-serif;
+      max-width: 860px; margin: 0 auto;
+      padding: 2rem 1.2rem 4rem;
+      line-height: 1.7;
+    }
+    h1 { color: #f59e0b; font-size: 1.8rem; margin-bottom: 0.3rem; }
+    .tagline { color: #555; font-size: 0.9rem; margin-bottom: 2rem; }
+    h2 {
+      color: #6366f1; font-size: 1.1rem;
+      margin: 2.2rem 0 0.8rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid #1e1e3a;
+    }
+    h3 { color: #888; font-size: 0.95rem; margin: 1.2rem 0 0.4rem; }
+    p { color: #bbb; font-size: 0.88rem; margin-bottom: 0.6rem; }
+    ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+    li { color: #bbb; font-size: 0.88rem; margin-bottom: 0.3rem; }
+    strong { color: #e0e0e0; }
+
+    /* 指令區：複製貼上用 */
+    .cmd-block {
+      background: #0a0a1a;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      padding: 0.8rem 1rem;
+      margin: 0.6rem 0 1rem;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #7dd3fc;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .cmd-label {
+      font-size: 0.72rem;
+      color: #444;
+      margin-bottom: 0.3rem;
+      font-family: monospace;
+    }
+
+    /* 提示方塊 */
+    .tip {
+      background: #0f1a0f;
+      border-left: 3px solid #10b981;
+      padding: 0.6rem 0.8rem;
+      border-radius: 0 4px 4px 0;
+      margin: 0.6rem 0;
+      font-size: 0.84rem;
+      color: #86efac;
+    }
+    .warn {
+      background: #1a0f0f;
+      border-left: 3px solid #ef4444;
+      padding: 0.6rem 0.8rem;
+      border-radius: 0 4px 4px 0;
+      margin: 0.6rem 0;
+      font-size: 0.84rem;
+      color: #fca5a5;
+    }
+
+    /* 架構圖 */
+    .arch {
+      background: #0a0a1a;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #7dd3fc;
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0.6rem 0 1rem;
+    }
+
+    /* 系統組件表 */
+    .layer-table { width: 100%; border-collapse: collapse; margin: 0.6rem 0 1rem; }
+    .layer-table th {
+      background: #1a1a2e; color: #6366f1;
+      font-size: 0.78rem; padding: 6px 10px;
+      text-align: left; font-weight: normal;
+    }
+    .layer-table td {
+      padding: 6px 10px; font-size: 0.82rem;
+      border-bottom: 1px solid #111; color: #bbb;
+    }
+    .layer-table td:first-child { color: #e0e0e0; font-family: monospace; }
+
+    /* 返回按鈕 */
+    .back { color: #444; font-size: 0.8rem; text-decoration: none;
+            display: inline-block; margin-bottom: 1.5rem; }
+    .back:hover { color: #888; }
+
+    /* GitHub 連結 */
+    .gh-link {
+      display: inline-block;
+      margin-top: 0.4rem;
+      padding: 6px 14px;
+      background: #161b22;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.84rem;
+    }
+    .gh-link:hover { background: #1f2937; }
+
+    /* 文件清單 */
+    #doc-list { margin: 0.4rem 0 0.6rem; }
+    .doc-item {
+      display: inline-block;
+      margin: 3px 4px 3px 0;
+      padding: 3px 8px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 4px;
+      color: #6366f1;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-family: monospace;
+    }
+    .doc-item:hover { background: #1a1a2e; }
+    #doc-content {
+      background: #080810;
+      border: 1px solid #1e1e3a;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 0.6rem;
+      font-size: 0.78rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      color: #bbb;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-<a href="/" class="back-btn">&larr; 返回 Dashboard</a>
+
+<a href="/" class="back">&larr; 返回儀表板</a>
 
 <h1>OpenClaw</h1>
-<div style="margin:.5rem 0 1.5rem">
-  <span class="badge">AI 交易系統</span>
-  <span class="badge">macOS</span>
-  <span class="badge">Claude API</span>
-  <a href="https://github.com/Will-852/openclaw" target="_blank" class="badge" style="color:#3b82f6">GitHub &nearr;</a>
-</div>
+<p class="tagline">一個自動幫你做加密貨幣交易嘅 AI 系統</p>
 
-<h2>系統架構</h2>
-<div class="arch-box">
-Scanner ───→ Analyst ───→ Decision ───→ Trader
-   ↑                                      ↓
-Heartbeat                  Telegram Notification
+<!-- ═══════════════════════════════════════════════ -->
+<h2>OpenClaw 係咩？</h2>
 
-News Agent ───→ Sentiment ───→ Context Layer
-</div>
-<ul style="margin-top:.8rem">
-  <li>10 Agents (main / scanner / trader / heartbeat / binance_scanner / binance_trader / news_agent / ...)</li>
-  <li>18 Scripts — Python 執行層（零 token 消耗）</li>
-  <li>10 LaunchAgents — macOS 自動排程</li>
-  <li>推理層：Claude API（Haiku / Sonnet）</li>
+<p>想像你請咗一個助手，<strong>24小時不停地盯著加密貨幣市場</strong>。佢會：</p>
+<ul>
+  <li>每隔幾分鐘掃描市場，睇下邊隻幣有異動</li>
+  <li>分析價格走勢，判斷係咪值得入場</li>
+  <li>自動下單入場，設好止蝕止賺</li>
+  <li>用 Telegram 通知你每一個動作</li>
 </ul>
 
-<h2>快速指令</h2>
-<h3>服務管理</h3>
-<code class="cmd">bash ~/.openclaw/scripts/openclaw.sh start</code>
-<code class="cmd">bash ~/.openclaw/scripts/openclaw.sh stop</code>
-<code class="cmd">bash ~/.openclaw/scripts/openclaw.sh status</code>
+<p>你唔需要一直盯住電腦。OpenClaw 會幫你做。</p>
 
-<h3>健康檢查</h3>
-<code class="cmd">bash ~/.openclaw/scripts/health_check.sh</code>
+<!-- ═══════════════════════════════════════════════ -->
+<h2>系統係點運作嘅？</h2>
 
-<h3>備份</h3>
-<code class="cmd">bash ~/.openclaw/scripts/backup_agent.sh</code>
+<div class="arch">掃描員 ──→ 分析員 ──→ 決策員 ──→ 交易員
+  ↑                                        ↓
+心跳監察                           Telegram 通知你
 
-<h3>手動策略回顧</h3>
-<code class="cmd">python3 ~/.openclaw/scripts/weekly_strategy_review.py</code>
+新聞員 ──→ 情緒分析 ──→ 輔助判斷</div>
 
+<p>就好似一間公司咁：</p>
+<ul>
+  <li><strong>掃描員</strong>（Scanner）— 負責四圍「望」，睇邊隻幣有大波動</li>
+  <li><strong>分析員</strong>（Analyst）— 計算技術指標，判斷入場時機</li>
+  <li><strong>交易員</strong>（Trader）— 真正落盤買賣</li>
+  <li><strong>心跳</strong>（Heartbeat）— 確保系統冇死機</li>
+  <li><strong>新聞員</strong>（News Agent）— 睇新聞判斷市場情緒</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>左邊欄 LAYERS 係咩意思？</h2>
+
+<table class="layer-table">
+  <tr><th>名稱</th><th>中文意思</th><th>更新頻率</th><th>解釋</th></tr>
+  <tr><td>SOUL</td><td>靈魂 / 人格</td><td>從不自動</td><td>每個 AI agent 嘅性格設定，決定佢點思考、點決策</td></tr>
+  <tr><td>MEMORY</td><td>記憶</td><td>每日</td><td>系統記住之前嘅交易，學習成功同失敗嘅經驗</td></tr>
+  <tr><td>DNA</td><td>基因 / 策略</td><td>每週</td><td>根據歷史交易歸納出嘅交易規則，越交越精準</td></tr>
+  <tr><td>MUSCLES</td><td>肌肉 / 引擎</td><td>穩定不變</td><td>實際執行交易嘅核心代碼，止蝕止賺嘅計算邏輯</td></tr>
+  <tr><td>BLOOD</td><td>血液 / 數據</td><td>實時</td><td>來自交易所嘅實時價格數據，系統嘅「養分」</td></tr>
+  <tr><td>MIRROR</td><td>鏡子 / 對照</td><td>參考用</td><td>回測系統，用歷史數據驗證策略係咪有效</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>儀表板各部分說明</h2>
+
+<h3>行動部署</h3>
+<p>顯示每隻幣當前狀態：</p>
+<ul>
+  <li><strong>綠點</strong>：已達觸發條件，系統可能入場</li>
+  <li><strong>黃點</strong>：接近觸發，仲差少少</li>
+  <li><strong>灰點</strong>：未達條件，繼續等</li>
+  <li><strong>SL</strong>（Stop Loss）= 止蝕位，輸到呢個價就自動出場</li>
+  <li><strong>TP</strong>（Take Profit）= 止賺位，賺到呢個價就自動出場</li>
+  <li><strong>S / R</strong>（Support / Resistance）= 支撐位 / 阻力位</li>
+</ul>
+
+<h3>累積盈虧</h3>
+<p>顯示今日同總計嘅盈虧。曲線向上 = 賺緊錢，向下 = 蝕緊錢。</p>
+
+<h3>交易記錄</h3>
+<p>每一筆交易嘅入場價同出場價。<br>
+⚠️ 符號 = 測試記錄（唔係真實交易），可以忽略。</p>
+
+<h3>系統活動</h3>
+<p>系統最近做咗咩：心跳確認、模式切換、入場出場等等。</p>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>交易模式（打法）</h2>
+
+<p>系統有三種打法，用 Telegram 指令切換：</p>
+<table class="layer-table">
+  <tr><th>模式</th><th>觸發門檻</th><th>風險</th><th>適合市況</th></tr>
+  <tr><td>CONSERVATIVE</td><td>高（較難觸發）</td><td>低</td><td>市場平靜時</td></tr>
+  <tr><td>BALANCED</td><td>中（2%波動）</td><td>中</td><td>一般市況</td></tr>
+  <tr><td>AGGRESSIVE</td><td>低（較易觸發）</td><td>高</td><td>市場活躍時</td></tr>
+</table>
+
+<div class="tip">建議：揀定一個模式後，最少跑 30 次交易先換。頻繁切換會令數據冇參考價值。</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>Telegram 指令大全</h2>
+
+<p>喺 Telegram 同 OpenClaw bot 對話，可以用以下指令：</p>
+
+<h3>查詢狀態</h3>
+<div class="cmd-label">發送畀 Bot：</div>
+<div class="cmd-block">/status</div>
+<p>顯示系統當前狀態、運行中嘅服務、最近交易。</p>
+
+<h3>切換打法</h3>
+<div class="cmd-label">發送畀 Bot：</div>
+<div class="cmd-block">/mode BALANCED
+/mode CONSERVATIVE
+/mode AGGRESSIVE</div>
+
+<h3>查詢持倉</h3>
+<div class="cmd-label">發送畀 Bot：</div>
+<div class="cmd-block">/positions</div>
+
+<h3>手動平倉</h3>
+<div class="cmd-label">發送畀 Bot：</div>
+<div class="cmd-block">/close BTCUSDT</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>電腦指令（Terminal 用）</h2>
+
+<div class="warn">以下指令需要喺 Mac 嘅 Terminal 執行。唔熟悉指令嘅話，唔需要理呢部分，用 Telegram 就夠。</div>
+
+<h3>啟動所有服務</h3>
+<div class="cmd-label">Terminal 入面，複製以下全部貼上：</div>
+<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh start</div>
+
+<h3>停止所有服務</h3>
+<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh stop</div>
+
+<h3>查看服務狀態</h3>
+<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh status</div>
+
+<h3>健康檢查（確認系統正常）</h3>
+<div class="cmd-block">bash ~/.openclaw/scripts/health_check.sh</div>
+<p>期望看到：<strong>39+ pass / 0 fail</strong>。如果有 fail，截圖記錄。</p>
+
+<h3>備份系統</h3>
+<div class="cmd-block">bash ~/.openclaw/scripts/backup_agent.sh</div>
+
+<h3>手動跑策略回顧</h3>
+<div class="cmd-block">python3 ~/.openclaw/scripts/weekly_strategy_review.py</div>
+<p>會分析歷史交易，輸出建議到 ai/STRATEGY.md。</p>
+
+<h3>查看儀表板</h3>
+<div class="cmd-label">瀏覽器打開：</div>
+<div class="cmd-block">http://localhost:5555</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<h2>常見問題</h2>
+
+<h3>系統冇交易，點解？</h3>
+<ul>
+  <li>市場波動唔夠大（低於觸發門檻）→ 正常，繼續等</li>
+  <li>熔斷器觸發（連輸太多次）→ 系統自動暫停保護</li>
+  <li>服務停咗 → 跑 <code>/status</code> 或 health check</li>
+</ul>
+
+<h3>Telegram 冇收到通知？</h3>
+<div class="cmd-block">launchctl list | grep openclaw</div>
+<p>確認 ai.openclaw.telegram 有 PID（第一欄有數字）。</p>
+
+<h3>儀表板開唔到？</h3>
+<div class="cmd-block">cd ~/.openclaw && python3 scripts/dashboard.py &</div>
+<p>然後開 http://localhost:5555</p>
+
+<h3>想重置所有服務？</h3>
+<div class="cmd-block">bash ~/.openclaw/scripts/openclaw.sh stop
+sleep 3
+bash ~/.openclaw/scripts/openclaw.sh start</div>
+
+<!-- ═══════════════════════════════════════════════ -->
 <h2>文件導航</h2>
-<div id="doc-list"><span style="color:#555">載入中…</span></div>
+<p>點擊查看系統內部文件：</p>
+<div id="doc-list"><span style="color:#333">載入中…</span></div>
 <pre id="doc-content"></pre>
 
+<!-- ═══════════════════════════════════════════════ -->
 <h2>GitHub</h2>
-<p>完整源碼、安裝指南：
-  <a href="https://github.com/Will-852/openclaw" target="_blank">
-    https://github.com/Will-852/openclaw
-  </a>
-</p>
+<p>完整源碼同安裝指南：</p>
+<a href="https://github.com/Will-852/openclaw" target="_blank" class="gh-link">
+  github.com/Will-852/openclaw
+</a>
 
+<br><br>
 <div class="warn">
-  注意：API keys、交易數據、資金資訊不會在此頁面顯示。
-  敏感設定請直接編輯 <code>~/.openclaw/secrets/.env</code>。
+  安全提示：API 密鑰、交易數據、資金資訊不會在此頁面顯示。<br>
+  敏感設定請直接編輯 <code>~/.openclaw/secrets/.env</code>
 </div>
 
 <script>
-fetch('/api/docs-list')
-  .then(function(r){return r.json()})
-  .then(function(files){
-    var el=document.getElementById('doc-list');
-    if(!files.length){el.innerHTML='<span style="color:#555">無文件</span>';return}
-    el.innerHTML=files.map(function(f){
-      return'<div class="doc-item" onclick="loadDoc(\''+f.replace(/'/g,"\\'")+'\')">'+f+'</div>';
-    }).join('');
-  })
-  .catch(function(){
-    document.getElementById('doc-list').innerHTML='<span style="color:#555">文件清單載入失敗</span>';
-  });
+  fetch('/api/docs-list')
+    .then(r => r.json())
+    .then(files => {
+      const el = document.getElementById('doc-list');
+      if (!files.length) {
+        el.innerHTML = '<span style="color:#333">無文件</span>';
+        return;
+      }
+      el.innerHTML = files.map(f =>
+        `<span class="doc-item" onclick="loadDoc('${f}')">${f}</span>`
+      ).join('');
+    })
+    .catch(() => {
+      document.getElementById('doc-list').innerHTML =
+        '<span style="color:#444">文件清單載入失敗</span>';
+    });
 
-function loadDoc(filename){
-  var el=document.getElementById('doc-content');
-  el.style.display='block';
-  el.textContent='載入中…';
-  fetch('/api/doc/'+encodeURIComponent(filename))
-    .then(function(r){return r.text()})
-    .then(function(text){el.textContent=text})
-    .catch(function(){el.textContent='載入失敗'});
-}
+  function loadDoc(filename) {
+    const el = document.getElementById('doc-content');
+    el.style.display = 'block';
+    el.textContent = '載入中…';
+    fetch(`/api/doc/${filename}`)
+      .then(r => r.text())
+      .then(t => { el.textContent = t; })
+      .catch(() => { el.textContent = '載入失敗'; });
+  }
 </script>
 </body>
 </html>

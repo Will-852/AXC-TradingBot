@@ -37,7 +37,7 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 .sb-dot.dw{background:var(--neg)}
 .sb-dot.doff{background:var(--tm)}
 
-.sb-layer{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;margin:1px 8px;border-radius:6px;cursor:pointer;transition:background .15s}
+.sb-layer{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;margin:1px 8px;border-radius:6px;cursor:pointer;transition:background .15s}
 .sb-layer:hover{background:rgba(255,255,255,0.03)}
 .sb-ld{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .sb-ln{font-size:12px;font-weight:500;color:var(--tp);flex:1}
@@ -302,11 +302,18 @@ body{min-height:100vh;background:var(--bg-0);color:var(--tp);font-family:'Inter'
 /* Fix 9: Button active micro-feedback */
 button:active{transform:scale(0.97);transition:transform .08s}
 
+/* Details button — fixed top-right */
+#details-btn{position:fixed;top:14px;right:16px;z-index:9999;background:#1a1a2e;color:#6366f1;border:1px solid #6366f1;border-radius:6px;padding:5px 12px;font-size:0.78rem;font-family:monospace;text-decoration:none;cursor:pointer;transition:background 0.15s}
+#details-btn:hover{background:#6366f1;color:#fff}
+
 /* Pixel sprites */
 .organ-sprite{width:1px;height:1px;background:transparent;transform:scale(3);transform-origin:top left;image-rendering:pixelated;image-rendering:crisp-edges}
 </style>
 </head>
 <body>
+
+<!-- 右上角固定按鈕 -->
+<a href="/details" target="_blank" id="details-btn">📋 系統說明</a>
 
 <nav id="sidebar">
   <div class="sb-logo">
@@ -492,7 +499,6 @@ button:active{transform:scale(0.97);transition:transform .08s}
     <span id="ft-git">⎇ —</span>
     <span class="fc" id="ft-up">—</span>
     <span class="fr" id="ft-tg">📱 —</span>
-    <a href="/details" target="_blank" style="font-size:11px;color:var(--tm);text-decoration:none;margin-left:8px">說明</a>
   </footer>
 </div>
 
@@ -549,7 +555,13 @@ function renderActionPlan(plans,profile){
     }else if(p.status==='ready'||p.status==='near'){
       sltp='<div class="ap-sltp" style="color:var(--tm)">\u2014 \u7121 ATR \u6578\u64DA</div>';
     }
-    return'<div class="ap-row"><div class="ap-top"><span class="ap-dot '+dotCls+'"></span><span class="ap-symbol">'+short+'</span><span class="ap-price">'+price+'</span><span class="ap-trigger">'+trig+'</span>'+blocker+'</div>'+sltp+'</div>';
+    var sr='';
+    if(p.support>0&&p.resistance>0&&p.price>0){
+      var sDist=((p.price-p.support)/p.price*100).toFixed(1);
+      var rDist=((p.resistance-p.price)/p.price*100).toFixed(1);
+      sr='<div class="ap-sltp" style="color:var(--tm)">S '+fmtPrice(p.support)+' <span style="color:#34d399">-'+sDist+'%</span>  \u00b7  R '+fmtPrice(p.resistance)+' <span style="color:#f87171">+'+rDist+'%</span></div>';
+    }
+    return'<div class="ap-row"><div class="ap-top"><span class="ap-dot '+dotCls+'"></span><span class="ap-symbol">'+short+'</span><span class="ap-price">'+price+'</span><span class="ap-trigger">'+trig+'</span>'+blocker+'</div>'+sltp+sr+'</div>';
   }).join('');
 }
 
@@ -580,18 +592,18 @@ var AID={main:'main',aster_trader:'aster_trader',aster_scanner:'aster_scanner',h
 var ACHR={main:'brain',aster_trader:'heart',aster_scanner:'eyes',heartbeat:'nerves',haiku_filter:'filter',analyst:'chart',decision:'crown'};
 var AGENTS_META={main:{name:'主腦',chr:'brain'},aster_scanner:{name:'掃描器',chr:'eyes'},aster_trader:{name:'交易員',chr:'heart'},heartbeat:{name:'心跳',chr:'nerves'},haiku_filter:{name:'過濾器',chr:'eyes'},analyst:{name:'分析師',chr:'brain'},decision:{name:'決策者',chr:'brain'}};
 var LAYERS=[
-  {name:'SOUL',p:'agents/*/SOUL.md',freq:'從不',clr:'#a78bfa'},
-  {name:'MEMORY',p:'workspace/MEMORY.md',freq:'每日',clr:'#60a5fa'},
-  {name:'DNA',p:'config/params.py',freq:'每週',clr:'#34d399'},
-  {name:'MUSCLES',p:'scripts/',freq:'穩定',clr:'#fbbf24'},
-  {name:'BLOOD',p:'shared/',freq:'實時',clr:'#f87171'},
-  {name:'MIRROR',p:'CLAUDE.md',freq:'參考',clr:'#8b95a1'}
+  {name:'SOUL',sub:'人格定義',p:'agents/*/SOUL.md',freq:'從不',clr:'#a78bfa'},
+  {name:'MEMORY',sub:'記憶更新',p:'workspace/MEMORY.md',freq:'每日',clr:'#60a5fa'},
+  {name:'DNA',sub:'策略歸納',p:'config/params.py',freq:'每週',clr:'#34d399'},
+  {name:'MUSCLES',sub:'引擎參數',p:'scripts/',freq:'穩定',clr:'#fbbf24'},
+  {name:'BLOOD',sub:'市場數據流',p:'shared/',freq:'實時',clr:'#f87171'},
+  {name:'MIRROR',sub:'回測對照',p:'CLAUDE.md',freq:'參考',clr:'#8b95a1'}
 ];
 
 /* ═══ Sidebar layers + tooltip (hover=show, click=copy) ═══ */
 var tip=document.getElementById('layer-tooltip');
 document.getElementById('sb-layers').innerHTML=LAYERS.map(function(l){
-  return'<div class="sb-layer" data-path="'+l.p+'"><span class="sb-ld" style="background:'+l.clr+'"></span><span class="sb-ln">'+l.name+'</span><span class="sb-lf" style="background:'+hexRgba(l.clr,.12)+';color:'+l.clr+'">'+l.freq+'</span></div>';
+  return'<div class="sb-layer" data-path="'+l.p+'"><span class="sb-ld" style="background:'+l.clr+'"></span><span style="display:flex;flex-direction:column;flex:1;min-width:0"><span class="sb-ln">'+l.name+'</span><span style="font-size:0.65rem;color:#444;line-height:1.1">'+l.sub+'</span></span><span class="sb-lf" style="background:'+hexRgba(l.clr,.12)+';color:'+l.clr+'">'+l.freq+'</span></div>';
 }).join('');
 document.querySelectorAll('.sb-layer').forEach(function(row){
   row.addEventListener('mouseenter',function(){
@@ -736,11 +748,14 @@ function render(){if(!D)return;
       }else{
         exitStr=t.exit==='SL/TP'?'已平倉':'$'+t.exit;
       }
-      var pclr=pnlVal>=0?'var(--pos)':'var(--neg)';
-      var psign=pnlVal>=0?'+':'';
+      var hasPnl=t.exit!==null&&t.exit!=='SL/TP'&&!t.stale_open&&!t.open;
+      var pnlStr='\u2014';
+      if(hasPnl){var pclr=pnlVal>=0?'var(--pos)':'var(--neg)';var psign=pnlVal>=0?'+':'';pnlStr='<span style="color:'+pclr+'">'+psign+'$'+pnlVal.toFixed(2)+'</span>'}
       var stLbl={open:'持倉',win:'贏',loss:'虧',closed:'平'}[t.status||'closed']||'';
       var stCls='trade-status-'+(t.status||'closed');
-      return'<div class="th-row"><span class="th-dir '+dc+'">'+t.dir+'</span><span class="th-asset">'+t.asset+'</span><span class="th-prices">$'+t.entry+' \u2192 '+exitStr+'</span><span class="'+stCls+'" style="font-size:10px;min-width:24px">'+stLbl+'</span><span class="th-pnl" style="color:'+pclr+'">'+psign+'$'+pnlVal.toFixed(2)+'</span></div>';
+      var susBadge=t.suspicious?'<span style="font-size:9px;color:var(--warn);margin-left:4px" title="\u6e2c\u8a66\u8a18\u9304">\u26a0\ufe0f</span>':'';
+      var rowOp=t.suspicious?' style="opacity:0.5"':'';
+      return'<div class="th-row"'+rowOp+'><span class="th-dir '+dc+'">'+t.dir+'</span><span class="th-asset">'+t.asset+susBadge+'</span><span class="th-prices">$'+t.entry+' \u2192 '+exitStr+'</span><span class="'+stCls+'" style="font-size:10px;min-width:24px">'+stLbl+'</span><span class="th-pnl">'+pnlStr+'</span></div>';
     }).join('');
   }else{
     document.getElementById('trade-card').innerHTML='<div class="th-empty"><span style="font-size:24px;opacity:.25">📭</span>今日暫無交易記錄<br><span style="opacity:.4;font-size:10px">系統監控中，等待入場訊號</span></div>';

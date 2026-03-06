@@ -106,6 +106,7 @@ ASTER_SYMBOLS = [
     "ETHUSDT",
     "XRPUSDT",
     "XAGUSDT",
+    "XAUUSDT",
     # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
 ]
 
