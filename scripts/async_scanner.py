@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
 async_scanner.py — 並行多幣種掃描引擎
-版本：v5 | 2026-03-05 | 根源修復版
+版本：v6 | 2026-03-07 | 梅花間竹版
 
-v5 根源修復：
+v6 梅花間竹：
+  共享幣種（Aster+Binance 都有）單雙輪交替 exchange，
+  每個 exchange 只承受約一半 request rate，防 429。
+  獨佔幣種每輪都掃，唔受影響。
+
+v5 保留：
   [R1] Bounded ThreadPoolExecutor — 防止 thread 洩漏（第8日爆滿問題）
   [R4] 磁碟空間監控 — 500MB 告警，100MB critical
   [+]  Thread 數量監控 — 每10輪檢查
@@ -16,7 +21,6 @@ v4 保留：
   [4] Empty results preserves prev_cache (stale=True)
 
 已知限制（接受）：
-  - params.py 修改需重啟掃描器（模組層級 import）
   - 用直接 HTTP 而非 AsterClient（同 light_scan 一致）
   - SCAN_LOG rotation 讀入記憶體（500行 ≈ 50KB，可接受）
 """
@@ -58,44 +62,67 @@ log = logging.getLogger("scanner")
 ASTER_FAPI = "https://fapi.asterdex.com/fapi/v1"
 BINANCE_FAPI = "https://fapi.binance.com/fapi/v1"
 
-# ── 模組層級 import params（啟動一次，修改需重啟）───
-try:
-    import params as _params
-    ASTER_SYMBOLS   = list(getattr(_params, "ASTER_SYMBOLS",
-                           ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]))
-    BINANCE_SYMBOLS = list(getattr(_params, "BINANCE_SYMBOLS", []))
-    SCAN_INTERVAL   = int(getattr(_params,  "SCAN_INTERVAL_SEC", 180))
-    SCAN_TIMEOUT    = int(getattr(_params,  "SCAN_TIMEOUT_SEC", 30))
-    SCAN_WORKERS    = int(getattr(_params,  "SCAN_MAX_WORKERS", 8))
-    LOG_MAX_LINES   = int(getattr(_params,  "SCAN_LOG_MAX_LINES", 500))
-    LOG_MAX_BYTES   = int(getattr(_params,  "SCAN_LOG_MAX_BYTES", 10_485_760))
-    LOG_BACKUPS     = int(getattr(_params,  "SCAN_LOG_BACKUPS", 5))
-    _FALLBACK_TRIGGER = float(getattr(_params, "TRIGGER_PCT", 0.05))
-    _PROFILES         = getattr(_params, "TRADING_PROFILES", {})
-    _ACTIVE           = getattr(_params, "ACTIVE_PROFILE", None)
-except ImportError as e:
-    log.warning(f"params.py 載入失敗，使用預設值: {e}")
-    ASTER_SYMBOLS   = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
-    BINANCE_SYMBOLS = []
-    SCAN_INTERVAL   = 180
-    SCAN_TIMEOUT    = 30
-    SCAN_WORKERS    = 8
-    LOG_MAX_LINES   = 500
-    LOG_MAX_BYTES   = 10_485_760
-    LOG_BACKUPS     = 5
-    _FALLBACK_TRIGGER = 0.05
-    _PROFILES         = {}
-    _ACTIVE           = None
+# ── Params（hot-reload 每 10 輪）──────────────────
+PARAMS_PATH = str(BASE_DIR / "config" / "params.py")
+
+# Defaults (used if params.py missing)
+ASTER_SYMBOLS   = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
+BINANCE_SYMBOLS = []
+SCAN_INTERVAL   = 180
+SCAN_TIMEOUT    = 30
+SCAN_WORKERS    = 8
+LOG_MAX_LINES   = 500
+LOG_MAX_BYTES   = 10_485_760
+LOG_BACKUPS     = 5
+_FALLBACK_TRIGGER = 0.05
+_PROFILES         = {}
+_ACTIVE           = None
+
+
+def reload_params():
+    """Hot-reload params.py via importlib（同 dashboard 同一模式）。
+    更新所有 module globals，包括梅花間竹用嘅 symbol sets。"""
+    global ASTER_SYMBOLS, BINANCE_SYMBOLS, SCAN_INTERVAL, SCAN_TIMEOUT
+    global SCAN_WORKERS, LOG_MAX_LINES, LOG_MAX_BYTES, LOG_BACKUPS
+    global _FALLBACK_TRIGGER, _PROFILES, _ACTIVE
+    global _aster_set, _binance_set, _ALL_SYMBOLS
+
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("params_scanner", PARAMS_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        ASTER_SYMBOLS     = list(getattr(mod, "ASTER_SYMBOLS",
+                                  ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]))
+        BINANCE_SYMBOLS   = list(getattr(mod, "BINANCE_SYMBOLS", []))
+        SCAN_INTERVAL     = int(getattr(mod,  "SCAN_INTERVAL_SEC", 180))
+        SCAN_TIMEOUT      = int(getattr(mod,  "SCAN_TIMEOUT_SEC", 30))
+        SCAN_WORKERS      = int(getattr(mod,  "SCAN_MAX_WORKERS", 8))
+        LOG_MAX_LINES     = int(getattr(mod,  "SCAN_LOG_MAX_LINES", 500))
+        LOG_MAX_BYTES     = int(getattr(mod,  "SCAN_LOG_MAX_BYTES", 10_485_760))
+        LOG_BACKUPS       = int(getattr(mod,  "SCAN_LOG_BACKUPS", 5))
+        _FALLBACK_TRIGGER = float(getattr(mod, "TRIGGER_PCT", 0.05))
+        _PROFILES         = getattr(mod, "TRADING_PROFILES", {})
+        _ACTIVE           = getattr(mod, "ACTIVE_PROFILE", None)
+
+        # Rebuild alternation sets
+        _aster_set   = set(ASTER_SYMBOLS)
+        _binance_set = set(BINANCE_SYMBOLS)
+        _ALL_SYMBOLS = list(dict.fromkeys(ASTER_SYMBOLS + BINANCE_SYMBOLS))
+
+        return True
+    except Exception as e:
+        log.warning(f"params.py hot-reload 失敗，保留現有值: {e}")
+        return False
+
+
+# Initial load
+reload_params()
 
 
 def get_trigger_pct() -> float:
-    """
-    動態讀取當前 profile 的觸發門檻。
-    優先讀 ACTIVE_PROFILE → trigger_pct，fallback 到 TRIGGER_PCT。
-
-    R6 修復：之前 scanner 讀硬編碼 TRIGGER_PCT=0.05（5%），
-    完全唔讀 TRADING_PROFILES，導致市場 -4% 時永遠唔觸發。
-    """
+    """讀當前 profile 觸發門檻。由 reload_params() 更新。"""
     profile = _PROFILES.get(_ACTIVE, {})
     return profile.get("trigger_pct", _FALLBACK_TRIGGER)
 
@@ -260,16 +287,31 @@ def evaluate_signal(data: dict) -> dict:
 # 並行掃描引擎
 # ════════════════════════════════════════════════════
 
-async def scan_all_symbols() -> list[dict]:
-    """並行掃描。雙重保護：內層 try/except + 外層 return_exceptions。"""
+async def scan_all_symbols(round_count: int = 0) -> list[dict]:
+    """
+    並行掃描 — 梅花間竹策略。
+    共享幣種（兩邊都有）：單數輪用 Aster，雙數輪用 Binance。
+    獨佔幣種（只有一邊）：每輪都掃。
+    效果：每個 exchange 只承受約一半 request rate，防 429。
+    """
     global _semaphore
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(SCAN_WORKERS)
 
-    tasks = (
-        [fetch_aster_symbol(s)   for s in ASTER_SYMBOLS] +
-        [fetch_binance_symbol(s) for s in BINANCE_SYMBOLS]
-    )
+    use_aster = (round_count % 2 == 1)  # 單數=Aster, 雙數=Binance
+
+    tasks = []
+    for sym in _ALL_SYMBOLS:
+        on_both = sym in _aster_set and sym in _binance_set
+        if on_both:
+            if use_aster:
+                tasks.append(fetch_aster_symbol(sym))
+            else:
+                tasks.append(fetch_binance_symbol(sym))
+        elif sym in _aster_set:
+            tasks.append(fetch_aster_symbol(sym))
+        else:
+            tasks.append(fetch_binance_symbol(sym))
 
     if not tasks:
         log.warning("無掃描任務，請檢查 params.py ASTER_SYMBOLS")
@@ -425,12 +467,14 @@ def check_disk_space() -> bool:
 
 async def scanner_loop():
     """持續掃描循環。頂層 try/except → log → sleep(30) → 重試。"""
-    total = len(ASTER_SYMBOLS) + len(BINANCE_SYMBOLS)
+    total = len(_ALL_SYMBOLS)
 
-    log.info("🔍 並行掃描器 v5 啟動（根源修復版）")
+    log.info("並行掃描器 v6 啟動（梅花間竹 + hot-reload）")
     log.info(f"   幣種：{total}個 | 間隔：{SCAN_INTERVAL}s | 並發：{SCAN_WORKERS}")
     log.info(f"   Aster:   {ASTER_SYMBOLS}")
     log.info(f"   Binance: {BINANCE_SYMBOLS or ['(未整合)']}")
+    log.info(f"   共享：{sorted(_aster_set & _binance_set) or '(無)'} — 單雙輪交替")
+    log.info(f"   Hot-reload: 每 10 輪自動重讀 params.py")
     log.info(f"   Executor: ThreadPool(max={SCAN_WORKERS})")
 
     write_heartbeat("starting")
@@ -450,24 +494,28 @@ async def scanner_loop():
                 pass
 
         try:
-            # 每10輪做維護
+            # 每10輪做維護 + hot-reload params
             if round_count % 10 == 0:
+                if reload_params():
+                    total = len(_ALL_SYMBOLS)
+                    log.info(f"params hot-reload: {len(ASTER_SYMBOLS)} Aster + {len(BINANCE_SYMBOLS)} Binance, 共享 {len(_aster_set & _binance_set)}")
                 check_disk_space()
                 active = threading.active_count()
-                log.info(f"🧵 R{round_count} 線程數：{active}")
+                log.info(f"R{round_count} threads:{active}")
                 if active > SCAN_WORKERS * 3:
-                    log.warning(f"⚠️ 線程數異常：{active}（警戒線：{SCAN_WORKERS * 3}）")
+                    log.warning(f"threads high: {active} (limit {SCAN_WORKERS * 3})")
                     write_heartbeat("thread_warning", f"threads={active}")
 
-            results    = await scan_all_symbols()
+            src = "Aster" if (round_count % 2 == 1) else "Binance"
+            results    = await scan_all_symbols(round_count)
             prev_cache = write_scan_results(results, prev_cache)
 
             elapsed   = time.monotonic() - t0
             ok_count  = len(results)
             triggered = sum(1 for r in results if r["signal"] != "NO_SIGNAL")
-            stale     = " ⚠️stale" if not results else ""
+            stale     = " stale" if not results else ""
 
-            status = f"{ok_count}/{total}成功 觸發:{triggered} 耗時:{elapsed:.1f}s R{round_count}{stale}"
+            status = f"{ok_count}/{len(_ALL_SYMBOLS)}成功 觸發:{triggered} 耗時:{elapsed:.1f}s R{round_count} [{src}]{stale}"
             log.info(f"✅ {status}")
             write_heartbeat("running", status)
 

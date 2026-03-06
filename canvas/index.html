@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpenClaw ICU</title>
+  <title>AXC ICU</title>
 
   <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
 
   <style>
     /* ═══════════════════════════════════════════════
-       OpenClaw ICU — Stripe-inspired Design System
+       AXC ICU — Stripe-inspired Design System
        Palette: slate + teal(pos) + rose(neg) + purple(accent)
        ═══════════════════════════════════════════════ */
 
@@ -366,15 +366,15 @@
 
     <!-- Brand -->
     <a href="/" class="brand-link">
-      <span class="brand-image" style="font-size:1.4rem;margin-left:8px">🦅</span>
-      <span class="brand-text ml-2">OpenClaw</span>
+      <span class="brand-image" style="margin-left:8px"><i class="fas fa-crosshairs" style="font-size:1.2rem;color:var(--accent)"></i></span>
+      <span class="brand-text ml-2">AXC</span>
     </a>
 
     <div class="sidebar">
       <!-- 系統狀態（小資訊）-->
       <div class="user-panel mt-3 pb-3 mb-3 d-flex align-items-center"
            style="border-bottom:1px solid #1e293b">
-        <div class="image" style="font-size:1.6rem">🤖</div>
+        <div class="image" style="font-size:1.4rem"><i class="fas fa-terminal" style="color:var(--accent)"></i></div>
         <div class="info ml-2">
           <span class="d-block" style="color:#f1f5f9;font-size:.85rem;font-weight:600"
                 id="sb-profile">BALANCED</span>
@@ -475,7 +475,7 @@
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="/">OpenClaw</a></li>
+              <li class="breadcrumb-item"><a href="/">AXC</a></li>
               <li class="breadcrumb-item active">ICU</li>
             </ol>
           </div>
@@ -807,7 +807,7 @@
 
   <!-- Footer -->
   <footer class="main-footer">
-    <strong>🦅 OpenClaw ICU</strong>
+    <strong><i class="fas fa-crosshairs mr-1" style="color:var(--accent)"></i> AXC ICU</strong>
     <span class="ml-2 text-muted" style="font-size:.75rem">
       今日 <span id="footer-api-calls">–</span> 次 API
     </span>
@@ -1295,10 +1295,10 @@ document.addEventListener('keydown', function(e) {
     if (refreshTimer) {
       clearInterval(refreshTimer);
       refreshTimer = null;
-      document.title = 'OpenClaw ICU [暫停]';
+      document.title = 'AXC ICU [暫停]';
     } else {
       refreshTimer = setInterval(fetchData, REFRESH_MS);
-      document.title = 'OpenClaw ICU';
+      document.title = 'AXC ICU';
     }
   }
 });
