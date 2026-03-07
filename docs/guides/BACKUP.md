@@ -39,7 +39,7 @@ crontab -l
 
 | 內容 | 備份方式 | 位置 |
 |------|----------|------|
-| 代碼 + 文件 | GitHub | github.com/Will-852/openclaw |
+| 代碼 + 文件 | GitHub | github.com/Will-852/AXC-TradingBot |
 | 本地 zip | 本地保留10個 | ~/.openclaw/backups/ |
 | .env secrets | 手動 | iCloud |
 | 記憶 jsonl | GitHub | memory/store/ |

@@ -55,7 +55,7 @@ launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
 
 完整恢復約 15 分鐘，7 個步驟：
 
-1. Clone repo：`git clone https://github.com/Will-852/openclaw.git ~/.openclaw`
+1. Clone repo：`git clone https://github.com/Will-852/AXC-TradingBot.git ~/.openclaw`
 2. 還原 .env：從 iCloud 或備份 zip 複製 `secrets/.env`
 3. 安裝依賴：`pip3 install numpy requests`
 4. 重建 RAG：`python3 scripts/memory_init.py`

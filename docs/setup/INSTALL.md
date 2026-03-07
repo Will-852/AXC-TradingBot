@@ -10,7 +10,7 @@
 ### 1. Clone
 
 ```bash
-git clone https://github.com/Will-852/openclaw ~/.openclaw
+git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
 cd ~/.openclaw
 pip3 install -r requirements.txt --break-system-packages
 ```

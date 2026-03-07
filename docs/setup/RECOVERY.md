@@ -8,7 +8,7 @@
 ### 1. Clone 代碼（2分鐘）
 
 ```bash
-git clone https://github.com/Will-852/openclaw ~/.openclaw
+git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
 pip3 install -r ~/.openclaw/requirements.txt --break-system-packages
 ```
 

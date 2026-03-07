@@ -87,7 +87,7 @@ all in ETH             →  全倉做多 ETHUSDT
 
 ```bash
 # 方法 A：Clone（推薦，方便更新）
-git clone https://github.com/Will-852/openclaw.git
+git clone https://github.com/Will-852/AXC-TradingBot.git
 cd openclaw
 
 # 方法 B：Download ZIP

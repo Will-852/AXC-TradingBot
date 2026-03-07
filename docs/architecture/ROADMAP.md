@@ -24,7 +24,7 @@
 - TRADE_STATE.md 自動同步
 
 ### 基礎設施
-- GitHub 備份（github.com/Will-852/openclaw）
+- GitHub 備份（github.com/Will-852/AXC-TradingBot）
 - 自動 crontab 每日 3:00 備份
 - 完整 docs/ 文件夾
 - .gitignore 排除 secrets/logs/cache

@@ -24,7 +24,7 @@ audience: human,github
 **方法 A：GitHub 直接下載（推薦）**
 
 1. 打開瀏覽器，去：
-   👉 **https://github.com/Will-852/openclaw/releases/latest**
+   👉 **https://github.com/Will-852/AXC-TradingBot/releases/latest**
 2. 揀 `openclaw-setup-vX.X.X.zip`，點擊下載
 3. 下載完成後，打開 Mac 嘅 **Terminal**
    （按 Command+空格，輸入「Terminal」，按 Enter）
