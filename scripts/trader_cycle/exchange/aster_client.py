@@ -82,7 +82,7 @@ class AsterClient:
         self.secret_key = os.getenv("ASTER_API_SECRET", "")
 
         if not self.api_key or not self.secret_key:
-            secrets_path = Path.home() / ".openclaw/secrets/.env"
+            secrets_path = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw"))) / "secrets" / ".env"
             if secrets_path.exists():
                 load_dotenv(secrets_path)
                 self.api_key = os.getenv("ASTER_API_KEY", "")

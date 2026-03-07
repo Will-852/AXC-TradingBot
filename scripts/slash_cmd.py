@@ -22,8 +22,8 @@ SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONF
 TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
-TG_CHAT_ID = "2060972655"
+TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 ASTER_FAPI = "https://fapi.asterdex.com"
 SIGNAL_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/.openclaw")), "shared", "SIGNAL.md")
@@ -395,11 +395,15 @@ def cmd_health():
     lines = [f"\U0001f4ca HEALTH CHECK \u00b7 {now_hkt()} UTC+8", ""]
 
     # Gateway
-    try:
-        os.popen("openclaw gateway status 2>&1").read()
-        lines.append("Gateway    \U0001f7e2 OK")
-    except Exception:
-        lines.append("Gateway    \U0001f534 DOWN")
+    import shutil
+    if shutil.which("openclaw"):
+        try:
+            r = os.popen("openclaw gateway status 2>&1").read().strip()
+            lines.append("Gateway    \U0001f7e2 OK" if r else "Gateway    \U0001f534 DOWN")
+        except Exception:
+            lines.append("Gateway    \U0001f534 DOWN")
+    else:
+        lines.append("Gateway    \u26aa N/A (standalone)")
 
     # Telegram
     try:

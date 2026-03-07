@@ -862,10 +862,12 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     old_mode = _get_current_mode()
 
-    _apply_mode(mode)
-    await update.message.reply_text(f"✅ 已切換至 <b>{mode}</b>", parse_mode="HTML")
-    write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
-    write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
+    if _apply_mode(mode):
+        await update.message.reply_text(f"✅ 已切換至 <b>{mode}</b>", parse_mode="HTML")
+        write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
+        write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
+    else:
+        await update.message.reply_text("⚠️ 無法切換模式（需要 OpenClaw 環境）", parse_mode="HTML")
 
 
 def _get_current_mode() -> str:
@@ -882,10 +884,11 @@ def _get_current_mode() -> str:
         return "未知"
 
 
-def _apply_mode(mode: str):
-    """Switch ACTIVE_PROFILE. Tries API, falls back to file write."""
+def _apply_mode(mode: str) -> bool:
+    """Switch ACTIVE_PROFILE. Returns True if actually applied."""
     try:
         _oc_client.set_mode(mode)
+        return True
     except Exception:
         log.debug("API unavailable for set_mode, falling back to file write")
         params_path = BASE_DIR / "config/params.py"
@@ -897,6 +900,8 @@ def _apply_mode(mode: str):
                 text,
             )
             params_path.write_text(new_text)
+            return True
+    return False
 
 
 # ── Enhanced /sl with breakeven support ──
@@ -969,23 +974,28 @@ async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    _set_trading_enabled(False)
-    await update.message.reply_text("⏸ <b>交易已暫停</b>", parse_mode="HTML")
-    write_conversation("暫停交易", "已暫停")
+    if _set_trading_enabled(False):
+        await update.message.reply_text("⏸ <b>交易已暫停</b>", parse_mode="HTML")
+        write_conversation("暫停交易", "已暫停")
+    else:
+        await update.message.reply_text("⚠️ 無法暫停（需要 OpenClaw 環境）", parse_mode="HTML")
 
 
 async def cmd_resume_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    _set_trading_enabled(True)
-    await update.message.reply_text("▶️ <b>交易已恢復</b>", parse_mode="HTML")
-    write_conversation("恢復交易", "已恢復")
+    if _set_trading_enabled(True):
+        await update.message.reply_text("▶️ <b>交易已恢復</b>", parse_mode="HTML")
+        write_conversation("恢復交易", "已恢復")
+    else:
+        await update.message.reply_text("⚠️ 無法恢復（需要 OpenClaw 環境）", parse_mode="HTML")
 
 
-def _set_trading_enabled(enabled: bool):
-    """Toggle TRADING_ENABLED. Tries API, falls back to file write."""
+def _set_trading_enabled(enabled: bool) -> bool:
+    """Toggle TRADING_ENABLED. Returns True if actually applied."""
     try:
         _oc_client.set_trading(enabled)
+        return True
     except Exception:
         log.debug("API unavailable for set_trading, falling back to file write")
         params_path = BASE_DIR / "config/params.py"
@@ -996,6 +1006,8 @@ def _set_trading_enabled(enabled: bool):
             if 'TRADING_ENABLED' not in text:
                 new_text += f'\nTRADING_ENABLED = {enabled}\n'
             params_path.write_text(new_text)
+            return True
+    return False
 
 
 # ════════════════════════════════════════════════════
@@ -1187,14 +1199,16 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         mode = data.replace("mode_", "")
         if mode in VALID_MODES:
             old_mode = _get_current_mode()
-            _apply_mode(mode)
-            mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
-            await query.edit_message_text(
-                f"✅ 已切換至 <b>{mode_labels.get(mode, mode)}</b>",
-                parse_mode="HTML",
-            )
-            write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
-            write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
+            if _apply_mode(mode):
+                mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
+                await query.edit_message_text(
+                    f"✅ 已切換至 <b>{mode_labels.get(mode, mode)}</b>",
+                    parse_mode="HTML",
+                )
+                write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
+                write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
+            else:
+                await query.edit_message_text("⚠️ 無法切換模式（需要 OpenClaw 環境）", parse_mode="HTML")
         return
 
     # ── Order buttons ──

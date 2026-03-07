@@ -48,6 +48,10 @@ if [ -f "${OPENCLAW_DIR}/docs/architecture/AXC.md" ]; then
     cp "${OPENCLAW_DIR}/docs/architecture/AXC.md" "${STAGE_DIR}/AXC.md"
 fi
 
+if [ -f "${OPENCLAW_DIR}/QUICKSTART.md" ]; then
+    cp "${OPENCLAW_DIR}/QUICKSTART.md" "${STAGE_DIR}/QUICKSTART.md"
+fi
+
 # ── Create empty directories ──
 mkdir -p "${STAGE_DIR}/shared"
 mkdir -p "${STAGE_DIR}/memory/store"
