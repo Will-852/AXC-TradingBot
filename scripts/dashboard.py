@@ -19,6 +19,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import zipfile
+import math
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -1084,6 +1085,9 @@ def _enrich_trades(trades, prices, trade_state):
 
 
 def collect_data():
+    if _is_demo_mode():
+        return _get_demo_data()
+
     ts = datetime.now(HKT).strftime("%Y-%m-%d %H:%M:%S UTC+8")
 
     # All dynamic sources
@@ -1188,6 +1192,7 @@ def collect_data():
         "fee_breakdown": fee_breakdown,
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
         "activity_log": get_activity_log(50),
+        "demo_mode": False,
     }
 
 
@@ -1460,6 +1465,136 @@ def _get_binance_credentials():
                 elif line.startswith("BINANCE_API_SECRET="):
                     api_secret = line.split("=", 1)[1].strip()
     return api_key, api_secret
+
+
+def _is_demo_mode() -> bool:
+    """True when no exchange credentials configured — triggers demo data."""
+    ak, asec = _get_aster_credentials()
+    if ak and asec:
+        return False
+    bk, bsec = _get_binance_credentials()
+    if bk and bsec:
+        return False
+    return True
+
+
+# ── Demo data (shown when no exchange credentials configured) ──
+DEMO_DATA = {
+    "balance": 1083.42,
+    "today_pnl": 12.56,
+    "total_pnl": 83.42,
+    "mode": "RANGE",
+    "signal_active": "YES",
+    "signal_pair": "BTCUSDT",
+    "position": "BTCUSDT LONG 0.001 BTC @ $67,234",
+    "direction": "LONG",
+    "in_position": True,
+    "live_positions": [{
+        "symbol": "BTCUSDT", "side": "LONG", "size": "0.001",
+        "entry_price": 67234.0, "mark_price": 67890.0,
+        "pnl": 0.656, "pnl_pct": 0.98, "leverage": 5,
+    }],
+    "consecutive_losses": 0,
+    "agents": [
+        {"name": "scanner", "status": "running", "last_seen": ""},
+        {"name": "analyst", "status": "idle", "last_seen": ""},
+        {"name": "risk_mgr", "status": "idle", "last_seen": ""},
+        {"name": "executor", "status": "idle", "last_seen": ""},
+    ],
+    "params": {
+        "RISK_PER_TRADE_PCT": 1.5, "MAX_OPEN_POSITIONS": 3,
+        "ACTIVE_PROFILE": "BALANCED",
+    },
+    "params_display": [
+        {"key": "RISK_PER_TRADE_PCT", "label": "風險/單", "value": "1.5", "unit": "%"},
+        {"key": "MAX_OPEN_POSITIONS", "label": "最大倉位", "value": "3", "unit": ""},
+        {"key": "_SL_ATR_MULT", "label": "止損", "value": "1.5", "unit": "×ATR"},
+        {"key": "_TP_ATR_MULT", "label": "止盈", "value": "3.0", "unit": "×ATR"},
+        {"key": "_TRIGGER_PCT", "label": "觸發門檻", "value": "2.0", "unit": "%"},
+    ],
+    "scan_log": [
+        "[2026-03-08 10:30:00] LIGHT scan #42 — 6 pairs, 0 triggers",
+        "[2026-03-08 10:25:00] LIGHT scan #41 — 6 pairs, 0 triggers",
+        "[2026-03-08 10:15:00] DEEP scan #8 — TRIGGER:BTCUSDT score=78",
+        "[2026-03-08 10:00:00] LIGHT scan #40 — 6 pairs, 1 triggers",
+        "[2026-03-08 09:45:00] LIGHT scan #39 — 6 pairs, 0 triggers",
+    ],
+    "file_tree": [],
+    "prices": {"BTCUSDT": 67890.0, "ETHUSDT": 3456.78, "SOLUSDT": 142.35},
+    "action_plan": "Monitoring BTCUSDT position — TP target $68,500",
+    "trigger": "OFF",
+    "scan_count": "42",
+    "last_scan": "",
+    "agent_activity": [],
+    "uptime": "2d 14h 32m",
+    "git": {"branch": "main", "commit": "demo"},
+    "telegram": {"status": "demo", "label": "Demo"},
+    "trigger_summary": [],
+    "pnl_history": [],
+    "trade_history": [
+        {"pair": "ETHUSDT", "side": "LONG", "entry": 3380.0, "exit": 3456.0,
+         "pnl": 22.4, "pnl_pct": 2.25, "ts_open": "2026-03-07 14:20",
+         "ts_close": "2026-03-07 22:15", "status": "closed"},
+        {"pair": "SOLUSDT", "side": "SHORT", "entry": 148.5, "exit": 142.3,
+         "pnl": 18.6, "pnl_pct": 4.17, "ts_open": "2026-03-06 09:00",
+         "ts_close": "2026-03-06 16:30", "status": "closed"},
+        {"pair": "BTCUSDT", "side": "LONG", "entry": 66800.0, "exit": 66500.0,
+         "pnl": -9.0, "pnl_pct": -0.45, "ts_open": "2026-03-05 11:00",
+         "ts_close": "2026-03-05 14:00", "status": "closed"},
+    ],
+    "exchange_trades": [],
+    "risk_status": {"drawdown_pct": 1.2, "daily_loss_pct": 0.0, "status": "normal"},
+    "unrealized_pnl": 0.656,
+    "unrealized_pct": 0.98,
+    "fee_breakdown": {"total_fees": 2.14, "maker": 0.85, "taker": 1.29},
+    "active_profile": "BALANCED",
+    "activity_log": [
+        {"ts": "", "msg": "BTCUSDT LONG opened @ $67,234", "type": "trade"},
+        {"ts": "", "msg": "DEEP scan triggered BTCUSDT (score 78)", "type": "scan"},
+        {"ts": "", "msg": "ETHUSDT LONG closed +$22.40 (+2.25%)", "type": "trade"},
+        {"ts": "", "msg": "Risk check passed — drawdown 1.2%", "type": "risk"},
+    ],
+}
+
+
+def _get_demo_data() -> dict:
+    """Return demo data with dynamic timestamps and sine-wave PnL history."""
+    now = datetime.now(HKT)
+    ts = now.strftime("%Y-%m-%d %H:%M:%S UTC+8")
+    data = {k: v for k, v in DEMO_DATA.items()}  # shallow copy
+    data["timestamp"] = ts
+    data["last_scan"] = (now - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
+    data["demo_mode"] = True
+
+    # Dynamic sine-wave PnL history (24 data points over 7 days)
+    pnl_history = []
+    base = 1000.0
+    for i in range(24):
+        t = now - timedelta(hours=(24 - i) * 7)
+        val = base + 40 * math.sin(i * 0.5) + i * 3.5
+        pnl_history.append({
+            "ts": t.strftime("%Y-%m-%d %H:%M"),
+            "balance": round(val, 2),
+        })
+    data["pnl_history"] = pnl_history
+
+    # Fill dynamic timestamps in activity_log
+    activity = []
+    for j, entry in enumerate(DEMO_DATA["activity_log"]):
+        e = dict(entry)
+        e["ts"] = (now - timedelta(minutes=30 * (j + 1))).strftime("%Y-%m-%d %H:%M")
+        activity.append(e)
+    data["activity_log"] = activity
+
+    # Fill agent last_seen
+    agents = []
+    for a in DEMO_DATA["agents"]:
+        a2 = dict(a)
+        a2["last_seen"] = (now - timedelta(minutes=2)).strftime("%H:%M:%S")
+        agents.append(a2)
+    data["agents"] = agents
+
+    return data
 
 
 def _save_binance_credentials(api_key, api_secret):
