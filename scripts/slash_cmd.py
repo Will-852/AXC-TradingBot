@@ -26,7 +26,7 @@ TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
 TG_CHAT_ID = "2060972655"
 
 ASTER_FAPI = "https://fapi.asterdex.com"
-SIGNAL_PATH = os.path.join(os.path.expanduser("~/.openclaw/shared"), "SIGNAL.md")
+SIGNAL_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/.openclaw")), "shared", "SIGNAL.md")
 
 
 def now_hkt():

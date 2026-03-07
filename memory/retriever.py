@@ -10,12 +10,13 @@ Unlike "last N messages", this retrieves by RELEVANCE:
   not just the 5 most recent messages.
 """
 import json
+import os
 import numpy as np
 from pathlib import Path
 
 from .embedder import embed
 
-BASE_DIR  = Path.home() / ".openclaw"
+BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
 INDEX_DIR = BASE_DIR / "memory" / "index"
 STORE_DIR = BASE_DIR / "memory" / "store"
 

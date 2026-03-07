@@ -24,7 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 # ── Load .env ────────────────────────────────────
-ENV_PATH = Path.home() / ".openclaw/secrets/.env"
+ENV_PATH = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw"))) / "secrets" / ".env"
 if ENV_PATH.exists():
     for line in ENV_PATH.read_text().splitlines():
         line = line.strip()
@@ -33,7 +33,7 @@ if ENV_PATH.exists():
             os.environ.setdefault(k.strip(), v.strip())
 
 # ── Paths ─────────────────────────────────────────
-BASE_DIR    = Path.home() / ".openclaw"
+BASE_DIR    = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
 SCRIPTS_DIR = BASE_DIR / "scripts"
 
 sys.path.insert(0, str(BASE_DIR))

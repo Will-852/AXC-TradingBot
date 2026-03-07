@@ -322,3 +322,146 @@ Phase 4 待解耦（3 個 import）：
 - slash_cmd.py — 交易所查詢
 - AsterClient — 交易執行
 - call_claude() — 已獨立（urllib + env）
+
+---
+
+## ZIP 打包狀態（獨立部署 checklist）
+
+### AXC 同 OpenClaw 嘅關係
+```
+AXC 唔係獨立系統。佢係 OpenClaw 嘅 Telegram 前端。
+
+OpenClaw 提供：scanner、signals、trading profiles、health monitoring
+AXC 提供：Telegram UI、手動落單、AI 分析、交易所直連
+
+冇 OpenClaw → /health /mode /scan 冇數據，自動交易失效
+有 OpenClaw → 全功能（掃描 → 信號 → 確認 → 執行 → 報告）
+```
+
+### 目標 ZIP 結構
+```
+axc/
+├── tg_bot.py              ← 主程式
+├── axc_client.py          ← OpenClaw API client ✅ 已就緒
+├── slash_cmd.py           ← 交易所查詢
+├── write_activity.py      ← 活動日誌
+├── exchange/
+│   ├── __init__.py
+│   ├── aster_client.py    ← 交易執行
+│   └── exceptions.py      ← 錯誤類型
+├── memory/
+│   ├── __init__.py
+│   ├── writer.py          ← RAG 寫入
+│   ├── retriever.py       ← RAG 搜索
+│   └── embedder.py        ← voyage-3 / hash
+├── .env.example           ← env 模板
+├── requirements.txt       ← pip 依賴
+└── AXC.md                 ← 本文檔
+```
+
+### 缺口清單
+
+#### 1. 硬編碼路徑（5 處）
+所有文件都 hardcode `~/.openclaw/`，獨立部署需要改為可配置。
+
+| 文件 | 位置 | 現狀 | 需改為 |
+|------|------|------|--------|
+| tg_bot.py | L27 | `Path.home() / ".openclaw/secrets/.env"` | 環境變數 `AXC_ENV_PATH` 或相對路徑 |
+| tg_bot.py | L36 | `BASE_DIR = Path.home() / ".openclaw"` | 環境變數 `OPENCLAW_HOME` |
+| tg_bot.py | L39-40 | `sys.path.insert(0, str(BASE_DIR))` | 改用 package import |
+| write_activity.py | L12 | `~/.openclaw/shared/activity_log.jsonl` | 環境變數或參數 |
+| memory/embedder.py | L28 | `Path.home() / ".openclaw/memory/index"` | 環境變數或參數 |
+
+#### 2. Import 路徑（2 處要改）
+tg_bot 同 slash_cmd 用 `from trader_cycle.exchange.aster_client` import，但 zip 入面 AsterClient 唔喺 trader_cycle/ 下。
+
+| 文件 | 現狀 | 需改為 |
+|------|------|--------|
+| slash_cmd.py | `from trader_cycle.exchange.aster_client import AsterClient`（4 處） | `from exchange.aster_client import AsterClient` |
+| tg_bot.py | `from trader_cycle.exchange.aster_client import AsterClient`（1 處，lazy） | `from exchange.aster_client import AsterClient` |
+
+#### 3. 缺 requirements.txt
+```
+python-telegram-bot>=21.0
+numpy>=1.24
+voyageai>=0.3          # optional，冇嘅話用 hash fallback
+python-dotenv>=1.0     # AsterClient 用
+```
+
+#### 4. 缺 .env.example
+```
+# === 必填 ===
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+ASTER_API_KEY=
+ASTER_API_SECRET=
+
+# === AI（冇就冇 /ask 同自然語言落單）===
+PROXY_API_KEY=
+PROXY_BASE_URL=https://tao.plus7.plus/v1
+
+# === RAG 記憶（optional）===
+VOYAGE_API_KEY=
+
+# === OpenClaw 連接 ===
+OPENCLAW_API_URL=http://127.0.0.1:5555
+```
+
+#### 5. slash_cmd.py 嘅 os.popen 調用（2 處）
+```python
+# L289: 直接 call trader_cycle CLI
+r = os.popen("python3 -m trader_cycle.main --live --verbose 2>&1 | tail -5").read()
+# L295:
+r = os.popen("python3 -m trader_cycle.main --dry-run --verbose ...").read()
+```
+呢兩個 function 只喺 `/scan` 用。獨立部署要改為 API call 或者禁用。
+
+#### 6. memory/ 直接寫本地文件
+writer.py 同 retriever.py 直接讀寫 `~/.openclaw/memory/` 下嘅 jsonl + npy 文件。
+獨立部署有兩個選擇：
+- A）memory/ 隨 AXC 部署（自帶記憶，同 OpenClaw 分開）
+- B）Phase 4 做 Memory API → 改用 `/api/memory/*`
+
+### 打包前要做嘅工作（按順序）
+
+```
+Step 1: 建立 exchange/ package
+  - 從 trader_cycle/exchange/ 複製 aster_client.py + exceptions.py
+  - 加 __init__.py
+  - 改 aster_client.py 入面嘅 relative import（.exceptions → exchange.exceptions）
+
+Step 2: 改 import 路徑
+  - tg_bot.py:  from trader_cycle.exchange... → from exchange...
+  - slash_cmd.py: 同上（4 處）
+
+Step 3: 路徑可配置
+  - BASE_DIR 改讀 OPENCLAW_HOME 環境變數（fallback ~/.openclaw）
+  - ENV_PATH 改讀 AXC_ENV_PATH 環境變數
+
+Step 4: 建立 requirements.txt + .env.example
+
+Step 5: 禁用 slash_cmd 嘅 os.popen 調用
+  - /scan 改為 print("需要 OpenClaw 環境") 或 API call
+
+Step 6: Dry test
+  cd /tmp/axc_test
+  pip install -r requirements.txt
+  cp .env.example .env  # 填入真實 key
+  python3 tg_bot.py     # 應該能啟動
+```
+
+### 打包後功能可用性
+
+| 功能 | 冇 OpenClaw | 有 OpenClaw |
+|------|-------------|-------------|
+| /pos /bal /pnl /report | ✅ 直連交易所 | ✅ |
+| 自然語言落單 | ✅ Claude + AsterClient | ✅ |
+| /sl breakeven | ✅ 直連交易所 | ✅ |
+| /pause /resume | ❌ 冇 params.py | ✅ via API |
+| /mode | ❌ 冇 params.py | ✅ via API |
+| /health | ❌ 冇 agent 數據 | ✅ via API |
+| /scan | ❌ 冇 scanner | ✅ via API |
+| /ask（AI 分析） | ⚠️ 有 Claude 但冇系統狀態 | ✅ 完整 context |
+| 平倉自動報告 | ✅ 直連交易所偵測 | ✅ |
+| Scanner stall 告警 | ❌ 冇 scanner | ✅ via API |
+| RAG 記憶 | ⚠️ 本地記憶（如果 memory/ 隨帶） | ✅ |

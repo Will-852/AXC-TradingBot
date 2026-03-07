@@ -8,6 +8,7 @@ Writes conversations, trades, analyses, signals to:
   3. index/metadata.json  (metadata for each vector)
 """
 import json
+import os
 import time
 import numpy as np
 from pathlib import Path
@@ -15,7 +16,7 @@ from datetime import datetime, timezone
 
 from .embedder import embed
 
-BASE_DIR  = Path.home() / ".openclaw"
+BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
 STORE_DIR = BASE_DIR / "memory" / "store"
 INDEX_DIR = BASE_DIR / "memory" / "index"
 
