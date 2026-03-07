@@ -88,7 +88,7 @@ all in ETH             →  全倉做多 ETHUSDT
 ```bash
 # 方法 A：Clone（推薦，方便更新）
 git clone https://github.com/Will-852/AXC-TradingBot.git
-cd openclaw
+cd AXC-TradingBot
 
 # 方法 B：Download ZIP
 # 右上角綠色 Code 按鈕 → Download ZIP → 解壓
@@ -498,4 +498,6 @@ MIT
 
 <p align="center">
   Made with 🦞 by <a href="https://github.com/Will-852">@Will-852</a>
+  <br />
+  <sub>Architecture, code & docs co-developed with <a href="https://claude.ai">Claude</a> (Anthropic)</sub>
 </p>
