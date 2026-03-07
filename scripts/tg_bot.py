@@ -45,6 +45,9 @@ from write_activity import write_activity
 from memory.retriever import retrieve_full, format_for_prompt
 
 import slash_cmd
+from axc_client import OpenClawClient
+
+_oc_client = OpenClawClient()
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -267,7 +270,52 @@ def call_claude(user_msg: str, context: str, system: str = None,
 
 
 def read_local_context() -> str:
-    """Read current system state files for Claude context."""
+    """Read current system state. Tries API, falls back to file read."""
+    try:
+        return _read_context_via_api()
+    except Exception:
+        log.debug("API unavailable for context, falling back to file read")
+        return _read_context_from_files()
+
+
+def _read_context_via_api() -> str:
+    """Build Claude context string from OpenClaw API."""
+    parts = ["## 當前系統狀態"]
+    state = _oc_client.get_state()
+
+    # Trade state
+    ts = state.get("trade_state", {})
+    if ts:
+        ts_lines = [f"- {k}: {v}" for k, v in ts.items()]
+        parts.append(f"**交易狀態：**\n" + "\n".join(ts_lines))
+
+    # Signal
+    sig = state.get("signal", {})
+    if sig:
+        sig_lines = [f"- {k}: {v}" for k, v in sig.items()]
+        parts.append(f"**信號：**\n" + "\n".join(sig_lines))
+
+    # Scan log
+    scan_lines = _oc_client.get_scan_log()
+    if scan_lines:
+        parts.append(f"**最新掃描：**\n" + "\n".join(scan_lines[-5:]))
+
+    # Key params
+    param_lines = [
+        f'ACTIVE_PROFILE = "{state.get("active_profile", "CONSERVATIVE")}"',
+        f'TRADING_ENABLED = {state.get("trading_enabled", True)}',
+    ]
+    config = _oc_client.get_config()
+    for k in ("RISK_PER_TRADE_PCT", "MAX_OPEN_POSITIONS", "MAX_POSITION_SIZE_USDT"):
+        if k in config:
+            param_lines.append(f"{k} = {config[k]}")
+    parts.append(f"**參數：**\n" + "\n".join(param_lines))
+
+    return "\n\n".join(parts)
+
+
+def _read_context_from_files() -> str:
+    """Original file-based context read (fallback)."""
     parts = ["## 當前系統狀態"]
 
     files = {
@@ -700,50 +748,83 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception:
         base = "基礎健康檢查失敗"
 
-    # Agent activity timestamps (actual files updated by running processes)
-    agents = {
-        "🧠 主腦":    BASE_DIR / "agents/main/sessions/sessions.json",
-        "💓 心跳":    BASE_DIR / "logs/heartbeat.log",
-        "📡 信號":    BASE_DIR / "shared/SIGNAL.md",
-    }
     lines = [base, "", "── AGENT 活躍度 ──"]
-    for name, path in agents.items():
-        if path.exists():
-            mtime = datetime.fromtimestamp(path.stat().st_mtime)
-            mins  = int((datetime.now() - mtime).total_seconds() / 60)
-            icon  = "✅" if mins < 10 else ("⚠️" if mins < 30 else "❌")
-            lines.append(f"{icon} {name}：{mins}分鐘前")
-        else:
-            lines.append(f"❓ {name}：無記錄")
 
-    # Scanner heartbeat — detailed status
-    hb_path = BASE_DIR / "logs/scanner_heartbeat.txt"
-    if hb_path.exists():
-        hb = hb_path.read_text().strip()
-        parts = hb.split(" ", 2)
-        status = parts[1] if len(parts) > 1 else "unknown"
-        detail = parts[2] if len(parts) > 2 else ""
-        try:
-            ts = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
-            age_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
-            if age_min > (SCAN_INTERVAL * 2 / 60) if 'SCAN_INTERVAL' in dir() else age_min > 6:
-                s_icon, s_note = "⚠️", f"可能 hang ({age_min:.0f}分鐘無更新)"
-            elif status == "error":
-                s_icon, s_note = "❌", detail[:50]
+    try:
+        health = _oc_client.get_health()
+        # Agent timestamps from API
+        name_map = {"main": "🧠 主腦", "heartbeat": "💓 心跳", "signal": "📡 信號"}
+        for key, label in name_map.items():
+            ts_info = health.get("timestamps", {}).get(key, {})
+            if ts_info.get("status") == "missing":
+                lines.append(f"❓ {label}：無記錄")
             else:
-                s_icon, s_note = "✅", detail[:50]
-        except Exception:
-            s_icon, s_note = "❓", hb[:50]
-        lines.append(f"{s_icon} 👁 掃描器：{s_note}")
-    else:
-        lines.append(f"❓ 👁 掃描器：無心跳文件")
+                mins = ts_info.get("age_min", -1)
+                icon = "✅" if mins < 10 else ("⚠️" if mins < 30 else "❌")
+                lines.append(f"{icon} {label}：{mins}分鐘前")
 
-    # Memory count
-    import numpy as np
-    emb_path = BASE_DIR / "memory/index/embeddings.npy"
-    if emb_path.exists():
-        embs = np.load(str(emb_path))
-        lines.append(f"🧠 記憶庫：{embs.shape[0]} 條")
+        # Scanner from API
+        scanner = health.get("scanner", {})
+        s_status = scanner.get("status", "missing")
+        s_age = scanner.get("age_min", -1)
+        s_detail = scanner.get("detail", "")
+        if s_status == "missing":
+            lines.append("❓ 👁 掃描器：無心跳文件")
+        elif s_age > 6:
+            lines.append(f"⚠️ 👁 掃描器：可能 hang ({s_age}分鐘無更新)")
+        elif s_status == "error":
+            lines.append(f"❌ 👁 掃描器：{s_detail[:50]}")
+        else:
+            lines.append(f"✅ 👁 掃描器：{s_detail[:50]}")
+
+        # Memory count from API
+        mem_count = health.get("memory_count", 0)
+        if mem_count > 0:
+            lines.append(f"🧠 記憶庫：{mem_count} 條")
+
+    except Exception:
+        log.debug("API unavailable for health, falling back to file read")
+        # Fallback: direct file reads
+        agent_files = {
+            "🧠 主腦": BASE_DIR / "agents/main/sessions/sessions.json",
+            "💓 心跳": BASE_DIR / "logs/heartbeat.log",
+            "📡 信號": BASE_DIR / "shared/SIGNAL.md",
+        }
+        for name, path in agent_files.items():
+            if path.exists():
+                mtime = datetime.fromtimestamp(path.stat().st_mtime)
+                mins = int((datetime.now() - mtime).total_seconds() / 60)
+                icon = "✅" if mins < 10 else ("⚠️" if mins < 30 else "❌")
+                lines.append(f"{icon} {name}：{mins}分鐘前")
+            else:
+                lines.append(f"❓ {name}：無記錄")
+
+        hb_path = BASE_DIR / "logs/scanner_heartbeat.txt"
+        if hb_path.exists():
+            hb = hb_path.read_text().strip()
+            parts = hb.split(" ", 2)
+            status = parts[1] if len(parts) > 1 else "unknown"
+            detail = parts[2] if len(parts) > 2 else ""
+            try:
+                ts = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
+                age_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
+                if age_min > 6:
+                    s_icon, s_note = "⚠️", f"可能 hang ({age_min:.0f}分鐘無更新)"
+                elif status == "error":
+                    s_icon, s_note = "❌", detail[:50]
+                else:
+                    s_icon, s_note = "✅", detail[:50]
+            except Exception:
+                s_icon, s_note = "❓", hb[:50]
+            lines.append(f"{s_icon} 👁 掃描器：{s_note}")
+        else:
+            lines.append("❓ 👁 掃描器：無心跳文件")
+
+        import numpy as np
+        emb_path = BASE_DIR / "memory/index/embeddings.npy"
+        if emb_path.exists():
+            embs = np.load(str(emb_path))
+            lines.append(f"🧠 記憶庫：{embs.shape[0]} 條")
 
     await update.message.reply_text(
         f"<pre>{'chr(10)'.join(lines)}</pre>".replace("chr(10)", "\n"),
@@ -762,13 +843,7 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if not args:
         # Show current + selection buttons
-        params_path = BASE_DIR / "config/params.py"
-        current = "未知"
-        if params_path.exists():
-            m = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']',
-                          params_path.read_text())
-            if m:
-                current = m.group(1)
+        current = _get_current_mode()
 
         mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
         btns = [[InlineKeyboardButton(mode_labels.get(m, m), callback_data=f"mode_{m}")]
@@ -785,13 +860,7 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ 無效。可選：{' / '.join(VALID_MODES)}")
         return
 
-    # Read old profile before switching
-    old_mode = "未知"
-    pp = BASE_DIR / "config/params.py"
-    if pp.exists():
-        om = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']', pp.read_text())
-        if om:
-            old_mode = om.group(1)
+    old_mode = _get_current_mode()
 
     _apply_mode(mode)
     await update.message.reply_text(f"✅ 已切換至 <b>{mode}</b>", parse_mode="HTML")
@@ -799,16 +868,35 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
 
 
+def _get_current_mode() -> str:
+    """Get current ACTIVE_PROFILE. Tries API, falls back to file read."""
+    try:
+        config = _oc_client.get_config()
+        return config.get("ACTIVE_PROFILE", "未知")
+    except Exception:
+        pp = BASE_DIR / "config/params.py"
+        if pp.exists():
+            om = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']', pp.read_text())
+            if om:
+                return om.group(1)
+        return "未知"
+
+
 def _apply_mode(mode: str):
-    params_path = BASE_DIR / "config/params.py"
-    if params_path.exists():
-        text = params_path.read_text()
-        new_text = re.sub(
-            r'ACTIVE_PROFILE\s*=\s*["\'].*?["\']',
-            f'ACTIVE_PROFILE = "{mode}"',
-            text,
-        )
-        params_path.write_text(new_text)
+    """Switch ACTIVE_PROFILE. Tries API, falls back to file write."""
+    try:
+        _oc_client.set_mode(mode)
+    except Exception:
+        log.debug("API unavailable for set_mode, falling back to file write")
+        params_path = BASE_DIR / "config/params.py"
+        if params_path.exists():
+            text = params_path.read_text()
+            new_text = re.sub(
+                r'ACTIVE_PROFILE\s*=\s*["\'].*?["\']',
+                f'ACTIVE_PROFILE = "{mode}"',
+                text,
+            )
+            params_path.write_text(new_text)
 
 
 # ── Enhanced /sl with breakeven support ──
@@ -895,14 +983,19 @@ async def cmd_resume_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 def _set_trading_enabled(enabled: bool):
-    params_path = BASE_DIR / "config/params.py"
-    if params_path.exists():
-        text = params_path.read_text()
-        new_text = re.sub(r'TRADING_ENABLED\s*=\s*\w+',
-                          f'TRADING_ENABLED = {enabled}', text)
-        if 'TRADING_ENABLED' not in text:
-            new_text += f'\nTRADING_ENABLED = {enabled}\n'
-        params_path.write_text(new_text)
+    """Toggle TRADING_ENABLED. Tries API, falls back to file write."""
+    try:
+        _oc_client.set_trading(enabled)
+    except Exception:
+        log.debug("API unavailable for set_trading, falling back to file write")
+        params_path = BASE_DIR / "config/params.py"
+        if params_path.exists():
+            text = params_path.read_text()
+            new_text = re.sub(r'TRADING_ENABLED\s*=\s*\w+',
+                              f'TRADING_ENABLED = {enabled}', text)
+            if 'TRADING_ENABLED' not in text:
+                new_text += f'\nTRADING_ENABLED = {enabled}\n'
+            params_path.write_text(new_text)
 
 
 # ════════════════════════════════════════════════════
@@ -1093,13 +1186,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("mode_"):
         mode = data.replace("mode_", "")
         if mode in VALID_MODES:
-            # Read old profile before switching
-            old_mode = "未知"
-            pp = BASE_DIR / "config/params.py"
-            if pp.exists():
-                om = re.search(r'ACTIVE_PROFILE\s*=\s*["\'](\w+)["\']', pp.read_text())
-                if om:
-                    old_mode = om.group(1)
+            old_mode = _get_current_mode()
             _apply_mode(mode)
             mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
             await query.edit_message_text(
@@ -1248,12 +1335,20 @@ async def check_and_push_alerts(app):
             last_positions = current
 
             # Agent health: warn if SCANNER stalls > 10min
-            # (scanner runs every 3min; main agent is on-demand, not monitored)
-            scan_log = BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md"
-            if scan_log.exists():
-                mtime = datetime.fromtimestamp(scan_log.stat().st_mtime)
-                mins  = int((datetime.now() - mtime).total_seconds() / 60)
+            # Uses SCAN_LOG.md mtime (not scanner_heartbeat.txt) to match original semantics
+            try:
+                health = _oc_client.get_health()
+                mins = health.get("scan_log_age_min", -1)
+            except Exception:
+                # Fallback to direct file check
+                scan_log = BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md"
+                if scan_log.exists():
+                    mtime = datetime.fromtimestamp(scan_log.stat().st_mtime)
+                    mins = int((datetime.now() - mtime).total_seconds() / 60)
+                else:
+                    mins = -1
 
+            if mins >= 0:
                 if mins > 10 and not stall_warned:
                     await app.bot.send_message(
                         ALLOWED_CHAT_ID,

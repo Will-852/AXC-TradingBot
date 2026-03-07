@@ -1213,6 +1213,134 @@ def handle_set_mode(body):
         return 500, {"error": str(e)}
 
 
+def handle_api_state():
+    """GET /api/state — AXC state endpoint. Returns trade state + signal + key params."""
+    trade = get_trade_state()
+    signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
+    params = get_trading_params()
+    return {
+        "trade_state": trade,
+        "signal": {
+            "active": signal.get("SIGNAL_ACTIVE", "NO"),
+            "pair": signal.get("PAIR", "—"),
+            "direction": signal.get("DIRECTION", "—"),
+            "strategy": signal.get("STRATEGY", "—"),
+            "strength": signal.get("STRENGTH", "—"),
+            "score": signal.get("SCORE", "0"),
+            "entry_price": signal.get("ENTRY_PRICE", "0"),
+            "timestamp": signal.get("TIMESTAMP", "—"),
+            "reasons": signal.get("REASONS", "—"),
+            "trigger_count": signal.get("TRIGGER_COUNT", "0"),
+            "scan_status": signal.get("SCAN_STATUS", "—"),
+        },
+        "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
+        "trading_enabled": params.get("TRADING_ENABLED", True),
+    }
+
+
+def handle_api_config():
+    """GET /api/config — AXC config endpoint. Returns all trading params."""
+    return get_trading_params()
+
+
+def handle_set_trading(body):
+    """POST /api/config/trading — toggle TRADING_ENABLED in params.py."""
+    try:
+        data = json.loads(body)
+    except Exception:
+        return 400, {"error": "Invalid JSON"}
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return 400, {"error": "Field 'enabled' must be boolean"}
+    params_path = os.path.join(HOME, "config/params.py")
+    try:
+        with open(params_path) as f:
+            content = f.read()
+        if "TRADING_ENABLED" in content:
+            content = re.sub(
+                r'TRADING_ENABLED\s*=\s*\w+',
+                f'TRADING_ENABLED = {enabled}',
+                content,
+            )
+        else:
+            content += f'\nTRADING_ENABLED = {enabled}\n'
+        with open(params_path, "w") as f:
+            f.write(content)
+        return 200, {"ok": True, "enabled": enabled}
+    except Exception as e:
+        return 500, {"error": str(e)}
+
+
+def handle_api_scan_log():
+    """GET /api/scan-log — AXC scan log endpoint."""
+    return {"lines": get_scan_log(n=20)}
+
+
+def handle_api_health():
+    """GET /api/health — AXC health endpoint. Agent status + timestamps + heartbeat."""
+    agents = get_agent_info()
+
+    # File mtime checks (same as tg_bot cmd_health)
+    mtime_checks = {
+        "main": os.path.join(HOME, "agents/main/sessions/sessions.json"),
+        "heartbeat": os.path.join(HOME, "logs/heartbeat.log"),
+        "signal": os.path.join(HOME, "shared/SIGNAL.md"),
+    }
+    timestamps = {}
+    now = time.time()
+    for key, path in mtime_checks.items():
+        if os.path.exists(path):
+            mtime = os.path.getmtime(path)
+            age_min = int((now - mtime) / 60)
+            timestamps[key] = {"age_min": age_min, "status": "ok" if age_min < 10 else ("warn" if age_min < 30 else "stale")}
+        else:
+            timestamps[key] = {"age_min": -1, "status": "missing"}
+
+    # Scanner heartbeat
+    scanner = {"status": "missing", "detail": "", "age_min": -1}
+    hb_path = os.path.join(HOME, "logs/scanner_heartbeat.txt")
+    if os.path.exists(hb_path):
+        try:
+            with open(hb_path) as f:
+                hb = f.read().strip()
+            parts = hb.split(" ", 2)
+            ts = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
+            age_min = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+            scanner = {
+                "status": parts[1] if len(parts) > 1 else "unknown",
+                "detail": parts[2] if len(parts) > 2 else "",
+                "age_min": age_min,
+            }
+        except Exception:
+            scanner = {"status": "error", "detail": "parse failed", "age_min": -1}
+
+    # Memory count
+    memory_count = 0
+    emb_path = os.path.join(HOME, "memory/index/embeddings.npy")
+    if os.path.exists(emb_path):
+        try:
+            import numpy as np
+            embs = np.load(emb_path)
+            memory_count = embs.shape[0]
+        except Exception:
+            pass
+
+    # SCAN_LOG.md mtime (used by check_and_push_alerts for stall detection)
+    scan_log_age_min = -1
+    scan_log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
+    if os.path.exists(scan_log_path):
+        scan_log_age_min = int((time.time() - os.path.getmtime(scan_log_path)) / 60)
+
+    return {
+        "agents": agents,
+        "timestamps": timestamps,
+        "scanner": scanner,
+        "scan_log_age_min": scan_log_age_min,
+        "memory_count": memory_count,
+        "uptime": get_uptime(),
+    }
+
+
 def handle_suggest_mode():
     """GET /api/suggest_mode — suggest profile based on BTC 24h change."""
     # Read BTC change% from prices_cache.json (populated by scanner)
@@ -1557,6 +1685,14 @@ class Handler(BaseHTTPRequestHandler):
         qs = urllib.parse.parse_qs(parsed.query)
         if path == "/api/data":
             self._json_response(200, collect_data())
+        elif path == "/api/state":
+            self._json_response(200, handle_api_state())
+        elif path == "/api/config":
+            self._json_response(200, handle_api_config())
+        elif path == "/api/scan-log":
+            self._json_response(200, handle_api_scan_log())
+        elif path == "/api/health":
+            self._json_response(200, handle_api_health())
         elif path == "/api/debug":
             self._json_response(200, collect_debug())
         elif path == "/api/suggest_mode":
@@ -1605,8 +1741,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(content.encode() if isinstance(content, str) else content)
-        elif path == "/share":
-            share_path = os.path.join(HOME, "canvas", "share.html")
+        elif path in ("/share", "/share/windows"):
+            fname = "share-windows.html" if path == "/share/windows" else "share.html"
+            share_path = os.path.join(HOME, "canvas", fname)
             if os.path.exists(share_path):
                 with open(share_path, "rb") as f:
                     body = f.read()
@@ -1670,6 +1807,12 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode() if length > 0 else ""
         if self.path == "/api/set_mode":
             code, data = handle_set_mode(body)
+            self._json_response(code, data)
+        elif self.path == "/api/config/mode":
+            code, data = handle_set_mode(body)
+            self._json_response(code, data)
+        elif self.path == "/api/config/trading":
+            code, data = handle_set_trading(body)
             self._json_response(code, data)
         elif self.path == "/api/binance/connect":
             code, data = handle_binance_connect(body)

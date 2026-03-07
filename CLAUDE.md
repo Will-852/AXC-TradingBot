@@ -42,3 +42,5 @@ bash ~/.openclaw/scripts/health_check.sh
 - tier2 Haiku 處理唔到 >10K system prompt
 - Skill description 空白 = 靜默失敗
 - fcntl.flock 防止 scanner 同 tradercycle 同時執行
+- **重啟 tg_bot 前必須先 `launchctl bootout` 停 LaunchAgent，否則多 instance 撞 409**
+  - 詳見 docs/guides/OPS.md「TG Bot 重複 Instance」

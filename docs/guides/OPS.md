@@ -126,3 +126,52 @@ grep "KEY_NAME" ~/.openclaw/scripts/trader_cycle/config/settings.py
 | Scanner 卡住 | `rm ~/.openclaw/shared/scanner_runner.lock` |
 | TRADE_STATE 過期 | 通過 Telegram 下單觸發自動同步 |
 | Dashboard 冇數據 | `python3 ~/.openclaw/scripts/dashboard.py` |
+| TG Bot Conflict 409 | 見下方「TG Bot 重複 Instance」 |
+
+---
+
+## TG Bot 重複 Instance（常見！）
+
+### 症狀
+- Telegram bot 時有時冇反應
+- `tg_bot.log` 出現 `Conflict: terminated by other getUpdates request`
+- `pgrep -f tg_bot.py` 返回 2 個或以上 PID
+
+### 原因
+Telegram Bot API 只容許 **一個** getUpdates 長輪詢連接。多個 instance 會互相踢走對方。
+
+常見觸發場景：
+1. **LaunchAgent 自動啟動** + **手動啟動** → 兩個 process 撞
+2. **Claude Code 重啟 tg_bot** 後 LaunchAgent 偵測到舊 process 死咗，再 respawn 一個
+3. **kill 唔乾淨** — `kill` 後 LaunchAgent 即刻 respawn，形成 race condition
+
+### 解決步驟
+```bash
+# 1. 停 LaunchAgent（阻止自動 respawn）
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.telegram.plist
+
+# 2. 殺晒所有殘留 process
+pkill -9 -f tg_bot.py
+sleep 2
+
+# 3. 確認全部死曬
+pgrep -f tg_bot.py || echo "All killed"
+
+# 4. 手動啟動唯一一個 instance
+nohup python3 ~/.openclaw/scripts/tg_bot.py > logs/tg_bot.log 2>&1 &
+
+# 5. 確認啟動正常
+sleep 3 && tail -3 logs/tg_bot.log
+```
+
+### 恢復 LaunchAgent 自動管理（optional）
+```bash
+# 唔再手動管理時，恢復 LaunchAgent
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.telegram.plist
+# ⚠️ 之後唔好再手動 python3 tg_bot.py，否則又撞
+```
+
+### 預防
+- 要嘛全用 LaunchAgent 管理，要嘛全手動。**唔好混用**
+- 重啟 tg_bot 前必須先 `launchctl bootout` 停 LaunchAgent
+- Claude Code 改完 tg_bot.py 後，用 `launchctl stop/start` 而唔係 `kill + python3`

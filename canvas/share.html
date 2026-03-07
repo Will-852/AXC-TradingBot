@@ -105,6 +105,22 @@
     .warn { background:#1a0a0a; border-left:3px solid var(--red);
             padding:.6rem .8rem; border-radius:0 6px 6px 0;
             font-size:.83rem; color:#fca5a5; margin:.8rem 0; }
+    /* OS Toggle */
+    .os-toggle { display:flex; gap:0; margin-bottom:1.5rem; }
+    .os-toggle a {
+      flex:1; text-align:center; padding:.55rem 1rem;
+      font-size:.82rem; font-weight:600; text-decoration:none;
+      border:1px solid var(--border); color:var(--dim);
+      transition:all .15s;
+    }
+    .os-toggle a:first-child { border-radius:8px 0 0 8px; }
+    .os-toggle a:last-child  { border-radius:0 8px 8px 0; border-left:0; }
+    .os-toggle a.active {
+      background:var(--adim); color:var(--accent);
+      border-color:var(--accent);
+    }
+    .os-toggle a:hover:not(.active) { background:var(--hover); color:var(--text); }
+
     code { font-family:var(--mono); font-size:.8em; background:var(--card);
            border:1px solid var(--border); border-radius:3px; padding:1px 5px; color:#7dd3fc; }
     a { color:var(--accent); }
@@ -113,6 +129,12 @@
 <body>
 
 <a href="/" class="back">&larr; 返回儀表板</a>
+
+<!-- OS Toggle -->
+<div class="os-toggle">
+  <a href="/share" class="active">macOS</a>
+  <a href="/share/windows">Windows</a>
+</div>
 
 <div class="hero">
   <h1>OpenClaw</h1>

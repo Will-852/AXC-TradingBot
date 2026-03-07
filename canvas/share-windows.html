@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenClaw — Windows 安裝指南</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0a0a0f; --card:#10111a; --hover:#16182a;
+      --border:#1e2030; --text:#d4d8e8; --dim:#5a6080; --muted:#343650;
+      --accent:#6366f1; --adim:rgba(99,102,241,0.12);
+      --green:#10b981; --yellow:#f59e0b; --red:#ef4444;
+      --mono:'SF Mono','Fira Code','Cascadia Code',monospace;
+    }
+    body {
+      background:var(--bg); color:var(--text);
+      font-family:'Segoe UI',-apple-system,sans-serif;
+      max-width:700px; margin:0 auto;
+      padding:2.5rem 1.5rem 5rem; line-height:1.7;
+    }
+    .back { color:var(--dim); font-size:.8rem; text-decoration:none;
+            display:inline-block; margin-bottom:2rem; }
+    .back:hover { color:var(--text); }
+
+    /* OS Toggle */
+    .os-toggle { display:flex; gap:0; margin-bottom:1.5rem; }
+    .os-toggle a {
+      flex:1; text-align:center; padding:.55rem 1rem;
+      font-size:.82rem; font-weight:600; text-decoration:none;
+      border:1px solid var(--border); color:var(--dim);
+      transition:all .15s;
+    }
+    .os-toggle a:first-child { border-radius:8px 0 0 8px; }
+    .os-toggle a:last-child  { border-radius:0 8px 8px 0; border-left:0; }
+    .os-toggle a.active {
+      background:var(--adim); color:var(--accent);
+      border-color:var(--accent);
+    }
+    .os-toggle a:hover:not(.active) { background:var(--hover); color:var(--text); }
+
+    /* Header */
+    .hero { margin-bottom:2rem; }
+    .hero h1 { font-size:1.8rem; font-weight:800; color:var(--yellow); }
+    .hero p  { color:var(--dim); font-size:.88rem; margin-top:.3rem; }
+
+    /* Download buttons */
+    .dl-wrap { margin:1.5rem 0 .5rem; }
+    .dl-btn {
+      display:flex; align-items:center; justify-content:center; gap:.6rem;
+      width:100%; padding:1rem 2rem;
+      background:var(--accent); color:#fff; border-radius:10px;
+      font-size:1rem; font-weight:700; text-decoration:none;
+      transition:opacity .15s,transform .1s;
+    }
+    .dl-btn:hover { opacity:.9; transform:translateY(-1px); }
+    .dl-note { text-align:center; font-size:.75rem; color:var(--dim); margin-top:.5rem; }
+    .gh-btn {
+      display:flex; align-items:center; justify-content:center; gap:.5rem;
+      width:100%; padding:.65rem; margin-top:.6rem;
+      background:var(--card); border:1px solid var(--border);
+      border-radius:8px; color:#58a6ff; font-size:.85rem;
+      text-decoration:none; transition:all .12s;
+    }
+    .gh-btn:hover { background:var(--hover); border-color:#58a6ff; }
+
+    /* Section */
+    h2 { font-size:1rem; font-weight:700; color:var(--text);
+         margin:2rem 0 .8rem; border-bottom:1px solid var(--border);
+         padding-bottom:.4rem; }
+
+    /* Steps */
+    .steps { display:flex; flex-direction:column; gap:.8rem; }
+    .step {
+      display:flex; gap:.9rem; align-items:flex-start;
+      padding:.9rem 1rem; background:var(--card);
+      border:1px solid var(--border); border-radius:8px;
+    }
+    .sn {
+      background:var(--adim); color:var(--accent);
+      font-size:.72rem; font-weight:800;
+      min-width:26px; height:26px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius:50%; flex-shrink:0; margin-top:2px;
+    }
+    .sb { flex:1; }
+    .st { font-size:.9rem; font-weight:600; color:var(--text); margin-bottom:.3rem; }
+    .sd { font-size:.82rem; color:var(--dim); margin-bottom:.4rem; }
+    .cmd {
+      background:#05060f; border:1px solid #1e2a4a; border-radius:6px;
+      padding:.55rem .9rem; font-family:var(--mono);
+      font-size:.78rem; color:#7dd3fc; white-space:pre;
+      overflow-x:auto; cursor:pointer; transition:border-color .2s;
+      margin-top:.3rem; position:relative;
+    }
+    .cmd:hover { border-color:var(--accent); }
+    .cmd:hover::after {
+      content:'Click to copy'; position:absolute; top:.3rem; right:.5rem;
+      font-size:.65rem; color:var(--dim); font-family:'Segoe UI',sans-serif;
+    }
+    .cmd.copied { border-color:var(--green)!important; }
+
+    /* API Key table */
+    table { width:100%; border-collapse:collapse; font-size:.82rem; margin:.6rem 0; }
+    th { background:var(--card); color:var(--accent); padding:6px 10px;
+         text-align:left; font-size:.72rem; border-bottom:1px solid var(--border); }
+    td { padding:7px 10px; border-bottom:1px solid var(--border); color:#a0a8c0; }
+    td:first-child { font-family:var(--mono); color:var(--text); font-size:.78rem; }
+    tr:hover td { background:var(--hover); }
+    .req { color:var(--yellow); font-size:.7rem; }
+    .opt { color:var(--muted); font-size:.7rem; }
+
+    /* FAQ */
+    .faq { margin-bottom:.9rem; }
+    .fq { font-size:.88rem; font-weight:600; color:var(--text); margin-bottom:.25rem; }
+    .fa { font-size:.83rem; color:#a0a8c0; }
+
+    .tip  { background:#0a1a10; border-left:3px solid var(--green);
+            padding:.6rem .8rem; border-radius:0 6px 6px 0;
+            font-size:.83rem; color:#86efac; margin:.8rem 0; }
+    .warn { background:#1a0a0a; border-left:3px solid var(--red);
+            padding:.6rem .8rem; border-radius:0 6px 6px 0;
+            font-size:.83rem; color:#fca5a5; margin:.8rem 0; }
+    .info { background:#0a0f1a; border-left:3px solid var(--accent);
+            padding:.6rem .8rem; border-radius:0 6px 6px 0;
+            font-size:.83rem; color:#a5b4fc; margin:.8rem 0; }
+    code { font-family:var(--mono); font-size:.8em; background:var(--card);
+           border:1px solid var(--border); border-radius:3px; padding:1px 5px; color:#7dd3fc; }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+
+<a href="/" class="back">&larr; Back to Dashboard</a>
+
+<!-- OS Toggle -->
+<div class="os-toggle">
+  <a href="/share">macOS</a>
+  <a href="/share/windows" class="active">Windows</a>
+</div>
+
+<div class="hero">
+  <h1>OpenClaw</h1>
+  <p>Windows Setup Guide</p>
+</div>
+
+<div class="info">
+  Windows 版本支持 Dashboard 睇數據同 AI 分析。<br>
+  自動排程（LaunchAgents）同自動交易係 macOS 專屬功能。
+</div>
+
+<!-- Download -->
+<div class="dl-wrap">
+  <a href="/api/share/package" download class="dl-btn">
+    Download Setup Package (Today's Build)
+  </a>
+  <p class="dl-note">Contains all required files — no API Keys or personal data included</p>
+  <a href="https://github.com/Will-852/openclaw/releases/latest"
+     target="_blank" class="gh-btn">
+    GitHub Latest Release (Recommended)
+  </a>
+</div>
+
+<div class="tip">
+  Prerequisite: Install <a href="https://www.python.org/downloads/" target="_blank">Python 3.11+</a> first.
+  Make sure to check <strong>"Add python.exe to PATH"</strong> during installation.
+</div>
+
+<!-- Install steps -->
+<h2>Installation Steps (approx. 10 min)</h2>
+<div class="steps">
+  <div class="step">
+    <div class="sn">1</div>
+    <div class="sb">
+      <div class="st">Open PowerShell</div>
+      <div class="sd">Press <strong>Win+X</strong> then select <strong>Terminal</strong> (or search "PowerShell" in Start Menu)</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">2</div>
+    <div class="sb">
+      <div class="st">Extract Files</div>
+      <div class="sd">Download the ZIP, then paste this in PowerShell:</div>
+      <div class="cmd" onclick="copy(this)">$dest = "$HOME\.openclaw"
+New-Item -ItemType Directory -Force -Path $dest
+Expand-Archive -Path "$HOME\Downloads\openclaw-setup-*.zip" -DestinationPath $dest -Force</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">3</div>
+    <div class="sb">
+      <div class="st">Create Config File</div>
+      <div class="cmd" onclick="copy(this)">Copy-Item "$HOME\.openclaw\secrets\.env.example" "$HOME\.openclaw\secrets\.env"</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">4</div>
+    <div class="sb">
+      <div class="st">Fill in API Key</div>
+      <div class="sd">Open the config file in Notepad and fill in your <code>PROXY_API_KEY</code>:</div>
+      <div class="cmd" onclick="copy(this)">notepad "$HOME\.openclaw\secrets\.env"</div>
+      <div class="sd" style="margin-top:.4rem">
+        Fill in the key value, then <strong>Ctrl+S</strong> to save, close Notepad.
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">5</div>
+    <div class="sb">
+      <div class="st">Install Dependencies</div>
+      <div class="cmd" onclick="copy(this)">pip install -r "$HOME\.openclaw\requirements.txt"</div>
+      <div class="sd">Wait 1-2 minutes. You should see <code>Successfully installed</code> when done.</div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">6</div>
+    <div class="sb">
+      <div class="st">Start Dashboard</div>
+      <div class="cmd" onclick="copy(this)">cd "$HOME\.openclaw"
+python scripts\dashboard.py</div>
+      <div class="sd" style="margin-top:.4rem">
+        Then open your browser:
+        <a href="http://localhost:5555" target="_blank">http://localhost:5555</a>
+      </div>
+      <div class="sd">
+        (Keep the PowerShell window open while Dashboard is running)
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="sn">&check;</div>
+    <div class="sb">
+      <div class="st">Verify Installation</div>
+      <div class="sd">Open <a href="http://localhost:5555" target="_blank">http://localhost:5555</a> in your browser. If the dashboard loads, you're all set!</div>
+    </div>
+  </div>
+</div>
+
+<div class="warn">
+  <strong>Note:</strong> <code>health_check.sh</code> is a macOS script and won't run on Windows.
+  Just check the Dashboard loads correctly in your browser.
+</div>
+
+<!-- API Key table -->
+<h2>API Keys Required</h2>
+<table>
+  <tr><th>Key Name</th><th>Purpose</th><th>Where to Get</th><th></th></tr>
+  <tr>
+    <td>PROXY_API_KEY</td>
+    <td>AI Brain (analysis)</td>
+    <td>Ask the friend who shared this / console.anthropic.com</td>
+    <td><span class="req">Required</span></td>
+  </tr>
+  <tr>
+    <td>PROXY_BASE_URL</td>
+    <td>AI Proxy endpoint</td>
+    <td>Fill: https://tao.plus7.plus/v1</td>
+    <td><span class="req">Required</span></td>
+  </tr>
+  <tr>
+    <td>ASTER_API_KEY/SECRET</td>
+    <td>Exchange trading</td>
+    <td>Aster Exchange &rarr; API Management</td>
+    <td><span class="req">For trading</span></td>
+  </tr>
+  <tr>
+    <td>TELEGRAM_BOT_TOKEN</td>
+    <td>Mobile notifications</td>
+    <td>Telegram search @BotFather</td>
+    <td><span class="opt">Optional</span></td>
+  </tr>
+  <tr>
+    <td>BINANCE_API_KEY/SECRET</td>
+    <td>Binance market data</td>
+    <td>Binance &rarr; API Management</td>
+    <td><span class="opt">Optional</span></td>
+  </tr>
+  <tr>
+    <td>VOYAGE_API_KEY</td>
+    <td>AI memory search</td>
+    <td>voyageai.com (free tier)</td>
+    <td><span class="opt">Optional</span></td>
+  </tr>
+</table>
+
+<div class="warn">
+  API Keys go in <code>secrets\.env</code> only. Never share them or upload them anywhere.
+</div>
+
+<!-- Windows-specific notes -->
+<h2>Windows Notes</h2>
+<div class="faq">
+  <div class="fq">What works on Windows?</div>
+  <div class="fa">Dashboard (full UI), AI analysis, market data display, agent status monitoring.
+    Everything you see in the browser works the same as macOS.</div>
+</div>
+<div class="faq">
+  <div class="fq">What doesn't work on Windows?</div>
+  <div class="fa">LaunchAgents (macOS auto-scheduler), Scanner auto-run, and Trader auto-execution.
+    These require macOS. On Windows, you run the Dashboard manually from PowerShell.</div>
+</div>
+<div class="faq">
+  <div class="fq">Python version?</div>
+  <div class="fa">Python 3.11 or newer. Download from
+    <a href="https://www.python.org/downloads/" target="_blank">python.org</a>.
+    During install, check <strong>"Add python.exe to PATH"</strong>.</div>
+</div>
+<div class="faq">
+  <div class="fq">PowerShell says "execution policy" error?</div>
+  <div class="fa">Run this once as Administrator:<br>
+    <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code></div>
+</div>
+<div class="faq">
+  <div class="fq">"pip" not recognized?</div>
+  <div class="fa">Python wasn't added to PATH. Reinstall Python and check the PATH checkbox,
+    or use <code>py -m pip install ...</code> instead.</div>
+</div>
+<div class="faq">
+  <div class="fq">Something went wrong?</div>
+  <div class="fa">Send a screenshot of the error to the friend who shared OpenClaw with you.</div>
+</div>
+
+<p style="margin-top:2.5rem;font-size:.8rem;color:var(--dim)">
+  <a href="/share">macOS Guide</a> &middot;
+  Source: <a href="https://github.com/Will-852/openclaw" target="_blank">GitHub</a> &middot;
+  <a href="/">Back to Dashboard</a>
+</p>
+
+<script>
+function copy(el) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 800);
+  });
+}
+</script>
+</body>
+</html>

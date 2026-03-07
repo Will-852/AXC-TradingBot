@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -441,6 +442,24 @@ COMMANDS = {
 }
 
 
+def _read_last_report(path):
+    try:
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return float(f.read().strip() or 0)
+    except Exception:
+        return 0.0
+    return 0.0
+
+
+def _write_last_report(path, ts):
+    try:
+        with open(path, 'w') as f:
+            f.write(str(float(ts)))
+    except Exception:
+        pass
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: slash_cmd.py <command> [--send]")
@@ -457,7 +476,41 @@ def main():
     result = COMMANDS[cmd]()
     print(result)
 
-    if send:
+    # When run as the LaunchAgent (report --send), we still run every 30m,
+    # but enforce Telegram send frequency:
+    # - If there are open positions -> send every time (30m)
+    # - If no open positions -> only send if last send >= 3 hours
+    if send and cmd == "report":
+        LAST_REPORT_PATH = os.path.join(WORKSPACE, ".last_report_sent")
+        try:
+            live_positions = get_positions() or []
+            active_positions = [p for p in live_positions if float(p.get("positionAmt", 0)) != 0]
+        except Exception:
+            active_positions = []
+
+        now_ts = time.time()
+        last_ts = _read_last_report(LAST_REPORT_PATH)
+
+        if active_positions:
+            ok = send_telegram(result)
+            if ok:
+                _write_last_report(LAST_REPORT_PATH, now_ts)
+                print("\n[Telegram: sent]", file=sys.stderr)
+            else:
+                print("\n[Telegram: FAILED]", file=sys.stderr)
+        else:
+            # No positions open. Throttle to once per 3 hours.
+            if now_ts - last_ts >= 3 * 3600:
+                ok = send_telegram(result)
+                if ok:
+                    _write_last_report(LAST_REPORT_PATH, now_ts)
+                    print("\n[Telegram: sent (throttled)]", file=sys.stderr)
+                else:
+                    print("\n[Telegram: FAILED]", file=sys.stderr)
+            else:
+                # Skip sending to Telegram; still exit 0 so LaunchAgent logs look normal.
+                print(f"\n[Telegram: skipped] last_sent={last_ts} now={now_ts}", file=sys.stderr)
+    elif send:
         ok = send_telegram(result)
         if ok:
             print("\n[Telegram: sent]", file=sys.stderr)
