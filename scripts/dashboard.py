@@ -30,7 +30,7 @@ except ImportError:
     HAS_PSUTIL = False
 
 PORT = 5555
-HOME = os.path.expanduser("~/.openclaw")
+HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/.openclaw"))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 HKT = timezone(timedelta(hours=8))
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
