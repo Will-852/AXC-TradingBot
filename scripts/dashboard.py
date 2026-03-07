@@ -1479,6 +1479,7 @@ def _is_demo_mode() -> bool:
 
 
 # ── Demo data (shown when no exchange credentials configured) ──
+# Field names must match what canvas/index.html render functions expect.
 DEMO_DATA = {
     "balance": 1083.42,
     "today_pnl": 12.56,
@@ -1490,9 +1491,11 @@ DEMO_DATA = {
     "direction": "LONG",
     "in_position": True,
     "live_positions": [{
-        "symbol": "BTCUSDT", "side": "LONG", "size": "0.001",
-        "entry_price": 67234.0, "mark_price": 67890.0,
-        "pnl": 0.656, "pnl_pct": 0.98, "leverage": 5,
+        "pair": "BTCUSDT", "direction": "LONG", "size": "0.001",
+        "leverage": "5x", "entry_price": 67234.0, "mark_price": 67890.0,
+        "sl_price": 66500.0, "tp_price": 68500.0,
+        "unrealized_pnl": "0.66", "unrealized_pct": "0.98",
+        "liq_price": 63200.0, "margin": "13.45",
     }],
     "consecutive_losses": 0,
     "agents": [
@@ -1512,16 +1515,26 @@ DEMO_DATA = {
         {"key": "_TP_ATR_MULT", "label": "止盈", "value": "3.0", "unit": "×ATR"},
         {"key": "_TRIGGER_PCT", "label": "觸發門檻", "value": "2.0", "unit": "%"},
     ],
-    "scan_log": [
-        "[2026-03-08 10:30:00] LIGHT scan #42 — 6 pairs, 0 triggers",
-        "[2026-03-08 10:25:00] LIGHT scan #41 — 6 pairs, 0 triggers",
-        "[2026-03-08 10:15:00] DEEP scan #8 — TRIGGER:BTCUSDT score=78",
-        "[2026-03-08 10:00:00] LIGHT scan #40 — 6 pairs, 1 triggers",
-        "[2026-03-08 09:45:00] LIGHT scan #39 — 6 pairs, 0 triggers",
-    ],
+    "scan_log": [],  # filled dynamically with today's date
     "file_tree": [],
     "prices": {"BTCUSDT": 67890.0, "ETHUSDT": 3456.78, "SOLUSDT": 142.35},
-    "action_plan": "Monitoring BTCUSDT position — TP target $68,500",
+    "action_plan": [
+        {"symbol": "BTCUSDT", "price": 67890.0, "change_pct": 2.3,
+         "threshold_pct": 2.0, "atr": 1250.0,
+         "sl_long": 66500.0, "tp_long": 68500.0,
+         "sl_short": 69200.0, "tp_short": 67000.0,
+         "support": 66000.0, "resistance": 69500.0, "status": "ready"},
+        {"symbol": "ETHUSDT", "price": 3456.78, "change_pct": 1.1,
+         "threshold_pct": 2.0, "atr": 85.0,
+         "sl_long": 3370.0, "tp_long": 3540.0,
+         "sl_short": 3540.0, "tp_short": 3370.0,
+         "support": 3350.0, "resistance": 3550.0, "status": "ready"},
+        {"symbol": "SOLUSDT", "price": 142.35, "change_pct": 0.5,
+         "threshold_pct": 2.0, "atr": 4.2,
+         "sl_long": 138.0, "tp_long": 150.0,
+         "sl_short": 146.0, "tp_short": 138.0,
+         "support": 136.0, "resistance": 148.0, "status": "ready"},
+    ],
     "trigger": "OFF",
     "scan_count": "42",
     "last_scan": "",
@@ -1529,30 +1542,49 @@ DEMO_DATA = {
     "uptime": "2d 14h 32m",
     "git": {"branch": "main", "commit": "demo"},
     "telegram": {"status": "demo", "label": "Demo"},
-    "trigger_summary": [],
-    "pnl_history": [],
-    "trade_history": [
-        {"pair": "ETHUSDT", "side": "LONG", "entry": 3380.0, "exit": 3456.0,
-         "pnl": 22.4, "pnl_pct": 2.25, "ts_open": "2026-03-07 14:20",
-         "ts_close": "2026-03-07 22:15", "status": "closed"},
-        {"pair": "SOLUSDT", "side": "SHORT", "entry": 148.5, "exit": 142.3,
-         "pnl": 18.6, "pnl_pct": 4.17, "ts_open": "2026-03-06 09:00",
-         "ts_close": "2026-03-06 16:30", "status": "closed"},
-        {"pair": "BTCUSDT", "side": "LONG", "entry": 66800.0, "exit": 66500.0,
-         "pnl": -9.0, "pnl_pct": -0.45, "ts_open": "2026-03-05 11:00",
-         "ts_close": "2026-03-05 14:00", "status": "closed"},
+    "trigger_summary": {
+        "by_asset": [
+            {"name": "BTCUSDT", "pct": 60, "count": 3},
+            {"name": "ETHUSDT", "pct": 40, "count": 2},
+        ],
+        "by_reason": [
+            {"name": "breakout_long", "pct": 40, "count": 2},
+            {"name": "range_reversal", "pct": 40, "count": 2},
+            {"name": "trend_continuation", "pct": 20, "count": 1},
+        ],
+        "total": 5,
+    },
+    "pnl_history": [],  # filled dynamically
+    "trade_history": [],
+    "exchange_trades": [
+        {"side": "BUY", "symbol": "BTCUSDT", "time": "", "price": "67234.00",
+         "qty": "0.001", "realizedPnl": "0.00", "commission": "0.034"},
+        {"side": "SELL", "symbol": "ETHUSDT", "time": "", "price": "3456.00",
+         "qty": "0.05", "realizedPnl": "3.80", "commission": "0.086"},
+        {"side": "BUY", "symbol": "ETHUSDT", "time": "", "price": "3380.00",
+         "qty": "0.05", "realizedPnl": "0.00", "commission": "0.085"},
+        {"side": "SELL", "symbol": "SOLUSDT", "time": "", "price": "148.50",
+         "qty": "1.2", "realizedPnl": "7.44", "commission": "0.089"},
     ],
-    "exchange_trades": [],
-    "risk_status": {"drawdown_pct": 1.2, "daily_loss_pct": 0.0, "status": "normal"},
+    "risk_status": {
+        "consecutive_losses": 1, "max_consecutive_losses": 3,
+        "daily_loss": "0.00", "max_daily_loss": "14.00",
+        "circuit_single_pct": 25, "circuit_daily_pct": 15,
+        "market_mode": "NORMAL",
+    },
     "unrealized_pnl": 0.656,
     "unrealized_pct": 0.98,
-    "fee_breakdown": {"total_fees": 2.14, "maker": 0.85, "taker": 1.29},
+    "fee_breakdown": {
+        "realized": "32.00", "funding": "-0.45",
+        "commission": "1.29", "net": "30.26",
+    },
     "active_profile": "BALANCED",
     "activity_log": [
-        {"ts": "", "msg": "BTCUSDT LONG opened @ $67,234", "type": "trade"},
-        {"ts": "", "msg": "DEEP scan triggered BTCUSDT (score 78)", "type": "scan"},
-        {"ts": "", "msg": "ETHUSDT LONG closed +$22.40 (+2.25%)", "type": "trade"},
-        {"ts": "", "msg": "Risk check passed — drawdown 1.2%", "type": "risk"},
+        {"time": "", "msg": "BTCUSDT LONG opened @ $67,234", "type": "trade_entry"},
+        {"time": "", "msg": "DEEP scan triggered BTCUSDT (score 78)", "type": "signal"},
+        {"time": "", "msg": "ETHUSDT LONG closed +$22.40 (+2.25%)", "type": "trade_exit"},
+        {"time": "", "msg": "Risk check passed — drawdown 1.2%", "type": "system"},
+        {"time": "", "msg": "Mode switched to RANGE", "type": "mode_change"},
     ],
 }
 
@@ -1561,32 +1593,50 @@ def _get_demo_data() -> dict:
     """Return demo data with dynamic timestamps and sine-wave PnL history."""
     now = datetime.now(HKT)
     ts = now.strftime("%Y-%m-%d %H:%M:%S UTC+8")
+    today = now.strftime("%Y-%m-%d")
     data = {k: v for k, v in DEMO_DATA.items()}  # shallow copy
     data["timestamp"] = ts
     data["last_scan"] = (now - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
     data["demo_mode"] = True
 
-    # Dynamic sine-wave PnL history (24 data points over 7 days)
+    # Scan log with today's date so frontend filter picks them up
+    data["scan_log"] = [
+        f"[{today} 10:30:00] LIGHT scan #42 — 6 pairs, 0 triggers",
+        f"[{today} 10:25:00] LIGHT scan #41 — 6 pairs, 0 triggers",
+        f"[{today} 10:15:00] DEEP scan #8 — TRIGGER:BTCUSDT score=78",
+        f"[{today} 10:00:00] LIGHT scan #40 — 6 pairs, 1 triggers",
+        f"[{today} 09:45:00] LIGHT scan #39 — 6 pairs, 0 triggers",
+    ]
+
+    # PnL history: {t: unix_seconds, v: pnl_value}
     pnl_history = []
-    base = 1000.0
+    base_pnl = 0.0
     for i in range(24):
         t = now - timedelta(hours=(24 - i) * 7)
-        val = base + 40 * math.sin(i * 0.5) + i * 3.5
+        val = base_pnl + 40 * math.sin(i * 0.5) + i * 3.5
         pnl_history.append({
-            "ts": t.strftime("%Y-%m-%d %H:%M"),
-            "balance": round(val, 2),
+            "t": int(t.timestamp()),
+            "v": round(val, 2),
         })
     data["pnl_history"] = pnl_history
 
-    # Fill dynamic timestamps in activity_log
+    # Activity log with dynamic timestamps, field name = "time"
     activity = []
     for j, entry in enumerate(DEMO_DATA["activity_log"]):
         e = dict(entry)
-        e["ts"] = (now - timedelta(minutes=30 * (j + 1))).strftime("%Y-%m-%d %H:%M")
+        e["time"] = (now - timedelta(minutes=30 * (j + 1))).strftime("%Y-%m-%d %H:%M")
         activity.append(e)
     data["activity_log"] = activity
 
-    # Fill agent last_seen
+    # Exchange trades with dynamic timestamps
+    trades = []
+    for k, tr in enumerate(DEMO_DATA["exchange_trades"]):
+        t2 = dict(tr)
+        t2["time"] = (now - timedelta(hours=k * 6 + 1)).strftime("%Y-%m-%d %H:%M:%S")
+        trades.append(t2)
+    data["exchange_trades"] = trades
+
+    # Agent last_seen
     agents = []
     for a in DEMO_DATA["agents"]:
         a2 = dict(a)
