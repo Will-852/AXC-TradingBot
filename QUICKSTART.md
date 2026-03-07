@@ -6,7 +6,7 @@
 
 ## 2. 安裝依賴
 ```
-pip install -r requirements.txt
+pip install -r axc_requirements.txt
 ```
 
 ## 3. 設定 .env

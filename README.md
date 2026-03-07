@@ -110,10 +110,10 @@ python3 --version
 ### 3. 安裝依賴
 
 ```bash
-pip install -r requirements.txt
+pip install -r axc_requirements.txt
 ```
 
-> Windows 用 `pip` 而唔係 `pip3`。如果 `pip` 指令搵唔到，試 `python -m pip install -r requirements.txt`
+> Windows 用 `pip` 而唔係 `pip3`。如果 `pip` 指令搵唔到，試 `python -m pip install -r axc_requirements.txt`
 
 ### 4. 設定 API Keys
 
@@ -395,7 +395,7 @@ taskkill /F /IM python.exe
 **解決**：
 ```bash
 # 確認用正確嘅 pip
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r axc_requirements.txt
 
 # 如果權限問題
 python3 -m pip install --user -r requirements.txt
@@ -403,7 +403,7 @@ python3 -m pip install --user -r requirements.txt
 
 Windows 用 `python` 唔係 `python3`：
 ```cmd
-python -m pip install -r requirements.txt
+python -m pip install -r axc_requirements.txt
 ```
 </details>
 
