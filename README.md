@@ -159,6 +159,8 @@ python scripts\tg_bot.py
 
 ### Telegram Bot Token
 
+> ⚠️ 每位用家必須建立自己嘅 Bot，唔可以共用 Token。兩人用同一個 Token 會出 409 Conflict 錯誤。
+
 1. 打開 Telegram，搵 **[@BotFather](https://t.me/BotFather)**
 2. Send `/newbot`
 3. 改個名（例如 `My Trading Bot`）
