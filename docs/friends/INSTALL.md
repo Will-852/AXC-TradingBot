@@ -20,7 +20,17 @@ cp ~/.openclaw/docs/friends/.env.example ~/.openclaw/secrets/.env
 nano ~/.openclaw/secrets/.env
 ```
 
-### 3. 啟動
+### 3. 自訂參數（選填）
+
+```bash
+cp ~/.openclaw/config/user_params.py.example ~/.openclaw/config/user_params.py
+nano ~/.openclaw/config/user_params.py
+```
+
+你嘅設定放呢度，`git pull` 更新代碼永遠唔會衝突。
+唔改都可以，會用預設值。
+
+### 4. 啟動
 
 ```bash
 python3 ~/.openclaw/scripts/dashboard.py
