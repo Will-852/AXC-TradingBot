@@ -490,6 +490,112 @@ git pull
 
 ---
 
+## 🤝 共同開發指南
+
+> 如果你用 LLM（ChatGPT / Claude / Cursor）輔助開發，將呢個 section 貼畀佢就夠。
+
+### 環境設定（一次性）
+
+```bash
+# 1. Clone
+git clone https://github.com/Will-852/AXC-TradingBot.git ~/.openclaw
+cd ~/.openclaw
+
+# 2. 安裝依賴
+pip3 install -r requirements.txt
+
+# 3. 建立 secrets（唔會被 git 追蹤）
+mkdir -p secrets
+cp docs/friends/.env.example secrets/.env
+# 用編輯器填入你嘅 API keys
+
+# 4. 自訂交易參數（選填，唔會被 git 追蹤）
+cp config/user_params.py.example config/user_params.py
+# 改你想 override 嘅值，其餘用預設
+```
+
+### 檔案修改規則
+
+```
+✅ 可以改（你嘅本地檔案，gitignored）
+  secrets/.env              ← 你嘅 API keys
+  config/user_params.py     ← 你嘅交易參數 override
+
+⚠️ 唔好直接改（會被 git pull 覆蓋）
+  config/params.py          ← 共用預設值，改 user_params.py 代替
+  scripts/*.py              ← 共用邏輯，有需要開 issue 討論
+
+📖 唯讀參考
+  docs/                     ← 文檔
+  ai/                       ← AI agents 上下文
+  agents/*/SOUL.md          ← Agent 人格定義
+```
+
+### 更新流程
+
+```bash
+cd ~/.openclaw
+git pull                    # 攞最新 code
+# secrets/.env 同 config/user_params.py 唔受影響
+```
+
+如果 `git pull` 有衝突（你改咗唔應該改嘅檔案）：
+```bash
+git stash                   # 暫存你嘅改動
+git pull                    # 更新
+git stash pop               # 還原改動，手動解決衝突
+```
+
+### 架構速查（畀 LLM 讀）
+
+```
+~/.openclaw/
+├── scripts/           # 所有可執行程式
+│   ├── tg_bot.py      #   Telegram Bot 入口
+│   ├── dashboard.py   #   Web Dashboard（port 5555）
+│   ├── async_scanner.py #  市場掃描器
+│   └── trader_cycle/  #   自動交易引擎
+├── config/
+│   ├── params.py      #   共用參數（唔好直接改）
+│   ├── user_params.py #   你嘅 override（gitignored）
+│   └── modes/         #   交易模式定義
+├── agents/            # 9 個 AI agents，各自有 SOUL.md
+├── canvas/            # Dashboard 前端 HTML
+├── memory/            # RAG 記憶系統（jsonl + npy）
+├── secrets/.env       # API keys（gitignored）
+├── shared/            # 運行時狀態檔案
+└── logs/              # 日誌
+```
+
+### 常用指令
+
+```bash
+# Dashboard（瀏覽器打開 http://127.0.0.1:5555）
+python3 scripts/dashboard.py
+
+# Telegram Bot
+AXC_HOME=~/.openclaw python3 scripts/tg_bot.py
+
+# 掃描器
+python3 scripts/async_scanner.py
+
+# 系統健康檢查
+bash scripts/health_check.sh
+```
+
+### 技術棧
+
+| 層面 | 技術 |
+|------|------|
+| 語言 | Python 3.9+ |
+| AI 推理 | Claude API（經 proxy） |
+| 向量嵌入 | Voyage AI（voyage-3） |
+| 記憶儲存 | jsonl + numpy（唔用資料庫） |
+| 交易所 | Aster DEX / Binance |
+| 介面 | Telegram Bot + 本地 Web Dashboard |
+
+---
+
 ## License
 
 MIT
