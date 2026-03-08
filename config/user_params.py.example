@@ -1,0 +1,33 @@
+# config/user_params.py — 用家自訂參數
+# ═══════════════════════════════════════════════════════
+# 用法：cp user_params.py.example user_params.py
+# 然後改你要 override 嘅值。其餘用 params.py 預設。
+#
+# 呢個文件已 gitignored，git pull 唔會衝突。
+# 只寫你想改嘅變數，唔使複製成個 params.py。
+# ═══════════════════════════════════════════════════════
+#
+# ⚠️ 唔好喺呢度定義 ACTIVE_PROFILE
+#    dashboard API / tg_bot 用 regex 寫入 params.py，
+#    但 user_params.py 每次 reload 會覆蓋返，
+#    導致 UI 切換 profile 無效。
+#
+# ═══════════════════════════════════════════════════════
+
+# --- 倉位管理 ---
+# MAX_POSITION_SIZE_USDT = 100
+# MAX_OPEN_POSITIONS = 2
+# RISK_PER_TRADE_PCT = 0.01
+
+# --- 掃描設定 ---
+# SCAN_INTERVAL_SEC = 300
+
+# --- 幣種（完整覆蓋，唔係 append） ---
+# ASTER_SYMBOLS = [
+#     "BTCUSDT",
+#     "ETHUSDT",
+# ]
+
+# --- BB 指標 ---
+# BB_TOUCH_TOL_DEFAULT = 0.006
+# BB_WIDTH_MIN = 0.04

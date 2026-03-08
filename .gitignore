@@ -62,3 +62,4 @@ memory/index/embed_cache.json
 backups/
 *.zip
 secrets/.env
+config/user_params.py

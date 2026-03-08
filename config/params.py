@@ -207,3 +207,19 @@ NEWS_ARCHIVE_WINDOW_HOURS = 6     # RSS 文章保留時間
 NEWS_ANALYSIS_WINDOW_HOURS = 1    # Sentiment 分析只看最近 N 小時
 NEWS_STALE_MINUTES = 30           # Sentiment 數據過期閾值
 NEWS_SCRAPE_INTERVAL_MIN = 15     # LaunchAgent 排程間隔
+
+# ═══════════════════════════════════════
+# User Override: config/user_params.py（gitignored）
+# 用家自訂參數放呢度，git pull 永遠唔衝突
+# ═══════════════════════════════════════
+import importlib.util as _ilu
+import os as _os
+
+_user_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "user_params.py")
+if _os.path.exists(_user_path):
+    _spec = _ilu.spec_from_file_location("_user_params", _user_path)
+    _umod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_umod)
+    for _name in dir(_umod):
+        if not _name.startswith("_"):
+            globals()[_name] = getattr(_umod, _name)
