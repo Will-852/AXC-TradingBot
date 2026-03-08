@@ -1,8 +1,13 @@
 # OpenClaw — Claude Code 入口
 > ⚠️ 此文件上限200行。Claude Code 自動載入（唔可移動）。
-> 最後更新：2026-03-06
+> 最後更新：2026-03-08
 
-## 新 Session 必讀
+## 如果你係新 Clone 嘅 Collaborator
+→ 睇 README.md「共同開發指南」section 就夠。
+→ 下面全部係 system owner 嘅操作指引，唔關你事。
+→ 改交易參數：`config/user_params.py`（唔好改 `params.py`）
+
+## 新 Session 必讀（Owner only）
 1. ~/.openclaw/ai/CONTEXT.md   — 系統完整上下文
 2. ~/.openclaw/ai/MEMORY.md    — 近期狀態（backup自動更新）
 3. ~/.openclaw/ai/RULES.md     — 行為規則
@@ -38,7 +43,7 @@ bash ~/.openclaw/scripts/health_check.sh
 ⚫ 自動：shared/, logs/
 
 ## Gotchas
-- 改參數只改 config/params.py，唔改 scripts
+- 改參數：owner 改 config/params.py，collaborator 改 config/user_params.py
 - tier2 Haiku 處理唔到 >10K system prompt
 - Skill description 空白 = 靜默失敗
 - fcntl.flock 防止 scanner 同 tradercycle 同時執行
