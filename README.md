@@ -118,7 +118,8 @@ pip install -r axc_requirements.txt
 ### 4. 設定 API Keys
 
 ```bash
-cp secrets/.env.example secrets/.env
+mkdir -p secrets
+cp .env.example secrets/.env
 ```
 
 用任何文字編輯器打開 `secrets/.env`，填入你嘅 keys：
@@ -194,7 +195,9 @@ python scripts\tg_bot.py
 填入 `.env`：
 ```env
 PROXY_API_KEY=你嘅key
-PROXY_BASE_URL=https://tao.plus7.plus/v1
+# 如使用官方 API：https://api.anthropic.com
+# 如使用 proxy 服務：填入 proxy 提供嘅 URL
+PROXY_BASE_URL=https://api.anthropic.com
 ```
 
 ---
@@ -224,6 +227,7 @@ python scripts\tg_bot.py
 ### 後台運行（macOS / Linux）
 
 ```bash
+mkdir -p logs
 AXC_HOME=$(pwd) nohup python3 scripts/tg_bot.py > logs/tg_bot.log 2>&1 &
 ```
 
@@ -400,7 +404,7 @@ taskkill /F /IM python.exe
 python3 -m pip install -r axc_requirements.txt
 
 # 如果權限問題
-python3 -m pip install --user -r requirements.txt
+python3 -m pip install --user -r axc_requirements.txt
 ```
 
 Windows 用 `python` 唔係 `python3`：

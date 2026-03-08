@@ -11,7 +11,8 @@ pip install -r axc_requirements.txt
 
 ## 3. 設定 .env
 ```
-cp secrets/.env.example secrets/.env
+mkdir -p secrets
+cp .env.example secrets/.env
 ```
 然後編輯 `secrets/.env`，填入你嘅 API keys。
 
