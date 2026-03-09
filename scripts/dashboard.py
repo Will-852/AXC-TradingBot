@@ -22,6 +22,7 @@ import zipfile
 import math
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from openclaw_bridge import bridge
 
 try:
     import psutil
@@ -30,12 +31,13 @@ except ImportError:
     HAS_PSUTIL = False
 
 PORT = 5555
-HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/.openclaw"))
+HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 HKT = timezone(timedelta(hours=8))
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
-CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
+CANVAS_HTML = os.path.expanduser("~/.openclaw/canvas/index.html")
 
 # Whitelist: profile-aware params with Chinese labels
 # Keys starting with _ are resolved from TRADING_PROFILES[ACTIVE_PROFILE]
@@ -158,6 +160,14 @@ def _get_aster_client():
         sys.path.insert(0, SCRIPTS_DIR)
     from trader_cycle.exchange.aster_client import AsterClient
     return AsterClient()
+
+
+def _get_hl_client():
+    """Lazy-load HyperLiquidClient for live exchange queries."""
+    if SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, SCRIPTS_DIR)
+    from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
+    return HyperLiquidClient()
 
 
 def get_live_balance():
@@ -311,8 +321,8 @@ def get_agent_info():
         "analyst": "claude-sonnet-4-6",
         "decision": "claude-opus",
     }
-    # Model fallback from known defaults (no external dependency)
-    oc_models = {}
+    # Model fallback from openclaw.json (via bridge, empty if unavailable)
+    oc_models = bridge.agent_models()
     la = get_launchagents()
     agents = []
     for aid, meta in agent_map.items():
@@ -392,7 +402,7 @@ def get_launchagents():
 
 
 def get_scan_log(n=10):
-    path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
+    path = os.path.join(HOME, "shared/SCAN_LOG.md")
     if not os.path.exists(path):
         return []
     with open(path) as f:
@@ -438,13 +448,13 @@ def get_file_tree():
 
 def get_agent_activity():
     """Derive agent call counts from scan log + cost from tracker."""
-    ct = parse_md(os.path.join(HOME, "workspace/routing/COST_TRACKER.md"))
+    ct = parse_md(os.path.join(WORKSPACE, "routing/COST_TRACKER.md"))
     today = datetime.now(HKT).strftime("%Y-%m-%d")
     ct_date = ct.get("DATE", "")
     daily_total = ct.get("DAILY_TOTAL", "$0.00") if ct_date == today else "—"
 
     today = datetime.now(HKT).strftime("%Y-%m-%d")
-    log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
+    log_path = os.path.join(HOME, "shared/SCAN_LOG.md")
     scanner_calls = 0
     trader_calls = 0
     if os.path.exists(log_path):
@@ -579,7 +589,7 @@ def get_telegram_status():
 def get_trigger_summary():
     """Parse today's LIGHT TRIGGER entries from scan log."""
     today = datetime.now(HKT).strftime("%Y-%m-%d")
-    log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
+    log_path = os.path.join(HOME, "shared/SCAN_LOG.md")
     by_asset = {}
     by_reason = {}
     total = 0
@@ -660,7 +670,7 @@ def get_trading_params():
 def get_trade_state():
     """Read full trade state dynamically from TRADE_STATE.md.
     Parses ALL fields including position details inside code blocks."""
-    path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md")
+    path = os.path.join(HOME, "shared/TRADE_STATE.md")
     state = {
         "balance": 0, "pnl_today": 0, "pnl_total": 0,
         "position": "無", "direction": "—",
@@ -857,7 +867,7 @@ def get_risk_status():
     except Exception:
         pass
     # Trade state
-    trade_state = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md"))
+    trade_state = parse_md(os.path.join(HOME, "shared/TRADE_STATE.md"))
     cons_losses = 0
     try:
         cons_losses = int(trade_state.get("CONSECUTIVE_LOSSES", "0"))
@@ -1114,7 +1124,7 @@ def collect_data():
         direction_str = trade["direction"]
 
     # Prices from scan config
-    scan_config = parse_md(os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md"))
+    scan_config = parse_md(os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md"))
     signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
     prices = {
         "BTC": scan_config.get("BTC_price", "0"),
@@ -1322,7 +1332,7 @@ def handle_api_health():
 
     # SCAN_LOG.md mtime (used by check_and_push_alerts for stall detection)
     scan_log_age_min = -1
-    scan_log_path = os.path.join(HOME, "workspace/agents/aster_trader/logs/SCAN_LOG.md")
+    scan_log_path = os.path.join(HOME, "shared/SCAN_LOG.md")
     if os.path.exists(scan_log_path):
         scan_log_age_min = int((time.time() - os.path.getmtime(scan_log_path)) / 60)
 
@@ -1464,6 +1474,9 @@ def _is_demo_mode() -> bool:
         return False
     bk, bsec = _get_binance_credentials()
     if bk and bsec:
+        return False
+    hpk, haddr = _get_hl_credentials()
+    if hpk and haddr:
         return False
     return True
 
@@ -1713,6 +1726,81 @@ def handle_binance_disconnect():
     return 200, {"ok": True, "status": "disconnected"}
 
 
+# ── HyperLiquid Connection API ────────────────────────────
+
+def _get_hl_credentials():
+    """Read HL keys from secrets/.env"""
+    pk = addr = ""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("HL_PRIVATE_KEY="):
+                    pk = line.split("=", 1)[1].strip()
+                elif line.startswith("HL_ACCOUNT_ADDRESS="):
+                    addr = line.split("=", 1)[1].strip()
+    return pk, addr
+
+
+def _save_hl_credentials(private_key, account_address):
+    """Write or update HL keys in secrets/.env"""
+    lines = []
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            for line in f.read().splitlines():
+                if not line.strip().startswith(("HL_PRIVATE_KEY=", "HL_ACCOUNT_ADDRESS=")):
+                    lines.append(line)
+    lines.append(f"HL_PRIVATE_KEY={private_key}")
+    lines.append(f"HL_ACCOUNT_ADDRESS={account_address}")
+    with open(SECRETS_ENV_PATH, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def handle_hl_status():
+    """GET /api/hl/status"""
+    pk, addr = _get_hl_credentials()
+    if not pk or not addr:
+        return 200, {"status": "disconnected", "label": "未連接", "balance": None}
+    try:
+        client = _get_hl_client()
+        bal = client.get_usdt_balance()
+        return 200, {
+            "status": "connected", "label": "已連接",
+            "balance": round(bal, 2),
+        }
+    except Exception as e:
+        return 200, {"status": "error", "label": "驗證失敗", "balance": None, "error": str(e)[:80]}
+
+
+def handle_hl_connect(body):
+    """POST /api/hl/connect"""
+    private_key = body.get("private_key", "").strip()
+    account_address = body.get("account_address", "").strip()
+    if not private_key or not account_address:
+        return 400, {"error": "Missing private_key or account_address"}
+
+    _save_hl_credentials(private_key, account_address)
+
+    try:
+        client = _get_hl_client()
+        bal = client.get_usdt_balance()
+        addr_preview = f"{account_address[:6]}...{account_address[-4:]}"
+        return 200, {"ok": True, "status": "connected", "addr_preview": addr_preview, "balance": round(bal, 2)}
+    except Exception as e:
+        return 200, {"ok": False, "status": "error", "error": str(e)[:120]}
+
+
+def handle_hl_disconnect():
+    """POST /api/hl/disconnect"""
+    if os.path.exists(SECRETS_ENV_PATH):
+        with open(SECRETS_ENV_PATH) as f:
+            lines = [l for l in f.read().splitlines()
+                     if not l.strip().startswith(("HL_PRIVATE_KEY=", "HL_ACCOUNT_ADDRESS="))]
+        with open(SECRETS_ENV_PATH, "w") as f:
+            f.write("\n".join(lines) + "\n")
+    return 200, {"ok": True, "status": "disconnected"}
+
+
 def handle_file_read(rel_path):
     """GET /api/file?path=docs/..."""
     if not rel_path.startswith("docs/"):
@@ -1737,18 +1825,23 @@ def handle_open_folder(rel_path):
 def collect_debug():
     """Debug endpoint: raw file contents, existence checks, processes."""
     results = {}
-    files_to_check = [
-        "workspace/agents/aster_trader/TRADE_STATE.md",
+    # Files in AXC_HOME
+    home_files = [
+        "shared/TRADE_STATE.md",
         "shared/SIGNAL.md",
-        "workspace/routing/COST_TRACKER.md",
-        "workspace/agents/aster_trader/config/SCAN_CONFIG.md",
-        "workspace/agents/aster_trader/TRADE_LOG.md",
+        "shared/SCAN_LOG.md",
         "config/params.py",
         "scripts/trader_cycle/config/settings.py",
         "secrets/.env",
     ]
+    # Files in OPENCLAW_WORKSPACE
+    ws_files = [
+        "routing/COST_TRACKER.md",
+        "agents/aster_trader/config/SCAN_CONFIG.md",
+        "agents/aster_trader/TRADE_LOG.md",
+    ]
     results["files"] = {}
-    for f in files_to_check:
+    for f in home_files:
         p = os.path.join(HOME, f)
         exists = os.path.exists(p)
         results["files"][f] = {
@@ -1756,8 +1849,16 @@ def collect_debug():
             "size": os.path.getsize(p) if exists else 0,
             "modified": os.path.getmtime(p) if exists else 0,
         }
+    for f in ws_files:
+        p = os.path.join(WORKSPACE, f)
+        exists = os.path.exists(p)
+        results["files"][f"workspace/{f}"] = {
+            "exists": exists,
+            "size": os.path.getsize(p) if exists else 0,
+            "modified": os.path.getmtime(p) if exists else 0,
+        }
     # Raw TRADE_STATE.md
-    ts_path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_STATE.md")
+    ts_path = os.path.join(HOME, "shared/TRADE_STATE.md")
     try:
         with open(ts_path) as f:
             results["trade_state_raw"] = f.read()
@@ -1771,14 +1872,14 @@ def collect_debug():
     except Exception as e:
         results["signal_raw"] = f"ERROR: {e}"
     # Raw SCAN_CONFIG.md
-    sc_path = os.path.join(HOME, "workspace/agents/aster_trader/config/SCAN_CONFIG.md")
+    sc_path = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
     try:
         with open(sc_path) as f:
             results["scan_config_raw"] = f.read()
     except Exception as e:
         results["scan_config_raw"] = f"ERROR: {e}"
     # Raw TRADE_LOG.md
-    tl_path = os.path.join(HOME, "workspace/agents/aster_trader/TRADE_LOG.md")
+    tl_path = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
     try:
         with open(tl_path) as f:
             results["trade_log_raw"] = f.read()
@@ -1877,6 +1978,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif path == "/api/aster/status":
             code, data = handle_aster_status()
+            self._json_response(code, data)
+        elif path == "/api/hl/status":
+            code, data = handle_hl_status()
             self._json_response(code, data)
         elif path == "/api/file":
             rel = qs.get("path", [""])[0]
@@ -2000,6 +2104,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/aster/disconnect":
             code, data = handle_aster_disconnect()
+            self._json_response(code, data)
+        elif self.path == "/api/hl/connect":
+            code, data = handle_hl_connect(body)
+            self._json_response(code, data)
+        elif self.path == "/api/hl/disconnect":
+            code, data = handle_hl_disconnect()
             self._json_response(code, data)
         else:
             self._json_response(404, {"error": "Not found"})

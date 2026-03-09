@@ -10,7 +10,7 @@
 
 ### 1. news_scraper.py（數據收集）
 ```bash
-python3 ~/.openclaw/scripts/news_scraper.py
+python3 ~/projects/axc-trading/scripts/news_scraper.py
 ```
 - Fetch RSS feeds（CoinTelegraph + CoinDesk）
 - 按 symbol keyword 過濾
@@ -22,7 +22,7 @@ python3 ~/.openclaw/scripts/news_scraper.py
 
 ### 2. news_sentiment.py（情緒分析）
 ```bash
-python3 ~/.openclaw/scripts/news_sentiment.py
+python3 ~/projects/axc-trading/scripts/news_sentiment.py
 ```
 - 讀 `shared/news_feed.json`
 - 只分析最近 1 小時文章（避免舊聞影響決策）
@@ -91,6 +91,6 @@ news_scraper.py && news_sentiment.py
 | CoinDesk | coindesk.com/arc/outboundfeeds/rss/ | RSS 2.0 |
 
 ## 共享狀態路徑
-- 寫: ~/.openclaw/shared/news_feed.json
-- 寫: ~/.openclaw/shared/news_sentiment.json
+- 寫: ~/projects/axc-trading/shared/news_feed.json
+- 寫: ~/projects/axc-trading/shared/news_sentiment.json
 - 讀: config/params.py（NEWS_* 參數）

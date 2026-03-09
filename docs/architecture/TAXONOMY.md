@@ -96,7 +96,7 @@ docs/architecture/AGENTS.md              ← 更新職責說明
 **判斷規則：**
 如果唔確定一個文件夾係咪 binary 管理，執行：
 ```
-grep -r "[folder_name]" ~/.openclaw/scripts/ --include="*.py" -l
+grep -r "[folder_name]" ~/projects/axc-trading/scripts/ --include="*.py" -l
 ```
 如果 zero results = binary 管理，唔動。
 如果有 results = 用戶代碼，按判斷樹處理。

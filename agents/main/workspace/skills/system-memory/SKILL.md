@@ -38,7 +38,7 @@ IF Haiku 返回錯誤 OR 結果明顯唔完整：
 ## 備份觸發
 改 SOUL.md / skill / openclaw.json / LaunchAgent → 執行：
 
-cd ~/.openclaw && \
+cd ~/projects/axc-trading && \
 git add -A && \
 git commit -m "[$(date +%Y-%m-%d)] auto-backup" && \
 zip -r backups/backup-$(date +%Y-%m-%d-%H%M).zip \

@@ -8,19 +8,19 @@
 → 改交易參數：`config/user_params.py`（唔好改 `params.py`）
 
 ## 新 Session 必讀（Owner only）
-1. ~/.openclaw/ai/CONTEXT.md   — 系統完整上下文
-2. ~/.openclaw/ai/MEMORY.md    — 近期狀態（backup自動更新）
-3. ~/.openclaw/ai/RULES.md     — 行為規則
+1. ~/projects/axc-trading/ai/CONTEXT.md   — 系統完整上下文
+2. ~/projects/axc-trading/ai/MEMORY.md    — 近期狀態（backup自動更新）
+3. ~/projects/axc-trading/ai/RULES.md     — 行為規則
 
 ## 系統概覽
 本地智能交易監控系統。9 agents + dashboard + Telegram bot。
 推理：Claude API | 向量：voyage-3 | 記憶：jsonl + npy
 
 ## 搵舊記憶
-python3 ~/.openclaw/memory/retriever.py "問題"
+python3 ~/projects/axc-trading/memory/retriever.py "問題"
 
 ## 系統健康檢查
-bash ~/.openclaw/scripts/health_check.sh
+bash ~/projects/axc-trading/scripts/health_check.sh
 
 ## 緊急操作
 | 問題 | 指令 |

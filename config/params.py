@@ -18,7 +18,9 @@
 # TRADING_PROFILES override 映射（settings.py line 141-148）：
 #   risk_per_trade_pct  → RANGE_RISK_PCT + TREND_RISK_PCT
 #   sl_atr_mult         → RANGE_SL_ATR_MULT + TREND_SL_ATR_MULT
-#   tp_atr_mult         → RANGE_MIN_RR + TREND_MIN_RR  ⚠️ BUG: 概念混用，待修
+#   range_min_rr        → RANGE_MIN_RR
+#   trend_min_rr        → TREND_MIN_RR
+#   tp_atr_mult         → (reserved for future TP calc, not consumed by settings.py)
 #   max_open_positions  → MAX_CRYPTO_POSITIONS
 #
 # ⚠️ 加新 profile key 前：先 grep settings.py 確認有消費者
@@ -131,7 +133,9 @@ TRADING_PROFILES = {
         "trigger_pct":          0.03,    # 3%（較嚴格，減少噪音）
         "risk_per_trade_pct":   0.01,
         "sl_atr_mult":          1.5,
-        "tp_atr_mult":          2.0,
+        "tp_atr_mult":          2.0,    # reserved: TP = N × ATR（未接入）
+        "range_min_rr":         2.3,    # Range 最低 reward:risk
+        "trend_min_rr":         3.0,    # Trend 最低 reward:risk（更嚴）
         "max_open_positions":   1,
         "allow_trend":          False,
         "allow_range":          True,
@@ -142,7 +146,9 @@ TRADING_PROFILES = {
         "trigger_pct":          0.025,   # 2.5%（市場 -4% 可觸發）
         "risk_per_trade_pct":   0.02,
         "sl_atr_mult":          1.2,
-        "tp_atr_mult":          2.0,
+        "tp_atr_mult":          2.0,    # reserved: TP = N × ATR（未接入）
+        "range_min_rr":         2.3,    # Range 最低 reward:risk
+        "trend_min_rr":         3.0,    # Trend 最低 reward:risk（更嚴）
         "max_open_positions":   2,
         "allow_trend":          True,
         "allow_range":          True,
@@ -153,7 +159,9 @@ TRADING_PROFILES = {
         "trigger_pct":          0.02,    # 2%（最敏感，追趨勢用）
         "risk_per_trade_pct":   0.03,
         "sl_atr_mult":          1.0,
-        "tp_atr_mult":          3.0,
+        "tp_atr_mult":          3.0,    # reserved: TP = N × ATR（未接入）
+        "range_min_rr":         2.0,    # Range 最低 reward:risk（較鬆）
+        "trend_min_rr":         2.5,    # Trend 最低 reward:risk（仍高於 Range）
         "max_open_positions":   3,
         "allow_trend":          True,
         "allow_range":          True,
@@ -190,6 +198,13 @@ BINANCE_SYMBOLS = [
     # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
 ]
 
+HL_SYMBOLS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    # HyperLiquid 幣種（自動轉換 "BTCUSDT" → "BTC"）
+]
+
 # 掃描引擎設定
 SCAN_TIMEOUT_SEC    = 30          # 單幣種超時（秒）
 SCAN_MAX_WORKERS    = 8           # 並發上限
@@ -206,6 +221,7 @@ TRIGGER_PCT         = 0.05        # fallback 信號觸發閾值（5%）
 NEWS_ARCHIVE_WINDOW_HOURS = 6     # RSS 文章保留時間
 NEWS_ANALYSIS_WINDOW_HOURS = 1    # Sentiment 分析只看最近 N 小時
 NEWS_STALE_MINUTES = 30           # Sentiment 數據過期閾值
+BEARISH_BLOCK_LONG_CONF = 0.70    # bearish confidence > 70% → block LONG signals
 NEWS_SCRAPE_INTERVAL_MIN = 15     # LaunchAgent 排程間隔
 
 # ═══════════════════════════════════════

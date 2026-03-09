@@ -414,6 +414,19 @@ def main():
             if args.verbose:
                 print(f"  BinanceClient skipped: {e}")
 
+        # HyperLiquid: optional — missing keys = skip
+        try:
+            from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
+            ctx.exchange_clients["hyperliquid"] = HyperLiquidClient()
+            if args.verbose:
+                print(f"  HyperLiquidClient initialized (balance: ${ctx.exchange_clients['hyperliquid'].get_usdt_balance():.2f})")
+        except CriticalError:
+            if args.verbose:
+                print("  HyperLiquidClient skipped (no API keys)")
+        except Exception as e:
+            if args.verbose:
+                print(f"  HyperLiquidClient skipped: {e}")
+
     # ─── Register strategies ───
     register_strategies()
 

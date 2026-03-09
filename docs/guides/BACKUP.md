@@ -16,7 +16,7 @@ backup_agent.sh
 
 ### 手動
 ```bash
-bash ~/.openclaw/scripts/backup_agent.sh
+bash ~/projects/axc-trading/scripts/backup_agent.sh
 ```
 
 ### 自動（每日凌晨3點）
@@ -26,7 +26,7 @@ crontab -l
 
 # 設定（如未設定）
 (crontab -l 2>/dev/null; \
- echo "0 3 * * * bash ~/.openclaw/scripts/backup_agent.sh >> ~/.openclaw/logs/backup.log 2>&1") \
+ echo "0 3 * * * bash ~/projects/axc-trading/scripts/backup_agent.sh >> ~/projects/axc-trading/logs/backup.log 2>&1") \
  | crontab -
 ```
 
@@ -40,7 +40,7 @@ crontab -l
 | 內容 | 備份方式 | 位置 |
 |------|----------|------|
 | 代碼 + 文件 | GitHub | github.com/Will-852/AXC-TradingBot |
-| 本地 zip | 本地保留10個 | ~/.openclaw/backups/ |
+| 本地 zip | 本地保留10個 | ~/projects/axc-trading/backups/ |
 | .env secrets | 手動 | iCloud |
 | 記憶 jsonl | GitHub | memory/store/ |
 | 向量索引 | 不備份 | 可重建 |

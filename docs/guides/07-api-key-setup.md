@@ -25,7 +25,7 @@ openclaw config set models.providers.tier2.apiKey "sk-新key"
 openclaw config set models.providers.tier3.apiKey "sk-新key"
 
 # 第 2 步：改 Scripts
-nano ~/.openclaw/secrets/.env
+nano ~/projects/axc-trading/secrets/.env
 # 搵 PROXY_API_KEY=舊key → 改成新key
 # Ctrl+O 存檔，Ctrl+X 退出
 
@@ -50,7 +50,7 @@ openclaw config set models.providers.tier2.baseUrl "https://新地址/v1"
 openclaw config set models.providers.tier3.baseUrl "https://新地址/v1"
 
 # Scripts
-nano ~/.openclaw/secrets/.env    # 改 PROXY_BASE_URL
+nano ~/projects/axc-trading/secrets/.env    # 改 PROXY_BASE_URL
 
 # 重啟
 launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
@@ -61,7 +61,7 @@ launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
 ```bash
 sed -i '' \
   's|PROXY_BASE_URL=.*|PROXY_BASE_URL=https://api.anthropic.com|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```
 
@@ -70,14 +70,14 @@ launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```bash
 sed -i '' \
   's|PROXY_BASE_URL=.*|PROXY_BASE_URL=https://tao.plus7.plus/v1|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```
 
 ### Proxy 連通測試
 
 ```bash
-API_KEY=$(grep PROXY_API_KEY ~/.openclaw/secrets/.env | cut -d= -f2)
+API_KEY=$(grep PROXY_API_KEY ~/projects/axc-trading/secrets/.env | cut -d= -f2)
 curl -s https://tao.plus7.plus/v1/messages \
   -H "x-api-key: $API_KEY" \
   -H "content-type: application/json" \
@@ -90,7 +90,7 @@ curl -s https://tao.plus7.plus/v1/messages \
 
 ```bash
 # 只需改 secrets/.env（Gateway 唔直接用交易所 key）
-nano ~/.openclaw/secrets/.env    # 改 ASTER_API_KEY + ASTER_API_SECRET
+nano ~/projects/axc-trading/secrets/.env    # 改 ASTER_API_KEY + ASTER_API_SECRET
 
 # 重啟
 launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
@@ -103,7 +103,7 @@ launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
 # 2. Gateway
 openclaw config set channels.telegram.botToken "新token"
 # 3. Scripts
-nano ~/.openclaw/secrets/.env    # 改 TELEGRAM_BOT_TOKEN
+nano ~/projects/axc-trading/secrets/.env    # 改 TELEGRAM_BOT_TOKEN
 # 4. 重啟
 launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```
@@ -114,11 +114,11 @@ launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 # 1. 去 dash.voyageai.com 建立新 key
 # 2. 替換
 sed -i '' 's|VOYAGE_API_KEY=.*|VOYAGE_API_KEY=新key|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 # 3. 清除 cache
-rm ~/.openclaw/memory/index/embed_cache.json
+rm ~/projects/axc-trading/memory/index/embed_cache.json
 # 4. 重新備份 .env 到 iCloud
-cp ~/.openclaw/secrets/.env \
+cp ~/projects/axc-trading/secrets/.env \
   ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw_secrets.env
 ```
 

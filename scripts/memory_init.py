@@ -10,11 +10,12 @@ Imports:
 Run once to seed the memory system, safe to re-run
 (uses dedup by checking existing store count).
 """
+import os
 import sys
 import re
 from pathlib import Path
 
-BASE_DIR = Path.home() / ".openclaw"
+BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 sys.path.insert(0, str(BASE_DIR))
 
 from memory.writer import write_signal, write_conversation

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from ..core.context import CycleContext
 
 logger = logging.getLogger(__name__)
 
-SENTIMENT_FILE = Path.home() / ".openclaw" / "shared" / "news_sentiment.json"
+SENTIMENT_FILE = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading"))) / "shared" / "news_sentiment.json"
 STALE_MINUTES = 30
 
 

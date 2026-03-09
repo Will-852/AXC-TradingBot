@@ -505,7 +505,7 @@ git pull
 ```bash
 # 1. Clone
 git clone https://github.com/Will-852/AXC-TradingBot.git ~/.openclaw
-cd ~/.openclaw
+cd ~/projects/axc-trading
 
 # 2. 安裝依賴
 pip3 install -r requirements.txt
@@ -540,7 +540,7 @@ cp config/user_params.py.example config/user_params.py
 ### 更新流程
 
 ```bash
-cd ~/.openclaw
+cd ~/projects/axc-trading
 git pull                    # 攞最新 code
 # secrets/.env 同 config/user_params.py 唔受影響
 ```
@@ -555,7 +555,7 @@ git stash pop               # 還原改動，手動解決衝突
 ### 架構速查（畀 LLM 讀）
 
 ```
-~/.openclaw/
+~/projects/axc-trading/
 ├── scripts/           # 所有可執行程式
 │   ├── tg_bot.py      #   Telegram Bot 入口
 │   ├── dashboard.py   #   Web Dashboard（port 5555）
@@ -580,7 +580,7 @@ git stash pop               # 還原改動，手動解決衝突
 python3 scripts/dashboard.py
 
 # Telegram Bot
-AXC_HOME=~/.openclaw python3 scripts/tg_bot.py
+AXC_HOME=~/projects/axc-trading python3 scripts/tg_bot.py
 
 # 掃描器
 python3 scripts/async_scanner.py

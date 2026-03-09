@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .embedder import embed
 
-BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
+BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 INDEX_DIR = BASE_DIR / "memory" / "index"
 STORE_DIR = BASE_DIR / "memory" / "store"
 

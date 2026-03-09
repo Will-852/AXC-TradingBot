@@ -8,11 +8,11 @@ params.py 係啟動時載入一次。唔重啟 = 新設定完全唔生效。
 ```bash
 # 標準重啟指令
 pkill -f async_scanner 2>/dev/null; sleep 2
-python3 ~/.openclaw/scripts/async_scanner.py &
+python3 ~/projects/axc-trading/scripts/async_scanner.py &
 echo "掃描器已重啟"
 
 # 確認生效
-sleep 5 && cat ~/.openclaw/logs/scanner_heartbeat.txt
+sleep 5 && cat ~/projects/axc-trading/logs/scanner_heartbeat.txt
 ```
 
 ---
@@ -20,7 +20,7 @@ sleep 5 && cat ~/.openclaw/logs/scanner_heartbeat.txt
 ## Aster DEX 加幣種
 
 ```python
-# ~/.openclaw/config/params.py
+# ~/projects/axc-trading/config/params.py
 
 ASTER_SYMBOLS = [
     "BTCUSDT",
@@ -34,7 +34,7 @@ ASTER_SYMBOLS = [
 儲存 → 重啟掃描器 → 確認：
 
 ```bash
-sleep 10 && grep "SOLUSDT" ~/.openclaw/shared/SCAN_LOG.md
+sleep 10 && grep "SOLUSDT" ~/projects/axc-trading/shared/SCAN_LOG.md
 ```
 
 ---
@@ -92,19 +92,19 @@ BINANCE_SYMBOLS = [
 
 ```bash
 # 心跳
-cat ~/.openclaw/logs/scanner_heartbeat.txt
+cat ~/projects/axc-trading/logs/scanner_heartbeat.txt
 
 # 實時 log
-tail -f ~/.openclaw/logs/scanner.log
+tail -f ~/projects/axc-trading/logs/scanner.log
 
 # 最新掃描
-tail -20 ~/.openclaw/shared/SCAN_LOG.md
+tail -20 ~/projects/axc-trading/shared/SCAN_LOG.md
 
 # prices_cache stale check
 python3 -c "
 import json
 from pathlib import Path
-d = json.loads((Path.home()/'.openclaw/shared/prices_cache.json').read_text())
+d = json.loads((Path.home()/'projects/axc-trading/shared/prices_cache.json').read_text())
 for sym, v in d.items():
     stale = 'STALE' if v.get('stale') else 'OK'
     print(f'{stale} {sym}: \${v.get(\"price\", \"?\")}')

@@ -208,16 +208,28 @@ class SendReportsStep:
             result = send_telegram(msg)
             ctx.telegram_messages.append(msg)
 
-        # Routine report (skip in silent mode)
+        # Routine report — 冇信號時發極簡版，減少噪音
         if silent_mode == "ON" and not ctx.signals and not ctx.errors:
             if ctx.verbose:
                 print("    Telegram: skipped (silent mode)")
             return ctx
 
-        # Send cycle report
-        report = format_cycle_report(ctx)
-        result = send_telegram(report)
-        ctx.telegram_messages.append(report)
+        if not ctx.signals and not ctx.errors and not ctx.closed_positions:
+            # 極簡版：一行狀態，唔洗完整報告
+            mode = ctx.market_mode
+            mode_status = "已確認" if ctx.mode_confirmed else "待確認"
+            btc_snap = ctx.market_data.get("BTCUSDT")
+            btc_str = f"BTC ${btc_snap.price:,.0f}" if btc_snap else ""
+            mini = f"📊 {ctx.timestamp_str} | {mode}({mode_status}) | {btc_str} | 無信號"
+            if ctx.dry_run:
+                mini += " | DRY"
+            send_telegram(mini)
+            ctx.telegram_messages.append(mini)
+        else:
+            # 完整報告：有信號 / 有錯誤 / 有平倉
+            report = format_cycle_report(ctx)
+            result = send_telegram(report)
+            ctx.telegram_messages.append(report)
 
         if ctx.verbose:
             status = "sent" if "error" not in result else result.get("error", "unknown")

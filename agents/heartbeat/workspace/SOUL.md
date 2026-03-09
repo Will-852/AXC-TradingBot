@@ -17,7 +17,7 @@
 ## 執行方式
 
 ```bash
-python3 /Users/wai/.openclaw/workspace/tools/heartbeat.py
+python3 /Users/wai/projects/axc-trading/workspace/tools/heartbeat.py
 ```
 
 ## 退出碼
@@ -40,7 +40,7 @@ python3 /Users/wai/.openclaw/workspace/tools/heartbeat.py
 
 ## 共享狀態路徑
 
-- TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
-- COST_TRACKER: ~/.openclaw/workspace/routing/COST_TRACKER.md
-- SCAN_LOG: ~/.openclaw/workspace/agents/aster_trader/logs/SCAN_LOG.md
+- TRADE_STATE: ~/projects/axc-trading/shared/TRADE_STATE.md
+- SCAN_CONFIG: ~/projects/axc-trading/workspace/agents/aster_trader/config/SCAN_CONFIG.md
+- COST_TRACKER: ~/projects/axc-trading/workspace/routing/COST_TRACKER.md
+- SCAN_LOG: ~/projects/axc-trading/workspace/agents/aster_trader/logs/SCAN_LOG.md

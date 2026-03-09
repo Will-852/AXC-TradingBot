@@ -26,7 +26,7 @@ DIM = 1024  # Both voyage-3 and hash use 1024-dim
 
 log = logging.getLogger(__name__)
 
-_AXC_HOME    = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
+_AXC_HOME    = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 INDEX_DIR    = _AXC_HOME / "memory" / "index"
 BACKEND_FILE = INDEX_DIR / "backend.txt"
 

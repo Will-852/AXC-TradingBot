@@ -103,7 +103,7 @@ last-updated: 2026-03-03
 
 ## EVOLUTION_LOG.md
 
-路徑：~/.openclaw/workspace/EVOLUTION_LOG.md
+路徑：~/projects/axc-trading/workspace/EVOLUTION_LOG.md
 用途：系統嘅「人生日記」— 記錄錯誤、學習、健康狀況
 
 記錄類型：

@@ -14,6 +14,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 from datetime import datetime, timezone, timedelta
+from openclaw_bridge import bridge
 
 HKT = timezone(timedelta(hours=8))
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
@@ -26,7 +27,7 @@ TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 ASTER_FAPI = "https://fapi.asterdex.com"
-SIGNAL_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/.openclaw")), "shared", "SIGNAL.md")
+SIGNAL_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "shared", "SIGNAL.md")
 
 
 def now_hkt():
@@ -181,14 +182,14 @@ def cmd_report():
     signal_pair = sig.get("PAIR", "—")
     signal_text = f"{signal_pair}" if signal_active == "YES" else "NONE"
 
-    lines = [f"\U0001f4ca AXC TRADER \u00b7 LIVE \u00b7 {now_hkt()} UTC+8", ""]
-    lines.append(f"MODE     {mode:<10}SIGNAL   {signal_text}")
-    lines.append(f"BALANCE  ${bal:<10.2f}uPnL     {total_upnl:+.2f}")
-    lines.append(f"TODAY    {today_net:+.2f} USDT    (rPnL {today_realized:+.2f})")
+    lines = [f"\U0001f4ca AXC 交易員 \u00b7 實盤 \u00b7 {now_hkt()} UTC+8", ""]
+    lines.append(f"模式     {mode:<10}信號   {signal_text}")
+    lines.append(f"結餘     ${bal:<10.2f}浮動盈虧  {total_upnl:+.2f}")
+    lines.append(f"今日     {today_net:+.2f} USDT    (已實現 {today_realized:+.2f})")
     lines.append("")
 
     # Position — live from Aster DEX
-    lines.append("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 POSITION \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+    lines.append("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 持倉 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
     if active_positions:
         for pos in active_positions:
             amt = float(pos.get("positionAmt", 0))
@@ -203,8 +204,8 @@ def cmd_report():
             else:
                 pnl_pct = 0
             lines.append(f"{sym} {direction} {lev}x")
-            lines.append(f"Entry ${entry:.2f} \u2192 Now ${current:.2f}")
-            lines.append(f"PnL  {upnl:+.2f} USDT ({pnl_pct:+.1f}%) {emoji(upnl)}")
+            lines.append(f"入場 ${entry:.2f} \u2192 現價 ${current:.2f}")
+            lines.append(f"盈虧  {upnl:+.2f} USDT ({pnl_pct:+.1f}%) {emoji(upnl)}")
             # Find SL/TP from live open orders
             sl_orders = [o for o in open_orders if o.get("symbol") == sym and o.get("type") == "STOP_MARKET"]
             tp_orders = [o for o in open_orders if o.get("symbol") == sym and o.get("type") == "TAKE_PROFIT_MARKET"]
@@ -215,10 +216,10 @@ def cmd_report():
                 tp_str = f"${tp_price:.2f}" if tp_price else "—"
                 lines.append(f"SL   {sl_str}   TP  {tp_str}")
     else:
-        lines.append("NO OPEN POSITIONS")
+        lines.append("未有持倉")
 
     lines.append("")
-    lines.append("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 MARKET \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+    lines.append("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 行情 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
     for sym, label in [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("XRPUSDT", "XRP"), ("XAGUSDT", "XAG")]:
         p = prices.get(sym, {})
         price = p.get("price", 0)
@@ -237,22 +238,22 @@ def cmd_report():
     trigger_count = sig.get("TRIGGER_COUNT", "0")
     scan_ts = sig.get("TIMESTAMP", "?")
     lines.append("")
-    lines.append(f"LAST  Scan {scan_status} \u00b7 {trigger_count} triggers \u00b7 {scan_ts}")
+    lines.append(f"上次  掃描{scan_status} \u00b7 {trigger_count} 觸發 \u00b7 {scan_ts}")
     if active_positions:
-        lines.append(f"NEXT  Monitoring open position(s)")
+        lines.append(f"下步  監控持倉中")
     elif signal_active == "YES":
-        lines.append(f"NEXT  Signal active: {signal_pair}")
+        lines.append(f"下步  信號活躍: {signal_pair}")
     else:
-        lines.append(f"NEXT  Waiting for entry signals")
+        lines.append(f"下步  等待入場信號")
 
     return "\n".join(lines)
 
 
 def cmd_pos():
     positions = get_positions()
-    lines = [f"\U0001f4ca AXC POSITIONS \u00b7 {now_hkt()} UTC+8", ""]
+    lines = [f"\U0001f4ca 持倉一覽 \u00b7 {now_hkt()} UTC+8", ""]
     if not positions:
-        lines.append("NO OPEN POSITIONS")
+        lines.append("未有持倉")
     else:
         for p in positions:
             amt = float(p.get("positionAmt", 0))
@@ -264,9 +265,9 @@ def cmd_pos():
             mark = float(p.get("markPrice", 0))
             pnl = float(p.get("unRealizedProfit", 0))
             lines.append(f"{sym} {direction}")
-            lines.append(f"Entry ${entry:.2f} \u2192 Now ${mark:.2f}")
-            lines.append(f"PnL  ${pnl:.2f} {emoji(pnl)}")
-            lines.append(f"Size {abs(amt)}")
+            lines.append(f"入場 ${entry:.2f} \u2192 現價 ${mark:.2f}")
+            lines.append(f"盈虧  ${pnl:.2f} {emoji(pnl)}")
+            lines.append(f"數量 {abs(amt)}")
             lines.append("")
     return "\n".join(lines)
 
@@ -276,24 +277,24 @@ def cmd_bal():
     ts = parse_state(TRADE_STATE_PATH)
     if bal is None:
         bal = parse_float(ts.get("BALANCE_USDT", 0))
-    lines = [f"\U0001f4ca AXC BALANCE \u00b7 {now_hkt()} UTC+8", ""]
-    lines.append(f"BALANCE    ${bal:.2f} USDT")
-    lines.append(f"AVAILABLE  ${bal:.2f} USDT")
+    lines = [f"\U0001f4ca 結餘 \u00b7 {now_hkt()} UTC+8", ""]
+    lines.append(f"結餘       ${bal:.2f} USDT")
+    lines.append(f"可用       ${bal:.2f} USDT")
     daily = parse_float(ts.get("DAILY_LOSS", 0))
-    lines.append(f"DAILY P&L  ${daily}")
+    lines.append(f"今日盈虧   ${daily}")
     return "\n".join(lines)
 
 
 def cmd_run():
     os.chdir(SCRIPTS_DIR)
     r = os.popen("python3 -m trader_cycle.main --live --verbose 2>&1 | tail -5").read()
-    return f"\U0001f4ca LIVE RUN \u00b7 {now_hkt()} UTC+8\n\n{r.strip()}"
+    return f"\U0001f4ca 實盤執行 \u00b7 {now_hkt()} UTC+8\n\n{r.strip()}"
 
 
 def cmd_dryrun():
     os.chdir(SCRIPTS_DIR)
     r = os.popen("python3 -m trader_cycle.main --dry-run --verbose --no-telegram 2>&1 | tail -5").read()
-    return f"\U0001f4ca DRY RUN \u00b7 {now_hkt()} UTC+8\n\n{r.strip()}"
+    return f"\U0001f4ca 模擬執行 \u00b7 {now_hkt()} UTC+8\n\n{r.strip()}"
 
 
 def cmd_new():
@@ -303,17 +304,17 @@ def cmd_new():
     trigger = scan.get("TRIGGER_PENDING", "OFF")
     trigger_pair = scan.get("TRIGGER_PAIR", "")
     if trigger == "ON" and trigger_pair:
-        return f"\U0001f4ca SIGNAL SCAN \u00b7 {now_hkt()} UTC+8\n\nTRIGGER {trigger_pair} \u26a0\ufe0f\nReason: {scan.get('TRIGGER_REASON', '?')}"
-    return f"NO SIGNAL \u00b7 {now_hkt()} UTC+8"
+        return f"\U0001f4ca 信號掃描 \u00b7 {now_hkt()} UTC+8\n\n觸發 {trigger_pair} \u26a0\ufe0f\n原因: {scan.get('TRIGGER_REASON', '?')}"
+    return f"無信號 \u00b7 {now_hkt()} UTC+8"
 
 
 def cmd_stop():
     # Set SILENT_MODE ON in SCAN_CONFIG
-    return f"\u26d4 TRADING PAUSED \u00b7 {now_hkt()} UTC+8\nSILENT_MODE: ON"
+    return f"\u26d4 交易暫停 \u00b7 {now_hkt()} UTC+8\n靜音模式: 開"
 
 
 def cmd_resume():
-    return f"\u2705 TRADING RESUMED \u00b7 {now_hkt()} UTC+8\nSILENT_MODE: OFF"
+    return f"\u2705 交易恢復 \u00b7 {now_hkt()} UTC+8\n靜音模式: 關"
 
 
 def cmd_sl():
@@ -321,22 +322,22 @@ def cmd_sl():
     active = [p for p in positions if float(p.get("positionAmt", 0)) != 0]
     open_orders = get_open_orders()
 
-    lines = [f"\U0001f4ca STOP LOSSES \u00b7 {now_hkt()} UTC+8", ""]
+    lines = [f"\U0001f4ca 止損止盈 \u00b7 {now_hkt()} UTC+8", ""]
     if not active:
-        lines.append("NO OPEN POSITIONS")
+        lines.append("未有持倉")
     else:
         for pos in active:
             sym = pos.get("symbol", "?")
             amt = float(pos.get("positionAmt", 0))
             direction = "LONG" if amt > 0 else "SHORT"
             entry = float(pos.get("entryPrice", 0))
-            lines.append(f"{sym} {direction} (entry ${entry:.2f})")
+            lines.append(f"{sym} {direction} (入場 ${entry:.2f})")
             sl_orders = [o for o in open_orders if o.get("symbol") == sym and o.get("type") == "STOP_MARKET"]
             tp_orders = [o for o in open_orders if o.get("symbol") == sym and o.get("type") == "TAKE_PROFIT_MARKET"]
             sl_price = float(sl_orders[0].get("stopPrice", 0)) if sl_orders else 0
             tp_price = float(tp_orders[0].get("stopPrice", 0)) if tp_orders else 0
-            lines.append(f"SL  ${sl_price:.2f}" if sl_price else "SL  NOT SET")
-            lines.append(f"TP  ${tp_price:.2f}" if tp_price else "TP  NOT SET")
+            lines.append(f"止損  ${sl_price:.2f}" if sl_price else "止損  未設定")
+            lines.append(f"止盈  ${tp_price:.2f}" if tp_price else "止盈  未設定")
             lines.append("")
     return "\n".join(lines)
 
@@ -350,15 +351,15 @@ def cmd_pnl():
     # Today's realized from exchange
     today = get_today_pnl()
 
-    lines = [f"\U0001f4ca P&L SUMMARY \u00b7 {now_hkt()} UTC+8", ""]
+    lines = [f"\U0001f4ca 盈虧概覽 \u00b7 {now_hkt()} UTC+8", ""]
     if today:
-        lines.append(f"TODAY rPnL    {today['realized']:+.2f} USDT")
-        lines.append(f"TODAY funding {today['funding']:+.4f}")
-        lines.append(f"TODAY fees    {today['commission']:+.4f}")
-        lines.append(f"TODAY net     {today['net']:+.2f} USDT")
+        lines.append(f"今日已實現   {today['realized']:+.2f} USDT")
+        lines.append(f"今日資金費   {today['funding']:+.4f}")
+        lines.append(f"今日手續費   {today['commission']:+.4f}")
+        lines.append(f"今日淨值     {today['net']:+.2f} USDT")
     else:
-        lines.append(f"TODAY         (exchange unavailable)")
-    lines.append(f"UNREALIZED    {total_upnl:+.2f} USDT")
+        lines.append(f"今日         (交易所無回應)")
+    lines.append(f"浮動盈虧     {total_upnl:+.2f} USDT")
     if active:
         for p in active:
             sym = p.get("symbol", "?")
@@ -369,11 +370,11 @@ def cmd_pnl():
 
 def cmd_log():
     if not os.path.exists(TRADE_LOG_PATH):
-        return f"NO LOG \u00b7 {now_hkt()} UTC+8"
+        return f"無記錄 \u00b7 {now_hkt()} UTC+8"
     with open(TRADE_LOG_PATH) as f:
         lines = f.readlines()
     last10 = [l.rstrip() for l in lines[-10:]]
-    return f"\U0001f4ca TRADE LOG \u00b7 {now_hkt()} UTC+8\n\n" + "\n".join(last10)
+    return f"\U0001f4ca 交易記錄 \u00b7 {now_hkt()} UTC+8\n\n" + "\n".join(last10)
 
 
 def cmd_mode():
@@ -381,9 +382,9 @@ def cmd_mode():
     scan = parse_state(SCAN_CONFIG_PATH)
     mode = ts.get("MARKET_MODE", scan.get("MARKET_MODE", "?"))
     confirmed = ts.get("MODE_CONFIRMED_CYCLES", "?")
-    lines = [f"\U0001f4ca MARKET MODE \u00b7 {now_hkt()} UTC+8", ""]
-    lines.append(f"MODE       {mode}")
-    lines.append(f"CONFIRMED  {confirmed} cycles")
+    lines = [f"\U0001f4ca 市場模式 \u00b7 {now_hkt()} UTC+8", ""]
+    lines.append(f"模式       {mode}")
+    lines.append(f"已確認     {confirmed} 個週期")
     for k in ["RSI_VOTE", "MACD_VOTE", "VOLUME_VOTE", "MA_VOTE", "FUNDING_VOTE"]:
         v = scan.get(k, ts.get(k, ""))
         if v:
@@ -392,40 +393,46 @@ def cmd_mode():
 
 
 def cmd_health():
-    lines = [f"\U0001f4ca HEALTH CHECK \u00b7 {now_hkt()} UTC+8", ""]
+    lines = [f"\U0001f4ca 系統健康 \u00b7 {now_hkt()} UTC+8", ""]
 
     # Gateway
-    import shutil
-    if shutil.which("openclaw"):
-        try:
-            r = os.popen("openclaw gateway status 2>&1").read().strip()
-            lines.append("Gateway    \U0001f7e2 OK" if r else "Gateway    \U0001f534 DOWN")
-        except Exception:
-            lines.append("Gateway    \U0001f534 DOWN")
-    else:
-        lines.append("Gateway    \u26aa N/A (standalone)")
+    gw = bridge.gateway_status()
+    GW_ICONS = {"ok": "\U0001f7e2 正常", "down": "\U0001f534 斷線", "n/a": "\u26aa 獨立模式"}
+    lines.append(f"Gateway    {GW_ICONS[gw]}")
 
     # Telegram
     try:
         r = fetch_json(f"https://api.telegram.org/bot{TG_BOT_TOKEN}/getMe")
-        lines.append(f"Telegram   \U0001f7e2 @{r['result']['username']}" if r and r.get("ok") else "Telegram   \U0001f534 FAIL")
+        lines.append(f"Telegram   \U0001f7e2 @{r['result']['username']}" if r and r.get("ok") else "Telegram   \U0001f534 失敗")
     except Exception:
-        lines.append("Telegram   \U0001f534 FAIL")
+        lines.append("Telegram   \U0001f534 失敗")
 
     # Aster DEX
     data = fetch_json(f"{ASTER_FAPI}/fapi/v1/ticker/24hr?symbol=BTCUSDT")
-    lines.append(f"Aster DEX  \U0001f7e2 OK" if data else "Aster DEX  \U0001f534 FAIL")
+    lines.append(f"Aster DEX  \U0001f7e2 正常" if data else "Aster DEX  \U0001f534 失敗")
 
     # Balance
     bal = get_balance()
-    lines.append(f"Balance    ${bal:.2f}" if bal else "Balance    \U0001f534 FAIL")
+    lines.append(f"結餘       ${bal:.2f}" if bal else "結餘       \U0001f534 失敗")
 
     return "\n".join(lines)
 
 
 def cmd_reset():
     # Clear TRIGGER_PENDING
-    return f"\U0001f504 RESET \u00b7 {now_hkt()} UTC+8\nTRIGGER_PENDING: OFF\nCycle state cleared"
+    return f"\U0001f504 重設 \u00b7 {now_hkt()} UTC+8\n觸發待命: 關\n週期狀態已清除"
+
+
+def cmd_stats():
+    """策略表現統計 — 讀 trades.jsonl 計算核心指標。"""
+    try:
+        axc_home = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+        sys.path.insert(0, os.path.join(axc_home, "scripts"))
+        from trader_cycle.analysis.metrics import calculate_metrics, format_stats_text
+        m = calculate_metrics()
+        return format_stats_text(m)
+    except Exception as e:
+        return f"Stats error: {e}"
 
 
 COMMANDS = {
@@ -443,6 +450,7 @@ COMMANDS = {
     "mode": cmd_mode,
     "health": cmd_health,
     "reset": cmd_reset,
+    "stats": cmd_stats,
 }
 
 

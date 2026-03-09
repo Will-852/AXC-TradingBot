@@ -47,7 +47,7 @@
   - 記憶層：jsonl + npy
 - 拒絕 Faiss（過度設計）
 - 拒絕 Llama/Mistral（質量差於Claude Haiku）
-- 存檔：~/.openclaw/ARCHITECTURE_DECISIONS.md
+- 存檔：~/projects/axc-trading/ARCHITECTURE_DECISIONS.md
 
 ### 本地 LLM 實驗 + 清除
 - 測試 Llama2 via Ollama vs GPT-5 Mini proxy

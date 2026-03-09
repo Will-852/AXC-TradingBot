@@ -45,6 +45,6 @@ Endpoint: /ticker/24hr?symbol={symbol}
 唔需要 LLM — 純數學信號偵測。
 
 ## 共享狀態路徑
-- SIGNAL: ~/.openclaw/shared/SIGNAL.md
-- prices_cache: ~/.openclaw/shared/prices_cache.json
-- SCAN_LOG: ~/.openclaw/shared/SCAN_LOG.md
+- SIGNAL: ~/projects/axc-trading/shared/SIGNAL.md
+- prices_cache: ~/projects/axc-trading/shared/prices_cache.json
+- SCAN_LOG: ~/projects/axc-trading/shared/SCAN_LOG.md

@@ -33,8 +33,9 @@ PYTHON = "/opt/homebrew/bin/python3.11"
 
 LIGHT_SCAN = os.path.join(SCRIPTS_DIR, "light_scan.py")
 TRADER_CYCLE = os.path.join(SCRIPTS_DIR, "trader_cycle", "main.py")
-SIGNAL_MD = os.path.join(os.path.expanduser("~/.openclaw"), "shared", "SIGNAL.md")
-LOCK_FILE = os.path.join(os.path.expanduser("~/.openclaw"), "shared", "scanner_runner.lock")
+_AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+SIGNAL_MD = os.path.join(_AXC_HOME, "shared", "SIGNAL.md")
+LOCK_FILE = os.path.join(_AXC_HOME, "shared", "scanner_runner.lock")
 
 HKT = timezone(timedelta(hours=8))
 

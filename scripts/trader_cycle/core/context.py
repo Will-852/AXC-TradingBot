@@ -132,7 +132,7 @@ class CycleContext:
 
     # ─── Execution (Phase 3) ───
     exchange_client: Any = None      # AsterClient instance (injected in --live mode)
-    exchange_clients: dict = field(default_factory=dict)  # multi-exchange: {"aster": ..., "binance": ...}
+    exchange_clients: dict = field(default_factory=dict)  # {"aster": ..., "binance": ..., "hyperliquid": ...}
     order_result: OrderResult | None = None
     entry_order_id: str = ""
     sl_order_id: str = ""

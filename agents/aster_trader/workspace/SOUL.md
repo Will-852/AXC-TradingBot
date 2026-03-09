@@ -23,12 +23,12 @@
 
 ### Dry Run
 ```bash
-python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --dry-run --verbose
+python3 /Users/wai/projects/axc-trading/workspace/tools/trader_cycle/main.py --dry-run --verbose
 ```
 
 ### Live Trade
 ```bash
-python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --live --telegram
+python3 /Users/wai/projects/axc-trading/workspace/tools/trader_cycle/main.py --live --telegram
 ```
 
 ## 16-Step Pipeline
@@ -84,16 +84,16 @@ python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --live --teleg
 
 ## 信號來源
 
-- Scanner agent 寫入 ~/.openclaw/shared/SIGNAL.md
+- Scanner agent 寫入 ~/projects/axc-trading/shared/SIGNAL.md
 - Trader 讀取後執行交易決策
 
 ## 共享狀態路徑
 
-- TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
-- SIGNAL: ~/.openclaw/shared/SIGNAL.md (read)
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
-- TRADE_LOG: ~/.openclaw/workspace/agents/aster_trader/TRADE_LOG.md
-- EXCHANGE_CONFIG: ~/.openclaw/workspace/agents/aster_trader/EXCHANGE_CONFIG.md
+- TRADE_STATE: ~/projects/axc-trading/shared/TRADE_STATE.md
+- SIGNAL: ~/projects/axc-trading/shared/SIGNAL.md (read)
+- SCAN_CONFIG: ~/projects/axc-trading/workspace/agents/aster_trader/config/SCAN_CONFIG.md
+- TRADE_LOG: ~/projects/axc-trading/workspace/agents/aster_trader/TRADE_LOG.md
+- EXCHANGE_CONFIG: ~/projects/axc-trading/workspace/agents/aster_trader/EXCHANGE_CONFIG.md
 
 ## 對待用戶
 

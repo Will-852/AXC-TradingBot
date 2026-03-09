@@ -4,7 +4,7 @@ weekly_strategy_review.py — 每週策略回顧
 讀 trades.jsonl + analysiss.jsonl + params.py → Claude Sonnet 分析 → 原子寫入 STRATEGY.md
 
 排程：每週一 10:00 HKT via LaunchAgent ai.openclaw.strategyreview
-手動：python3 ~/.openclaw/scripts/weekly_strategy_review.py [--dry-run]
+手動：python3 ~/projects/axc-trading/scripts/weekly_strategy_review.py [--dry-run]
 """
 
 import json
@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # ── Paths ──
-BASE_DIR = Path.home() / ".openclaw"
+BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 TRADES_FILE = BASE_DIR / "memory" / "store" / "trades.jsonl"
 ANALYSIS_FILE = BASE_DIR / "memory" / "store" / "analysiss.jsonl"
 STRATEGY_FILE = BASE_DIR / "ai" / "STRATEGY.md"
@@ -183,7 +183,7 @@ def call_claude(system_prompt: str, user_prompt: str) -> str:
 
     req = urllib.request.Request(url, data=payload, method="POST", headers={
         "Content-Type": "application/json",
-        "x-api-key": PROXY_API_KEY,
+        "Authorization": f"Bearer {PROXY_API_KEY}",
         "anthropic-version": "2023-06-01",
     })
 

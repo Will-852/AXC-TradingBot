@@ -1,10 +1,11 @@
 #!/bin/bash
-# ~/.openclaw/scripts/health_check.sh
-# OpenClaw 系統健康檢查（7 類別）
+# ~/projects/axc-trading/scripts/health_check.sh
+# AXC 系統健康檢查（7 類別）
 # 每次大改後執行：bash scripts/health_check.sh
 # 結果自動寫入 logs/health_check.log
 
-LOG="$HOME/.openclaw/logs/health_check.log"
+AXC_HOME="${AXC_HOME:-$HOME/projects/axc-trading}"
+LOG="$AXC_HOME/logs/health_check.log"
 PASS=0; FAIL=0; WARN=0
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
 
@@ -23,7 +24,7 @@ log ""
 log "[ 路徑完整性 ]"
 
 OLD_REFS=$(grep -r "docs/ops\|docs/operations\|OPS_GUIDE\|ADDING_SYMBOLS" \
-           "$HOME/.openclaw" \
+           "$AXC_HOME" \
            --include="*.py" --include="*.sh" --include="*.md" \
            -l 2>/dev/null | grep -v ".git" | grep -v "backups/" | grep -v "backup_agent.sh" | grep -v "health_check.sh" | wc -l)
 [ "$OLD_REFS" -eq 0 ] && pass "零舊路徑引用" || \
@@ -34,7 +35,7 @@ for f in \
     "config/params.py" \
     "scripts/load_env.sh" "scripts/async_scanner.py" "scripts/tg_bot.py" \
     "scripts/backup_agent.sh" "scripts/integration_test.sh"; do
-    [ -f "$HOME/.openclaw/$f" ] && pass "$f 存在" || fail "$f 唔存在"
+    [ -f "$AXC_HOME/$f" ] && pass "$f 存在" || fail "$f 唔存在"
 done
 
 # ── 2. LaunchAgent ───────────────────────────
@@ -74,7 +75,7 @@ for label in ai.openclaw.scanner ai.openclaw.telegram ai.openclaw.gateway; do
     fi
 done
 
-HB="$HOME/.openclaw/logs/scanner_heartbeat.txt"
+HB="$AXC_HOME/logs/scanner_heartbeat.txt"
 if [ -f "$HB" ]; then
     AGE=$(( $(date +%s) - $(stat -f %m "$HB" 2>/dev/null || echo 0) ))
     [ "$AGE" -lt 300 ] && pass "心跳正常（${AGE}秒前）" || \
@@ -87,7 +88,7 @@ fi
 log ""
 log "[ 環境變數 ]"
 
-ENV_KEYS=$(bash "$HOME/.openclaw/scripts/load_env.sh" env 2>/dev/null | \
+ENV_KEYS=$(bash "$AXC_HOME/scripts/load_env.sh" env 2>/dev/null | \
            grep -cE "PROXY_API_KEY|VOYAGE_API_KEY|TELEGRAM_BOT_TOKEN")
 [ "$ENV_KEYS" -ge 3 ] && pass ".env 載入正常（$ENV_KEYS 個 key）" || \
     fail ".env 載入問題（只有 $ENV_KEYS 個 key，需要 ≥3）"
@@ -96,7 +97,7 @@ ENV_KEYS=$(bash "$HOME/.openclaw/scripts/load_env.sh" env 2>/dev/null | \
 log ""
 log "[ 文件大小 ]"
 
-CLAUDE_LINES=$(wc -l < "$HOME/.openclaw/CLAUDE.md" 2>/dev/null || echo 0)
+CLAUDE_LINES=$(wc -l < "$AXC_HOME/CLAUDE.md" 2>/dev/null || echo 0)
 [ "$CLAUDE_LINES" -le 200 ] && \
     pass "CLAUDE.md ${CLAUDE_LINES}行（上限200）" || \
     fail "CLAUDE.md ${CLAUDE_LINES}行，超過200行上限！"
@@ -111,7 +112,7 @@ else
     warn "全局 ~/.claude/CLAUDE.md 唔存在"
 fi
 
-STRATEGY_LINES=$(wc -l < "$HOME/.openclaw/ai/STRATEGY.md" 2>/dev/null || echo 0)
+STRATEGY_LINES=$(wc -l < "$AXC_HOME/ai/STRATEGY.md" 2>/dev/null || echo 0)
 [ "$STRATEGY_LINES" -ge 10 ] && \
     pass "ai/STRATEGY.md ${STRATEGY_LINES}行" || \
     warn "ai/STRATEGY.md 只有 ${STRATEGY_LINES}行（weekly_review 未運行）"
@@ -120,13 +121,13 @@ STRATEGY_LINES=$(wc -l < "$HOME/.openclaw/ai/STRATEGY.md" 2>/dev/null || echo 0)
 log ""
 log "[ Agent SOUL.md ]"
 
-SOUL_COUNT=$(find "$HOME/.openclaw/agents" -name "SOUL.md" 2>/dev/null | wc -l | tr -d ' ')
+SOUL_COUNT=$(find "$AXC_HOME/agents" -name "SOUL.md" 2>/dev/null | wc -l | tr -d ' ')
 [ "$SOUL_COUNT" -ge 9 ] && pass "$SOUL_COUNT 個 SOUL.md 原位（≥9）" || \
     warn "只有 $SOUL_COUNT 個 SOUL.md（預期 ≥9）"
 
 # 檢查關鍵 agent 有 SOUL.md
 for agent in main aster_scanner aster_trader heartbeat; do
-    FOUND=$(find "$HOME/.openclaw/agents/$agent" -name "SOUL.md" 2>/dev/null | head -1)
+    FOUND=$(find "$AXC_HOME/agents/$agent" -name "SOUL.md" 2>/dev/null | head -1)
     [ -n "$FOUND" ] && pass "$agent/SOUL.md 存在" || fail "$agent/SOUL.md 唔存在"
 done
 
@@ -134,11 +135,11 @@ done
 log ""
 log "[ 根目錄 ]"
 
-BAK_COUNT=$(ls "$HOME/.openclaw"/*.bak* 2>/dev/null | wc -l | tr -d ' ')
+BAK_COUNT=$(ls "$AXC_HOME"/*.bak* 2>/dev/null | wc -l | tr -d ' ')
 [ "$BAK_COUNT" -eq 0 ] && pass "根目錄無 .bak 垃圾文件" || \
     warn "根目錄有 $BAK_COUNT 個 .bak 文件，建議移至 backups/"
 
-ROOT_MD=$(ls "$HOME/.openclaw"/*.md 2>/dev/null | wc -l | tr -d ' ')
+ROOT_MD=$(ls "$AXC_HOME"/*.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$ROOT_MD" -le 2 ] && pass "根目錄 $ROOT_MD 個 .md（≤2）" || \
     warn "根目錄 $ROOT_MD 個 .md（預期只有 CLAUDE.md + DEV_LOG.md）"
 

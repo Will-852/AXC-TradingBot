@@ -30,7 +30,7 @@ launchctl start ai.openclaw.telegram
 ## 儀表板開唔到？
 
 ```bash
-cd ~/.openclaw && python3 scripts/dashboard.py &
+cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 ```
 
 然後瀏覽器開 `http://localhost:5555`
@@ -42,10 +42,10 @@ cd ~/.openclaw && python3 scripts/dashboard.py &
 launchctl list | grep scanner
 
 # 2. 檢查日誌
-tail -20 ~/.openclaw/logs/scanner.log
+tail -20 ~/projects/axc-trading/logs/scanner.log
 
 # 3. 如果有鎖死
-rm ~/.openclaw/shared/scanner_runner.lock
+rm ~/projects/axc-trading/shared/scanner_runner.lock
 
 # 4. 重啟
 launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
@@ -77,5 +77,5 @@ launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner
 注意：TRADING_PROFILES 只能覆蓋 settings.py 已有嘅 key。新增 key 前先確認 settings.py 有對應定義：
 
 ```bash
-grep "KEY_NAME" ~/.openclaw/scripts/trader_cycle/config/settings.py
+grep "KEY_NAME" ~/projects/axc-trading/scripts/trader_cycle/config/settings.py
 ```

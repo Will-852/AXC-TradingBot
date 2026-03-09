@@ -26,7 +26,7 @@ description: Lessons learned from 2026-03-03 setup session — diagnose and fix 
 ## Telegram Delivery Rules
 - chatId must be mapped in active session
 - slash commands only work through native Telegram channel, NOT via CLI --deliver flag
-- Test delivery directly: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py report --send
+- Test delivery directly: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py report --send
 
 ## Skill Loading Rules
 - Empty description in SKILL.md frontmatter = skill not loaded (silent failure)

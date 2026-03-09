@@ -13,7 +13,7 @@ TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
 TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
 SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
 API_KEYS_PATH = os.path.join(WORKSPACE, "keys/API_KEYS.md")
-LOG_DIR = os.path.expanduser("~/.openclaw/logs")
+LOG_DIR = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "logs")
 
 # ─── Timezone ───
 HKT = timezone(timedelta(hours=8))
@@ -119,7 +119,7 @@ KLINE_LIMIT = 200                # candles to fetch
 SCAN_LOG_MAX_LINES = 200
 
 # ─── Phase 3: Live Trading ───
-SECRETS_PATH = os.path.expanduser("~/.openclaw/secrets/.env")
+SECRETS_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "secrets", ".env")
 ORDER_TIMEOUT_SEC = 300              # 5 min unfilled → cancel
 PAPER_GATE_HOURS = 48                # minimum DRY_RUN hours before --live
 PAPER_GATE_FILE = os.path.join(LOG_DIR, "paper_gate_start.txt")
@@ -131,7 +131,7 @@ CYCLE_LOG_DIR = os.path.join(LOG_DIR, "cycles")
 try:
     import importlib.util as _ilu
     _spec = _ilu.spec_from_file_location(
-        "_params", os.path.expanduser("~/.openclaw/config/params.py")
+        "_params", os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "config", "params.py")
     )
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
@@ -151,8 +151,8 @@ try:
         TREND_RISK_PCT = _p.get("risk_per_trade_pct", TREND_RISK_PCT)
         RANGE_SL_ATR_MULT = _p.get("sl_atr_mult", RANGE_SL_ATR_MULT)
         TREND_SL_ATR_MULT = _p.get("sl_atr_mult", TREND_SL_ATR_MULT)
-        RANGE_MIN_RR = _p.get("tp_atr_mult", RANGE_MIN_RR)
-        TREND_MIN_RR = _p.get("tp_atr_mult", TREND_MIN_RR)
+        RANGE_MIN_RR = _p.get("range_min_rr", RANGE_MIN_RR)
+        TREND_MIN_RR = _p.get("trend_min_rr", TREND_MIN_RR)
         MAX_CRYPTO_POSITIONS = _p.get("max_open_positions", MAX_CRYPTO_POSITIONS)
     del _ilu, _spec, _mod, _profiles, _active, _p
 except Exception:

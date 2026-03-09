@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Optional
 
 # ── 路徑設定 ─────────────────────────────────────
-BASE_DIR   = Path.home() / ".openclaw"
+BASE_DIR   = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 SHARED_DIR = BASE_DIR / "shared"
 LOGS_DIR   = BASE_DIR / "logs"
 

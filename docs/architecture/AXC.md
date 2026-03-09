@@ -21,7 +21,7 @@ Bot handle：@AXCTradingBot
 2. Dashboard 已運行（`:5555`）
 3. Telegram app 已安裝
 
-### 環境變數（`~/.openclaw/secrets/.env`）
+### 環境變數（`~/projects/axc-trading/secrets/.env`）
 ```
 TELEGRAM_BOT_TOKEN=<BotFather 拎到嘅 token>
 TELEGRAM_CHAT_ID=<你嘅 Telegram chat ID>
@@ -43,7 +43,7 @@ VOYAGE_API_KEY=<voyage-3 embedding key>
 curl http://127.0.0.1:5555/api/health
 
 # 啟動 bot
-cd ~/.openclaw
+cd ~/projects/axc-trading
 python3 scripts/tg_bot.py
 ```
 
@@ -172,7 +172,7 @@ Bot 喺背景每 60 秒檢查一次，自動推送：
 
 - **單一白名單**：只有 `TELEGRAM_CHAT_ID` 指定嘅 chat 可以操作
 - 其他人發訊息：靜默忽略（唔回覆，log warning）
-- Bot token 同所有 API key 存喺 `~/.openclaw/secrets/.env`（唔 commit 到 git）
+- Bot token 同所有 API key 存喺 `~/projects/axc-trading/secrets/.env`（唔 commit 到 git）
 
 ---
 
@@ -252,7 +252,7 @@ sleep 2
 pgrep -f tg_bot.py || echo "OK"
 
 # 4. 重新啟動（只啟一個）
-cd ~/.openclaw && python3 scripts/tg_bot.py
+cd ~/projects/axc-trading && python3 scripts/tg_bot.py
 ```
 
 ### AI 回覆好慢
@@ -269,7 +269,7 @@ cd ~/.openclaw && python3 scripts/tg_bot.py
 - 🟢 ✅ = 10 分鐘內有活動
 - 🟡 ⚠️ = 10-30 分鐘無活動
 - 🔴 ❌ = 30+ 分鐘無活動
-- 掃描器紅色 → 檢查 `tail -20 ~/.openclaw/logs/scanner.log`
+- 掃描器紅色 → 檢查 `tail -20 ~/projects/axc-trading/logs/scanner.log`
 
 ### 記憶清除
 - `/forget` 只清短期對話記憶（最近 5 輪，10 分鐘過期）
@@ -362,15 +362,15 @@ axc/
 ### 缺口清單
 
 #### 1. 硬編碼路徑（5 處）
-所有文件都 hardcode `~/.openclaw/`，獨立部署需要改為可配置。
+所有文件都 hardcode `~/projects/axc-trading/`，獨立部署需要改為可配置。
 
 | 文件 | 位置 | 現狀 | 需改為 |
 |------|------|------|--------|
-| tg_bot.py | L27 | `Path.home() / ".openclaw/secrets/.env"` | 環境變數 `AXC_ENV_PATH` 或相對路徑 |
-| tg_bot.py | L36 | `BASE_DIR = Path.home() / ".openclaw"` | 環境變數 `OPENCLAW_HOME` |
+| tg_bot.py | L27 | `Path.home() / "projects/axc-trading/secrets/.env"` | 環境變數 `AXC_ENV_PATH` 或相對路徑 |
+| tg_bot.py | L36 | `BASE_DIR = Path.home() / "projects/axc-trading"` | 環境變數 `OPENCLAW_HOME` |
 | tg_bot.py | L39-40 | `sys.path.insert(0, str(BASE_DIR))` | 改用 package import |
-| write_activity.py | L12 | `~/.openclaw/shared/activity_log.jsonl` | 環境變數或參數 |
-| memory/embedder.py | L28 | `Path.home() / ".openclaw/memory/index"` | 環境變數或參數 |
+| write_activity.py | L12 | `~/projects/axc-trading/shared/activity_log.jsonl` | 環境變數或參數 |
+| memory/embedder.py | L28 | `Path.home() / "projects/axc-trading/memory/index"` | 環境變數或參數 |
 
 #### 2. Import 路徑（2 處要改）
 tg_bot 同 slash_cmd 用 `from trader_cycle.exchange.aster_client` import，但 zip 入面 AsterClient 唔喺 trader_cycle/ 下。
@@ -417,7 +417,7 @@ r = os.popen("python3 -m trader_cycle.main --dry-run --verbose ...").read()
 呢兩個 function 只喺 `/scan` 用。獨立部署要改為 API call 或者禁用。
 
 #### 6. memory/ 直接寫本地文件
-writer.py 同 retriever.py 直接讀寫 `~/.openclaw/memory/` 下嘅 jsonl + npy 文件。
+writer.py 同 retriever.py 直接讀寫 `~/projects/axc-trading/memory/` 下嘅 jsonl + npy 文件。
 獨立部署有兩個選擇：
 - A）memory/ 隨 AXC 部署（自帶記憶，同 OpenClaw 分開）
 - B）Phase 4 做 Memory API → 改用 `/api/memory/*`
@@ -435,7 +435,7 @@ Step 2: 改 import 路徑
   - slash_cmd.py: 同上（4 處）
 
 Step 3: 路徑可配置
-  - BASE_DIR 改讀 OPENCLAW_HOME 環境變數（fallback ~/.openclaw）
+  - BASE_DIR 改讀 OPENCLAW_HOME 環境變數（fallback ~/projects/axc-trading）
   - ENV_PATH 改讀 AXC_ENV_PATH 環境變數
 
 Step 4: 建立 requirements.txt + .env.example

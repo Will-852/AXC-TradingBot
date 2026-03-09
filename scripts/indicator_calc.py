@@ -22,7 +22,7 @@ import requests
 import tradingview_indicators as tv
 
 import importlib.util
-_spec = importlib.util.spec_from_file_location("openclaw_params", "/Users/wai/.openclaw/config/params.py")
+_spec = importlib.util.spec_from_file_location("openclaw_params", os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "config", "params.py"))
 _params = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_params)
 BB_TOUCH_TOL_DEFAULT = _params.BB_TOUCH_TOL_DEFAULT

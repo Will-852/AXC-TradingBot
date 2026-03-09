@@ -23,7 +23,7 @@ audience: human,claude,github
 ## 文件結構
 
 ```
-~/.openclaw/
+~/projects/axc-trading/
 ├── openclaw.json          ← Gateway 設定（agents + 模型 + TG）
 ├── CLAUDE.md              ← Claude Code 入口
 ├── ai/                    ← AI 讀（CONTEXT / MEMORY / RULES / STRATEGY）
@@ -71,8 +71,8 @@ audience: human,claude,github
 
 ```bash
 # 查詢記憶
-python3 ~/.openclaw/memory/retriever.py "上次 BTC 入場嘅結果"
+python3 ~/projects/axc-trading/memory/retriever.py "上次 BTC 入場嘅結果"
 
 # 重建索引
-python3 ~/.openclaw/scripts/memory_init.py
+python3 ~/projects/axc-trading/scripts/memory_init.py
 ```

@@ -7,8 +7,9 @@ from binance.spot import Spot
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import os
 
-BASE_DIR = Path.home() / ".openclaw"
+BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 OUT_FILE = BASE_DIR / "shared/binance_market.json"
 
 SYMBOLS = {

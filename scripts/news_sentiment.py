@@ -7,7 +7,7 @@ news_sentiment.py — 新聞情緒分析
 已分析文章 URL hash 記錄在 sentiment 輸出，下次跳過。
 
 排程：每 15 分鐘（news_scraper.py 之後）
-手動：python3 ~/.openclaw/scripts/news_sentiment.py
+手動：python3 ~/projects/axc-trading/scripts/news_sentiment.py
 """
 
 import json
@@ -20,7 +20,7 @@ import urllib.error
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-BASE_DIR = Path.home() / ".openclaw"
+BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 SHARED_DIR = BASE_DIR / "shared"
 NEWS_FILE = SHARED_DIR / "news_feed.json"
 SENTIMENT_FILE = SHARED_DIR / "news_sentiment.json"
@@ -109,7 +109,7 @@ key_narratives: dominant themes (ETF flows, rate decisions, adoption, etc.)."""
 
     req = urllib.request.Request(url, data=payload, method="POST", headers={
         "Content-Type": "application/json",
-        "x-api-key": PROXY_API_KEY,
+        "Authorization": f"Bearer {PROXY_API_KEY}",
         "anthropic-version": "2023-06-01",
     })
 

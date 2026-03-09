@@ -18,10 +18,10 @@ Signal 嘅 `platform` 欄位決定用邊個 exchange client。
 
 ```bash
 # Dry run
-python3 ~/.openclaw/scripts/trader_cycle/main.py --dry-run --verbose
+python3 ~/projects/axc-trading/scripts/trader_cycle/main.py --dry-run --verbose
 
 # Live（需要 BINANCE_API_KEY + BINANCE_API_SECRET）
-python3 ~/.openclaw/scripts/trader_cycle/main.py --live --verbose
+python3 ~/projects/axc-trading/scripts/trader_cycle/main.py --live --verbose
 ```
 
 ## Exchange Client
@@ -56,6 +56,6 @@ ExecuteTradeStep:
 
 ## 共享狀態路徑
 
-- TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
-- SIGNAL: ~/.openclaw/shared/SIGNAL.md (read)
-- API Keys: ~/.openclaw/secrets/.env → BINANCE_API_KEY, BINANCE_API_SECRET
+- TRADE_STATE: ~/projects/axc-trading/shared/TRADE_STATE.md
+- SIGNAL: ~/projects/axc-trading/shared/SIGNAL.md (read)
+- API Keys: ~/projects/axc-trading/secrets/.env → BINANCE_API_KEY, BINANCE_API_SECRET

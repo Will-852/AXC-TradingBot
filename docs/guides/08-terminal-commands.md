@@ -35,26 +35,26 @@ launchctl start ai.openclaw.gateway
 
 ```bash
 # 完整健康檢查
-bash ~/.openclaw/scripts/health_check.sh
+bash ~/projects/axc-trading/scripts/health_check.sh
 
 # 查看掃描日誌
-tail -20 ~/.openclaw/logs/scanner.log
+tail -20 ~/projects/axc-trading/logs/scanner.log
 
 # 查看掃描心跳
-cat ~/.openclaw/logs/scanner_heartbeat.txt
+cat ~/projects/axc-trading/logs/scanner_heartbeat.txt
 
 # 清除掃描鎖（掃描器卡住時用）
-rm ~/.openclaw/shared/scanner_runner.lock
+rm ~/projects/axc-trading/shared/scanner_runner.lock
 
 # 集成測試
-bash ~/.openclaw/scripts/integration_test.sh
+bash ~/projects/axc-trading/scripts/integration_test.sh
 ```
 
 ## 備份
 
 ```bash
 # 手動備份（推送到 GitHub）
-bash ~/.openclaw/scripts/backup_agent.sh
+bash ~/projects/axc-trading/scripts/backup_agent.sh
 
 # 自動備份：crontab 每日 03:00 自動執行
 ```
@@ -63,7 +63,7 @@ bash ~/.openclaw/scripts/backup_agent.sh
 
 ```bash
 # 啟動儀表板
-cd ~/.openclaw && python3 scripts/dashboard.py &
+cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 
 # 然後瀏覽器開
 open http://localhost:5555
@@ -72,13 +72,13 @@ open http://localhost:5555
 ## 手動交易
 
 ```bash
-cd ~/.openclaw/workspace/tools && python3 -m trader_cycle.main --live --verbose
+cd ~/projects/axc-trading/workspace/tools && python3 -m trader_cycle.main --live --verbose
 ```
 
 ## 策略回顧
 
 ```bash
-python3 ~/.openclaw/scripts/weekly_strategy_review.py
+python3 ~/projects/axc-trading/scripts/weekly_strategy_review.py
 ```
 
 ## 加幣種
@@ -93,10 +93,10 @@ launchctl stop ai.openclaw.scanner && sleep 2 && launchctl start ai.openclaw.sca
 
 ```bash
 # 查詢記憶
-python3 ~/.openclaw/memory/retriever.py "BTC 上次入場點解輸？"
+python3 ~/projects/axc-trading/memory/retriever.py "BTC 上次入場點解輸？"
 
 # 重建索引
-python3 ~/.openclaw/scripts/memory_init.py
+python3 ~/projects/axc-trading/scripts/memory_init.py
 ```
 
 ## OpenClaw CLI
@@ -116,7 +116,7 @@ openclaw status                                    # 頻道健康 + 最近 sessi
 |------|------|
 | Telegram 冇反應 | `launchctl list ai.openclaw.telegram`，睇 PID |
 | 409 Conflict | 確認 tg_bot.py 同 gateway 用唔同 token |
-| 下單失敗 | `tail -50 ~/.openclaw/logs/telegram.err.log` |
-| Scanner 卡住 | `rm ~/.openclaw/shared/scanner_runner.lock` |
+| 下單失敗 | `tail -50 ~/projects/axc-trading/logs/telegram.err.log` |
+| Scanner 卡住 | `rm ~/projects/axc-trading/shared/scanner_runner.lock` |
 | TRADE_STATE 過期 | 通過 Telegram 下單觸發自動同步 |
-| Dashboard 冇數據 | `python3 ~/.openclaw/scripts/dashboard.py` |
+| Dashboard 冇數據 | `python3 ~/projects/axc-trading/scripts/dashboard.py` |

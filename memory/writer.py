@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from .embedder import embed
 
-BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
+BASE_DIR  = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 STORE_DIR = BASE_DIR / "memory" / "store"
 INDEX_DIR = BASE_DIR / "memory" / "index"
 
@@ -103,18 +103,25 @@ def write_conversation(user_msg, bot_reply):
     })
 
 
-def write_trade(symbol, side, entry, exit_price=None, pnl=None, notes=""):
-    """Write a trade record."""
+def write_trade(symbol, side, entry, exit_price=None, pnl=None, sl_price=None, notes=""):
+    """Write a trade record.
+
+    sl_price added for R-multiple calculation:
+    R = PnL / (|entry - sl_price| × qty)
+    """
     parts = [f"交易 {symbol} {side} 入場${entry}"]
     if exit_price is not None:
         parts.append(f"出場${exit_price} PnL:{pnl:+.2f}")
     if notes:
         parts.append(f"備注：{notes}")
     content = " ".join(parts)
-    return write_memory(content, "trade", {
+    meta = {
         "symbol": symbol, "side": side,
         "entry": entry, "exit": exit_price, "pnl": pnl,
-    })
+    }
+    if sl_price is not None:
+        meta["sl_price"] = sl_price
+    return write_memory(content, "trade", meta)
 
 
 def write_analysis(question, analysis, data_snapshot=None):

@@ -7,11 +7,12 @@ No LLM discretion — pure if-else enforcement.
 """
 
 from __future__ import annotations
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-_base = str(Path.home() / ".openclaw")
+_base = os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading"))
 if _base not in sys.path:
     sys.path.insert(0, _base)
 

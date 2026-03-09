@@ -9,7 +9,7 @@ import os
 import time
 from datetime import datetime
 
-_AXC_HOME = os.environ.get("AXC_HOME", os.path.join(os.path.expanduser("~"), ".openclaw"))
+_AXC_HOME = os.environ.get("AXC_HOME", os.path.join(os.path.expanduser("~"), "projects", "axc-trading"))
 ACTIVITY_LOG = os.path.join(_AXC_HOME, "shared/activity_log.jsonl")
 MAX_ENTRIES = 500
 

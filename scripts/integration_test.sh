@@ -4,6 +4,7 @@
 
 set -euo pipefail
 
+AXC_HOME="${AXC_HOME:-$HOME/projects/axc-trading}"
 PASS=0
 FAIL=0
 TOTAL=5
@@ -16,7 +17,7 @@ ok()   { PASS=$((PASS+1)); echo -e "${GREEN}✅ PASS${NC} — $1"; }
 fail() { FAIL=$((FAIL+1)); echo -e "${RED}❌ FAIL${NC} — $1: $2"; }
 
 echo "══════════════════════════════════════"
-echo " OpenClaw Integration Test (5 scenarios)"
+echo " AXC Integration Test (5 scenarios)"
 echo "══════════════════════════════════════"
 echo ""
 
@@ -30,9 +31,8 @@ else
 fi
 
 # ── Test 2: load_env.sh 載入 .env ─────────────
-ENV_FILE="$HOME/.openclaw/secrets/.env"
-LOAD_ENV="$HOME/.openclaw/scripts/load_env.sh"
-if [ -f "$LOAD_ENV" ] && [ -x "$LOAD_ENV" ]; then
+LOAD_ENV="$AXC_HOME/scripts/load_env.sh"
+if [ -f "$LOAD_ENV" ]; then
     OUTPUT=$(bash "$LOAD_ENV" echo "ENV_LOADED" 2>&1)
     if echo "$OUTPUT" | grep -q "ENV_LOADED"; then
         ok "load_env.sh 載入 .env 並正確 exec 目標"
@@ -40,7 +40,7 @@ if [ -f "$LOAD_ENV" ] && [ -x "$LOAD_ENV" ]; then
         fail "load_env.sh" "exec 未正確傳遞 — output: $OUTPUT"
     fi
 else
-    fail "load_env.sh" "不存在或不可執行: $LOAD_ENV"
+    fail "load_env.sh" "不存在: $LOAD_ENV"
 fi
 
 # ── Test 3: Python 依賴全部可 import ──────────
@@ -63,7 +63,7 @@ else
 fi
 
 # ── Test 4: async_scanner.py 可 import（語法+依賴）──
-SCANNER="$HOME/.openclaw/scripts/async_scanner.py"
+SCANNER="$AXC_HOME/scripts/async_scanner.py"
 IMPORT_CHECK=$("$PYTHON" -c "
 import sys, importlib.util
 spec = importlib.util.spec_from_file_location('scanner', '$SCANNER')

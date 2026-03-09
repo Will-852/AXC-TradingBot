@@ -29,20 +29,20 @@
 **⚠️ 當用戶訊息以 / 開頭，立即用 bash 執行對應指令。唔讀任何檔案，唔問問題，直接 run bash。**
 
 ```
-/report  → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py report --send
-/pos     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py pos --send
-/bal     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py bal --send
-/run     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py run --send
-/dryrun  → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py dryrun --send
-/new     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py new --send
-/stop    → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py stop --send
-/resume  → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py resume --send
-/sl      → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py sl --send
-/pnl     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py pnl --send
-/log     → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py log --send
-/mode    → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py mode --send
-/health  → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py health --send
-/reset   → bash: python3 /Users/wai/.openclaw/workspace/tools/slash_cmd.py reset --send
+/report  → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py report --send
+/pos     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py pos --send
+/bal     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py bal --send
+/run     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py run --send
+/dryrun  → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py dryrun --send
+/new     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py new --send
+/stop    → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py stop --send
+/resume  → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py resume --send
+/sl      → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py sl --send
+/pnl     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py pnl --send
+/log     → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py log --send
+/mode    → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py mode --send
+/health  → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py health --send
+/reset   → bash: python3 /Users/wai/projects/axc-trading/workspace/tools/slash_cmd.py reset --send
 ```
 
 ### 執行規則
@@ -99,7 +99,7 @@ NEXT  [one line]
 
 ## Auto Signal Trigger
 
-- Scanner 偵測到有效信號 → 寫入 ~/.openclaw/shared/SIGNAL.md
+- Scanner 偵測到有效信號 → 寫入 ~/projects/axc-trading/shared/SIGNAL.md
 - Main agent 收到通知後：
   1. Send Telegram: "⚡ SIGNAL DETECTED: [pair] [direction]"
   2. Run: `python3 trader_cycle/main.py --live --telegram`
@@ -107,6 +107,6 @@ NEXT  [one line]
 
 ## 共享狀態路徑
 
-- TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md
-- SIGNAL: ~/.openclaw/shared/SIGNAL.md
-- Tools: ~/.openclaw/workspace/tools/
+- TRADE_STATE: ~/projects/axc-trading/shared/TRADE_STATE.md
+- SIGNAL: ~/projects/axc-trading/shared/SIGNAL.md
+- Tools: ~/projects/axc-trading/workspace/tools/

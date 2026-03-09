@@ -22,7 +22,7 @@ from .base import StrategyBase, PositionParams
 try:
     import importlib.util as _ilu
     _spec = _ilu.spec_from_file_location(
-        "_params", os.path.expanduser("~/.openclaw/config/params.py")
+        "_params", os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "config", "params.py")
     )
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)

@@ -12,6 +12,12 @@ from ..config.settings import PRIMARY_TIMEFRAME
 from ..core.context import CycleContext, Signal
 from ..core.registry import StrategyRegistry
 
+# Sentiment risk filter threshold (read from params.py)
+try:
+    from config.params import BEARISH_BLOCK_LONG_CONF
+except ImportError:
+    BEARISH_BLOCK_LONG_CONF = 0.70
+
 
 class EvaluateSignalsStep:
     """
@@ -73,10 +79,39 @@ class EvaluateSignalsStep:
             elif ctx.verbose:
                 print(f"    {symbol}: no signal")
 
+        # ─── Sentiment risk filter: block LONGs when strongly bearish ───
+        self._filter_bearish_longs(ctx)
+
         if ctx.verbose:
             print(f"    Total signals: {len(ctx.signals)}")
 
         return ctx
+
+    def _filter_bearish_longs(self, ctx: CycleContext) -> None:
+        """Remove LONG signals when news sentiment is strongly bearish."""
+        sentiment = ctx.news_sentiment
+        if not sentiment:
+            return
+
+        overall = sentiment.get("overall_sentiment", "")
+        confidence = sentiment.get("confidence", 0)
+
+        if overall != "bearish" or confidence < BEARISH_BLOCK_LONG_CONF:
+            return
+
+        before = len(ctx.signals)
+        blocked = [s for s in ctx.signals if s.direction == "LONG"]
+        ctx.signals = [s for s in ctx.signals if s.direction != "LONG"]
+
+        for s in blocked:
+            ctx.no_trade_reasons.append(
+                f"SENTIMENT_RISK: {s.pair} LONG blocked "
+                f"(bearish {confidence:.0%})"
+            )
+
+        if ctx.verbose and blocked:
+            print(f"    [SENTIMENT] Blocked {len(blocked)} LONG signal(s) "
+                  f"(bearish {confidence:.0%} > {BEARISH_BLOCK_LONG_CONF:.0%})")
 
     def _get_no_trade_pairs(self, ctx: CycleContext) -> set[str]:
         """Extract pair symbols from no_trade_reasons."""

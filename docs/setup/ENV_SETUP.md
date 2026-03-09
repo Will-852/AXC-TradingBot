@@ -1,7 +1,7 @@
 # 環境變數設定指南
 
 ## 文件位置
-`~/.openclaw/secrets/.env`
+`~/projects/axc-trading/secrets/.env`
 
 > 此文件唔會上傳 GitHub（已加入 .gitignore）
 > 必須另外備份（建議 iCloud 或 1Password）
@@ -29,6 +29,6 @@ TELEGRAM_CHAT_ID=...
 ## iCloud 備份
 
 ```bash
-cp ~/.openclaw/secrets/.env \
+cp ~/projects/axc-trading/secrets/.env \
   ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw_secrets.env
 ```

@@ -3,7 +3,7 @@
 # Usage: bash scripts/build_axc_zip.sh
 set -euo pipefail
 
-OPENCLAW_DIR="${HOME}/.openclaw"
+AXC_HOME="${AXC_HOME:-$HOME/projects/axc-trading}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ZIP_NAME="axc-${TIMESTAMP}.zip"
 STAGE_DIR=$(mktemp -d)
@@ -13,7 +13,7 @@ echo "Staging dir: ${STAGE_DIR}"
 
 # ── Copy files (preserve directory structure) ──
 copy_file() {
-    local src="${OPENCLAW_DIR}/$1"
+    local src="${AXC_HOME}/$1"
     local dest="${STAGE_DIR}/$1"
     if [ ! -f "$src" ]; then
         echo "WARNING: missing $src"
@@ -40,16 +40,16 @@ copy_file memory/retriever.py
 copy_file memory/embedder.py
 
 # ── Copy with rename ──
-cp "${OPENCLAW_DIR}/axc_requirements.txt" "${STAGE_DIR}/requirements.txt"
+cp "${AXC_HOME}/axc_requirements.txt" "${STAGE_DIR}/requirements.txt"
 mkdir -p "${STAGE_DIR}/secrets"
-cp "${OPENCLAW_DIR}/.env.example" "${STAGE_DIR}/secrets/.env.example"
+cp "${AXC_HOME}/.env.example" "${STAGE_DIR}/secrets/.env.example"
 
-if [ -f "${OPENCLAW_DIR}/docs/architecture/AXC.md" ]; then
-    cp "${OPENCLAW_DIR}/docs/architecture/AXC.md" "${STAGE_DIR}/AXC.md"
+if [ -f "${AXC_HOME}/docs/architecture/AXC.md" ]; then
+    cp "${AXC_HOME}/docs/architecture/AXC.md" "${STAGE_DIR}/AXC.md"
 fi
 
-if [ -f "${OPENCLAW_DIR}/QUICKSTART.md" ]; then
-    cp "${OPENCLAW_DIR}/QUICKSTART.md" "${STAGE_DIR}/QUICKSTART.md"
+if [ -f "${AXC_HOME}/QUICKSTART.md" ]; then
+    cp "${AXC_HOME}/QUICKSTART.md" "${STAGE_DIR}/QUICKSTART.md"
 fi
 
 # ── Create empty directories ──
@@ -60,12 +60,12 @@ mkdir -p "${STAGE_DIR}/logs"
 
 # ── Build ZIP ──
 cd "${STAGE_DIR}"
-zip -r "${OPENCLAW_DIR}/${ZIP_NAME}" . -x '*.DS_Store'
+zip -r "${AXC_HOME}/${ZIP_NAME}" . -x '*.DS_Store'
 cd /
 
 # ── Cleanup ──
 rm -rf "${STAGE_DIR}"
 
 echo "=== Done ==="
-echo "Output: ${OPENCLAW_DIR}/${ZIP_NAME}"
-echo "Size: $(du -h "${OPENCLAW_DIR}/${ZIP_NAME}" | cut -f1)"
+echo "Output: ${AXC_HOME}/${ZIP_NAME}"
+echo "Size: $(du -h "${AXC_HOME}/${ZIP_NAME}" | cut -f1)"

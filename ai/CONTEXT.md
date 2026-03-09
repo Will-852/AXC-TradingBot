@@ -25,7 +25,7 @@ Proxy：https://tao.plus7.plus/v1（PROXY_API_KEY）
 
 ## 核心路徑
 ```
-~/.openclaw/
+~/projects/axc-trading/
 ├── CLAUDE.md              ← Claude Code 自動載入（唔可移動）
 ├── DEV_LOG.md             ← 開發日誌
 ├── ai/                    ← AI Agent 上下文（你而家讀緊）
@@ -108,5 +108,5 @@ news_agent     ─┘ (sentiment overlay)
 
 ## 搵舊記憶
 ```
-python3 ~/.openclaw/memory/retriever.py "問題"
+python3 ~/projects/axc-trading/memory/retriever.py "問題"
 ```

@@ -56,10 +56,10 @@ OpenClaw 需要一個 AI 大腦（Claude API）。
 
 ```bash
 # 建立 OpenClaw 資料夾
-mkdir -p ~/.openclaw
+mkdir -p ~/projects/axc-trading
 
 # 解壓（如果下載到 Downloads 資料夾）
-unzip ~/Downloads/openclaw-setup-*.zip -d ~/.openclaw/
+unzip ~/Downloads/openclaw-setup-*.zip -d ~/projects/axc-trading/
 ```
 
 ---
@@ -68,10 +68,10 @@ unzip ~/Downloads/openclaw-setup-*.zip -d ~/.openclaw/
 
 ```bash
 # 複製範例設定文件
-cp ~/.openclaw/secrets/.env.example ~/.openclaw/secrets/.env
+cp ~/projects/axc-trading/secrets/.env.example ~/projects/axc-trading/secrets/.env
 
 # 用文字編輯器打開（會彈出 nano 編輯器）
-nano ~/.openclaw/secrets/.env
+nano ~/projects/axc-trading/secrets/.env
 ```
 
 你會看到這樣的畫面：
@@ -99,7 +99,7 @@ PROXY_BASE_URL=https://tao.plus7.plus/v1
 ## 步驟 5：安裝依賴
 
 ```bash
-pip3 install -r ~/.openclaw/requirements.txt
+pip3 install -r ~/projects/axc-trading/requirements.txt
 ```
 
 等待安裝完成（大約 1-2 分鐘），看到 `Successfully installed` 就係完成。
@@ -109,7 +109,7 @@ pip3 install -r ~/.openclaw/requirements.txt
 ## 步驟 6：啟動！
 
 ```bash
-cd ~/.openclaw && python3 scripts/dashboard.py &
+cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 ```
 
 然後打開瀏覽器，去：
@@ -122,7 +122,7 @@ cd ~/.openclaw && python3 scripts/dashboard.py &
 ## 步驟 7：測試系統
 
 ```bash
-bash ~/.openclaw/scripts/health_check.sh
+bash ~/projects/axc-trading/scripts/health_check.sh
 ```
 
 看到 **39 pass / 0 fail** 就代表一切正常！
@@ -141,7 +141,7 @@ brew install python3
 
 **Q：出現 `Permission denied`？**
 ```bash
-chmod +x ~/.openclaw/scripts/*.sh
+chmod +x ~/projects/axc-trading/scripts/*.sh
 ```
 
 **Q：儀表板打唔開？**
@@ -149,7 +149,7 @@ chmod +x ~/.openclaw/scripts/*.sh
 # 確認 dashboard 係咪跑緊
 ps aux | grep dashboard
 # 唔係就重新啟動
-cd ~/.openclaw && python3 scripts/dashboard.py &
+cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 ```
 
 **Q：想設定 Telegram 通知？**
@@ -162,4 +162,4 @@ cd ~/.openclaw && python3 scripts/dashboard.py &
 - 查看儀表板：http://localhost:5555
 - 閱讀完整說明：http://localhost:5555/details
 - 用 Telegram 控制系統（選填）
-- 調整交易設定：~/.openclaw/config/params.py
+- 調整交易設定：~/projects/axc-trading/config/params.py

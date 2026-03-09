@@ -20,7 +20,7 @@ def get_bot_token():
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         # 嘗試從 .env 讀取
-        env_path = os.path.expanduser("~/.openclaw/secrets/.env")
+        env_path = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "secrets", ".env")
         if os.path.exists(env_path):
             with open(env_path) as f:
                 for line in f:

@@ -9,22 +9,22 @@
 
 ```bash
 git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
-pip3 install -r ~/.openclaw/requirements.txt --break-system-packages
+pip3 install -r ~/projects/axc-trading/requirements.txt --break-system-packages
 ```
 
 ### 2. API Key（只需一個）
 
 ```bash
-cp ~/.openclaw/docs/friends/.env.example ~/.openclaw/secrets/.env
+cp ~/projects/axc-trading/docs/friends/.env.example ~/projects/axc-trading/secrets/.env
 # 填入 PROXY_API_KEY（向我索取測試 key）
-nano ~/.openclaw/secrets/.env
+nano ~/projects/axc-trading/secrets/.env
 ```
 
 ### 3. 自訂參數（選填）
 
 ```bash
-cp ~/.openclaw/config/user_params.py.example ~/.openclaw/config/user_params.py
-nano ~/.openclaw/config/user_params.py
+cp ~/projects/axc-trading/config/user_params.py.example ~/projects/axc-trading/config/user_params.py
+nano ~/projects/axc-trading/config/user_params.py
 ```
 
 你嘅設定放呢度，`git pull` 更新代碼永遠唔會衝突。
@@ -33,7 +33,7 @@ nano ~/.openclaw/config/user_params.py
 ### 4. 啟動
 
 ```bash
-python3 ~/.openclaw/scripts/dashboard.py
+python3 ~/projects/axc-trading/scripts/dashboard.py
 ```
 
 打開：**http://127.0.0.1:5555**

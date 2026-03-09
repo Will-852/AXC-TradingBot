@@ -10,11 +10,12 @@ Orphan detection: 倉位冇 SL order → 自動補 SL（crash recovery）
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 import sys
 from pathlib import Path
-_base = str(Path.home() / ".openclaw")
+_base = os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading"))
 if _base not in sys.path:
     sys.path.insert(0, _base)
 

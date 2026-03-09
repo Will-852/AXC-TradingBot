@@ -31,11 +31,11 @@ if %errorlevel% neq 0 (
 for /f "tokens=*" %%i in ('%PY% --version 2^>^&1') do echo [OK] %%i
 
 :: ─── Install dependencies if needed ───
-%PY% -c "import requests, pandas, dotenv" >nul 2>&1
+%PY% -c "import dotenv, numpy" >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
     echo [SETUP] Installing dependencies...
-    %PY% -m pip install -r "%~dp0requirements.txt" -q
+    %PY% -m pip install -r "%~dp0axc_requirements.txt" -q
     echo [OK] Dependencies installed
 )
 
@@ -80,6 +80,7 @@ echo.
 :: Open browser after short delay
 start /b cmd /c "timeout /t 2 /nobreak >nul & start http://localhost:5555"
 
+set AXC_HOME=%~dp0
 %PY% scripts\dashboard.py
 
 pause

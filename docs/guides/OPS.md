@@ -11,7 +11,7 @@
 ```bash
 sed -i '' \
   's|PROXY_BASE_URL=.*|PROXY_BASE_URL=https://api.anthropic.com|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```
 
@@ -20,7 +20,7 @@ launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```bash
 sed -i '' \
   's|PROXY_BASE_URL=.*|PROXY_BASE_URL=https://tao.plus7.plus/v1|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 ```
 
@@ -33,13 +33,13 @@ launchctl stop ai.openclaw.telegram && launchctl start ai.openclaw.telegram
 
 # 2. 替換
 sed -i '' 's|VOYAGE_API_KEY=.*|VOYAGE_API_KEY=新key|g' \
-  ~/.openclaw/secrets/.env
+  ~/projects/axc-trading/secrets/.env
 
 # 3. 清除 cache
-rm ~/.openclaw/memory/index/embed_cache.json
+rm ~/projects/axc-trading/memory/index/embed_cache.json
 
 # 4. 重新備份 .env 到 iCloud
-cp ~/.openclaw/secrets/.env \
+cp ~/projects/axc-trading/secrets/.env \
   ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw_secrets.env
 ```
 
@@ -48,7 +48,7 @@ cp ~/.openclaw/secrets/.env \
 ## Proxy 測試
 
 ```bash
-API_KEY=$(grep PROXY_API_KEY ~/.openclaw/secrets/.env | cut -d= -f2)
+API_KEY=$(grep PROXY_API_KEY ~/projects/axc-trading/secrets/.env | cut -d= -f2)
 curl -s https://tao.plus7.plus/v1/messages \
   -H "x-api-key: $API_KEY" \
   -H "content-type: application/json" \
@@ -111,7 +111,7 @@ launchctl stop ai.openclaw.lightscan && launchctl start ai.openclaw.lightscan
 注意：TRADING_PROFILES 只能覆蓋 settings.py 已有的 key。
 新增 key 前先確認 settings.py 有對應定義：
 ```bash
-grep "KEY_NAME" ~/.openclaw/scripts/trader_cycle/config/settings.py
+grep "KEY_NAME" ~/projects/axc-trading/scripts/trader_cycle/config/settings.py
 ```
 
 ---
@@ -122,10 +122,10 @@ grep "KEY_NAME" ~/.openclaw/scripts/trader_cycle/config/settings.py
 |------|------|
 | Telegram 冇反應 | `launchctl list ai.openclaw.telegram`，睇 PID |
 | 409 Conflict | 確認 tg_bot.py 同 gateway 用唔同 token |
-| 下單失敗 | `tail -50 ~/.openclaw/logs/telegram.err.log` |
-| Scanner 卡住 | `rm ~/.openclaw/shared/scanner_runner.lock` |
+| 下單失敗 | `tail -50 ~/projects/axc-trading/logs/telegram.err.log` |
+| Scanner 卡住 | `rm ~/projects/axc-trading/shared/scanner_runner.lock` |
 | TRADE_STATE 過期 | 通過 Telegram 下單觸發自動同步 |
-| Dashboard 冇數據 | `python3 ~/.openclaw/scripts/dashboard.py` |
+| Dashboard 冇數據 | `python3 ~/projects/axc-trading/scripts/dashboard.py` |
 | TG Bot Conflict 409 | 見下方「TG Bot 重複 Instance」 |
 
 ---
@@ -158,7 +158,7 @@ sleep 2
 pgrep -f tg_bot.py || echo "All killed"
 
 # 4. 手動啟動唯一一個 instance
-nohup python3 ~/.openclaw/scripts/tg_bot.py > logs/tg_bot.log 2>&1 &
+nohup python3 ~/projects/axc-trading/scripts/tg_bot.py > logs/tg_bot.log 2>&1 &
 
 # 5. 確認啟動正常
 sleep 3 && tail -3 logs/tg_bot.log

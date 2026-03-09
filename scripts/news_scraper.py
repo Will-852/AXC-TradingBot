@@ -4,7 +4,7 @@ news_scraper.py — RSS 新聞收集器
 零依賴（stdlib only）。Fetch RSS → 按 symbol 過濾 → 原子寫入 shared/news_feed.json
 
 排程：每 15 分鐘 via LaunchAgent（同 news_sentiment.py 串行）
-手動：python3 ~/.openclaw/scripts/news_scraper.py
+手動：python3 ~/projects/axc-trading/scripts/news_scraper.py
 """
 
 import hashlib
@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-BASE_DIR = Path.home() / ".openclaw"
+BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 SHARED_DIR = BASE_DIR / "shared"
 OUTPUT_FILE = SHARED_DIR / "news_feed.json"
 

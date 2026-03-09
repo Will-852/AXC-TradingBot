@@ -24,7 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 # ── Load .env ────────────────────────────────────
-ENV_PATH = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw"))) / "secrets" / ".env"
+ENV_PATH = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading"))) / "secrets" / ".env"
 if ENV_PATH.exists():
     for line in ENV_PATH.read_text().splitlines():
         line = line.strip()
@@ -33,7 +33,7 @@ if ENV_PATH.exists():
             os.environ.setdefault(k.strip(), v.strip())
 
 # ── Paths ─────────────────────────────────────────
-BASE_DIR    = Path(os.environ.get("AXC_HOME", str(Path.home() / ".openclaw")))
+BASE_DIR    = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading")))
 SCRIPTS_DIR = BASE_DIR / "scripts"
 
 sys.path.insert(0, str(BASE_DIR))
@@ -256,7 +256,7 @@ def call_claude(user_msg: str, context: str, system: str = None,
 
     req = urllib.request.Request(url, body, headers={
         "Content-Type":      "application/json",
-        "x-api-key":         PROXY_API_KEY,
+        "Authorization":     f"Bearer {PROXY_API_KEY}",
         "anthropic-version": "2023-06-01",
     })
 
@@ -686,6 +686,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/pos — 持倉\n"
         "/bal — 餘額\n"
         "/pnl — 盈虧\n"
+        "/stats — 策略表現\n"
         "/scan — 掃描\n"
         "/log — 記錄\n"
         "/health — 系統狀態\n\n"
@@ -735,6 +736,9 @@ async def cmd_log(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _send_deterministic(update, slash_cmd.cmd_new)
+
+async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _send_deterministic(update, slash_cmd.cmd_stats)
 
 
 # ── Enhanced /health with agent timestamps + memory count ──
@@ -1306,40 +1310,134 @@ async def check_and_push_alerts(app):
             # Detect closed positions
             closed = last_positions - current
             if closed:
+                # 讀 TRADE_STATE（_sync 之前），攞 entry/sl/direction
+                _ts_path = BASE_DIR / "shared/TRADE_STATE.md"
+                _ts_text = _ts_path.read_text() if _ts_path.exists() else ""
+                def _ts_val(key):
+                    m = re.search(rf'{key}:\s*([\d.]+)', _ts_text)
+                    return float(m.group(1)) if m else 0.0
+                def _ts_str(key):
+                    m = re.search(rf'{key}:\s*(\S+)', _ts_text)
+                    return m.group(1) if m else ""
+
                 for symbol in closed:
+                    # ── 1. 收集交易數據 ──
+                    ts_entry = _ts_val("ENTRY_PRICE")
+                    ts_sl = _ts_val("SL_PRICE")
+                    ts_tp = _ts_val("TP_PRICE")
+                    ts_dir = _ts_str("DIRECTION") or "LONG"
+                    ts_size = _ts_val("SIZE")
+                    ts_lev = _ts_str("LEVERAGE") or "?"
+
+                    real_pnl = 0.0
+                    exit_price = 0.0
+                    try:
+                        client = _get_client()
+                        income = client.get_income(income_type="REALIZED_PNL", limit=10)
+                        for inc in income:
+                            if inc.get("symbol") == symbol:
+                                real_pnl = float(inc.get("income", 0))
+                                break
+                        if ts_entry > 0 and ts_size > 0 and real_pnl != 0:
+                            if ts_dir == "LONG":
+                                exit_price = ts_entry + real_pnl / ts_size
+                            else:
+                                exit_price = ts_entry - real_pnl / ts_size
+                    except Exception as e:
+                        log.warning(f"get_income for {symbol} failed: {e}")
+
+                    # R-Multiple
+                    r_mult = None
+                    if ts_sl > 0 and ts_entry > 0 and exit_price > 0:
+                        risk_dist = abs(ts_entry - ts_sl)
+                        if risk_dist > 0:
+                            if ts_dir == "LONG":
+                                r_mult = (exit_price - ts_entry) / risk_dist
+                            else:
+                                r_mult = (ts_entry - exit_price) / risk_dist
+
+                    # ── 2. 數據摘要（發送 + 餵畀 AI）──
+                    pnl_emoji = "💰" if real_pnl >= 0 else "💸"
+                    prefix = symbol.replace("USDT", "")
+                    summary_lines = [
+                        f"<b>{pnl_emoji} {prefix} 平倉報告</b>",
+                        "",
+                        f"方向: <b>{ts_dir}</b> | 槓桿: {ts_lev}x",
+                        f"入場: ${ts_entry:.4f}" if ts_entry else "入場: —",
+                        f"出場: ${exit_price:.4f}" if exit_price else "出場: —",
+                        f"止損: ${ts_sl:.4f}" if ts_sl else "止損: —",
+                        f"PnL: <b>${real_pnl:+.2f}</b>",
+                    ]
+                    if r_mult is not None:
+                        summary_lines.append(f"R-Multiple: <b>{r_mult:+.1f}R</b>")
+                    trade_data_text = "\n".join(summary_lines)
+
+                    # ── 3. AI 教練分析（阿叔）──
                     try:
                         memories = retrieve_full(f"{symbol} 交易 平倉", top_k=4)
                         mem_text = format_for_prompt(memories, max_chars=1000)
                     except Exception:
                         mem_text = ""
-                    local   = read_local_context()
+                    local = read_local_context()
                     context = (mem_text + "\n\n" + local) if mem_text else local
 
-                    report = call_claude(
-                        f"{symbol} 剛剛平倉。請用廣東話生成交易報告：入場/出場分析、盈虧、下次建議",
-                        context,
+                    coach_prompt = (
+                        f"你係「阿叔」— 做咗 20 年嘅老交易員。經歷過數次大牛市同熊市，"
+                        f"玩過短炒、玩過孖展，贏過 20 倍、輸過 20 倍。心態淡然，"
+                        f"數字對你嚟講只係一場遊戲。你相信贏家嘅標準差公式：贏一單冚得返晒就夠。\n\n"
+                        f"風格：廣東話口語、直接唔兜圈、讚就讚鬧就鬧、重過程多過結果。\n\n"
+                        f"以下係剛平倉嘅交易數據：\n"
+                        f"幣種: {symbol} | 方向: {ts_dir} | 槓桿: {ts_lev}x\n"
+                        f"入場: ${ts_entry:.4f} | 出場: ${exit_price:.4f}\n"
+                        f"止損: ${ts_sl:.4f} | 止盈: ${ts_tp:.4f}\n"
+                        f"PnL: ${real_pnl:+.2f}"
+                        f"{f' | R-Multiple: {r_mult:+.1f}R' if r_mult is not None else ''}\n\n"
+                        f"請用以下結構回覆（每段 1-2 句，全部加埋唔好超過 15 行）：\n"
+                        f"1. 【入場】signal 同市場環境啱唔啱\n"
+                        f"2. 【出場】SL/TP 位置合唔合理\n"
+                        f"3. 【評分】呢筆交易過程幾分（A/B/C/D），唔理賺蝕\n"
+                        f"4. 【情緒】有冇 FOMO、報復性交易、過度自信嘅跡象\n"
+                        f"5. 【教訓】一句最值得記住嘅嘢\n"
+                        f"6. 【下一步】繼續定休息？\n"
+                        f"最尾問一條問題迫交易員反思。"
                     )
 
+                    report = call_claude(coach_prompt, context)
                     report = _clean_for_telegram(report)
-                    try:
-                        await app.bot.send_message(
-                            ALLOWED_CHAT_ID,
-                            f"📋 <b>{symbol} 平倉報告</b>\n\n{report}",
-                            parse_mode="HTML",
-                        )
-                    except Exception:
-                        clean = re.sub(r"<[^>]+>", "", report)
-                        await app.bot.send_message(
-                            ALLOWED_CHAT_ID,
-                            f"📋 {symbol} 平倉報告\n\n{clean}",
-                        )
                     write_analysis(f"{symbol} 平倉報告", report)
 
-                    # Persist exit record to trades.jsonl
+                    # ── 4. Stats dashboard ──
+                    stats_text = ""
                     try:
-                        write_trade(symbol, "CLOSED", 0, exit_price=0,
-                                    pnl=0.0,
-                                    notes="exchange close detected by tg_bot")
+                        from trader_cycle.analysis.metrics import calculate_metrics, format_stats_text
+                        stats_text = format_stats_text(calculate_metrics())
+                    except Exception:
+                        pass
+
+                    # ── 5. 合併成一個 message 發送 ──
+                    full_msg = trade_data_text + "\n\n" + report
+                    if stats_text:
+                        full_msg += "\n\n━━━━━━━━━━━━━━━━\n" + stats_text
+
+                    try:
+                        await app.bot.send_message(
+                            ALLOWED_CHAT_ID, full_msg, parse_mode="HTML",
+                        )
+                    except Exception:
+                        clean = re.sub(r"<[^>]+>", "", full_msg)
+                        await app.bot.send_message(
+                            ALLOWED_CHAT_ID, f"{clean}",
+                        )
+
+                    # ── 6. 寫入真實交易數據 ──
+                    try:
+                        write_trade(
+                            symbol, ts_dir, ts_entry,
+                            exit_price=round(exit_price, 4) if exit_price else None,
+                            pnl=round(real_pnl, 4) if real_pnl else None,
+                            sl_price=ts_sl if ts_sl > 0 else None,
+                            notes="exchange close detected by tg_bot",
+                        )
                     except Exception:
                         log.warning(f"write_trade for {symbol} close failed")
 
@@ -1407,6 +1505,7 @@ def main():
     app.add_handler(CommandHandler("pnl",     cmd_pnl))
     app.add_handler(CommandHandler("log",     cmd_log))
     app.add_handler(CommandHandler("scan",    cmd_scan))
+    app.add_handler(CommandHandler("stats",   cmd_stats))
     app.add_handler(CommandHandler("health",  cmd_health))
 
     # Enhanced commands

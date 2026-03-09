@@ -10,7 +10,7 @@
 
 ### Light Scan（每 3 分鐘）
 ```bash
-python3 /Users/wai/.openclaw/workspace/tools/light_scan.py
+python3 /Users/wai/projects/axc-trading/workspace/tools/light_scan.py
 ```
 - Fetch Aster DEX API → 4 pairs 即時數據
 - 同 SCAN_CONFIG.md 上次數據對比
@@ -19,7 +19,7 @@ python3 /Users/wai/.openclaw/workspace/tools/light_scan.py
 
 ### Trader Cycle 信號評估（每 30 分鐘）
 ```bash
-python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --dry-run
+python3 /Users/wai/projects/axc-trading/workspace/tools/trader_cycle/main.py --dry-run
 ```
 - 16-step pipeline 完整評估
 - 計算所有技術指標（RSI, MACD, BB, MA, ADX, Stoch）
@@ -45,7 +45,7 @@ python3 /Users/wai/.openclaw/workspace/tools/trader_cycle/main.py --dry-run
 ## 信號流程
 
 1. light_scan.py 偵測到 trigger → 設定 TRIGGER_PENDING=ON
-2. trader_cycle 評估信號 → 如有 → 寫入 ~/.openclaw/shared/SIGNAL.md
+2. trader_cycle 評估信號 → 如有 → 寫入 ~/projects/axc-trading/shared/SIGNAL.md
 3. 通知 main agent 有信號
 4. main agent 決定是否執行交易
 
@@ -81,7 +81,7 @@ REASONS: BB touch + RSI reversal + support
 
 ## 共享狀態路徑
 
-- SCAN_CONFIG: ~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md
-- SCAN_LOG: ~/.openclaw/workspace/agents/aster_trader/logs/SCAN_LOG.md
-- SIGNAL: ~/.openclaw/shared/SIGNAL.md
-- TRADE_STATE: ~/.openclaw/shared/TRADE_STATE.md (read-only)
+- SCAN_CONFIG: ~/projects/axc-trading/workspace/agents/aster_trader/config/SCAN_CONFIG.md
+- SCAN_LOG: ~/projects/axc-trading/workspace/agents/aster_trader/logs/SCAN_LOG.md
+- SIGNAL: ~/projects/axc-trading/shared/SIGNAL.md
+- TRADE_STATE: ~/projects/axc-trading/shared/TRADE_STATE.md (read-only)

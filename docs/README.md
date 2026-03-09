@@ -19,7 +19,7 @@
 
 ```bash
 git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
-cd ~/.openclaw
+cd ~/projects/axc-trading
 pip3 install -r requirements.txt --break-system-packages
 cp docs/friends/.env.example secrets/.env
 # 填入 API keys

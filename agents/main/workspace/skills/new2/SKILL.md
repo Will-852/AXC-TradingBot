@@ -12,19 +12,19 @@ When the user sends `/new_2 [news text]`, perform a full news impact analysis.
 
 1. **Read current state** (bash, parallel):
    ```bash
-   cd /Users/wai/.openclaw/workspace/tools && python3 slash_cmd.py pos
+   cd /Users/wai/projects/axc-trading/workspace/tools && python3 slash_cmd.py pos
    ```
    ```bash
-   cd /Users/wai/.openclaw/workspace/tools && python3 slash_cmd.py mode
+   cd /Users/wai/projects/axc-trading/workspace/tools && python3 slash_cmd.py mode
    ```
 
 2. **Read shared state files**:
-   - `~/.openclaw/shared/TRADE_STATE.md` — current position, balance, market mode
-   - `~/.openclaw/shared/SIGNAL.md` — last scan result
-   - `~/.openclaw/workspace/agents/aster_trader/config/SCAN_CONFIG.md` — latest prices, triggers
+   - `~/projects/axc-trading/shared/TRADE_STATE.md` — current position, balance, market mode
+   - `~/projects/axc-trading/shared/SIGNAL.md` — last scan result
+   - `~/projects/axc-trading/workspace/agents/aster_trader/config/SCAN_CONFIG.md` — latest prices, triggers
 
 3. **Read trading rules** for context on entry/exit criteria:
-   - `~/.openclaw/agents/aster_trader/workspace/skills/trading-rules/SKILL.md`
+   - `~/projects/axc-trading/agents/aster_trader/workspace/skills/trading-rules/SKILL.md`
 
 4. **Analyze the news text**:
    a. Identify affected assets (BTC, ETH, XRP, XAG, USD, macro)
@@ -64,7 +64,7 @@ Recommendation:
 - Do not recommend specific entry/exit prices — that's the trader agent's job
 - Send via Telegram using:
   ```bash
-  cd /Users/wai/.openclaw/workspace/tools && python3 -c "
+  cd /Users/wai/projects/axc-trading/workspace/tools && python3 -c "
   import sys; sys.path.insert(0, '.')
   from slash_cmd import send_telegram
   send_telegram('<pre>YOUR_FORMATTED_OUTPUT_HERE</pre>')
