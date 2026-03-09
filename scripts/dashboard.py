@@ -291,7 +291,7 @@ def parse_md(path):
 
 
 def get_agent_info():
-    """Dynamic agent info: model from SOUL.md → known map → openclaw.json fallback, status from launchctl."""
+    """Dynamic agent info: model from SOUL.md → known map fallback, status from launchctl."""
     agent_map = {
         "main": {"name": "主腦", "label": "ai.openclaw.gateway"},
         "aster_scanner": {"name": "掃描器", "label": "ai.openclaw.lightscan"},
@@ -311,18 +311,8 @@ def get_agent_info():
         "analyst": "claude-sonnet-4-6",
         "decision": "claude-opus",
     }
-    # Models from openclaw.json as fallback
+    # Model fallback from known defaults (no external dependency)
     oc_models = {}
-    try:
-        with open(os.path.join(HOME, "openclaw.json")) as f:
-            cfg = json.load(f)
-        defaults = cfg.get("agents", {}).get("defaults", {})
-        default_model = defaults.get("model", {}).get("primary", "unknown")
-        for a in cfg.get("agents", {}).get("list", []):
-            aid = a.get("id", "?")
-            oc_models[aid] = a.get("model", default_model).split("/")[-1]
-    except Exception:
-        pass
     la = get_launchagents()
     agents = []
     for aid, meta in agent_map.items():
