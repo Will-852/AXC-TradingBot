@@ -63,3 +63,4 @@ backups/
 *.zip
 secrets/.env
 config/user_params.py
+openclaw.json
