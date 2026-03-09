@@ -28,10 +28,10 @@ PY_VER=$($PY --version 2>&1)
 echo "[OK] $PY_VER"
 
 # ─── Install dependencies if needed ───
-if ! $PY -c "import requests, pandas, dotenv" 2>/dev/null; then
+if ! $PY -c "import dotenv, numpy" 2>/dev/null; then
     echo ""
     echo "[SETUP] Installing dependencies..."
-    $PY -m pip install --user -r "$DIR/requirements.txt" --break-system-packages -q
+    $PY -m pip install --user -r "$DIR/axc_requirements.txt" --break-system-packages -q
     echo "[OK] Dependencies installed"
 fi
 
@@ -76,4 +76,5 @@ echo ""
 # Open browser after short delay
 (sleep 2 && open "http://localhost:5555") &
 
+export AXC_HOME="$DIR"
 $PY scripts/dashboard.py
