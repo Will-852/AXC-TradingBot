@@ -9,21 +9,125 @@ audience: human
 
 你唔需要睇晒成個系統先可以改設定。呢頁幫你快速搵到：「我想改 X → 改邊個文件、邊個變數」。
 
-## 最常改嘅 3 件事
+---
 
-### 1. 改交易風格（穩 / 平 / 攻）
+## 信號到落單嘅完整邏輯
 
-文件：`config/params.py`
-變數：`ACTIVE_PROFILE`
+要明白改參數會影響咩，先睇信號點樣變成一張單：
 
-```python
-ACTIVE_PROFILE = "AGGRESSIVE"   # 攻：2.5% risk, 寬 SL
-ACTIVE_PROFILE = "BALANCED"     # 平：2.0% risk（預設）
-ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL
+```
+你嘅參數                    系統邏輯                     結果
+─────────                 ────────                   ────────
+
+SCAN_INTERVAL_SEC ───────▶ 掃描器幾密檢查市場
+TRIGGER_PCT_* ───────────▶ 幾大波動先觸發分析
+                              │
+BB_TOUCH_TOL ────────────▶ BB 觸碰判定（Range 入場）
+MODE_RSI_TREND_LOW/HIGH ─▶ 5 票偵測 RANGE 定 TREND ─────▶ 揀策略
+MODE_VOLUME_LOW/HIGH ────▶
+MODE_FUNDING_THRESHOLD ──▶
+MODE_CONFIRMATION ───────▶ 要確認幾多次先切換
+                              │
+                         策略產生信號（LONG/SHORT）
+                              │
+ENTRY_VOLUME_MIN ────────▶ 成交量夠唔夠？唔夠就跳過
+OBV_CONFIRM_BONUS ───────▶ OBV 同方向加分 / 反方向扣分
+                              │
+PAIR_PRIORITY ───────────▶ 7 隻幣排名，揀最高分
+POSITION_GROUPS ─────────▶ 同組有倉就唔開新
+                              │
+RANGE_RISK_PCT ──────────▶ 落幾多錢？（風險%）
+RANGE_SL_ATR_MULT ───────▶ 止蝕幾遠？（ATR 倍數）
+RANGE_MIN_RR ────────────▶ 回報比夠唔夠？唔夠唔開
+RANGE_LEVERAGE ──────────▶ 幾倍槓桿？
+CONFIDENCE_RISK_* ───────▶ 信心高加碼 / 信心低縮減
+                              │
+                         計算 entry / SL / TP / 倉位大小
+                              │
+                         落盤 → 設 SL → 設 TP
+                              │
+TRAILING_SL_BREAKEVEN ───▶ 賺到幾多移 SL 到保本
+TRAILING_SL_LOCK_PROFIT ─▶ 賺更多鎖利
+EARLY_EXIT_RSI_* ────────▶ RSI 觸發提前出場
+TP_EXTEND_* ─────────────▶ 趨勢夠強延伸 TP
+                              │
+CIRCUIT_BREAKER_SINGLE ──▶ 單倉虧 25% → 即平
+CIRCUIT_BREAKER_DAILY ───▶ 日虧 20% → 停所有
+MAX_HOLD_HOURS ──────────▶ 72 小時 → 強制平
 ```
 
-改完之後：profile 嘅值會自動覆蓋 settings.py 嘅 risk_per_trade_pct、sl_atr_mult、min_rr 等。
-重啟：`launchctl stop ai.openclaw.tradercycle && launchctl start ai.openclaw.tradercycle`
+**改任何左邊嘅參數 → 會影響右邊嘅行為。**
+
+---
+
+## 點樣自訂你嘅打法？
+
+### 方法 1：用內建 Profile（最簡單）
+
+改 `config/params.py` 嘅 `ACTIVE_PROFILE`：
+
+```python
+ACTIVE_PROFILE = "AGGRESSIVE"   # 攻：2.5% risk, 寬 SL, R:R 較低
+ACTIVE_PROFILE = "BALANCED"     # 平：2.0% risk（預設）
+ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL, R:R 較高
+```
+
+### 方法 2：用 user_params.py（推薦新用戶）
+
+唔想改原始 `params.py`（怕 git pull 衝突）：
+
+```bash
+# 1. 複製一份做你自己嘅設定
+cp ~/projects/axc-trading/config/params.py ~/projects/axc-trading/config/user_params.py
+
+# 2. 編輯你嘅版本
+nano ~/projects/axc-trading/config/user_params.py
+```
+
+`user_params.py` 係 gitignored 嘅 — git pull 永遠唔會覆蓋你嘅設定。你只需要保留你想改嘅變數，其餘刪晒都得。
+
+### 方法 3：寫自己嘅外部 .py（進階）
+
+如果你有獨特嘅交易邏輯（例如新嘅指標組合），可以寫一個獨立 .py 文件：
+
+```python
+# config/my_strategy.py（你自己寫嘅）
+# 呢個文件嘅變數會覆蓋 params.py 嘅同名變數
+
+ACTIVE_PROFILE = "MY_STYLE"
+
+TRADING_PROFILES = {
+    "MY_STYLE": {
+        "risk_per_trade_pct": 0.015,   # 1.5%
+        "sl_atr_mult": 1.8,            # 寬 SL
+        "range_min_rr": 2.0,           # 較低 R:R
+        "trend_min_rr": 2.5,
+        "max_open_positions": 2,
+    },
+}
+
+# 你嘅模式偵測偏好
+MODE_RSI_TREND_LOW = 35       # 比預設 32 寬鬆
+MODE_RSI_TREND_HIGH = 65      # 比預設 68 寬鬆
+MODE_CONFIRMATION_REQUIRED = 1  # 唔需要確認（更快切換）
+```
+
+然後改 `config/params.py` 最尾加一行：
+
+```python
+# 載入你嘅自訂設定（覆蓋以上所有）
+from config.my_strategy import *
+```
+
+系統會無縫接受你嘅參數 — 因為 `settings.py` 喺啟動時會讀 `params.py`，而你嘅 import 會覆蓋佢。
+
+---
+
+## 最常改嘅 3 件事
+
+### 1. 改交易風格
+
+見上面「點樣自訂你嘅打法」。
 
 ### 2. 加 / 減交易幣種
 
@@ -38,8 +142,6 @@ ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL
 | 5 | `scripts/light_scan.py` | PAIRS（如果係 Aster 幣種） |
 | 6 | `scripts/slash_cmd.py` | get_prices() loop |
 | 7 | `agents/aster_scanner/workspace/SOUL.md` | pair 列表 |
-
-改完之後：重啟 scanner + trader_cycle。
 
 ### 3. 改止蝕 / 止賺 / 槓桿
 
@@ -139,24 +241,25 @@ ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL
 
 ---
 
-## 兩個 config 文件嘅關係
+## Config 文件嘅關係
 
 ```
-config/params.py（你改呢個）
-    │
-    ▼ 自動覆蓋
-scripts/trader_cycle/config/settings.py（引擎預設）
+config/my_strategy.py（你自己寫嘅，選填）
+    │ import *
+    ▼
+config/params.py（主設定 — 或者用 user_params.py 覆蓋）
+    │ settings.py 啟動時讀取
+    ▼
+scripts/trader_cycle/config/settings.py（引擎預設值）
 ```
 
-`params.py` 係你嘅「遙控器」，`settings.py` 係「工廠設定」。
-
-- **日常調整**：改 `params.py` 嘅 `ACTIVE_PROFILE` 或者 `TRADING_PROFILES` 入面嘅值
-- **進階調整**：改 `settings.py` 嘅個別常數（例如 Yunis Collection 參數）
-- **個人 override**：用 `config/user_params.py`（gitignored），唔怕 git pull 衝突
+- **新用戶**：改 `params.py` 嘅 `ACTIVE_PROFILE` 就夠
+- **進階用戶**：用 `user_params.py` 或者自己寫 `my_strategy.py`
+- **引擎層**：改 `settings.py`（例如 Yunis Collection、風控閾值）
 
 ## 改完之後點做？
 
-1. **改 params.py** → 重啟 trader_cycle：`launchctl stop ai.openclaw.tradercycle && launchctl start ai.openclaw.tradercycle`
+1. **改 params.py / user_params.py** → 重啟 trader_cycle：`launchctl stop ai.openclaw.tradercycle && launchctl start ai.openclaw.tradercycle`
 2. **改 settings.py** → 同上
 3. **改 ASTER_SYMBOLS / BINANCE_SYMBOLS** → 重啟 scanner：`launchctl stop ai.openclaw.scanner && launchctl start ai.openclaw.scanner`
 4. **想驗證先？** → 先跑回測：`python3 backtest/run_backtest.py --symbol BTCUSDT --days 30`
@@ -167,3 +270,4 @@ scripts/trader_cycle/config/settings.py（引擎預設）
 - scanner 每 10 輪會自動重新讀 params.py，但 trader_cycle 唔會 → 改完要重啟
 - 加幣種要改 7 個位，唔好漏（詳見 SYMBOLS.md）
 - `MAX_CRYPTO_POSITIONS` / `MAX_XAG_POSITIONS` 係 dead code，改咗冇用。實際由 POSITION_GROUPS 控制
+- `MODE_CONFIRMATION_REQUIRED = 2` 用 4H candle，即係切換模式最少要 **8 小時**

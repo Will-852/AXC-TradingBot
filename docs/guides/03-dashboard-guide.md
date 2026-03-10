@@ -1,11 +1,11 @@
 <!--
-title: 儀表板各區域
+title: 儀表板 + 縮寫對照
 section: 快速入門
 order: 3
 audience: human,claude,github
 -->
 
-# 儀表板各區域
+# 儀表板 + 縮寫對照
 
 打開 `http://localhost:5555` 可以見到儀表板。
 
@@ -18,6 +18,7 @@ audience: human,claude,github
 | 交易記錄 | 每筆交易入場價、出場價、盈虧 |
 | 系統活動 | 心跳、模式切換、入場出場事件 |
 | 掃描記錄 | 掃描器最近信號同結果 |
+| 系統說明 | `/details` 頁面 — 你而家睇緊嘅文件 |
 
 ## 行動部署狀態燈
 
@@ -27,13 +28,68 @@ audience: human,claude,github
 | 🟡 Near | 接近觸發門檻（70% 以上） |
 | ⚫ Far | 波動唔夠，等候中 |
 
-## 縮寫對照
+## 縮寫對照（完整版）
+
+### 價格 + 交易
+
+| 縮寫 | 全名 | 意思 | 例子 |
+|------|------|------|------|
+| SL | Stop Loss | 止蝕位 — 輸到呢個價自動出場 | BTC SL $94,000 = 跌到 94K 就走 |
+| TP | Take Profit | 止賺位 — 賺到呢個價自動出場 | BTC TP $100,000 = 升到 100K 就走 |
+| S | Support | 支撐位 — 價格容易反彈嘅底部 | |
+| R | Resistance | 阻力位 — 價格容易回落嘅頂部 | |
+| PnL | Profit and Loss | 盈虧 | +$50 = 賺 50 |
+| R:R | Risk-to-Reward | 風險回報比 | 2.3:1 = 潛在回報 2.3 倍於風險 |
+| RR | 同 R:R | | |
+| LONG | 做多 / 看升 | 低買高賣 | |
+| SHORT | 做空 / 看跌 | 高賣低買 | |
+
+### 技術指標
+
+| 縮寫 | 全名 | 意思 | 用喺邊 |
+|------|------|------|--------|
+| ATR | Average True Range | 平均波幅 — 用嚟計 SL/TP 距離 | 倉位大小 |
+| BB | Bollinger Bands | 布林帶 — 價格通道 | Range 策略入場 |
+| RSI | Relative Strength Index | 相對強弱 — 超買/超賣 | 模式偵測 + 出場 |
+| MACD | Moving Average Convergence Divergence | 移動平均收斂發散 — 動能方向 | 模式偵測 + Trend 入場 |
+| EMA | Exponential Moving Average | 指數移動平均 — 趨勢方向 | Trend 策略 |
+| ADX | Average Directional Index | 方向指數 — 趨勢強度 | Range 入場門檻 |
+| Stoch | Stochastic Oscillator | 隨機指標 — 超買/超賣 | Range 加分 |
+| OBV | On-Balance Volume | 平衡成交量 — 資金流向 | Yunis 加分/扣分 |
+| MA | Moving Average | 移動平均線 | |
+
+### 市場數據
 
 | 縮寫 | 全名 | 意思 |
 |------|------|------|
-| SL | Stop Loss | 止蝕位 — 輸到呢個價自動出場 |
-| TP | Take Profit | 止賺位 — 賺到呢個價自動出場 |
-| S | Support | 支撐位 — 價格容易反彈嘅底部 |
-| R | Resistance | 阻力位 — 價格容易回落嘅頂部 |
-| ATR | Average True Range | 平均波幅，用嚟計 SL/TP 距離 |
 | CHG | 24h Change % | 過去 24 小時價格變化 |
+| VOL | Volume | 成交量 |
+| FR | Funding Rate | 資金費率 — 多空持倉成本 |
+| OI | Open Interest | 未平倉合約總量 |
+| USDT | Tether | 美元穩定幣（所有幣種嘅報價貨幣） |
+
+### 系統狀態
+
+| 縮寫 | 全名 | 意思 |
+|------|------|------|
+| CB | Circuit Breaker | 熔斷器 — 虧損超標自動停機 |
+| CD | Cooldown | 冷卻期 — 連虧後暫停 |
+| DD | Drawdown | 回撤 — 從最高點到現價嘅跌幅 |
+| WR | Win Rate | 勝率 |
+| PF | Profit Factor | 盈虧比 — 總盈利 ÷ 總虧損 |
+
+### 策略模式
+
+| 縮寫 | 意思 |
+|------|------|
+| RANGE | 橫行模式 — BB 觸碰 + RSI 反轉入場 |
+| TREND | 趨勢模式 — EMA 排列 + 回調入場 |
+| UNKNOWN | 未確定 — 保持上一個模式 |
+
+### 交易所
+
+| 縮寫 | 全名 |
+|------|------|
+| Aster | Aster DEX（去中心化交易所） |
+| HL | HyperLiquid |
+| Binance | Binance Futures |
