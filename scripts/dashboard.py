@@ -1477,11 +1477,8 @@ def get_action_plan(scan_config, trade_state):
         if price <= 0:
             continue
 
-        # Scanner platforms write inconsistent formats:
-        # bitget/mexc → fraction (0.043 = 4.3%), aster → percentage (4.3)
-        # Auto-detect: for BTC/ETH/XRP/XAG/SOL, <0.5 raw value is always a fraction
-        change_raw = abs(float(data.get("change", 0)))
-        change = change_raw * 100 if 0 < change_raw < 0.5 else change_raw
+        # prices_cache.json stores change as percentage (e.g. 4.3 = 4.3%)
+        change = abs(float(data.get("change", 0)))
         atr = float(scan_config.get(f"{short}_ATR", 0))
         support = float(scan_config.get(f"{short}_support", 0))
         resistance = float(scan_config.get(f"{short}_resistance", 0))
@@ -1581,7 +1578,7 @@ def collect_data():
     pnl_history = update_pnl_history_verified(today_pnl)
 
     # Unrealized PnL from live positions
-    unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 2)
+    unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 4)
     unrealized_pct = round(unrealized_pnl / live_bal * 100, 2) if live_bal > 0 else 0.0
 
     # Position display from live exchange
@@ -2756,8 +2753,11 @@ def main():
             port = int(sys.argv[idx + 1])
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
-    server = ThreadedHTTPServer(("127.0.0.1", port), Handler)
-    print(f"OpenClaw ICU Dashboard: http://127.0.0.1:{port}")
+    bind = "0.0.0.0"
+    server = ThreadedHTTPServer((bind, port), Handler)
+    print(f"AXC Dashboard: http://localhost:{port}")
+    print(f"⚠️  局域網可連：http://<你的IP>:{port} — 同一 WiFi 嘅設備都可以存取（包括平倉等操作）")
+    print(f"   如果喺公共網絡，建議改回 127.0.0.1（編輯 dashboard.py 最尾 bind 變數）")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()
