@@ -45,11 +45,13 @@ jobs:
                   return True
               if rel_path.startswith("agents/main/sessions"):
                   return True
+              if rel_path.startswith("backtest/data"):
+                  return True
               return False
 
           buf = io.BytesIO()
           with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-              INCLUDE_DIRS = ["scripts", "config", "canvas", "docs"]
+              INCLUDE_DIRS = ["scripts", "config", "canvas", "docs", "backtest"]
               for inc in INCLUDE_DIRS:
                   if not os.path.exists(inc):
                       continue
@@ -72,29 +74,30 @@ jobs:
                               zf.write(fpath, os.path.relpath(fpath, ROOT))
 
               # Root files
-              for rf in ["CLAUDE.md", "requirements.txt", "openclaw.json"]:
+              for rf in ["CLAUDE.md", "README.md", "requirements.txt"]:
                   if os.path.exists(rf):
                       zf.write(rf, rf)
 
               # .env.example (keys only, no values)
               env_lines = [
-                  "# OpenClaw .env.example",
+                  "# AXC Trading System .env.example",
                   "# 複製為 secrets/.env 並填入你的 API Key",
                   "# cp secrets/.env.example secrets/.env",
                   "",
-                  "# ── AI 推理（必填）────────────────",
+                  "# ── AI 推理（選填，核心交易唔需要）────────────────",
                   "PROXY_API_KEY=",
                   "PROXY_BASE_URL=https://tao.plus7.plus/v1",
-                  "",
-                  "# ── 交易所（交易功能必填）──────────",
-                  "ASTER_API_KEY=",
-                  "ASTER_API_SECRET=",
-                  "BINANCE_API_KEY=",
-                  "BINANCE_API_SECRET=",
                   "",
                   "# ── Telegram（選填）────────────────",
                   "TELEGRAM_BOT_TOKEN=",
                   "TELEGRAM_CHAT_ID=",
+                  "",
+                  "# ── 交易所（至少填一個）──────────",
+                  "ASTER_API_KEY=",
+                  "ASTER_API_SECRET=",
+                  "",
+                  "BINANCE_API_KEY=",
+                  "BINANCE_API_SECRET=",
                   "",
                   "# ── 向量記憶（選填）────────────────",
                   "VOYAGE_API_KEY=",
@@ -107,7 +110,7 @@ jobs:
                         else "# 見 http://localhost:5555/details"
               zf.writestr("INSTALL.md", install)
 
-          filename = f"openclaw-setup-{TAG}.zip"
+          filename = f"axc-setup-{TAG}.zip"
           with open(filename, "wb") as f:
               f.write(buf.getvalue())
           print(f"Generated {filename} ({os.path.getsize(filename)//1024}KB)")
@@ -116,14 +119,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: openclaw-setup-*.zip
+          files: axc-setup-*.zip
           generate_release_notes: true
           body: |
-            ## OpenClaw ${{ github.ref_name }}
+            ## AXC Trading System ${{ github.ref_name }}
 
             ### 快速安裝
-            1. 下載下方 `openclaw-setup-${{ github.ref_name }}.zip`
-            2. 解壓到 `~/.openclaw/`
+            1. 下載下方 `axc-setup-${{ github.ref_name }}.zip`
+            2. 解壓到 `~/projects/axc-trading/`
             3. 跟住 `INSTALL.md` 完成設定
 
             完整安裝指引：見壓縮包內 `INSTALL.md`
