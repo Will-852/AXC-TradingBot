@@ -13,6 +13,7 @@ import sys
 from ..config.settings import (
     RANGE_RISK_PCT, RANGE_LEVERAGE, RANGE_SL_ATR_MULT, RANGE_MIN_RR,
     SECONDARY_TIMEFRAME, PRIMARY_TIMEFRAME,
+    ENTRY_VOLUME_MIN,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
@@ -53,6 +54,12 @@ class RangeStrategy(StrategyBase):
         self, pair: str, indicators: dict[str, dict], ctx: CycleContext
     ) -> Signal | None:
         """Evaluate range entry for one pair using 1H indicators."""
+        # ─── Volume gate (Yunis Collection) ───
+        ind_4h = indicators.get(PRIMARY_TIMEFRAME, {})
+        volume_ratio = ind_4h.get("volume_ratio", 1.0)
+        if volume_ratio < ENTRY_VOLUME_MIN:
+            return None  # volume too low — skip
+
         # Need 1H indicators for entry signals
         ind_1h = indicators.get(SECONDARY_TIMEFRAME)
         if not ind_1h:
@@ -83,30 +90,45 @@ class RangeStrategy(StrategyBase):
         if not result["range_valid"]:
             return None  # R0/R1 failed on 1H
 
+        # ─── Volume score bonus (Yunis Collection) ───
+        vol_bonus = 0.0
+        if volume_ratio >= 2.0:
+            vol_bonus = 1.0
+        elif volume_ratio >= 1.5:
+            vol_bonus = 0.5
+
         # ─── LONG signal ───
         if result["signal_long"] == 1:
             strength = "STRONG" if any("STRONG" in r for r in result["reasons"]) else "WEAK"
+            base_score = 4.0 if strength == "STRONG" else 3.0
+            reasons = list(result["reasons"])
+            if vol_bonus > 0:
+                reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
             return Signal(
                 pair=pair,
                 direction="LONG",
                 strategy=self.name,
                 strength=strength,
                 entry_price=ind_1h.get("price", 0),
-                reasons=result["reasons"],
-                score=4.0 if strength == "STRONG" else 3.0,
+                reasons=reasons,
+                score=base_score + vol_bonus,
             )
 
         # ─── SHORT signal ───
         if result["signal_short"] == -1:
             strength = "STRONG" if any("STRONG" in r for r in result["reasons"]) else "WEAK"
+            base_score = 4.0 if strength == "STRONG" else 3.0
+            reasons = list(result["reasons"])
+            if vol_bonus > 0:
+                reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
             return Signal(
                 pair=pair,
                 direction="SHORT",
                 strategy=self.name,
                 strength=strength,
                 entry_price=ind_1h.get("price", 0),
-                reasons=result["reasons"],
-                score=4.0 if strength == "STRONG" else 3.0,
+                reasons=reasons,
+                score=base_score + vol_bonus,
             )
 
         return None  # Range valid but no entry trigger

@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 """
 async_scanner.py — 並行多幣種掃描引擎
-版本：v6 | 2026-03-07 | 梅花間竹版
+版本：v7 | 2026-03-10 | 9路輪轉版
 
-v6 梅花間竹：
-  共享幣種（Aster+Binance 都有）單雙輪交替 exchange，
-  每個 exchange 只承受約一半 request rate，防 429。
-  獨佔幣種每輪都掃，唔受影響。
+v7 9路輪轉：
+  9 個 exchange round-robin（Aster, Binance, HyperLiquid,
+  Bybit, OKX, KuCoin, Gate.io, MEXC, Bitget）。
+  每 20 秒掃一個 exchange，每個 exchange 每 180 秒才被 hit 一次。
+  所有 public data — 無需認證。
 
-v5 保留：
-  [R1] Bounded ThreadPoolExecutor — 防止 thread 洩漏（第8日爆滿問題）
+保留：
+  [R1] Bounded ThreadPoolExecutor — 防止 thread 洩漏
   [R4] 磁碟空間監控 — 500MB 告警，100MB critical
   [+]  Thread 數量監控 — 每10輪檢查
   [+]  Round counter — 長期運行追蹤
-
-v4 保留：
-  [1] LOGS_DIR.mkdir() before FileHandler
-  [2] RotatingFileHandler (10MB x 5)
-  [3] atomic_write for SCAN_LOG rotation
-  [4] Empty results preserves prev_cache (stale=True)
+  [+]  atomic_write for SCAN_LOG rotation
+  [+]  Empty results preserves prev_cache (stale=True)
 
 已知限制（接受）：
-  - 用直接 HTTP 而非 AsterClient（同 light_scan 一致）
+  - KuCoin 用 spot ticker（futures 無 bulk endpoint）
+  - HyperLiquid 無 24h high/low
   - SCAN_LOG rotation 讀入記憶體（500行 ≈ 50KB，可接受）
 """
 
@@ -36,8 +34,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.request
-import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -55,20 +51,16 @@ sys.path.insert(0, str(BASE_DIR / "config"))
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
 from write_activity import write_activity
+from public_feeds import fetch_exchange_tickers
+from public_feeds import shutdown as feeds_shutdown
 
 log = logging.getLogger("scanner")
-
-# ── API Endpoints ────────────────────────────────
-ASTER_FAPI = "https://fapi.asterdex.com/fapi/v1"
-BINANCE_FAPI = "https://fapi.binance.com/fapi/v1"
 
 # ── Params（hot-reload 每 10 輪）──────────────────
 PARAMS_PATH = str(BASE_DIR / "config" / "params.py")
 
 # Defaults (used if params.py missing)
-ASTER_SYMBOLS   = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
-BINANCE_SYMBOLS = []
-SCAN_INTERVAL   = 180
+SCAN_INTERVAL   = 20
 SCAN_TIMEOUT    = 30
 SCAN_WORKERS    = 8
 LOG_MAX_LINES   = 500
@@ -77,15 +69,20 @@ LOG_BACKUPS     = 5
 _FALLBACK_TRIGGER = 0.05
 _PROFILES         = {}
 _ACTIVE           = None
+_EXCHANGE_ROTATION = [
+    "aster", "binance", "hyperliquid",
+    "bybit", "okx", "kucoin", "gate", "mexc", "bitget",
+]
+_ALL_SYMBOLS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "SOLUSDT"]
 
 
 def reload_params():
     """Hot-reload params.py via importlib（同 dashboard 同一模式）。
-    更新所有 module globals，包括梅花間竹用嘅 symbol sets。"""
-    global ASTER_SYMBOLS, BINANCE_SYMBOLS, SCAN_INTERVAL, SCAN_TIMEOUT
+    更新所有 module globals，包括 9 路輪轉設定。"""
+    global SCAN_INTERVAL, SCAN_TIMEOUT
     global SCAN_WORKERS, LOG_MAX_LINES, LOG_MAX_BYTES, LOG_BACKUPS
     global _FALLBACK_TRIGGER, _PROFILES, _ACTIVE
-    global _aster_set, _binance_set, _ALL_SYMBOLS
+    global _EXCHANGE_ROTATION, _ALL_SYMBOLS
 
     try:
         import importlib.util
@@ -93,10 +90,7 @@ def reload_params():
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
-        ASTER_SYMBOLS     = list(getattr(mod, "ASTER_SYMBOLS",
-                                  ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]))
-        BINANCE_SYMBOLS   = list(getattr(mod, "BINANCE_SYMBOLS", []))
-        SCAN_INTERVAL     = int(getattr(mod,  "SCAN_INTERVAL_SEC", 180))
+        SCAN_INTERVAL     = int(getattr(mod,  "SCAN_INTERVAL_SEC", 20))
         SCAN_TIMEOUT      = int(getattr(mod,  "SCAN_TIMEOUT_SEC", 30))
         SCAN_WORKERS      = int(getattr(mod,  "SCAN_MAX_WORKERS", 8))
         LOG_MAX_LINES     = int(getattr(mod,  "SCAN_LOG_MAX_LINES", 500))
@@ -106,10 +100,14 @@ def reload_params():
         _PROFILES         = getattr(mod, "TRADING_PROFILES", {})
         _ACTIVE           = getattr(mod, "ACTIVE_PROFILE", None)
 
-        # Rebuild alternation sets
-        _aster_set   = set(ASTER_SYMBOLS)
-        _binance_set = set(BINANCE_SYMBOLS)
-        _ALL_SYMBOLS = list(dict.fromkeys(ASTER_SYMBOLS + BINANCE_SYMBOLS))
+        # 9 路輪轉
+        _EXCHANGE_ROTATION = list(getattr(mod, "EXCHANGE_ROTATION", _EXCHANGE_ROTATION))
+
+        # 所有幣種 = union of all exchange symbol lists
+        aster_syms   = list(getattr(mod, "ASTER_SYMBOLS", []))
+        binance_syms = list(getattr(mod, "BINANCE_SYMBOLS", []))
+        hl_syms      = list(getattr(mod, "HL_SYMBOLS", []))
+        _ALL_SYMBOLS = list(dict.fromkeys(aster_syms + binance_syms + hl_syms))
 
         return True
     except Exception as e:
@@ -131,8 +129,6 @@ _executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=SCAN_WORKERS,
     thread_name_prefix="scanner",
 )
-
-_semaphore: Optional[asyncio.Semaphore] = None
 
 
 # ════════════════════════════════════════════════════
@@ -172,96 +168,6 @@ def write_heartbeat(status: str, extra: str = ""):
         log.warning(f"心跳寫入失敗: {e}")
 
 
-# ════════════════════════════════════════════════════
-# HTTP 抓取（同 light_scan / slash_cmd 一致）
-# ════════════════════════════════════════════════════
-
-def _fetch_json(url: str, timeout: int = 10) -> Optional[dict]:
-    """Fetch JSON from URL. Returns None on any error."""
-    try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "OpenClaw-AsyncScanner/4.0"
-        })
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode())
-    except Exception:
-        return None
-
-
-# ════════════════════════════════════════════════════
-# 數據抓取
-# ════════════════════════════════════════════════════
-
-async def fetch_aster_symbol(symbol: str) -> Optional[dict]:
-    """
-    抓取單個 Aster 幣種。用 run_in_executor 包裝同步 HTTP。
-    所有異常返回 None → 單幣種失敗唔影響其他。
-    """
-    try:
-        loop = asyncio.get_running_loop()
-
-        def _sync_fetch():
-            data = _fetch_json(
-                f"{ASTER_FAPI}/ticker/24hr?symbol={symbol}",
-                timeout=SCAN_TIMEOUT,
-            )
-            if not data or "lastPrice" not in data:
-                return None
-            return {
-                "symbol":   symbol,
-                "platform": "aster",
-                "price":    float(data.get("lastPrice", 0)),
-                "change":   float(data.get("priceChangePercent", 0)),
-                "high":     float(data.get("highPrice", 0)),
-                "low":      float(data.get("lowPrice", 0)),
-                "volume":   float(data.get("quoteVolume", 0)),
-                "ts":       datetime.now(timezone.utc).isoformat(),
-            }
-
-        # Fix R1: 用 bounded _executor，唔用預設 executor
-        fut = loop.run_in_executor(_executor, _sync_fetch)
-        return await asyncio.wait_for(fut, timeout=SCAN_TIMEOUT)
-
-    except asyncio.TimeoutError:
-        log.warning(f"⏱ {symbol}@aster 超時 ({SCAN_TIMEOUT}s)")
-        return None
-    except Exception as e:
-        log.error(f"❌ {symbol}@aster {type(e).__name__}: {e}")
-        return None
-
-
-async def fetch_binance_symbol(symbol: str) -> Optional[dict]:
-    """抓取單個 Binance Futures 幣種。同 Aster 一致模式。"""
-    try:
-        loop = asyncio.get_running_loop()
-
-        def _sync_fetch():
-            data = _fetch_json(
-                f"{BINANCE_FAPI}/ticker/24hr?symbol={symbol}",
-                timeout=SCAN_TIMEOUT,
-            )
-            if not data or "lastPrice" not in data:
-                return None
-            return {
-                "symbol":   symbol,
-                "platform": "binance",
-                "price":    float(data.get("lastPrice", 0)),
-                "change":   float(data.get("priceChangePercent", 0)),
-                "high":     float(data.get("highPrice", 0)),
-                "low":      float(data.get("lowPrice", 0)),
-                "volume":   float(data.get("quoteVolume", 0)),
-                "ts":       datetime.now(timezone.utc).isoformat(),
-            }
-
-        fut = loop.run_in_executor(_executor, _sync_fetch)
-        return await asyncio.wait_for(fut, timeout=SCAN_TIMEOUT)
-
-    except asyncio.TimeoutError:
-        log.warning(f"⏱ {symbol}@binance 超時 ({SCAN_TIMEOUT}s)")
-        return None
-    except Exception as e:
-        log.error(f"❌ {symbol}@binance {type(e).__name__}: {e}")
-        return None
 
 
 # ════════════════════════════════════════════════════
@@ -289,49 +195,36 @@ def evaluate_signal(data: dict) -> dict:
 
 async def scan_all_symbols(round_count: int = 0) -> list[dict]:
     """
-    並行掃描 — 梅花間竹策略。
-    共享幣種（兩邊都有）：單數輪用 Aster，雙數輪用 Binance。
-    獨佔幣種（只有一邊）：每輪都掃。
-    效果：每個 exchange 只承受約一半 request rate，防 429。
+    9 路輪轉掃描。每輪選一個 exchange，用 public_feeds 取得所有 ticker，
+    然後只保留 _ALL_SYMBOLS 內嘅幣種。
+    每個 exchange 每 N 輪才被 hit 一次（N = len(EXCHANGE_ROTATION)）。
     """
-    global _semaphore
-    if _semaphore is None:
-        _semaphore = asyncio.Semaphore(SCAN_WORKERS)
-
-    use_aster = (round_count % 2 == 1)  # 單數=Aster, 雙數=Binance
-
-    tasks = []
-    for sym in _ALL_SYMBOLS:
-        on_both = sym in _aster_set and sym in _binance_set
-        if on_both:
-            if use_aster:
-                tasks.append(fetch_aster_symbol(sym))
-            else:
-                tasks.append(fetch_binance_symbol(sym))
-        elif sym in _aster_set:
-            tasks.append(fetch_aster_symbol(sym))
-        else:
-            tasks.append(fetch_binance_symbol(sym))
-
-    if not tasks:
-        log.warning("無掃描任務，請檢查 params.py ASTER_SYMBOLS")
+    if not _EXCHANGE_ROTATION:
+        log.warning("EXCHANGE_ROTATION 為空")
         return []
 
-    async def limited(coro):
-        async with _semaphore:
-            return await coro
+    exchange = _EXCHANGE_ROTATION[round_count % len(_EXCHANGE_ROTATION)]
+    tickers = await fetch_exchange_tickers(exchange)
 
-    raw = await asyncio.gather(
-        *[limited(t) for t in tasks],
-        return_exceptions=True,
-    )
+    if not tickers:
+        log.warning(f"{exchange} 返回空結果，本輪跳過")
+        return []
 
+    now_ts = datetime.now(timezone.utc).isoformat()
     results = []
-    for r in raw:
-        if isinstance(r, Exception):
-            log.error(f"gather 捕捉到未預期異常: {type(r).__name__}: {r}")
-        elif r is not None:
-            results.append(evaluate_signal(r))
+    for sym in _ALL_SYMBOLS:
+        if sym in tickers:
+            t = tickers[sym]
+            results.append(evaluate_signal({
+                "symbol":   sym,
+                "platform": exchange,
+                "price":    t["price"],
+                "change":   t["change"],
+                "high":     t["high"],
+                "low":      t["low"],
+                "volume":   t["volume"],
+                "ts":       now_ts,
+            }))
 
     return results
 
@@ -409,11 +302,14 @@ def write_scan_results(results: list[dict], prev_cache: dict) -> dict:
     except Exception as e:
         log.error(f"SIGNAL.md 寫入失敗: {e}")
 
-    # ── 3. prices_cache.json（原子覆寫）──────────
+    # ── 3. prices_cache.json（merge 模式 — 9路輪轉每輪只掃部分幣種）──
     try:
+        new_cache = dict(prev_cache)  # 保留所有舊數據
+
         if results:
-            new_cache = {
-                r["symbol"]: {
+            # Merge：本輪掃到嘅幣種更新，其他保持不變
+            for r in results:
+                new_cache[r["symbol"]] = {
                     "price":    r.get("price"),
                     "change":   r.get("change"),
                     "high":     r.get("high"),
@@ -424,14 +320,11 @@ def write_scan_results(results: list[dict], prev_cache: dict) -> dict:
                     "ts":       r.get("ts"),
                     "stale":    False,
                 }
-                for r in results
-            }
         else:
-            new_cache = {
-                sym: {**data, "stale": True}
-                for sym, data in prev_cache.items()
-            }
-            log.warning("results 為空，prices_cache 保留上次數據（stale=True）")
+            # 全部標 stale
+            for sym in new_cache:
+                new_cache[sym] = {**new_cache[sym], "stale": True}
+            log.warning("results 為空，prices_cache 全部標 stale")
 
         atomic_write(
             SHARED_DIR / "prices_cache.json",
@@ -469,13 +362,11 @@ async def scanner_loop():
     """持續掃描循環。頂層 try/except → log → sleep(30) → 重試。"""
     total = len(_ALL_SYMBOLS)
 
-    log.info("並行掃描器 v6 啟動（梅花間竹 + hot-reload）")
-    log.info(f"   幣種：{total}個 | 間隔：{SCAN_INTERVAL}s | 並發：{SCAN_WORKERS}")
-    log.info(f"   Aster:   {ASTER_SYMBOLS}")
-    log.info(f"   Binance: {BINANCE_SYMBOLS or ['(未整合)']}")
-    log.info(f"   共享：{sorted(_aster_set & _binance_set) or '(無)'} — 單雙輪交替")
+    log.info("並行掃描器 v7 啟動（9路輪轉 + hot-reload）")
+    log.info(f"   幣種：{total}個 | 間隔：{SCAN_INTERVAL}s | 交易所：{len(_EXCHANGE_ROTATION)}個")
+    log.info(f"   輪轉：{_EXCHANGE_ROTATION}")
+    log.info(f"   每個交易所 hit 頻率：每 {SCAN_INTERVAL * len(_EXCHANGE_ROTATION)}s")
     log.info(f"   Hot-reload: 每 10 輪自動重讀 params.py")
-    log.info(f"   Executor: ThreadPool(max={SCAN_WORKERS})")
 
     write_heartbeat("starting")
 
@@ -498,7 +389,7 @@ async def scanner_loop():
             if round_count % 10 == 0:
                 if reload_params():
                     total = len(_ALL_SYMBOLS)
-                    log.info(f"params hot-reload: {len(ASTER_SYMBOLS)} Aster + {len(BINANCE_SYMBOLS)} Binance, 共享 {len(_aster_set & _binance_set)}")
+                    log.info(f"params hot-reload: {total} symbols, {len(_EXCHANGE_ROTATION)} exchanges")
                 check_disk_space()
                 active = threading.active_count()
                 log.info(f"R{round_count} threads:{active}")
@@ -506,7 +397,7 @@ async def scanner_loop():
                     log.warning(f"threads high: {active} (limit {SCAN_WORKERS * 3})")
                     write_heartbeat("thread_warning", f"threads={active}")
 
-            src = "Aster" if (round_count % 2 == 1) else "Binance"
+            src = _EXCHANGE_ROTATION[round_count % len(_EXCHANGE_ROTATION)]
             results    = await scan_all_symbols(round_count)
             prev_cache = write_scan_results(results, prev_cache)
 
@@ -565,6 +456,7 @@ def main():
         pass
     finally:
         _executor.shutdown(wait=False)
+        feeds_shutdown()
         log.info("掃描器已停止")
         write_heartbeat("stopped")
 

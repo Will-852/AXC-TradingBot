@@ -29,7 +29,8 @@ from datetime import datetime, timezone, timedelta
 # ─────────────────────────────────────────
 # SETUP IMPORTS — reuse existing code
 # ─────────────────────────────────────────
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
+AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+_SHARED = os.path.join(AXC_HOME, "shared")
 _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
@@ -44,10 +45,10 @@ from trader_cycle.state.file_lock import FileLock
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
-COST_TRACKER_PATH = os.path.join(WORKSPACE, "routing/COST_TRACKER.md")
-SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
+TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
+SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
+COST_TRACKER_PATH = os.path.join(os.path.expanduser("~/.openclaw/workspace"), "routing/COST_TRACKER.md")
+SCAN_LOG_PATH = os.path.join(_SHARED, "SCAN_LOG.md")
 
 # Thresholds
 COST_SOFT_LIMIT = 0.50

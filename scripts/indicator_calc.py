@@ -14,6 +14,7 @@ Python: 3.11+（tradingview_indicators 需要 match syntax）
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone, timedelta
 

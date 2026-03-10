@@ -13,6 +13,7 @@ from datetime import datetime
 from ..config.settings import (
     TREND_RISK_PCT, TREND_LEVERAGE, TREND_SL_ATR_MULT, TREND_MIN_RR,
     BIAS_THRESHOLD, HKT, PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
+    ENTRY_VOLUME_MIN, MACD_HIST_DECAY_THRESHOLD,
 )
 from ..core.context import CycleContext, Signal
 from .base import StrategyBase, PositionParams
@@ -98,6 +99,11 @@ class TrendStrategy(StrategyBase):
         if not ind_4h or not ind_1h:
             return None
 
+        # ─── Volume gate (Yunis Collection) ───
+        volume_ratio = ind_4h.get("volume_ratio", 1.0)
+        if volume_ratio < ENTRY_VOLUME_MIN:
+            return None  # volume too low — skip
+
         # Extract required values
         price = ind_4h.get("price")
         ma50_4h = ind_4h.get("ma50")
@@ -135,6 +141,13 @@ class TrendStrategy(StrategyBase):
         min_long = 3 if bias == "LONG" else 4
         min_short = 3 if bias == "SHORT" else 4
 
+        # ─── Volume score bonus (Yunis Collection) ───
+        vol_bonus = 0.0
+        if volume_ratio >= 2.0:
+            vol_bonus = 1.0
+        elif volume_ratio >= 1.5:
+            vol_bonus = 0.5
+
         # ─── Check LONG ───
         if long_count >= min_long and long_count > short_count:
             reasons = [f"LONG_TREND: {long_count}/4 KEY confirmed"]
@@ -142,7 +155,10 @@ class TrendStrategy(StrategyBase):
                 reasons.append(f"  {k}: {'PASS' if v else 'FAIL'}")
             if bias == "LONG":
                 reasons.append("  DAY_BIAS: LONG active (3/4 sufficient)")
+            if vol_bonus > 0:
+                reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
 
+            base_score = 5.0 if long_count == 4 else 3.5
             return Signal(
                 pair=pair,
                 direction="LONG",
@@ -150,7 +166,7 @@ class TrendStrategy(StrategyBase):
                 strength="STRONG" if long_count == 4 else "BIAS",
                 entry_price=price_1h,
                 reasons=reasons,
-                score=5.0 if long_count == 4 else 3.5,
+                score=base_score + vol_bonus,
             )
 
         # ─── Check SHORT ───
@@ -160,7 +176,10 @@ class TrendStrategy(StrategyBase):
                 reasons.append(f"  {k}: {'PASS' if v else 'FAIL'}")
             if bias == "SHORT":
                 reasons.append("  DAY_BIAS: SHORT active (3/4 sufficient)")
+            if vol_bonus > 0:
+                reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
 
+            base_score = 5.0 if short_count == 4 else 3.5
             return Signal(
                 pair=pair,
                 direction="SHORT",
@@ -168,7 +187,7 @@ class TrendStrategy(StrategyBase):
                 strength="STRONG" if short_count == 4 else "BIAS",
                 entry_price=price_1h,
                 reasons=reasons,
-                score=5.0 if short_count == 4 else 3.5,
+                score=base_score + vol_bonus,
             )
 
         return None  # Not enough KEY conditions met
@@ -238,6 +257,7 @@ class TrendStrategy(StrategyBase):
         """
         Trend exit conditions (checked every cycle for open positions):
           1. MACD 4H reverse crossover (histogram sign flip)
+          1b. MACD 4H histogram weakening >40% + RR ≥ 1.0 (Yunis Collection)
           2. Price back between 50MA and 200MA (trend structure broken)
           3. 3+ mode votes flip to RANGE (market regime change)
         """
@@ -255,6 +275,27 @@ class TrendStrategy(StrategyBase):
             if macd_hist_prev < 0 and macd_hist > 0:
                 return "MACD_REVERSAL: histogram turned positive on 4H"
 
+            # ─── MACD weakening early exit (Yunis Collection) ───
+            # Histogram same sign but decaying >40% → trend losing steam
+            # Only exit if position already has R:R ≥ 1.0
+            position = self._find_position(pair, ctx)
+            if position and macd_hist_prev != 0:
+                current_rr = self._calc_current_rr(position)
+                if current_rr >= 1.0:
+                    decay = abs(macd_hist) / abs(macd_hist_prev)
+                    if (position.direction == "LONG" and macd_hist > 0
+                            and decay < MACD_HIST_DECAY_THRESHOLD):
+                        return (
+                            f"MACD_WEAKENING_EXIT: histogram decayed to "
+                            f"{decay:.0%} (R:R={current_rr:.1f})"
+                        )
+                    if (position.direction == "SHORT" and macd_hist < 0
+                            and decay < MACD_HIST_DECAY_THRESHOLD):
+                        return (
+                            f"MACD_WEAKENING_EXIT: histogram decayed to "
+                            f"{decay:.0%} (R:R={current_rr:.1f})"
+                        )
+
         # ─── Price back between MAs ───
         price = ind_4h.get("price")
         ma50 = ind_4h.get("ma50")
@@ -266,3 +307,22 @@ class TrendStrategy(StrategyBase):
                 return "MA_CROSS: price between 50MA and 200MA (trend weakening)"
 
         return None
+
+    @staticmethod
+    def _find_position(pair: str, ctx: CycleContext):
+        """Find open position for this pair."""
+        for pos in ctx.open_positions:
+            if pos.pair == pair:
+                return pos
+        return None
+
+    @staticmethod
+    def _calc_current_rr(position) -> float:
+        """Calculate current reward:risk ratio for an open position."""
+        if not position.sl_price or position.entry_price == position.sl_price:
+            return 0.0
+        risk = abs(position.entry_price - position.sl_price)
+        if risk <= 0:
+            return 0.0
+        reward = abs(position.mark_price - position.entry_price)
+        return reward / risk

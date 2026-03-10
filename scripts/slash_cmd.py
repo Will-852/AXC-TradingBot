@@ -17,10 +17,11 @@ from datetime import datetime, timezone, timedelta
 from openclaw_bridge import bridge
 
 HKT = timezone(timedelta(hours=8))
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
-TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
+AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+_SHARED = os.path.join(AXC_HOME, "shared")
+TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
+SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
+TRADE_LOG_PATH = os.path.join(_SHARED, "TRADE_LOG.md")
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -493,7 +494,7 @@ def main():
     # - If there are open positions -> send every time (30m)
     # - If no open positions -> only send if last send >= 3 hours
     if send and cmd == "report":
-        LAST_REPORT_PATH = os.path.join(WORKSPACE, ".last_report_sent")
+        LAST_REPORT_PATH = os.path.join(_SHARED, ".last_report_sent")
         try:
             live_positions = get_positions() or []
             active_positions = [p for p in live_positions if float(p.get("positionAmt", 0)) != 0]

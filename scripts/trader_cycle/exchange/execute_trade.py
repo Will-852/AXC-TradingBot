@@ -134,18 +134,39 @@ class ExecuteTradeStep:
 
             # ⑥ Take Profit (nice-to-have — SL is protecting)
             if signal.tp1_price and signal.tp1_price > 0:
+                # Range strategy: split qty 50/50 between TP1 and TP2
+                if signal.tp2_price and signal.tp2_price > 0:
+                    tp1_qty = fill_qty // 2
+                    tp2_qty = fill_qty - tp1_qty  # remainder goes to TP2
+                else:
+                    tp1_qty = fill_qty
+                    tp2_qty = 0
+
                 try:
                     tp_result = client.create_take_profit_market(
-                        pair, exit_side, fill_qty,
+                        pair, exit_side, tp1_qty,
                         signal.tp1_price, reduce_only=True,
                     )
                     ctx.tp_order_id = str(tp_result.get("orderId", ""))
-                    logger.info(f"[{pair}] TP placed: {signal.tp1_price} id={ctx.tp_order_id}")
+                    logger.info(f"[{pair}] TP1 placed: {signal.tp1_price} qty={tp1_qty} id={ctx.tp_order_id}")
 
                 except Exception as tp_err:
-                    # TP failure is OK — SL is protecting us
-                    ctx.warnings.append(f"TP placement failed for {pair}: {tp_err} (SL active)")
-                    logger.warning(f"[{pair}] TP failed: {tp_err} (SL protecting)")
+                    ctx.warnings.append(f"TP1 placement failed for {pair}: {tp_err} (SL active)")
+                    logger.warning(f"[{pair}] TP1 failed: {tp_err} (SL protecting)")
+
+                # TP2 (Range strategy only)
+                if tp2_qty > 0:
+                    try:
+                        tp2_result = client.create_take_profit_market(
+                            pair, exit_side, tp2_qty,
+                            signal.tp2_price, reduce_only=True,
+                        )
+                        ctx.tp2_order_id = str(tp2_result.get("orderId", ""))
+                        logger.info(f"[{pair}] TP2 placed: {signal.tp2_price} qty={tp2_qty} id={ctx.tp2_order_id}")
+
+                    except Exception as tp2_err:
+                        ctx.warnings.append(f"TP2 placement failed for {pair}: {tp2_err} (SL active)")
+                        logger.warning(f"[{pair}] TP2 failed: {tp2_err} (SL protecting)")
 
             # ⑦ Update trade state (keys must match TRADE_STATE.md format)
             ctx.trade_state_updates.update({
@@ -156,14 +177,18 @@ class ExecuteTradeStep:
                 "SIZE": str(fill_qty),
                 "SL_PRICE": str(signal.sl_price),
                 "TP_PRICE": str(signal.tp1_price),
+                "TP2_PRICE": str(signal.tp2_price or 0),
                 "LAST_TRADE_TIME": ctx.timestamp_str,
             })
 
             # Trade log entry
+            tp_info = f"TP1={signal.tp1_price}"
+            if signal.tp2_price:
+                tp_info += f" TP2={signal.tp2_price} (split {tp1_qty}/{tp2_qty})"
             ctx.trade_log_entries.append(
                 f"[{ctx.timestamp_str}] ENTRY {signal.direction} {pair} "
                 f"qty={fill_qty} @ {fill_price} "
-                f"SL={signal.sl_price} TP={signal.tp1_price} "
+                f"SL={signal.sl_price} {tp_info} "
                 f"leverage={leverage}x margin=${signal.margin_required:.2f}"
             )
 
@@ -172,7 +197,9 @@ class ExecuteTradeStep:
                 print(f"      Order: {order_id} | Price: {fill_price} | Qty: {fill_qty}")
                 print(f"      SL: {signal.sl_price} ({ctx.sl_order_id})")
                 if ctx.tp_order_id:
-                    print(f"      TP: {signal.tp1_price} ({ctx.tp_order_id})")
+                    print(f"      TP1: {signal.tp1_price} qty={tp1_qty} ({ctx.tp_order_id})")
+                if ctx.tp2_order_id:
+                    print(f"      TP2: {signal.tp2_price} qty={tp2_qty} ({ctx.tp2_order_id})")
 
         except AuthenticationError as e:
             raise CriticalError(f"Auth error during trade execution: {e}")

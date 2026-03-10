@@ -40,7 +40,7 @@ sys.path.insert(0, str(BASE_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from memory.writer import (write_conversation, write_analysis,
-                            write_trade)
+                            write_trade, read_last_entry)
 from write_activity import write_activity
 from memory.retriever import retrieve_full, format_for_prompt
 
@@ -327,7 +327,7 @@ def _read_context_from_files() -> str:
             text = path.read_text(encoding="utf-8")[-1500:]
             parts.append(f"**{label}：**\n{text}")
 
-    scan_log = BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md"
+    scan_log = BASE_DIR / "shared/SCAN_LOG.md"
     if scan_log.exists():
         text = scan_log.read_text(encoding="utf-8")[-600:]
         parts.append(f"**最新掃描：**\n{text}")
@@ -349,13 +349,55 @@ def _read_context_from_files() -> str:
 
 
 # ════════════════════════════════════════════════════
-# Exchange helpers (via AsterClient)
+# Exchange helpers (multi-exchange)
 # ════════════════════════════════════════════════════
 
-def _get_client():
-    """Lazy-load AsterClient."""
-    from trader_cycle.exchange.aster_client import AsterClient
-    return AsterClient()
+# Canonical exchange names — user input 統一用呢個 map
+EXCHANGE_ALIASES = {
+    "aster": "aster", "ast": "aster",
+    "binance": "binance", "bn": "binance", "bnb": "binance",
+    "hl": "hyperliquid", "hyperliquid": "hyperliquid", "hyper": "hyperliquid",
+}
+EXCHANGE_DISPLAY = {"aster": "Aster", "binance": "Binance", "hyperliquid": "HyperLiquid"}
+
+def _resolve_exchange(name: str) -> str:
+    """Resolve alias to canonical exchange name. Returns 'aster' if unknown."""
+    return EXCHANGE_ALIASES.get(name.lower().strip(), "aster")
+
+
+def _get_client(exchange: str = "aster"):
+    """Lazy-load exchange client by name. Raises if no credentials."""
+    exchange = _resolve_exchange(exchange)
+    if exchange == "binance":
+        from trader_cycle.exchange.binance_client import BinanceClient
+        return BinanceClient()
+    elif exchange == "hyperliquid":
+        from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
+        return HyperLiquidClient()
+    else:
+        from trader_cycle.exchange.aster_client import AsterClient
+        return AsterClient()
+
+
+def _get_all_clients() -> dict:
+    """Return dict of all available exchange clients. Skips unavailable ones."""
+    clients = {}
+    try:
+        from trader_cycle.exchange.aster_client import AsterClient
+        clients["aster"] = AsterClient()
+    except Exception:
+        pass
+    try:
+        from trader_cycle.exchange.binance_client import BinanceClient
+        clients["binance"] = BinanceClient()
+    except Exception:
+        pass
+    try:
+        from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
+        clients["hyperliquid"] = HyperLiquidClient()
+    except Exception:
+        pass
+    return clients
 
 
 def _sync_trade_state():
@@ -455,13 +497,9 @@ AVAILABLE_MARGIN: {balance}
 LAST_BALANCE_CHECK: {now}
 """
         # Write to both paths
-        paths = [
-            BASE_DIR / "shared/TRADE_STATE.md",
-            BASE_DIR / "workspace/agents/aster_trader/TRADE_STATE.md",
-        ]
-        for p in paths:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(md)
+        p = BASE_DIR / "shared/TRADE_STATE.md"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(md)
 
         log.info(f"TRADE_STATE synced: balance={balance}, pos={'YES' if active else 'NO'}")
     except Exception as e:
@@ -470,11 +508,13 @@ LAST_BALANCE_CHECK: {now}
 
 def execute_order(order: dict) -> dict:
     """
-    Execute an order via AsterClient.
-    order = {symbol, side, amount, sl_pct, tp_pct}
+    Execute an order via exchange client.
+    order = {symbol, side, amount, sl_pct, tp_pct, exchange?}
+    Routes to correct exchange based on order['exchange'].
     """
     try:
-        client = _get_client()
+        exchange = order.get("exchange", "aster")
+        client = _get_client(exchange)
         symbol = order["symbol"]
         side   = order["side"]
 
@@ -624,18 +664,27 @@ def move_sl_to_entry(symbol: str) -> dict:
 # ════════════════════════════════════════════════════
 
 def parse_order_intent(text: str) -> dict | None:
-    """Parse natural language for order intent. Returns order dict or None."""
+    """Parse natural language for order intent. Returns order dict or None.
+    Now detects exchange from text (aster/binance/hl/hyperliquid).
+    """
     balance = slash_cmd.get_balance() or 0.0
 
     prompt = f"""判斷以下訊息是否包含下單/交易指令。
 
 當前餘額：${balance:.2f}
 可交易幣種：BTCUSDT, ETHUSDT, XRPUSDT, XAGUSDT
+支持交易所：aster（預設）, binance, hyperliquid（hl）
 
 訊息：「{text}」
 
 如果係下單指令，只返回 JSON：
-{{"is_order": true, "symbol": "ETHUSDT", "side": "LONG", "amount": 1.0, "confidence": 0.95, "description": "做多ETH $1"}}
+{{"is_order": true, "symbol": "ETHUSDT", "side": "LONG", "amount": 1.0, "exchange": "aster", "confidence": 0.95, "description": "做多ETH $1"}}
+
+交易所識別：
+- 提及 "aster" → "exchange": "aster"
+- 提及 "binance"/"bn" → "exchange": "binance"
+- 提及 "hl"/"hyperliquid"/"hyper" → "exchange": "hyperliquid"
+- 冇提及 → "exchange": "aster"（default）
 
 SL/TP 規則（最重要）：
 - 用戶冇講 → 唔好加任何 SL/TP 欄位
@@ -653,6 +702,11 @@ SL/TP 規則（最重要）：
         raw = re.sub(r"```json|```", "", raw).strip()
         data = json.loads(raw)
         if data.get("is_order") and data.get("confidence", 0) > 0.8:
+            # Normalize exchange name
+            if "exchange" in data:
+                data["exchange"] = _resolve_exchange(data["exchange"])
+            else:
+                data["exchange"] = "aster"
             return data
     except Exception:
         pass
@@ -697,12 +751,16 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/resume — 恢復\n"
         "/cancel — 取消待確認訂單\n\n"
         "<b>下單</b>\n"
-        "直接輸入：「買入 XAG 50蚊」\n\n"
+        "/trade &lt;交易所&gt; &lt;幣種&gt; &lt;方向&gt; [金額]\n"
+        "/close [交易所] &lt;幣種&gt;\n"
+        "直接輸入：「喺 hl 做多 BTC 50蚊」\n\n"
         "<b>AI</b>\n"
         "/ask [問題] — 帶數據分析\n"
         "自由輸入 — 自動判斷意圖\n"
         "/forget — 清除短期記憶\n\n"
-        "<i>對話記憶：最近 5 組對話，10 分鐘無活動自動清除</i>",
+        "<i>對話記憶：最近 5 組對話，10 分鐘無活動自動清除</i>\n\n"
+        "<b>Aster DEX 新用戶註冊</b>\n"
+        '<a href="https://www.asterdex.com/en/referral/E5Ce6c">點擊註冊</a> | 邀請碼：<code>E5Ce6c</code>',
         parse_mode="HTML",
     )
 
@@ -723,10 +781,70 @@ async def cmd_report(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _send_deterministic(update, slash_cmd.cmd_report)
 
 async def cmd_pos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _send_deterministic(update, slash_cmd.cmd_pos)
+    """Show positions from ALL connected exchanges."""
+    if not is_allowed(update):
+        return
+    try:
+        clients = _get_all_clients()
+        lines = [f"📊 <b>所有持倉</b>", "━━━━━━━━━━━━━━━━"]
+        total_count = 0
+
+        for name, client in clients.items():
+            display = EXCHANGE_DISPLAY.get(name, name)
+            try:
+                positions = client.get_positions()
+                active = [p for p in positions if float(p.get("positionAmt", 0)) != 0]
+                if active:
+                    lines.append(f"\n<b>{display}</b>")
+                    for p in active:
+                        amt = float(p.get("positionAmt", 0))
+                        sym = p.get("symbol", "?")
+                        direction = "LONG" if amt > 0 else "SHORT"
+                        entry = float(p.get("entryPrice", 0))
+                        mark = float(p.get("markPrice", 0))
+                        pnl = float(p.get("unRealizedProfit", 0))
+                        pnl_pct = ((mark - entry) / entry * 100) if entry > 0 else 0
+                        if direction == "SHORT":
+                            pnl_pct = -pnl_pct
+                        icon = "🟢" if pnl >= 0 else "🔴"
+                        lines.append(
+                            f"  {icon} {sym} {direction} {abs(amt)}\n"
+                            f"     ${entry:.4f} → ${mark:.4f} | {'+' if pnl >= 0 else ''}${pnl:.2f} ({pnl_pct:+.1f}%)"
+                        )
+                        total_count += 1
+                else:
+                    lines.append(f"\n<b>{display}</b>\n  無持倉")
+            except Exception as e:
+                lines.append(f"\n<b>{display}</b>\n  ⚠️ 連接失敗: {e}")
+
+        lines.append(f"\n━━━━━━━━━━━━━━━━\nTotal: {total_count} positions")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
 
 async def cmd_bal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _send_deterministic(update, slash_cmd.cmd_bal)
+    """Show balance from ALL connected exchanges."""
+    if not is_allowed(update):
+        return
+    try:
+        clients = _get_all_clients()
+        lines = ["💰 <b>餘額總覽</b>", "━━━━━━━━━━━━━━━━"]
+        total = 0.0
+
+        for name, client in clients.items():
+            display = EXCHANGE_DISPLAY.get(name, name)
+            try:
+                bal = client.get_usdt_balance()
+                total += bal
+                lines.append(f"  {display:12s} ${bal:.2f}")
+            except Exception as e:
+                lines.append(f"  {display:12s} ⚠️ {e}")
+
+        lines.append("━━━━━━━━━━━━━━━━")
+        lines.append(f"  <b>Total</b>        <b>${total:.2f}</b>")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
 
 async def cmd_pnl(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _send_deterministic(update, slash_cmd.cmd_pnl)
@@ -973,6 +1091,100 @@ async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ 無待確認訂單")
 
 
+# ── /trade — 明確語法多交易所下單 ──
+
+async def cmd_trade(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    /trade <exchange> <symbol> <side> [amount]
+    例：/trade aster BTC LONG 50
+        /trade hl ETH SHORT 30
+        /trade binance SOL LONG
+        /trade hl BTC CLOSE
+    """
+    if not is_allowed(update):
+        return
+    args = ctx.args or []
+    if len(args) < 3:
+        await update.message.reply_text(
+            "用法：/trade &lt;exchange&gt; &lt;symbol&gt; &lt;side&gt; [amount]\n\n"
+            "例子：\n"
+            "  /trade aster BTC LONG 50\n"
+            "  /trade hl ETH SHORT 30\n"
+            "  /trade binance SOL LONG\n"
+            "  /trade hl BTC CLOSE",
+            parse_mode="HTML",
+        )
+        return
+
+    exchange_raw = args[0].lower()
+    exchange = _resolve_exchange(exchange_raw)
+    symbol_raw = args[1].upper()
+    side = args[2].upper()
+    amount = float(args[3]) if len(args) > 3 else 50.0
+
+    # Auto-append USDT if needed
+    symbol = symbol_raw if symbol_raw.endswith("USDT") else symbol_raw + "USDT"
+
+    if side not in ("LONG", "SHORT", "CLOSE"):
+        await update.message.reply_text(f"❌ 無效方向：{side}（要 LONG/SHORT/CLOSE）")
+        return
+
+    if exchange_raw not in EXCHANGE_ALIASES:
+        await update.message.reply_text(
+            f"❌ 未知交易所：{exchange_raw}\n"
+            f"支持：aster, binance, hl (hyperliquid)"
+        )
+        return
+
+    display = EXCHANGE_DISPLAY.get(exchange, exchange)
+    order = {
+        "symbol": symbol,
+        "side": side,
+        "amount": amount,
+        "exchange": exchange,
+    }
+    await _request_order_confirmation(update, order)
+
+
+# ── /close — 多交易所平倉 ──
+
+async def cmd_close(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    /close [exchange] <symbol>
+    例：/close hl BTC   ← 平 HL 嘅 BTC
+        /close BTC      ← 平 aster 嘅 BTC
+    """
+    if not is_allowed(update):
+        return
+    args = ctx.args or []
+    if not args:
+        await update.message.reply_text(
+            "用法：/close [exchange] &lt;symbol&gt;\n"
+            "例：/close hl BTC",
+            parse_mode="HTML",
+        )
+        return
+
+    # Parse: if first arg is a known exchange, use it; else default aster
+    if len(args) >= 2 and args[0].lower() in EXCHANGE_ALIASES:
+        exchange = _resolve_exchange(args[0])
+        symbol_raw = args[1].upper()
+    else:
+        exchange = "aster"
+        symbol_raw = args[0].upper()
+
+    symbol = symbol_raw if symbol_raw.endswith("USDT") else symbol_raw + "USDT"
+    display = EXCHANGE_DISPLAY.get(exchange, exchange)
+
+    order = {
+        "symbol": symbol,
+        "side": "CLOSE",
+        "amount": 0,
+        "exchange": exchange,
+    }
+    await _request_order_confirmation(update, order)
+
+
 # ── /pause /resume ──
 
 async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1102,6 +1314,8 @@ async def _request_order_confirmation(update: Update, order: dict):
     symbol  = order.get("symbol", "?")
     side    = order.get("side", "?")
     amount  = order.get("amount", 0)
+    exchange = order.get("exchange", "aster")
+    exchange_display = EXCHANGE_DISPLAY.get(exchange, exchange)
     leverage = 10
 
     # Resolve SL/TP same logic as execute_order
@@ -1150,6 +1364,7 @@ async def _request_order_confirmation(update: Update, order: dict):
             tp_price = price * (1 + tp_pct) if side == "LONG" else price * (1 - tp_pct)
         notional = amount * leverage
         detail = (
+            f"交易所：{exchange_display}\n"
             f"幣種：{symbol}\n"
             f"方向：{side}\n"
             f"金額：${amount:.2f} | 槓桿：{leverage}x | 逐倉\n"
@@ -1160,6 +1375,7 @@ async def _request_order_confirmation(update: Update, order: dict):
         )
     else:
         detail = (
+            f"交易所：{exchange_display}\n"
             f"幣種：{symbol}\n"
             f"方向：{side}\n"
             f"金額：${amount:.2f}"
@@ -1241,8 +1457,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if result["ok"]:
             r = result
             side_icon = "🟢" if r["side"] == "LONG" else "🔴"
+            ex_display = EXCHANGE_DISPLAY.get(order.get("exchange", "aster"), "Aster")
             reply = (
-                f"✅ <b>下單成功</b>\n"
+                f"✅ <b>下單成功</b> ({ex_display})\n"
                 f"━━━━━━━━━━━━━━━━\n"
                 f"{side_icon} <b>{r['symbol']} {r['side']}</b>\n"
                 f"━━━━━━━━━━━━━━━━\n"
@@ -1328,6 +1545,19 @@ async def check_and_push_alerts(app):
                     ts_dir = _ts_str("DIRECTION") or "LONG"
                     ts_size = _ts_val("SIZE")
                     ts_lev = _ts_str("LEVERAGE") or "?"
+
+                    # Fallback: TRADE_STATE often stale (cleared by _sync)
+                    # → read real entry from trades.jsonl
+                    if ts_entry <= 0:
+                        last_entry = read_last_entry(symbol)
+                        if last_entry:
+                            ts_entry = last_entry["entry"]
+                            ts_dir = last_entry.get("side") or ts_dir
+                            ts_sl = last_entry.get("sl_price") or ts_sl
+                            log.info(
+                                f"[{symbol}] TRADE_STATE stale → "
+                                f"trades.jsonl entry=${ts_entry}"
+                            )
 
                     real_pnl = 0.0
                     exit_price = 0.0
@@ -1453,7 +1683,7 @@ async def check_and_push_alerts(app):
                 mins = health.get("scan_log_age_min", -1)
             except Exception:
                 # Fallback to direct file check
-                scan_log = BASE_DIR / "workspace/agents/aster_trader/logs/SCAN_LOG.md"
+                scan_log = BASE_DIR / "shared/SCAN_LOG.md"
                 if scan_log.exists():
                     mtime = datetime.fromtimestamp(scan_log.stat().st_mtime)
                     mins = int((datetime.now() - mtime).total_seconds() / 60)
@@ -1514,6 +1744,8 @@ def main():
     app.add_handler(CommandHandler("pause",   cmd_pause))
     app.add_handler(CommandHandler("resume",  cmd_resume_handler))
     app.add_handler(CommandHandler("cancel",  cmd_cancel))
+    app.add_handler(CommandHandler("trade",   cmd_trade))
+    app.add_handler(CommandHandler("close",   cmd_close))
 
     # AI-powered
     app.add_handler(CommandHandler("ask",     cmd_ask))

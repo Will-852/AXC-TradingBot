@@ -29,8 +29,22 @@
 # ═══════════════════════════════════════
 # Section 1: 掃描設定（async_scanner 讀）
 # ═══════════════════════════════════════
-SCAN_INTERVAL_SEC = 180
+SCAN_INTERVAL_SEC = 20   # v7: 9路輪轉，每20秒掃一個exchange
 SCHEDULED_CYCLE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21]
+
+# 9 路輪轉順序（每 SCAN_INTERVAL_SEC 秒輪一個）
+# 效果：每個 exchange 每 180 秒才被 hit 一次
+EXCHANGE_ROTATION = [
+    "aster",        # BTC, ETH, XRP, XAG, XAU
+    "binance",      # BTC, ETH, SOL + 數百對
+    "hyperliquid",  # BTC, ETH, SOL
+    "bybit",        # BTC, ETH, SOL, XRP
+    "okx",          # BTC, ETH, SOL, XRP
+    "kucoin",       # BTC, ETH, SOL, XRP (spot)
+    "gate",         # BTC, ETH, SOL, XRP (futures)
+    "mexc",         # BTC, ETH, SOL, XRP (spot)
+    "bitget",       # BTC, ETH, SOL, XRP (futures)
+]
 
 # ═══════════════════════════════════════
 # Section 2: BB 指標參數（indicator_calc 讀）
@@ -170,7 +184,7 @@ TRADING_PROFILES = {
 }
 
 # 當前啟用模式（可手動改 或 由 /api/set_mode 自動寫入）
-ACTIVE_PROFILE = "CONSERVATIVE"
+ACTIVE_PROFILE = "AGGRESSIVE"
 
 # 是否啟用自動切換
 AUTO_PROFILE_SWITCH = False
@@ -180,7 +194,7 @@ AUTO_PROFILE_SWITCH = False
 # ═══════════════════════════════════════
 # ⚠️ 修改後必須重啟 async_scanner.py 先生效
 # 重啟指令：pkill -f async_scanner && sleep 2 &&
-#            python3 ~/.openclaw/scripts/async_scanner.py &
+#            python3 ~/projects/axc-trading/scripts/async_scanner.py &
 
 ASTER_SYMBOLS = [
     "BTCUSDT",

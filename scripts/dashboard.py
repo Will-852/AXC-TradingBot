@@ -2168,13 +2168,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(err)))
                 self.end_headers()
                 self.wfile.write(err)
-        elif path.startswith("/svg/") and path.endswith(".svg"):
-            svg_path = os.path.join(HOME, "canvas", path.lstrip("/"))
-            if os.path.isfile(svg_path):
-                with open(svg_path, "rb") as f:
+        elif path.startswith("/svg/"):
+            _mime = {".svg": "image/svg+xml", ".png": "image/png",
+                     ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+            ext = os.path.splitext(path)[1].lower()
+            ctype = _mime.get(ext)
+            img_path = os.path.join(HOME, "canvas", path.lstrip("/"))
+            if ctype and os.path.isfile(img_path):
+                with open(img_path, "rb") as f:
                     data = f.read()
                 self.send_response(200)
-                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Content-Type", ctype)
                 self.send_header("Cache-Control", "public, max-age=86400")
                 self.end_headers()
                 self.wfile.write(data)

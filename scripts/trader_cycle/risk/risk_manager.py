@@ -7,10 +7,13 @@ No LLM discretion — pure if-else enforcement.
 """
 
 from __future__ import annotations
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _base = os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trading"))
 if _base not in sys.path:
@@ -224,9 +227,27 @@ class ManagePositionsStep:
                         f"{funding_ratio:.0%} of PnL ${pos.unrealized_pnl:.2f}"
                     )
 
+            # ─── TP Health Check: price passed TP but position still open ───
+            tp_price = _parse_float(ctx.trade_state.get("TP_PRICE", 0))
+            if tp_price > 0 and pos.mark_price > 0:
+                tp_passed = False
+                if pos.direction == "LONG" and pos.mark_price >= tp_price:
+                    tp_passed = True
+                elif pos.direction == "SHORT" and pos.mark_price <= tp_price:
+                    tp_passed = True
+                if tp_passed:
+                    exit_reasons.append(
+                        f"TP_MISSED: price {pos.mark_price} passed "
+                        f"TP {tp_price} but position still open"
+                    )
+                    logger.warning(
+                        f"[{pos.pair}] TP health check: mark={pos.mark_price} "
+                        f"passed TP={tp_price}, forcing close"
+                    )
+
             # ─── Report or execute ───
             if exit_reasons:
-                if ctx.dry_run or not ctx.exchange_client:
+                if ctx.dry_run or (not ctx.exchange_client and not ctx.exchange_clients):
                     # DRY_RUN: report only
                     for r in exit_reasons:
                         ctx.warnings.append(f"[DRY_RUN] Would close {pos.pair} {pos.direction}: {r}")
@@ -245,8 +266,10 @@ class ManagePositionsStep:
 
     def _execute_close(self, pos, ctx: CycleContext,
                        exit_reasons: list[str] | None = None) -> None:
-        """Close position on exchange and cancel associated orders."""
-        client = ctx.exchange_client
+        """Close position on exchange and cancel associated orders.
+        Routes to correct exchange based on pos.platform.
+        """
+        client = ctx.exchange_clients.get(pos.platform, ctx.exchange_client)
 
         # Cancel existing SL/TP orders first
         try:
@@ -298,6 +321,7 @@ class ManagePositionsStep:
                 "SIZE": "0",
                 "SL_PRICE": "0",
                 "TP_PRICE": "0",
+                "TP2_PRICE": "0",
             })
 
         except Exception as e:

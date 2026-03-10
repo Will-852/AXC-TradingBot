@@ -85,44 +85,56 @@ class CheckPositionsStep:
         return ctx
 
     def _live_positions(self, ctx: CycleContext) -> CycleContext:
-        """Query Aster DEX for real positions + balance."""
-        client = ctx.exchange_client
+        """Query ALL connected exchanges for positions + balance."""
+        # Build list of exchanges to query: exchange_clients dict + fallback to exchange_client
+        clients_to_query: dict[str, object] = {}
+        if ctx.exchange_clients:
+            clients_to_query.update(ctx.exchange_clients)
+        elif ctx.exchange_client:
+            clients_to_query["aster"] = ctx.exchange_client
 
-        # ─── Balance ───
-        try:
-            ctx.account_balance = client.get_usdt_balance()
-        except Exception as e:
-            ctx.warnings.append(f"Balance fetch failed: {e}")
-            logger.warning(f"Balance fetch failed: {e}")
+        total_balance = 0.0
 
-        # ─── Positions ───
-        try:
-            raw_positions = client.get_positions()  # returns non-zero only
-            for p in raw_positions:
-                amt = float(p.get("positionAmt", 0))
-                direction = "LONG" if amt > 0 else "SHORT"
-                symbol = p.get("symbol", "")
+        for name, client in clients_to_query.items():
+            # ─── Balance ───
+            try:
+                bal = client.get_usdt_balance()
+                total_balance += bal
+            except Exception as e:
+                ctx.warnings.append(f"Balance fetch failed ({name}): {e}")
+                logger.warning(f"Balance fetch failed ({name}): {e}")
 
-                pos = Position(
-                    pair=symbol,
-                    direction=direction,
-                    entry_price=_parse_float(p.get("entryPrice", 0)),
-                    mark_price=_parse_float(p.get("markPrice", 0)),
-                    size=abs(amt),
-                    unrealized_pnl=_parse_float(p.get("unRealizedProfit", 0)),
-                )
+            # ─── Positions ───
+            try:
+                raw_positions = client.get_positions()
+                for p in raw_positions:
+                    amt = float(p.get("positionAmt", 0))
+                    direction = "LONG" if amt > 0 else "SHORT"
+                    symbol = p.get("symbol", "")
 
-                # Try to get SL/TP from trade state (support both key formats)
-                state_pair = ctx.trade_state.get("PAIR", "").replace("/", "")
-                if symbol == state_pair:
-                    pos.sl_price = _parse_float(ctx.trade_state.get("SL_PRICE", 0))
-                    pos.tp_price = _parse_float(ctx.trade_state.get("TP_PRICE", 0))
+                    pos = Position(
+                        pair=symbol,
+                        direction=direction,
+                        entry_price=_parse_float(p.get("entryPrice", 0)),
+                        mark_price=_parse_float(p.get("markPrice", 0)),
+                        size=abs(amt),
+                        unrealized_pnl=_parse_float(p.get("unRealizedProfit", 0)),
+                        platform=name,
+                    )
 
-                ctx.open_positions.append(pos)
+                    # Try to get SL/TP from trade state (support both key formats)
+                    state_pair = ctx.trade_state.get("PAIR", "").replace("/", "")
+                    if symbol == state_pair:
+                        pos.sl_price = _parse_float(ctx.trade_state.get("SL_PRICE", 0))
+                        pos.tp_price = _parse_float(ctx.trade_state.get("TP_PRICE", 0))
 
-        except Exception as e:
-            ctx.warnings.append(f"Position fetch failed: {e}")
-            logger.warning(f"Position fetch failed: {e}")
+                    ctx.open_positions.append(pos)
+
+            except Exception as e:
+                ctx.warnings.append(f"Position fetch failed ({name}): {e}")
+                logger.warning(f"Position fetch failed ({name}): {e}")
+
+        ctx.account_balance = total_balance
 
         # ─── Orphan Detection ───
         self._detect_orphans(ctx)
@@ -133,7 +145,7 @@ class CheckPositionsStep:
         if ctx.verbose:
             print(f"    [LIVE] Balance: ${ctx.account_balance:.2f} | Positions: {len(ctx.open_positions)}")
             for pos in ctx.open_positions:
-                print(f"      {pos.pair} {pos.direction} size={pos.size} entry={pos.entry_price} pnl={pos.unrealized_pnl:.2f}")
+                print(f"      [{pos.platform}] {pos.pair} {pos.direction} size={pos.size} entry={pos.entry_price} pnl={pos.unrealized_pnl:.2f}")
 
         return ctx
 
@@ -226,13 +238,15 @@ class CheckPositionsStep:
         """
         Orphan detection: positions without SL order → auto-place SL.
         This handles crash recovery (entry filled but SL never placed).
+        Routes to correct exchange per position.platform.
         """
-        if not ctx.open_positions or not ctx.exchange_client:
+        if not ctx.open_positions or (not ctx.exchange_client and not ctx.exchange_clients):
             return
 
-        client = ctx.exchange_client
-
         for pos in ctx.open_positions:
+            client = ctx.exchange_clients.get(pos.platform, ctx.exchange_client)
+            if not client:
+                continue
             try:
                 open_orders = client.get_open_orders(pos.pair)
             except Exception as e:

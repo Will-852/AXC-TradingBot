@@ -24,7 +24,6 @@ import traceback
 from datetime import datetime
 
 # ─── Setup import paths ───
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
 _scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
@@ -32,7 +31,7 @@ if _scripts_dir not in sys.path:
 # Now we can import our package
 from trader_cycle.config.settings import (
     HKT, SCAN_CONFIG_PATH, TRADE_STATE_PATH, SCAN_LOG_PATH,
-    API_KEYS_PATH, LOG_DIR, PAIRS, PAIR_PREFIX,
+    LOG_DIR, PAIRS, PAIR_PREFIX,
     PRIMARY_TIMEFRAME, SILENT_MODE_THRESHOLD_CYCLES,
     PAPER_GATE_HOURS, PAPER_GATE_FILE, CYCLE_LOG_DIR,
 )
@@ -49,6 +48,7 @@ from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalStep
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
+from trader_cycle.risk.adjust_positions import AdjustPositionsStep
 from trader_cycle.risk.position_sizer import SizePositionStep
 from trader_cycle.state.trade_log import WriteTradeLogStep
 from trader_cycle.state.trade_journal import WriteTradeJournalStep
@@ -292,7 +292,7 @@ def register_strategies() -> None:
 
 def build_pipeline() -> Pipeline:
     """
-    Build the Phase 3 pipeline (17 steps).
+    Build the Phase 3 pipeline (18 steps).
     Same pipeline for DRY_RUN and LIVE — each step checks ctx.dry_run internally.
 
     Pipeline order:
@@ -305,6 +305,7 @@ def build_pipeline() -> Pipeline:
       6. no_trade_check      — volume, funding, position limits
       7. check_positions     — sync positions + balance from exchange
       8. manage_positions    — exit rules (circuit breaker, max hold, funding)
+      8.5 adjust_positions   — trailing SL, TP extension, early exit, re-entry
       9. evaluate_signals    — run active strategy on all pairs
      10. select_signal       — pick strongest signal
      11. size_position       — SL/TP/size calculation
@@ -325,6 +326,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(NoTradeCheckStep())       # 6
     pipeline.add_step(CheckPositionsStep())     # 7
     pipeline.add_step(ManagePositionsStep())    # 8
+    pipeline.add_step(AdjustPositionsStep())    # 8.5 — trailing SL/TP/early exit
     pipeline.add_step(EvaluateSignalsStep())    # 9
     pipeline.add_step(SelectSignalStep())       # 10
     pipeline.add_step(SizePositionStep())       # 11

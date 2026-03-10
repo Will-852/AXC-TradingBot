@@ -135,3 +135,34 @@ def write_analysis(question, analysis, data_snapshot=None):
 def write_signal(line, source="SCAN_LOG"):
     """Write a signal/trigger record."""
     return write_memory(line, "signal", {"source": source})
+
+
+def read_last_entry(symbol: str) -> dict | None:
+    """Scan trades.jsonl backwards for most recent ENTRY record of a symbol.
+
+    Why backwards: the latest entry is always near the end, and we only
+    need the most recent one for PnL calculation on close.
+    Returns dict with entry, side, symbol, sl_price — or None.
+    """
+    trades_file = STORE_DIR / "trades.jsonl"
+    if not trades_file.exists():
+        return None
+
+    lines = trades_file.read_text(encoding="utf-8").splitlines()
+    for line in reversed(lines):
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if (rec.get("symbol") == symbol
+                and rec.get("exit") is None
+                and (rec.get("entry") or 0) > 0):
+            return {
+                "entry": rec["entry"],
+                "side": rec.get("side", ""),
+                "symbol": symbol,
+                "sl_price": rec.get("sl_price", 0),
+            }
+    return None

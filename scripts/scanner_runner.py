@@ -27,7 +27,6 @@ import sys
 from datetime import datetime, timezone, timedelta
 
 # ─── Config ───
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 PYTHON = "/opt/homebrew/bin/python3.11"
 
@@ -128,7 +127,7 @@ def run(live=False, verbose=False):
         scan_result = subprocess.run(
             [PYTHON, LIGHT_SCAN],
             capture_output=True, text=True, timeout=30,
-            env={**os.environ, "OPENCLAW_WORKSPACE": WORKSPACE},
+            env=os.environ,
         )
     except subprocess.TimeoutExpired:
         print(f"[{ts}] ERROR: light_scan.py timed out (30s)")
@@ -180,7 +179,7 @@ def run(live=False, verbose=False):
         cycle_result = subprocess.run(
             cmd,
             capture_output=True, text=True, timeout=120,
-            env={**os.environ, "OPENCLAW_WORKSPACE": WORKSPACE},
+            env=os.environ,
         )
     except subprocess.TimeoutExpired:
         print(f"[{ts}] ERROR: trader_cycle timed out (120s)")

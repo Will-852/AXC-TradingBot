@@ -48,6 +48,37 @@
     }
     .content-wrapper { background: var(--bg) !important; }
 
+    /* ── Exchange connection badges ────────────── */
+    .exch-badge {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      vertical-align: middle;
+      cursor: pointer;
+      transition: all .25s ease;
+      line-height: 1.4;
+    }
+    .exch-badge.exch-on {
+      background: var(--exch-bg);
+      color: var(--exch-fg);
+      box-shadow: 0 0 0 2px var(--exch-bg), 0 0 8px rgba(52,211,153,.35);
+    }
+    .exch-badge.exch-off {
+      background: #e2e8f0;
+      color: #94a3b8;
+    }
+    .exch-badge.exch-err {
+      background: #fef2f2;
+      color: #dc2626;
+      box-shadow: 0 0 0 1.5px #fca5a5;
+      animation: exch-pulse 2s ease-in-out infinite;
+    }
+    @keyframes exch-pulse {
+      0%,100% { box-shadow: 0 0 0 1.5px #fca5a5; }
+      50%     { box-shadow: 0 0 0 1.5px #fca5a5, 0 0 8px rgba(220,38,38,.25); }
+    }
+
     /* ── Tables ──────────────────────────────────── */
     .table-sm td, .table-sm th {
       padding: .5rem .65rem;
@@ -348,23 +379,23 @@
 
       <!-- Exchange 連接 -->
       <li class="nav-item">
-        <a class="nav-link py-1" href="#" onclick="openExchangeModal('aster');return false" title="Aster DEX" style="padding:0 4px">
-          <span id="aster-conn-btn" class="badge" style="background:#1a1a2e;color:#fff;font-size:.7rem;padding:3px 8px;vertical-align:middle">
-            <i class="fas fa-circle mr-1" style="font-size:.45rem" id="aster-conn-dot"></i>Aster
+        <a class="nav-link py-1" href="#" onclick="openExchangeModal('aster');return false" style="padding:0 4px">
+          <span id="aster-conn-btn" class="badge exch-badge exch-off" style="--exch-bg:#1a1a2e;--exch-fg:#fff">
+            <i id="aster-conn-dot" class="fas fa-circle mr-1" style="font-size:.45rem"></i>Aster
           </span>
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link py-1" href="#" onclick="openExchangeModal('binance');return false" title="Binance" style="padding:0 4px">
-          <span id="binance-conn-btn" class="badge" style="background:#f0b90b;color:#1e2329;font-size:.7rem;padding:3px 8px;vertical-align:middle">
-            <i class="fas fa-circle mr-1" style="font-size:.45rem" id="binance-conn-dot"></i>Binance
+        <a class="nav-link py-1" href="#" onclick="openExchangeModal('binance');return false" style="padding:0 4px">
+          <span id="binance-conn-btn" class="badge exch-badge exch-off" style="--exch-bg:#f0b90b;--exch-fg:#1e2329">
+            <i id="binance-conn-dot" class="fas fa-circle mr-1" style="font-size:.45rem"></i>Binance
           </span>
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link py-1" href="#" onclick="openExchangeModal('hl');return false" title="HyperLiquid" style="padding:0 4px">
-          <span id="hl-conn-btn" class="badge" style="background:#132b2b;color:#6eecd2;font-size:.7rem;padding:3px 8px;vertical-align:middle">
-            <i class="fas fa-circle mr-1" style="font-size:.45rem" id="hl-conn-dot"></i>HL
+        <a class="nav-link py-1" href="#" onclick="openExchangeModal('hl');return false" style="padding:0 4px">
+          <span id="hl-conn-btn" class="badge exch-badge exch-off" style="--exch-bg:#132b2b;--exch-fg:#6eecd2">
+            <i id="hl-conn-dot" class="fas fa-circle mr-1" style="font-size:.45rem"></i>HL
           </span>
         </a>
       </li>
@@ -667,7 +698,7 @@
                     <div style="font-size:1.5rem;font-weight:700" id="pnl-total-big">$0.00</div>
                   </div>
                 </div>
-                <canvas id="pnl-chart"></canvas>
+                <div id="pnl-chart"></div>
                 <div id="fee-breakdown" class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:.78rem">
                   <div class="text-muted text-center">載入中…</div>
                 </div>
@@ -854,12 +885,82 @@
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 <!-- Chart.js（盈虧曲線）-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- Tippy.js（tooltip）-->
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light-border.css">
+<!-- CountUp.js（數字動畫）-->
+<script src="https://unpkg.com/countup.js@2/dist/countUp.umd.js"></script>
+<!-- Notyf（toast 通知）-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+<script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+<!-- ApexCharts（互動圖表）-->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
 <script>
 // ── 設定 ─────────────────────────────────────
 var REFRESH_MS = 5000;
 var pnlChart = null;
 var refreshTimer = null;
+
+// ── CountUp.js 動畫值追蹤 ────────────────────
+var _cuPrev = {};  // { elementId: lastNumericValue }
+function animateNum(id, newVal, decimals, prefix) {
+  var el = byId(id);
+  if (!el) return;
+  decimals = decimals || 2;
+  prefix = prefix || '';
+  var old = _cuPrev[id] || 0;
+  _cuPrev[id] = newVal;
+  if (typeof countUp !== 'undefined' && countUp.CountUp) {
+    var cu = new countUp.CountUp(id, newVal, {
+      startVal: old,
+      decimalPlaces: decimals,
+      duration: 0.8,
+      prefix: prefix,
+      formattingFn: decimals === 0 ? undefined : function(n) {
+        return prefix + (n >= 0 ? '+' : '') + n.toFixed(decimals);
+      }
+    });
+    cu.start();
+  } else {
+    el.textContent = prefix + (decimals === 0 ? newVal : (newVal >= 0 ? '+' : '') + newVal.toFixed(decimals));
+  }
+}
+
+// ── Notyf toast 通知 ─────────────────────────
+var _notyf = null;
+var _prevTradeCount = -1;
+var _prevBreakerStatus = '';
+function initNotyf() {
+  if (typeof Notyf !== 'undefined') {
+    _notyf = new Notyf({
+      duration: 4000,
+      position: { x: 'right', y: 'top' },
+      types: [
+        { type: 'trade', background: '#0d9488', icon: { className: 'fas fa-exchange-alt', tagName: 'i', color: '#fff' } },
+        { type: 'scanner', background: '#635bff', icon: { className: 'fas fa-satellite-dish', tagName: 'i', color: '#fff' } },
+        { type: 'warning', background: '#d97706', icon: { className: 'fas fa-exclamation-triangle', tagName: 'i', color: '#fff' } }
+      ]
+    });
+  }
+}
+function notifyChanges(D) {
+  if (!_notyf) return;
+  var trades = D.trades || [];
+  if (_prevTradeCount >= 0 && trades.length > _prevTradeCount) {
+    var latest = trades[0];
+    if (latest) {
+      _notyf.open({ type: 'trade', message: (latest.side || '') + ' ' + (latest.symbol || '') + ' @ ' + (latest.price || '') });
+    }
+  }
+  _prevTradeCount = trades.length;
+  var breaker = (D.risk_status || {}).breaker_active;
+  if (breaker && _prevBreakerStatus !== 'active') {
+    _notyf.open({ type: 'warning', message: '熔斷器已觸發！暫停交易' });
+  }
+  _prevBreakerStatus = breaker ? 'active' : '';
+}
 
 // ── 工具函數（byId 避免同 jQuery $ 衝突）─────
 function byId(id) { return document.getElementById(id); }
@@ -896,6 +997,7 @@ function parseScanLine(line) {
 
 // ── 主渲染入口（Fix 4: unified today filter）──
 function render(D) {
+  notifyChanges(D);
   var today = new Date().toISOString().slice(0, 10); // "2026-03-06"
   var todayScans = (D.scan_log || []).filter(function(s) {
     return typeof s === 'string' && s.includes(today);
@@ -1001,21 +1103,22 @@ function renderStatsCards(D, todayTriggers) {
   var todayPnl = parseFloat(D.today_pnl) || 0;
   var totalPnl = parseFloat(D.total_pnl) || 0;
   var triggers = todayTriggers.length;
-  var tp = byId('stat-today-pnl');
-  if (tp) { tp.textContent = '$' + fmtPnl(todayPnl); tp.style.color = pnlColor(todayPnl); }
 
-  var tlp = byId('stat-total-pnl');
-  if (tlp) { tlp.textContent = '$' + fmtPnl(totalPnl); tlp.style.color = pnlColor(totalPnl); }
+  // CountUp animated numbers
+  animateNum('stat-today-pnl', todayPnl, 2, '$');
+  var tp = byId('stat-today-pnl'); if (tp) tp.style.color = pnlColor(todayPnl);
 
-  setText('stat-triggers', triggers);
-  // stat-positions is set by renderPositionDetail()
+  animateNum('stat-total-pnl', totalPnl, 2, '$');
+  var tlp = byId('stat-total-pnl'); if (tlp) tlp.style.color = pnlColor(totalPnl);
 
-  var pt = byId('pnl-today-big');
-  if (pt) { pt.textContent = '$' + fmtPnl(todayPnl); pt.style.color = pnlColor(todayPnl); }
-  var ptot = byId('pnl-total-big');
-  if (ptot) { ptot.textContent = '$' + fmtPnl(totalPnl); ptot.style.color = pnlColor(totalPnl); }
+  animateNum('stat-triggers', triggers, 0, '');
 
-  // No bg class change — white cards, number color tells the story
+  // 累積盈虧 big numbers
+  animateNum('pnl-today-big', todayPnl, 2, '$');
+  var pt = byId('pnl-today-big'); if (pt) pt.style.color = pnlColor(todayPnl);
+
+  animateNum('pnl-total-big', totalPnl, 2, '$');
+  var ptot = byId('pnl-total-big'); if (ptot) ptot.style.color = pnlColor(totalPnl);
 }
 
 // ── Risk Info Boxes ─────────────────────────
@@ -1117,56 +1220,47 @@ function renderActionPlan(D) {
 function renderPnlChart(D) {
   var history = D.pnl_history || [];
   if (!history.length) return;
+  var el = document.getElementById('pnl-chart');
+  if (!el) return;
 
   var recent = history.slice(-60);
-  var labels = recent.map(function(p) {
-    var d = new Date(p.t * 1000);
-    return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
-  });
-  var data = recent.map(function(p) { return p.v; });
+  var seriesData = recent.map(function(p) { return [p.t * 1000, Math.round(p.v * 100) / 100]; });
+  var lastVal = recent[recent.length - 1].v || 0;
+  var color = lastVal >= 0 ? '#0d9488' : '#e11d48';
 
-  var ctx = document.getElementById('pnl-chart');
-  if (!ctx) return;
-
-  if (pnlChart) pnlChart.destroy();
-  var lastVal = data[data.length - 1] || 0;
-  pnlChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: data,
-        borderColor: lastVal >= 0 ? '#0d9488' : '#e11d48',
-        backgroundColor: lastVal >= 0 ? 'rgba(13,148,136,0.08)' : 'rgba(225,29,72,0.08)',
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.4,
-        fill: true,
-      }]
+  var opts = {
+    series: [{ name: 'PnL', data: seriesData }],
+    chart: {
+      type: 'area', height: 160,
+      sparkline: { enabled: false },
+      toolbar: { show: false },
+      zoom: { enabled: true, type: 'x' },
+      animations: { enabled: true, easing: 'easeinout', speed: 600 }
     },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { display: false },
-        y: {
-          display: false,
-          suggestedMin: function() {
-            var min = Math.min.apply(null, data);
-            var max = Math.max.apply(null, data);
-            var range = max - min;
-            return range < 0.5 ? min - 1 : undefined;
-          }(),
-          suggestedMax: function() {
-            var min = Math.min.apply(null, data);
-            var max = Math.max.apply(null, data);
-            var range = max - min;
-            return range < 0.5 ? max + 1 : undefined;
-          }()
-        }
-      }
+    colors: [color],
+    fill: {
+      type: 'gradient',
+      gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 100] }
+    },
+    stroke: { curve: 'smooth', width: 2.5 },
+    dataLabels: { enabled: false },
+    xaxis: { type: 'datetime', labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+    yaxis: { labels: { show: false } },
+    grid: { show: false, padding: { left: 0, right: 0, top: -10, bottom: 0 } },
+    tooltip: {
+      x: { format: 'HH:mm' },
+      y: { formatter: function(v) { return '$' + v.toFixed(2); } },
+      theme: 'light'
     }
-  });
+  };
+
+  if (pnlChart) {
+    pnlChart.updateOptions({ colors: [color] });
+    pnlChart.updateSeries([{ data: seriesData }]);
+  } else if (typeof ApexCharts !== 'undefined') {
+    pnlChart = new ApexCharts(el, opts);
+    pnlChart.render();
+  }
 }
 
 // ── Trigger Summary（用 API trigger_summary）──
@@ -1455,7 +1549,7 @@ function openExchangeModal(exch) {
     } else {
       body.innerHTML = _exchangeForm();
     }
-    _updateConnDot(exch, d.status);
+    _updateConnDot(exch, d.status, d);
   });
 }
 
@@ -1492,7 +1586,7 @@ function _exchangeForm() {
   }
   return '<div>' + fields +
     '<button class="btn btn-block" onclick="exchangeConnect()" style="background:' + meta.btnColor + ';color:' + textColor + ';border:none;border-radius:8px;font-weight:600;font-size:.85rem;padding:10px">Connect ' + meta.name + '</button>' +
-    '<div class="text-center mt-3" style="font-size:.7rem;color:#94a3b8"><i class="fas fa-lock mr-1"></i>Keys stored locally in secrets/.env</div>' +
+    '<div class="text-center mt-3" style="font-size:.68rem;color:#94a3b8"><i class="fas fa-shield-alt mr-1"></i>Credentials stored locally only &middot; <span style="font-family:monospace;font-size:.65rem">secrets/.env</span></div>' +
     referral +
   '</div>';
 }
@@ -1527,10 +1621,41 @@ function exchangeDisconnect() {
   });
 }
 
-function _updateConnDot(exch, status) {
+var _exchTippy = {};
+function _updateConnDot(exch, status, extra) {
   var dot = byId(exch + '-conn-dot');
-  if (!dot) return;
-  dot.style.color = status === 'connected' ? '#0d9488' : status === 'error' ? '#ef4444' : '#6b7280';
+  var btn = byId(exch + '-conn-btn');
+  if (!dot || !btn) return;
+  btn.classList.remove('exch-on','exch-off','exch-err');
+  if (status === 'connected') {
+    dot.className = 'fas fa-check-circle mr-1';
+    dot.style.cssText = 'font-size:.55rem;color:#34d399';
+    btn.classList.add('exch-on');
+  } else if (status === 'error') {
+    dot.className = 'fas fa-exclamation-triangle mr-1';
+    dot.style.cssText = 'font-size:.5rem';
+    btn.classList.add('exch-err');
+  } else {
+    dot.className = 'fas fa-circle mr-1';
+    dot.style.cssText = 'font-size:.4rem';
+    btn.classList.add('exch-off');
+  }
+  // Tippy tooltip
+  var tip = '';
+  if (status === 'connected') {
+    tip = '<b style="color:#34d399">已連接</b>';
+    if (extra && extra.balance != null) tip += '<br>Balance: <b>$' + extra.balance.toFixed(2) + '</b>';
+    if (extra && extra.key_preview) tip += '<br><span style="opacity:.7;font-size:.7rem">' + extra.key_preview + '</span>';
+  } else if (status === 'error') {
+    tip = '<b style="color:#f87171">連接錯誤</b>';
+    if (extra && extra.error) tip += '<br><span style="font-size:.72rem">' + extra.error + '</span>';
+  } else {
+    tip = '<span style="opacity:.7">未連接</span>';
+  }
+  if (_exchTippy[exch]) { _exchTippy[exch].setContent(tip); }
+  else if (typeof tippy !== 'undefined') {
+    _exchTippy[exch] = tippy(btn, {content:tip, allowHTML:true, placement:'bottom', theme:'light-border', arrow:true, delay:[200,0]});
+  }
 }
 
 // ── 模式切換 ──────────────────────────────────
@@ -1582,12 +1707,13 @@ if (reloadBtn) {
 }
 
 // ── 啟動 ─────────────────────────────────────
+initNotyf();
 fetchData();
 refreshTimer = setInterval(fetchData, REFRESH_MS);
 // Exchange connection status on load
-fetch('/api/aster/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('aster',d.status)}).catch(function(){});
-fetch('/api/binance/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('binance',d.status)}).catch(function(){});
-fetch('/api/hl/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('hl',d.status)}).catch(function(){});
+fetch('/api/aster/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('aster',d.status,d)}).catch(function(){});
+fetch('/api/binance/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('binance',d.status,d)}).catch(function(){});
+fetch('/api/hl/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('hl',d.status,d)}).catch(function(){});
 </script>
 </body>
 </html>
