@@ -1,9 +1,35 @@
 # AXC ↔ OpenClaw 邊界定義
-> 最後更新：2026-03-10
+> 最後更新：2026-03-11
 
 ## 原則
 AXC 係獨立項目，git clone 後自帶所有運行所需檔案。
 OpenClaw 係公共基礎設施（Gateway），任何項目都可以接入。
+
+## 三層架構
+
+```
+┌─────────────────────────────────────────────┐
+│  OpenClaw Gateway（可選增強層）               │
+│  @axccommandbot · Agent sessions · CLI       │
+│  冇佢？交易系統完全唔受影響。                  │
+└──────────────────┬──────────────────────────┘
+                   │ 可選
+┌──────────────────┴──────────────────────────┐
+│  AXC 交易系統（核心）                         │
+│  trader_cycle · scanner · dashboard          │
+│  @AXCTradingBot · @AXCnews_bot · heartbeat   │
+│  news_scraper · news_sentiment               │
+└──────────────────┬──────────────────────────┘
+                   │ AI 功能需要
+┌──────────────────┴──────────────────────────┐
+│  Proxy API（LLM 接口）                       │
+│  任何 Claude/OpenAI 兼容 endpoint             │
+│  用戶自備 API key + URL                       │
+│  冇佢？核心交易照跑，AI 分析功能停。           │
+└─────────────────────────────────────────────┘
+```
+
+Proxy API 同 OpenClaw 係完全獨立嘅嘢。Proxy 只係轉發 LLM request，OpenClaw 係 agent 管理平台。
 
 ---
 

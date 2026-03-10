@@ -122,7 +122,7 @@ cp ~/projects/axc-trading/secrets/.env \
   ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw_secrets.env
 ```
 
-## secrets/.env 完整 Key 清單（9 個）
+## secrets/.env 完整 Key 清單（10 個）
 
 | Key | 用途 | 換完重啟 |
 |-----|------|----------|
@@ -132,8 +132,9 @@ cp ~/projects/axc-trading/secrets/.env \
 | ASTER_API_SECRET | Aster DEX 簽名 | scanner + tradercycle |
 | BINANCE_API_KEY | Binance 交易 | scanner |
 | BINANCE_API_SECRET | Binance 簽名 | scanner |
-| TELEGRAM_BOT_TOKEN | Telegram Bot | tg_bot |
-| TELEGRAM_CHAT_ID | 通知對象 | tg_bot |
+| TELEGRAM_BOT_TOKEN | @AXCTradingBot（交易控制） | tg_bot |
+| TELEGRAM_NEWS_BOT_TOKEN | @AXCnews_bot（新聞專用） | news_bot |
+| TELEGRAM_CHAT_ID | 通知對象（兩個 bot 共用） | tg_bot + news_bot |
 | VOYAGE_API_KEY | 向量 embedding（RAG） | memory_init |
 
 永遠唔好將 key commit 到 Git 或分享畀人。

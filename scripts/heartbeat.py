@@ -68,7 +68,12 @@ HKT = timezone(timedelta(hours=8))
 # ALERT CHECKS
 # ─────────────────────────────────────────
 def check_position_alerts(state: dict) -> list:
-    """Check position-related anomalies."""
+    """Check position-related anomalies.
+
+    Uses SL_PRICE / TP_PRICE to determine if orders are set.
+    SL_CONFIRMED / TP_CONFIRMED are NOT written by any component,
+    so we rely on price values instead (0 or "—" = not set).
+    """
     alerts = []
 
     if state.get("POSITION_OPEN") != "YES":
@@ -76,31 +81,24 @@ def check_position_alerts(state: dict) -> list:
 
     pair = state.get("PAIR", "UNKNOWN")
 
-    # SL not confirmed
-    sl_confirmed = str(state.get("SL_CONFIRMED", "UNKNOWN"))
-    if sl_confirmed in ("UNKNOWN", "NO"):
-        alerts.append({
-            "type": "URGENT",
-            "reason": f"{pair} 倉位開啟但止損未確認（{sl_confirmed}）",
-            "action": "請到 Aster DEX 確認止損訂單"
-        })
-
-    # No SL price at all
+    # SL check: price must be a positive number
     sl_price = state.get("SL_PRICE", 0)
-    if sl_price in (0, 0.0, "—", "UNKNOWN"):
+    sl_set = isinstance(sl_price, (int, float)) and sl_price > 0
+    if not sl_set:
         alerts.append({
             "type": "URGENT",
             "reason": f"{pair} 倉位開啟但無止損設定",
-            "action": "立即設定止損價格"
+            "action": "請到 Aster DEX 設定止損訂單"
         })
 
-    # TP not confirmed
-    tp_confirmed = str(state.get("TP_CONFIRMED", "UNKNOWN"))
-    if tp_confirmed in ("UNKNOWN", "NO"):
+    # TP check: price must be a positive number (warning, not urgent)
+    tp_price = state.get("TP_PRICE", 0)
+    tp_set = isinstance(tp_price, (int, float)) and tp_price > 0
+    if not tp_set:
         alerts.append({
             "type": "WARNING",
-            "reason": f"{pair} 止盈未確認（{tp_confirmed}）",
-            "action": "請確認止盈訂單"
+            "reason": f"{pair} 止盈未設定",
+            "action": "建議設定止盈訂單"
         })
 
     return alerts

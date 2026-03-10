@@ -24,6 +24,7 @@ BASE_DIR = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-t
 SHARED_DIR = BASE_DIR / "shared"
 NEWS_FILE = SHARED_DIR / "news_feed.json"
 SENTIMENT_FILE = SHARED_DIR / "news_sentiment.json"
+NEWS_MANUAL_FILE = SHARED_DIR / "news_manual.json"
 
 # Only analyze articles from last 1 hour (fresh news only)
 ANALYSIS_WINDOW_HOURS = 1
@@ -60,10 +61,39 @@ def load_analyzed_hashes() -> set:
         return set()
 
 
-def call_haiku(articles: list[dict]) -> dict:
+def load_manual_entries() -> list[dict]:
+    """Load unprocessed manual news entries from Telegram submissions."""
+    if not NEWS_MANUAL_FILE.exists():
+        return []
+    try:
+        raw = json.loads(NEWS_MANUAL_FILE.read_text(encoding="utf-8"))
+        entries = raw.get("entries", [])
+        processed_before = raw.get("processed_before", "")
+        # Only return entries submitted after last processing
+        return [
+            e for e in entries
+            if e.get("submitted_at", "") > processed_before
+        ]
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def mark_manual_processed():
+    """Update processed_before timestamp so entries aren't re-analyzed."""
+    if not NEWS_MANUAL_FILE.exists():
+        return
+    try:
+        raw = json.loads(NEWS_MANUAL_FILE.read_text(encoding="utf-8"))
+        raw["processed_before"] = datetime.now(timezone.utc).isoformat()
+        atomic_write_json(NEWS_MANUAL_FILE, raw)
+    except (json.JSONDecodeError, OSError) as e:
+        log.warning(f"Failed to update manual processed timestamp: {e}")
+
+
+def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -> dict:
     """Call Claude Haiku for sentiment classification.
 
-    Returns structured sentiment data.
+    Returns structured sentiment data. Manual entries are marked [USER SUBMITTED].
     """
     if not PROXY_API_KEY:
         raise ValueError("PROXY_API_KEY not set")
@@ -76,6 +106,14 @@ def call_haiku(articles: list[dict]) -> dict:
             f"{i}. [{a.get('source', '?')}] {a.get('title', '?')} "
             f"(symbols: {symbols_str})"
         )
+
+    # Append manual entries
+    if manual_entries:
+        for j, m in enumerate(manual_entries[:20], len(article_texts) + 1):
+            article_texts.append(
+                f"{j}. [USER SUBMITTED] {m.get('text', '?')} "
+                f"(symbols: general)"
+            )
 
     articles_block = "\n".join(article_texts)
 
@@ -185,10 +223,15 @@ def main():
         if a.get("url_hash") not in analyzed_hashes
     ]
 
+    # Load manual entries from Telegram
+    manual_entries = load_manual_entries()
+    if manual_entries:
+        log.info(f"Manual entries: {len(manual_entries)}")
+
     log.info(f"Total: {len(articles)} | Fresh (<{ANALYSIS_WINDOW_HOURS}h): {len(fresh_articles)} | New: {len(new_articles)}")
 
-    if not fresh_articles:
-        log.info("No fresh articles within analysis window")
+    if not fresh_articles and not manual_entries:
+        log.info("No fresh articles or manual entries within analysis window")
         # Preserve existing sentiment but mark as stale
         if SENTIMENT_FILE.exists():
             try:
@@ -200,15 +243,19 @@ def main():
                 pass
         return
 
-    # Call Haiku for sentiment
+    # Call Haiku for sentiment (include manual entries)
     try:
-        sentiment = call_haiku(fresh_articles)
+        sentiment = call_haiku(fresh_articles, manual_entries=manual_entries or None)
     except json.JSONDecodeError as e:
         log.error(f"Failed to parse Haiku response: {e}")
         return
     except Exception as e:
         log.error(f"Haiku API call failed: {e}")
         return
+
+    # Mark manual entries as processed
+    if manual_entries:
+        mark_manual_processed()
 
     # Track analyzed hashes (union of old + new)
     all_analyzed = analyzed_hashes | {a.get("url_hash") for a in fresh_articles}
@@ -217,7 +264,7 @@ def main():
     output = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "stale": False,
-        "articles_analyzed": len(fresh_articles),
+        "articles_analyzed": len(fresh_articles) + len(manual_entries),
         "analysis_window_hours": ANALYSIS_WINDOW_HOURS,
         "overall_sentiment": sentiment.get("overall_sentiment", "neutral"),
         "confidence": sentiment.get("confidence", 0.0),

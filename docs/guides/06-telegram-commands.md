@@ -75,11 +75,23 @@ Bot：執行下單 + 顯示結果
 - SL 強制設定（唔設定會自動用 2.5%）
 - SL 低於清算價自動調整
 
-## 兩個 Bot
+## 三個 Bot
 
-| Bot | 用途 |
-|-----|------|
-| @AXCTradingBot | tg_bot.py — 交易控制介面 |
-| @axccommandbot | openclaw-gateway — 系統指令 |
+| Bot | Script | 用途 | 必須？ |
+|-----|--------|------|--------|
+| @AXCTradingBot | `tg_bot.py` | 交易控制（查詢/下單/風控） | ✅ 核心 |
+| @AXCnews_bot | `news_bot.py` | 新聞情緒（查詢/提交/自動推送） | 選填 |
+| @axccommandbot | openclaw-gateway | 系統指令（需要 OpenClaw） | 選填 |
 
-兩個 bot 用唔同 token，避免 409 Conflict。
+每個 bot 用獨立 token，避免 409 Conflict。
+
+### @AXCnews_bot 指令
+
+| 指令 | 功能 |
+|------|------|
+| `/start` | 歡迎訊息 |
+| `/news` | 查詢當前新聞情緒 |
+| `/submit BTC ETF 獲批` | 手動提交新聞 |
+| 直接打字 | 自動收錄為新聞 |
+
+自動推送：情緒方向變化（bullish→bearish 等）時主動通知，1 小時 cooldown。

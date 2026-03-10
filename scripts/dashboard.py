@@ -458,6 +458,11 @@ def _bootstrap_all_time_pnl():
 _funding_cache = {"data": {}, "ts": 0}
 _FUNDING_CACHE_TTL = 120  # 2 min — funding rates update every 8h
 
+_news_cache = {"data": None, "ts": 0}
+_NEWS_CACHE_TTL = 120  # 2 min — news updates every 15 min
+NEWS_SENTIMENT_PATH = os.path.join(HOME, "shared", "news_sentiment.json")
+NEWS_STALE_MINUTES = 30
+
 
 def get_funding_rates():
     """Fetch current funding rates for watched symbols. Public API, 2-min cache."""
@@ -491,6 +496,46 @@ def get_funding_rates():
     except Exception:
         logging.warning("Failed to fetch funding rates")
         return _funding_cache["data"]
+
+
+def get_news_sentiment():
+    """Read news sentiment from shared JSON. 2-min cache, staleness check."""
+    now = time.time()
+    if now - _news_cache["ts"] < _NEWS_CACHE_TTL:
+        return _news_cache["data"]
+    if not os.path.exists(NEWS_SENTIMENT_PATH):
+        _news_cache["data"] = None
+        _news_cache["ts"] = now
+        return None
+    try:
+        with open(NEWS_SENTIMENT_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        updated = raw.get("updated_at", "")
+        stale = False
+        if updated:
+            try:
+                ut = datetime.fromisoformat(updated)
+                age_min = (datetime.now(timezone.utc) - ut).total_seconds() / 60
+                stale = age_min > NEWS_STALE_MINUTES
+            except (ValueError, TypeError):
+                stale = True
+        result = {
+            "overall_sentiment": raw.get("overall_sentiment", "neutral"),
+            "confidence": raw.get("confidence", 0.0),
+            "sentiment_by_symbol": raw.get("sentiment_by_symbol", {}),
+            "key_narratives": raw.get("key_narratives", []),
+            "risk_events": raw.get("risk_events", []),
+            "summary": raw.get("summary", ""),
+            "stale": stale or raw.get("stale", False),
+            "updated_at": updated,
+            "articles_analyzed": raw.get("articles_analyzed", 0),
+        }
+        _news_cache["data"] = result
+        _news_cache["ts"] = now
+        return result
+    except (json.JSONDecodeError, OSError) as e:
+        logging.warning("Failed to read news sentiment: %s", e)
+        return _news_cache["data"]
 
 
 def parse_md(path):
@@ -1711,6 +1756,7 @@ def collect_data():
         "drawdown": drawdown,
         "signal_heatmap": signal_heatmap,
         "funding_rates": funding_rates,
+        "news_sentiment": get_news_sentiment(),
         "demo_mode": False,
         "exchanges": exchange_data,
     }

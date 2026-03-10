@@ -9,16 +9,37 @@ audience: human,claude,github
 
 一個 24 小時自動運行嘅交易系統，幫你監察加密貨幣 + 商品市場、分析走勢、自動下單、Telegram 通知結果。你唔需要盯住電腦。
 
-## AXC vs OpenClaw
+## AXC vs OpenClaw vs Proxy API
 
-| | AXC | OpenClaw |
-|--|-----|----------|
-| 係咩 | 交易系統（掃描 + 策略 + 下單） | 底層開源平台 |
-| 類比 | 你間鋪頭 | 商場嘅水電系統 |
-| 你改咩 | 交易參數、幣種、風控 | 通常唔使改 |
-| 用嚟 | 賺錢 | 提供 Agent 框架 + Telegram 橋接 |
+```
+Proxy API = 電話線（打電話畀 Claude 問嘢）
+AXC       = 你間鋪頭（交易系統）
+OpenClaw  = 秘書（額外增強功能）
+```
 
-簡單講：AXC 係你嘅交易機器人，OpenClaw 係佢跑緊嘅平台。
+| | AXC | Proxy API | OpenClaw |
+|--|-----|-----------|----------|
+| 係咩 | 交易系統 | LLM API 轉發 | Gateway 平台 |
+| 必須？ | ✅ 核心 | ✅ AI 功能需要 | ❌ 可選 |
+| 你改咩 | 交易參數、幣種 | API key + URL | 通常唔使改 |
+| 用嚟 | 掃描 + 策略 + 下單 | Claude/GPT 推理 | Agent sessions + @axccommandbot |
+
+### 冇 Proxy API 會點？
+核心交易照跑（100% Python），但冇新聞情緒分析、冇 Telegram AI 對話。
+
+### 冇 OpenClaw 會點？
+**全部交易功能照跑。** 只係冇 @axccommandbot 同 Agent sessions。
+
+```
+有 OpenClaw              冇 OpenClaw
+───────────              ────────────
+@axccommandbot 可用       @axccommandbot 唔可用
+Agent sessions 可跑       Agent sessions 唔可跑
+自動交易照跑 ✅           自動交易照跑 ✅
+Dashboard 照跑 ✅         Dashboard 照跑 ✅
+Telegram bot 照跑 ✅      Telegram bot 照跑 ✅
+News bot 照跑 ✅          News bot 照跑 ✅
+```
 
 ## 核心功能
 

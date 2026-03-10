@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -956,6 +957,7 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"<pre>{'chr(10)'.join(lines)}</pre>".replace("chr(10)", "\n"),
         parse_mode="HTML",
     )
+
 
 
 # ── Enhanced /mode with inline keyboard ──
