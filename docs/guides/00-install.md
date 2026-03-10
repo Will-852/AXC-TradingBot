@@ -21,7 +21,9 @@ audience: human,github
 
 - 一台 **Mac 電腦**（macOS 12 或以上）
 - 能上網
-- 一個 **AI API Key**（見步驟 2）— 用嚟做新聞情緒分析 + Telegram 對話
+- 一個**交易所帳號**（Aster / Binance / HyperLiquid，選一個）
+
+> AI API Key 係選填。核心嘅自動交易完全唔用 AI，零成本。詳見「AXC / OpenClaw / Telegram 點樣連動？」指南（17）。
 
 ---
 
@@ -42,21 +44,7 @@ http://localhost:5555/share → 點「下載 Setup Package」
 
 ---
 
-## 步驟 2：申請 API Key
-
-AXC 嘅部分功能需要 AI（見下方「邊啲功能用 LLM」）。如果你只想用自動交易，唔用 Telegram 對話同新聞分析，可以跳過呢步。
-
-**用 Proxy（便宜，推薦新手）：**
-1. 去 proxy 供應商網站申請（問介紹你嘅朋友）
-2. 拎到一個 Key，長得好似：`sk-ant-xxxxxxxx`
-
-**用官方 Claude API：**
-1. 去 https://console.anthropic.com 注冊
-2. 去 API Keys → 建立新 Key
-
----
-
-## 步驟 3：解壓文件
+## 步驟 2：解壓文件
 
 打開 Terminal，**逐行複製貼上**，每行按一次 Enter：
 
@@ -70,39 +58,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/projects/axc-trading/
 
 ---
 
-## 步驟 4：設定你的 API Key
-
-```bash
-# 複製範例設定文件
-cp ~/projects/axc-trading/secrets/.env.example ~/projects/axc-trading/secrets/.env
-
-# 用文字編輯器打開（會彈出 nano 編輯器）
-nano ~/projects/axc-trading/secrets/.env
-```
-
-你會看到這樣的畫面：
-
-```
-PROXY_API_KEY=
-PROXY_BASE_URL=
-...
-```
-
-用方向鍵移到 `PROXY_API_KEY=` 後面，填入你的 Key：
-
-```
-PROXY_API_KEY=你的key貼在這裡
-PROXY_BASE_URL=https://你的proxy地址/v1
-```
-
-填完後：
-- 按 **Ctrl+X**（退出）
-- 按 **Y**（儲存）
-- 按 **Enter**（確認）
-
----
-
-## 步驟 5：安裝依賴
+## 步驟 3：安裝依賴
 
 ```bash
 pip3 install -r ~/projects/axc-trading/requirements.txt
@@ -112,7 +68,7 @@ pip3 install -r ~/projects/axc-trading/requirements.txt
 
 ---
 
-## 步驟 6：啟動！
+## 步驟 4：啟動！
 
 ```bash
 cd ~/projects/axc-trading && python3 scripts/dashboard.py &
@@ -121,7 +77,51 @@ cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 然後打開瀏覽器，去：
 👉 **http://localhost:5555**
 
-你應該看到 AXC 儀表板。
+你應該看到 AXC 儀表板。到呢步為止，你已經可以用 Demo 模式睇 Dashboard 點運作。
+
+---
+
+## 步驟 5：連接交易所
+
+打開儀表板 http://localhost:5555 → 右上角「連接交易所」
+
+| 交易所 | 需要 | 用途 |
+|--------|------|------|
+| Aster DEX | API Key + Secret | BTC/ETH/XRP/XAG/XAU 交易 |
+| Binance Futures | API Key + Secret | BTC/ETH/SOL/POL 交易 |
+| HyperLiquid | Private Key + Address | BTC/ETH/SOL 交易（選填） |
+
+唔連接交易所 = Demo 模式（儀表板有假數據睇，唔會落真單）。
+連接咗就可以自動交易，**到呢步已經係完整系統**。
+
+---
+
+## 步驟 6：設定 AI API Key（可以之後再加）
+
+> 核心自動交易完全唔需要 AI API Key。呢步只影響三個附加功能：
+> Telegram AI 對話、新聞情緒分析、每週策略回顧。
+> 如果你而家唔想搞，跳過就得，之後隨時番嚟加。
+
+```bash
+# 複製範例設定文件
+cp ~/projects/axc-trading/secrets/.env.example ~/projects/axc-trading/secrets/.env
+
+# 用文字編輯器打開
+nano ~/projects/axc-trading/secrets/.env
+```
+
+填入你的 Key：
+
+```
+PROXY_API_KEY=你的key貼在這裡
+PROXY_BASE_URL=https://你的proxy地址/v1
+```
+
+**Key 點嚟？**
+- 用 Proxy（便宜，推薦新手）：問介紹你嘅朋友攞
+- 用官方 Claude API：去 https://console.anthropic.com 注冊
+
+填完後：按 **Ctrl+X** → **Y** → **Enter** 儲存退出。
 
 ---
 
@@ -135,21 +135,7 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 
 ---
 
-## 步驟 8：連接交易所（選填）
-
-打開儀表板 http://localhost:5555 → 右上角「連接交易所」
-
-| 交易所 | 需要 | 用途 |
-|--------|------|------|
-| Aster DEX | API Key + Secret | BTC/ETH/XRP/XAG/XAU 交易 |
-| Binance Futures | API Key + Secret | BTC/ETH/SOL/POL 交易 |
-| HyperLiquid | Private Key + Address | BTC/ETH/SOL 交易（選填） |
-
-唔連接交易所 = Demo 模式（儀表板有假數據睇，唔會落真單）。
-
----
-
-## 步驟 9：個人化設定（選填）
+## 步驟 8：個人化設定（選填）
 
 如果你想改交易參數但唔影響 git pull 更新：
 
@@ -158,7 +144,7 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 cp ~/projects/axc-trading/config/params.py ~/projects/axc-trading/config/user_params.py
 ```
 
-然後只改 `user_params.py` 入面你想改嘅變數。詳見「想改咩？改邊度？」指南。
+然後只改 `user_params.py` 入面你想改嘅變數。詳見「想改咩？改邊度？」指南（16）。
 
 ---
 
@@ -186,7 +172,7 @@ cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 ```
 
 **Q：想設定 Telegram 通知？**
-見 Telegram 指令指南（06）
+見「AXC / OpenClaw / Telegram 點樣連動？」指南（17）+ Telegram 指令指南（06）
 
 **Q：想自動開機啟動？**
 見 LaunchAgents 指南（13）
@@ -197,5 +183,5 @@ cd ~/projects/axc-trading && python3 scripts/dashboard.py &
 
 - 查看儀表板：http://localhost:5555
 - 閱讀完整說明：http://localhost:5555/details
-- 用 Telegram 控制系統（選填）
+- 了解系統連動：見指南（17）
 - 調整交易設定：見「想改咩？改邊度？」指南（16）
