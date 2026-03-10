@@ -28,6 +28,8 @@ NEWS_MANUAL_FILE = SHARED_DIR / "news_manual.json"
 
 # Only analyze articles from last 1 hour (fresh news only)
 ANALYSIS_WINDOW_HOURS = 1
+# Only send articles with influence >= threshold to Haiku (save API cost)
+INFLUENCE_THRESHOLD = 5
 
 # ── Load .env ──
 ENV_PATH = BASE_DIR / "secrets" / ".env"
@@ -102,9 +104,19 @@ def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -
     article_texts = []
     for i, a in enumerate(articles[:20], 1):  # max 20 articles per call
         symbols_str = ", ".join(a.get("symbols", [])) or "general"
+        pub_time = a.get("published", "")
+        # Extract HH:MM if available
+        time_str = ""
+        if pub_time:
+            try:
+                from datetime import datetime as _dt
+                _p = _dt.fromisoformat(pub_time.replace("Z", "+00:00"))
+                time_str = _p.strftime("%H:%M")
+            except Exception:
+                time_str = ""
         article_texts.append(
             f"{i}. [{a.get('source', '?')}] {a.get('title', '?')} "
-            f"(symbols: {symbols_str})"
+            f"(symbols: {symbols_str}){' [' + time_str + ']' if time_str else ''}"
         )
 
     # Append manual entries
@@ -117,9 +129,21 @@ def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -
 
     articles_block = "\n".join(article_texts)
 
-    prompt = f"""Analyze the sentiment AND market impact of these crypto news headlines.
+    prompt = f"""Analyze the sentiment AND market impact of these crypto/macro headlines.
+These are PRE-FILTERED high-influence items only. Focus on actionable 4H trading signals.
 
 {articles_block}
+
+PRIORITY HIERARCHY (嚴格遵守):
+1. 🐳 鯨魚/大戶動向 = impact 80-100（真金白銀，方向跟佢）
+2. 💧 流動性/成交量異常 = impact 70-90（資金流向決定一切）
+3. 🏛️ 政策衝擊（關稅/制裁/利率）= impact 50-80
+4. 📊 宏觀指標（DXY/VIX/油/金）= impact 40-70
+5. 其他 = impact 10-40
+
+TRUMP PATTERN（必須識別）:
+特朗普經常宣布強硬政策（關稅、戰爭威脅）→ 市場恐慌大跌 → 2 週內軟化/取消 → 市場反彈。
+如果偵測到此模式，risk_events 標注「⚠️ Trump 政策反覆模式：短期恐慌可能係入場機會」。
 
 Respond in JSON format ONLY (no markdown, no explanation):
 {{
@@ -130,19 +154,14 @@ Respond in JSON format ONLY (no markdown, no explanation):
     "BTCUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}},
     "ETHUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}}
   }},
-  "key_narratives": ["narrative1", "narrative2"],
-  "risk_events": ["event1"],
+  "key_narratives": [{{"text": "narrative1", "time": "HH:MM"}}, {{"text": "narrative2", "time": "HH:MM"}}],
+  "risk_events": [{{"text": "event1", "time": "HH:MM"}}],
   "summary": "One sentence overall market sentiment summary"
 }}
 
-IMPORTANT: All text values (key_narratives, risk_events, summary) MUST be in Traditional Chinese (香港繁體中文).
-
-overall_impact: integer 0-100. How much these headlines will move the market.
-  0 = routine noise, 50 = moderate, 100 = extreme market-moving event.
-Per-symbol impact: same 0-100 scale for that specific asset.
-Only include symbols that appear in the articles. If no articles mention a symbol, omit it.
-risk_events: regulatory actions, hacks, major liquidations, black swan events.
-key_narratives: dominant themes (ETF flows, rate decisions, adoption, etc.)."""
+IMPORTANT: All text values MUST be in Traditional Chinese (香港繁體中文).
+overall_impact: 0=noise, 50=moderate, 100=extreme.
+Only include symbols mentioned in articles. time: HH:MM in UTC+8."""
 
     url = f"{PROXY_BASE_URL}/messages"
     payload = json.dumps({
@@ -250,14 +269,28 @@ def main():
         if a.get("url_hash") not in analyzed_hashes
     ]
 
-    # Load manual entries from Telegram
+    # Pre-filter: only high-influence articles go to Haiku (save API cost)
+    # Low-influence = noise (partnerships, airdrops, generic) → skip
+    high_influence = [
+        a for a in fresh_articles
+        if a.get("influence_score", 1) >= INFLUENCE_THRESHOLD
+    ]
+    skipped = len(fresh_articles) - len(high_influence)
+    if skipped > 0:
+        log.info(f"Pre-filter: {skipped} low-influence articles skipped (< score {INFLUENCE_THRESHOLD})")
+
+    # Load manual entries from Telegram / x_monitor / macro_monitor
+    # These are already pre-filtered, always include
     manual_entries = load_manual_entries()
     if manual_entries:
         log.info(f"Manual entries: {len(manual_entries)}")
 
-    log.info(f"Total: {len(articles)} | Fresh (<{ANALYSIS_WINDOW_HOURS}h): {len(fresh_articles)} | New: {len(new_articles)}")
+    log.info(
+        f"Total: {len(articles)} | Fresh (<{ANALYSIS_WINDOW_HOURS}h): {len(fresh_articles)} | "
+        f"High-influence: {len(high_influence)} | Manual: {len(manual_entries)}"
+    )
 
-    if not fresh_articles and not manual_entries:
+    if not high_influence and not manual_entries:
         log.info("No fresh articles or manual entries within analysis window")
         # Preserve existing sentiment but mark as stale
         if SENTIMENT_FILE.exists():
@@ -270,9 +303,9 @@ def main():
                 pass
         return
 
-    # Call Haiku for sentiment (include manual entries)
+    # Call Haiku for sentiment (only high-influence + manual entries)
     try:
-        sentiment = call_haiku(fresh_articles, manual_entries=manual_entries or None)
+        sentiment = call_haiku(high_influence, manual_entries=manual_entries or None)
     except json.JSONDecodeError as e:
         log.error(f"Failed to parse Haiku response: {e}")
         return
@@ -284,14 +317,15 @@ def main():
     if manual_entries:
         mark_manual_processed()
 
-    # Track analyzed hashes (union of old + new)
+    # Track analyzed hashes (union of old + new — include all fresh, not just high)
     all_analyzed = analyzed_hashes | {a.get("url_hash") for a in fresh_articles}
 
     # Build output
     output = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "stale": False,
-        "articles_analyzed": len(fresh_articles) + len(manual_entries),
+        "articles_analyzed": len(high_influence) + len(manual_entries),
+        "articles_skipped_low_influence": skipped,
         "analysis_window_hours": ANALYSIS_WINDOW_HOURS,
         "overall_sentiment": sentiment.get("overall_sentiment", "neutral"),
         "overall_impact": sentiment.get("overall_impact", 50),

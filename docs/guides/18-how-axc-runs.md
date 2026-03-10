@@ -52,6 +52,7 @@ macOS 內建嘅排程系統。每個 plist 文件 = 一個鬧鐘。
 ├── ai.openclaw.telegram.plist       長駐          → @AXCTradingBot
 ├── ai.openclaw.newsbot.plist        長駐          → @AXCnews_bot
 ├── ai.openclaw.xmonitor.plist       每小時        → X 帳號推文監察（LunarCrush MCP）
+├── ai.openclaw.macromonitor.plist   每 4 小時    → 宏觀指標監察（DXY/油/金/銀/VIX/債/日經）
 ├── ai.openclaw.lightscan.plist      每 3 分鐘    → 輕量價格更新
 ├── ai.openclaw.report.plist         每日          → 生成報告
 └── ai.openclaw.strategyreview.plist 每週一       → 策略回顧
