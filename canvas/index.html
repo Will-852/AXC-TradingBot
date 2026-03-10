@@ -344,28 +344,6 @@
     .dd-label { font-size: .68rem; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
     .dd-value { font-size: 1rem; font-weight: 700; margin-top: 2px; }
 
-    /* ── Signal Heatmap ───────────────────────── */
-    .heatmap-grid {
-      display: grid;
-      grid-template-columns: 32px repeat(24, 1fr);
-      grid-template-rows: 20px repeat(7, 28px);
-      gap: 2px;
-    }
-    .hm-label {
-      font-size: .62rem; font-weight: 600; color: var(--text-3);
-      display: flex; align-items: center; justify-content: center;
-    }
-    .hm-cell {
-      border-radius: 3px; cursor: default;
-      transition: opacity .2s;
-    }
-    .hm-cell:hover { opacity: .75; }
-    .hm-0 { background: #f1f5f9; }
-    .hm-1 { background: #c4b5fd; }
-    .hm-2 { background: #8b5cf6; }
-    .hm-3 { background: #7c3aed; }
-    .hm-4 { background: #5b21b6; }
-
     /* ── Profile Badge ───────────────────────────── */
     .profile-badge {
       font-size: .72rem; padding: 3px 10px; border-radius: 20px;
@@ -859,14 +837,14 @@
 
         </div><!-- /row 3 -->
 
-        <!-- ── ROW 3.5：信號熱力圖 ──────────────── -->
+        <!-- ── ROW 3.5：交易統計 + 資金費率 ──────── -->
         <div class="row">
-          <div class="col-12">
+          <!-- 交易統計 -->
+          <div class="col-lg-5 col-12">
             <div class="card card-outline card-secondary">
               <div class="card-header bg-openclaw">
                 <h3 class="card-title">
-                  <i class="fas fa-fire mr-2"></i>信號熱力圖 *
-                  <span style="font-size:.72rem;color:var(--text-3);margin-left:8px">觸發頻率 (星期 × 小時)</span>
+                  <i class="fas fa-chart-bar mr-2"></i>交易統計
                 </h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-tool" data-card-widget="collapse">
@@ -874,7 +852,26 @@
                   </button>
                 </div>
               </div>
-              <div class="card-body p-3" id="heatmap-container">
+              <div class="card-body p-3" id="stats-overview">
+                <div class="text-muted text-center" style="font-size:.8rem">載入中…</div>
+              </div>
+            </div>
+          </div>
+          <!-- 資金費率 -->
+          <div class="col-lg-7 col-12">
+            <div class="card card-outline card-secondary">
+              <div class="card-header bg-openclaw">
+                <h3 class="card-title">
+                  <i class="fas fa-percentage mr-2"></i>資金費率
+                  <span style="font-size:.68rem;color:var(--text-3);margin-left:6px">每 8H 結算</span>
+                </h3>
+                <div class="card-tools">
+                  <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-minus"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-3" id="funding-rates">
                 <div class="text-muted text-center" style="font-size:.8rem">載入中…</div>
               </div>
             </div>
@@ -1196,10 +1193,11 @@ function parseScanLine(line) {
 // ── 主渲染入口（Fix 4: unified today filter）──
 function render(D) {
   notifyChanges(D);
-  var today = new Date().toISOString().slice(0, 10); // "2026-03-06"
-  var todayScans = (D.scan_log || []).filter(function(s) {
-    return typeof s === 'string' && s.includes(today);
-  });
+  // scan_log entries may not contain date — treat all as today
+  var today = new Date().toISOString().slice(0, 10);
+  var allScans = (D.scan_log || []).filter(function(s) { return typeof s === 'string'; });
+  var todayScans = allScans.filter(function(s) { return s.includes(today); });
+  if (!todayScans.length) todayScans = allScans;
   var todayTriggers = todayScans.filter(function(s) {
     return s.includes('TRIGGER');
   });
@@ -1229,7 +1227,8 @@ function render(D) {
   renderTrades(D);
   renderActivityTimeline(D);
   renderScanLog(D, todayScans);
-  renderSignalHeatmap(D);
+  renderStatsOverview(D);
+  renderFundingRates(D);
   renderFooter(D);
 }
 
@@ -1339,10 +1338,12 @@ function buildNotifications(D) {
 
   if (trades.length && snap.lastTradeTime !== _prevSnap.lastTradeTime) {
     var t0 = trades[0];
-    var rpnl = parseFloat(t0.rpnl || t0.realized_pnl) || 0;
+    var rpnl = parseFloat(t0.realizedPnl || t0.rpnl || t0.realized_pnl) || 0;
+    var sym = (t0.symbol || t0.pair || '?').replace('USDT', '');
     if (rpnl !== 0) {
-      var sym = (t0.symbol || t0.pair || '?').replace('USDT', '');
       pushNotif('trade', '平倉 ' + sym + ' ' + (rpnl >= 0 ? '+' : '') + '$' + rpnl.toFixed(2), (t0.side || '') + ' @ ' + (t0.price || t0.exit_price || ''));
+    } else {
+      pushNotif('trade', '成交 ' + sym + ' ' + (t0.side || ''), '@ ' + (t0.price || '?'));
     }
   }
   if (snap.triggerTotal > _prevSnap.triggerTotal) {
@@ -1359,7 +1360,7 @@ function buildNotifications(D) {
       var p = positions[0];
       pushNotif('position', '開倉 ' + (p.direction || '?') + ' ' + (p.pair || '?').replace('USDT', ''), '@ ' + (p.entry_price || '?'));
     } else if (snap.posCount < _prevSnap.posCount) {
-      pushNotif('position', '持倉變動', snap.posCount + ' 個活躍持倉');
+      pushNotif('position', '已平倉', snap.posCount === 0 ? '所有持倉已清' : snap.posCount + ' 個活躍持倉');
     }
   }
   if (snap.profile !== _prevSnap.profile) {
@@ -1607,7 +1608,7 @@ function renderSidebarLayers(D) {
 
   el.innerHTML = layers.map(function(l) {
     var m = _LAYER_META[l.role] || {icon: "fa-folder", color: "#6b7280", desc: ""};
-    var fullPath = '~/axc-trading/' + l.path;
+    var fullPath = '~/projects/axc-trading/' + l.path;
     return '<li class="nav-item">' +
       '<a href="#" class="nav-link layer-link" onclick="copyPath(this,\'' + fullPath + '\');return false" title="' + l.role + ' · ' + m.desc + '">' +
         '<i class="nav-icon fas ' + m.icon + ' layer-icon" data-color="' + m.color + '"></i>' +
@@ -2223,83 +2224,108 @@ function renderActivityTimeline(D) {
   }).join('');
 }
 
-// ── Signal Heatmap ──────────────────────────
-function renderSignalHeatmap(D) {
-  var hm = D.signal_heatmap || [];
-  var el = byId('heatmap-container');
+// ── Trade Stats Overview ────────────────────
+function renderStatsOverview(D) {
+  var el = byId('stats-overview');
   if (!el) return;
-  if (!hm.length) {
-    el.innerHTML = '<div class="text-muted text-center" style="font-size:.78rem">暫無帶日期嘅觸發記錄</div>';
+  var s = D.trade_stats || {};
+  var dd = D.drawdown || {};
+  var total = s.total || 0;
+  var wr = s.win_rate || 0;
+  var pf = s.profit_factor || 0;
+  var avgW = s.avg_win || 0;
+  var avgL = s.avg_loss || 0;
+
+  if (total === 0) {
+    el.innerHTML = '<div class="text-center text-muted py-2" style="font-size:.8rem">暫無交易記錄</div>';
     return;
   }
 
-  var dayLabels = ['一','二','三','四','五','六','日'];
-  var maxCount = 0;
-  hm.forEach(function(c) { if (c.count > maxCount) maxCount = c.count; });
+  var wrColor = wr >= 50 ? 'var(--pos)' : wr >= 30 ? '#d97706' : 'var(--neg)';
+  var pfColor = pf >= 1 ? 'var(--pos)' : 'var(--neg)';
+  var maxDd = dd.max_dd_pct || 0;
+  var ddColor = maxDd > 15 ? 'var(--neg)' : maxDd > 10 ? '#d97706' : 'var(--pos)';
+  var expectancy = total > 0 ? ((s.wins || 0) * avgW + (s.losses || 0) * avgL) / total : 0;
+  var expColor = expectancy >= 0 ? 'var(--pos)' : 'var(--neg)';
 
-  function heatLevel(count) {
-    if (count === 0) return 0;
-    if (maxCount === 0) return 0;
-    var pct = count / maxCount;
-    if (pct <= 0.25) return 1;
-    if (pct <= 0.50) return 2;
-    if (pct <= 0.75) return 3;
-    return 4;
+  function statRow(label, value, color) {
+    return '<div class="d-flex justify-content-between align-items-center py-1">' +
+      '<span class="text-muted" style="font-size:.82rem">' + label + '</span>' +
+      '<span style="font-weight:600;color:' + color + ';font-size:.9rem">' + value + '</span></div>';
   }
 
-  // Build grid: first row = hour labels, then 7 day rows
-  var html = '<div class="heatmap-grid">';
-  // Corner
-  html += '<div class="hm-label"></div>';
-  // Hour headers (show every 3h)
-  for (var h = 0; h < 24; h++) {
-    html += '<div class="hm-label">' + (h % 3 === 0 ? h + 'h' : '') + '</div>';
-  }
-  // Day rows
-  for (var d = 0; d < 7; d++) {
-    html += '<div class="hm-label">' + dayLabels[d] + '</div>';
-    for (var hr = 0; hr < 24; hr++) {
-      var cell = hm.find(function(c) { return c.day === d && c.hour === hr; });
-      var count = cell ? cell.count : 0;
-      var level = heatLevel(count);
-      var title = dayLabels[d] + ' ' + hr + ':00 — ' + count + ' 次觸發';
-      html += '<div class="hm-cell hm-' + level + '" title="' + title + '"></div>';
-    }
-  }
-  html += '</div>';
-
-  // Legend
-  html += '<div class="d-flex align-items-center mt-2" style="font-size:.68rem;color:var(--text-3)">' +
-    '<span class="mr-2">少</span>' +
-    '<div class="hm-cell hm-0" style="width:14px;height:14px;display:inline-block;margin:0 2px"></div>' +
-    '<div class="hm-cell hm-1" style="width:14px;height:14px;display:inline-block;margin:0 2px"></div>' +
-    '<div class="hm-cell hm-2" style="width:14px;height:14px;display:inline-block;margin:0 2px"></div>' +
-    '<div class="hm-cell hm-3" style="width:14px;height:14px;display:inline-block;margin:0 2px"></div>' +
-    '<div class="hm-cell hm-4" style="width:14px;height:14px;display:inline-block;margin:0 2px"></div>' +
-    '<span class="ml-2">多</span>' +
-    '<span class="ml-auto">最高: ' + maxCount + ' 次 · * 僅新格式日誌</span>' +
+  el.innerHTML =
+    '<div class="row">' +
+      '<div class="col-6">' +
+        statRow('勝率', wr + '%', wrColor) +
+        statRow('盈虧比', pf.toFixed(2), pfColor) +
+        statRow('期望值', (expectancy >= 0 ? '+' : '') + '$' + expectancy.toFixed(2), expColor) +
+      '</div>' +
+      '<div class="col-6">' +
+        statRow('總交易', total + ' 筆', 'var(--text-1)') +
+        statRow('平均盈', '+$' + avgW.toFixed(2), 'var(--pos)') +
+        statRow('平均虧', '$' + avgL.toFixed(2), 'var(--neg)') +
+      '</div>' +
+    '</div>' +
+    '<div class="mt-2 pt-2" style="border-top:1px solid var(--border)">' +
+      '<div class="d-flex justify-content-between align-items-center">' +
+        '<span class="text-muted" style="font-size:.78rem">最大回撤</span>' +
+        '<span style="font-weight:600;color:' + ddColor + ';font-size:.85rem">' +
+          maxDd.toFixed(1) + '% ($' + (dd.max_dd || 0).toFixed(2) + ')</span>' +
+      '</div>' +
+      '<div class="progress mt-1" style="height:6px;border-radius:3px">' +
+        '<div class="progress-bar" style="width:' + Math.min(maxDd, 100) + '%;background:' + ddColor + ';border-radius:3px"></div>' +
+      '</div>' +
     '</div>';
+}
 
+// ── Funding Rates ───────────────────────────
+function renderFundingRates(D) {
+  var el = byId('funding-rates');
+  if (!el) return;
+  var rates = D.funding_rates || {};
+  var keys = Object.keys(rates);
+
+  if (!keys.length) {
+    el.innerHTML = '<div class="text-center text-muted py-2" style="font-size:.8rem">暫無數據</div>';
+    return;
+  }
+
+  // Sort: symbols with positions first, then by absolute rate
+  var positions = (D.live_positions || []).map(function(p) { return p.pair || ''; });
+  keys.sort(function(a, b) {
+    var aPos = positions.indexOf(a) !== -1 ? 0 : 1;
+    var bPos = positions.indexOf(b) !== -1 ? 0 : 1;
+    if (aPos !== bPos) return aPos - bPos;
+    return Math.abs(rates[b].rate) - Math.abs(rates[a].rate);
+  });
+
+  var html = '<div class="row">';
+  keys.forEach(function(sym) {
+    var r = rates[sym];
+    var rate = r.rate;
+    var color = rate > 0 ? 'var(--pos)' : rate < 0 ? 'var(--neg)' : 'var(--text-3)';
+    var short = sym.replace('USDT', '');
+    // Positive rate = longs pay shorts; negative = shorts pay longs
+    var hint = rate > 0 ? 'Long 付費' : rate < 0 ? 'Short 付費' : '中性';
+    var inPos = positions.indexOf(sym) !== -1;
+    var badge = inPos ? '<span style="font-size:.5rem;background:#635bff;color:#fff;padding:1px 4px;border-radius:3px;margin-left:3px;vertical-align:middle">持倉</span>' : '';
+
+    html += '<div class="col-lg-4 col-6 mb-2">' +
+      '<div style="padding:6px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">' +
+        '<div class="d-flex justify-content-between align-items-center">' +
+          '<span style="font-weight:600;font-size:.82rem">' + short + badge + '</span>' +
+          '<span style="font-size:.68rem;color:var(--text-3)">' + r.next_time + '</span>' +
+        '</div>' +
+        '<div style="font-family:SF Mono,Menlo,monospace;font-size:1rem;font-weight:700;color:' + color + ';margin-top:2px">' +
+          (rate >= 0 ? '+' : '') + rate.toFixed(4) + '%' +
+        '</div>' +
+        '<div style="font-size:.65rem;color:var(--text-3)">' + hint + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  html += '</div>';
   el.innerHTML = html;
-
-  // Tippy tooltips for cells
-  if (typeof tippy !== 'undefined') {
-    el.querySelectorAll('.hm-cell').forEach(function(cell) {
-      tippy(cell, { content: cell.title, placement: 'top', theme: 'light-border', arrow: true });
-      cell.removeAttribute('title');
-    });
-  }
-
-  // Auto-collapse when sparse (< 5 filled cells)
-  var filledCells = hm.filter(function(c) { return c.count > 0; }).length;
-  var hmCard = el.closest('.card');
-  if (hmCard && filledCells < 5) {
-    hmCard.classList.add('collapsed-card');
-    var bd = hmCard.querySelector('.card-body');
-    if (bd) bd.style.display = 'none';
-    var icon = hmCard.querySelector('.btn-tool i');
-    if (icon) { icon.classList.remove('fa-minus'); icon.classList.add('fa-plus'); }
-  }
 }
 
 // ── Scan Log（Fix 4: 用 todayScans）──────────

@@ -165,15 +165,15 @@
     <div class="sb">
       <div class="st">解壓文件</div>
       <div class="sd">下載完成後，打開 Terminal（Mac 搜尋「Terminal」），貼上：</div>
-      <div class="cmd" onclick="copy(this)">mkdir -p ~/axc-trading
-unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
+      <div class="cmd" onclick="copy(this)">mkdir -p ~/projects/axc-trading
+unzip ~/Downloads/axc-setup-*.zip -d ~/projects/axc-trading/</div>
     </div>
   </div>
   <div class="step">
     <div class="sn">2</div>
     <div class="sb">
       <div class="st">複製設定文件</div>
-      <div class="cmd" onclick="copy(this)">cp ~/axc-trading/secrets/.env.example ~/axc-trading/secrets/.env</div>
+      <div class="cmd" onclick="copy(this)">cp ~/projects/axc-trading/secrets/.env.example ~/projects/axc-trading/secrets/.env</div>
     </div>
   </div>
   <div class="step">
@@ -181,7 +181,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
     <div class="sb">
       <div class="st">填入 API Key</div>
       <div class="sd">用以下指令打開文件，填入你的 <code>PROXY_API_KEY</code>：</div>
-      <div class="cmd" onclick="copy(this)">nano ~/axc-trading/secrets/.env</div>
+      <div class="cmd" onclick="copy(this)">nano ~/projects/axc-trading/secrets/.env</div>
       <div class="sd" style="margin-top:.4rem">
         填完按 <strong>Ctrl+X &rarr; Y &rarr; Enter</strong> 儲存退出
       </div>
@@ -191,7 +191,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
     <div class="sn">4</div>
     <div class="sb">
       <div class="st">安裝依賴</div>
-      <div class="cmd" onclick="copy(this)">pip3 install -r ~/axc-trading/requirements.txt</div>
+      <div class="cmd" onclick="copy(this)">pip3 install -r ~/projects/axc-trading/requirements.txt</div>
       <div class="sd">等待約 1-2 分鐘，看到 <code>Successfully installed</code> 就完成</div>
     </div>
   </div>
@@ -199,7 +199,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
     <div class="sn">5</div>
     <div class="sb">
       <div class="st">啟動 Dashboard</div>
-      <div class="cmd" onclick="copy(this)">cd ~/axc-trading && python3 scripts/dashboard.py &</div>
+      <div class="cmd" onclick="copy(this)">cd ~/projects/axc-trading && python3 scripts/dashboard.py &</div>
       <div class="sd" style="margin-top:.4rem">
         然後打開瀏覽器：
         <a href="http://localhost:5555" target="_blank">http://localhost:5555</a>
@@ -210,7 +210,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
     <div class="sn">&check;</div>
     <div class="sb">
       <div class="st">確認安裝成功</div>
-      <div class="cmd" onclick="copy(this)">bash ~/axc-trading/scripts/health_check.sh</div>
+      <div class="cmd" onclick="copy(this)">bash ~/projects/axc-trading/scripts/health_check.sh</div>
       <div class="sd">看到 <strong>39 pass / 0 fail</strong> 代表一切正常</div>
     </div>
   </div>
@@ -283,7 +283,7 @@ unzip ~/Downloads/axc-setup-*.zip -d ~/axc-trading/</div>
   <div class="fq">出現錯誤點算？</div>
   <div class="fa">
     先跑健康檢查：<br>
-    <code>bash ~/axc-trading/scripts/health_check.sh</code><br>
+    <code>bash ~/projects/axc-trading/scripts/health_check.sh</code><br>
     再睇完整安裝指南：<a href="/details">http://localhost:5555/details</a>
   </div>
 </div>

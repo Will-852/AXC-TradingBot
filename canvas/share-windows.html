@@ -181,7 +181,7 @@
     <div class="sb">
       <div class="st">Extract Files</div>
       <div class="sd">Download the ZIP, then paste this in PowerShell:</div>
-      <div class="cmd" onclick="copy(this)">$dest = "$HOME\axc-trading"
+      <div class="cmd" onclick="copy(this)">$dest = "$HOME\projects\axc-trading"
 New-Item -ItemType Directory -Force -Path $dest
 Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -Force</div>
     </div>
@@ -190,7 +190,7 @@ Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -F
     <div class="sn">3</div>
     <div class="sb">
       <div class="st">Create Config File</div>
-      <div class="cmd" onclick="copy(this)">Copy-Item "$HOME\axc-trading\secrets\.env.example" "$HOME\axc-trading\secrets\.env"</div>
+      <div class="cmd" onclick="copy(this)">Copy-Item "$HOME\projects\axc-trading\secrets\.env.example" "$HOME\projects\axc-trading\secrets\.env"</div>
     </div>
   </div>
   <div class="step">
@@ -198,7 +198,7 @@ Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -F
     <div class="sb">
       <div class="st">Fill in API Key</div>
       <div class="sd">Open the config file in Notepad and fill in your <code>PROXY_API_KEY</code>:</div>
-      <div class="cmd" onclick="copy(this)">notepad "$HOME\axc-trading\secrets\.env"</div>
+      <div class="cmd" onclick="copy(this)">notepad "$HOME\projects\axc-trading\secrets\.env"</div>
       <div class="sd" style="margin-top:.4rem">
         Fill in the key value, then <strong>Ctrl+S</strong> to save, close Notepad.
       </div>
@@ -208,7 +208,7 @@ Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -F
     <div class="sn">5</div>
     <div class="sb">
       <div class="st">Install Dependencies</div>
-      <div class="cmd" onclick="copy(this)">pip install -r "$HOME\axc-trading\requirements.txt"</div>
+      <div class="cmd" onclick="copy(this)">pip install -r "$HOME\projects\axc-trading\requirements.txt"</div>
       <div class="sd">Wait 1-2 minutes. You should see <code>Successfully installed</code> when done.</div>
     </div>
   </div>
@@ -216,7 +216,7 @@ Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -F
     <div class="sn">6</div>
     <div class="sb">
       <div class="st">Start Dashboard</div>
-      <div class="cmd" onclick="copy(this)">cd "$HOME\axc-trading"
+      <div class="cmd" onclick="copy(this)">cd "$HOME\projects\axc-trading"
 python scripts\dashboard.py</div>
       <div class="sd" style="margin-top:.4rem">
         Then open your browser:

@@ -120,7 +120,7 @@ def generate_share_package() -> bytes:
                         zf.write(fpath, rel)
 
         # 根目錄文件（存在先加）
-        for rf in ["CLAUDE.md", "requirements.txt", "openclaw.json"]:
+        for rf in ["CLAUDE.md", "README.md", "requirements.txt"]:
             rpath = os.path.join(ROOT, rf)
             if os.path.exists(rpath):
                 zf.write(rpath, rf)
@@ -131,7 +131,7 @@ def generate_share_package() -> bytes:
             "# 複製為 secrets/.env 並填入你的 API Key",
             "# cp secrets/.env.example secrets/.env",
             "",
-            "# ── AI 推理（必填）────────────────",
+            "# ── AI 推理（選填，核心交易唔需要）────────────────",
             "PROXY_API_KEY=",
             "PROXY_BASE_URL=https://tao.plus7.plus/v1",
             "",
@@ -453,6 +453,44 @@ def _bootstrap_all_time_pnl():
     logging.info("Bootstrapped all-time realized PnL (excl today): %.4f (r=%.4f f=%.4f c=%.4f)",
                  result["net"], result["realized"], result["funding"], result["commission"])
     return result["net"]
+
+
+_funding_cache = {"data": {}, "ts": 0}
+_FUNDING_CACHE_TTL = 120  # 2 min — funding rates update every 8h
+
+
+def get_funding_rates():
+    """Fetch current funding rates for watched symbols. Public API, 2-min cache."""
+    now = time.time()
+    if now - _funding_cache["ts"] < _FUNDING_CACHE_TTL:
+        return _funding_cache["data"]
+    try:
+        client = _get_aster_client()
+        # premiumIndex returns funding rate for all symbols
+        raw = client._public_request("GET", "/fapi/v1/premiumIndex")
+        rates = {}
+        # Load watched symbols from params
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "params_fr", os.path.join(HOME, "config/params.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        watched = set(getattr(mod, "ASTER_SYMBOLS", []) + getattr(mod, "BINANCE_SYMBOLS", []))
+        for item in raw:
+            sym = item.get("symbol", "")
+            if sym in watched:
+                rate = float(item.get("lastFundingRate", 0))
+                next_ts = int(item.get("nextFundingTime", 0))
+                rates[sym] = {
+                    "rate": round(rate * 100, 4),  # → percentage
+                    "next_time": datetime.fromtimestamp(next_ts / 1000, tz=HKT).strftime("%H:%M") if next_ts else "",
+                }
+        _funding_cache["data"] = rates
+        _funding_cache["ts"] = now
+        return rates
+    except Exception:
+        logging.warning("Failed to fetch funding rates")
+        return _funding_cache["data"]
 
 
 def parse_md(path):
@@ -1628,7 +1666,8 @@ def collect_data():
     # New: trade stats (from real exchange fills), drawdown, signal heatmap
     trade_stats = get_trade_stats(exchange_trades)
     drawdown = calc_drawdown(pnl_history, baseline.get("all_time_start", 0), live_bal)
-    signal_heatmap = get_signal_heatmap()
+    signal_heatmap = []  # removed — scan_log rotation causes incomplete data
+    funding_rates = get_funding_rates()
 
     return {
         "timestamp": ts,
@@ -1671,6 +1710,7 @@ def collect_data():
         "trade_stats": trade_stats,
         "drawdown": drawdown,
         "signal_heatmap": signal_heatmap,
+        "funding_rates": funding_rates,
         "demo_mode": False,
         "exchanges": exchange_data,
     }

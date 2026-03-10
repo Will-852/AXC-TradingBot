@@ -10,7 +10,7 @@ OpenClaw 係一個自動化加密貨幣交易系統，10 個 AI Agents 分工協
 
 ## 快速入門
 
-- [OpenClaw 係咩？](guides/01-what-is-openclaw.md)
+- [AXC 係咩？](guides/01-what-is-axc.md)
 - [系統運作流程](guides/02-how-it-works.md)
 - [儀表板各區域](guides/03-dashboard-guide.md)
 
