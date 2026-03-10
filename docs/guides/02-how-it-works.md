@@ -7,31 +7,47 @@ audience: human,claude,github
 
 # 系統運作流程
 
+## 兩套系統
+
+原始設計用 AI Agent Pipeline（掃描員→分析員→決策員→交易員），但已被 **trader_cycle 16 步 pipeline** 取代做交易決策。trader_cycle 係純 Python，零 AI cost。
+
 ```
-掃描員 ──→ 分析員 ──→ 決策員 ──→ 交易員
-  ↑                                        ↓
-心跳監察                           Telegram 通知你
+兩層掃描 ──→ trader_cycle 16 步 ──→ Telegram 通知
+  ↑                                         ↓
+心跳監察                              自動 SL/TP 管理
 
-新聞員 ──→ 情緒分析 ──→ 輔助判斷
+新聞員 ──→ 情緒分析 ──→ 輔助 trader_cycle 判斷
 ```
 
-## 角色分工
+## Trader Cycle 16 步（核心）
 
-| 角色 | 做咩 |
+| 步驟 | 做咩 |
 |------|------|
-| 掃描員 | 每 3 分鐘掃描市場，搵大波動 |
-| 分析員 | 計算技術指標（BB、ATR、支撐阻力） |
-| 決策員 | 綜合數據判斷入唔入場 |
-| 交易員 | 向交易所落盤、設止蝕止賺 |
-| 新聞員 | 抓取新聞、分析市場情緒 |
-| 心跳監察 | 每 25 分鐘確認所有服務正常 |
+| 1. LoadState | 讀 TRADE_STATE.md + 持倉狀態 |
+| 2. SafetyCheck | 熔斷器 + 冷卻期檢查 |
+| 3. NoTradeCheck | 成交量 / 資金費率 / 持倉上限 |
+| 4. FetchMarketData | ticker + funding（按幣種路由 Aster 或 Binance API） |
+| 5. CalcIndicators | 計算 4H + 1H 技術指標 |
+| 6. DetectMode | 5 票制判斷 RANGE / TREND |
+| 7-8. Strategy | Range 或 Trend 策略產生信號 |
+| 9. NewsFilter | 讀取新聞情緒 |
+| 10. EvaluateSignals | 評分 + 排名 + 選最佳信號 |
+| 11. PositionSizer | ATR-based SL/TP + Kelly-inspired sizing |
+| 12. AdjustPositions | 移動止蝕、TP 延伸、提前出場 |
+| 13. ExecuteTrade | 7 步下單流程 |
+| 14. ManagePositions | 超時平倉、資金費率檢查 |
+| 15. WriteState | 更新 TRADE_STATE.md + SCAN_CONFIG.md |
+| 16. SendAlerts | Telegram 通知 |
 
-## 自動化流程
+## 兩層掃描
 
-1. 掃描器偵測到幣種 24h 波動超過觸發門檻
-2. 分析員計算技術指標（BB 觸碰、RSI 反轉、S/R 位）
-3. 決策員檢查風控（連虧冷卻、熔斷、持倉上限）
-4. 通過風控後交易員向交易所下單
-5. 設好 SL（止蝕）和 TP（止賺）
-6. Telegram 通知你入場詳情
-7. 出場時再通知你盈虧結果
+| 層 | Script | 頻率 | 範圍 |
+|----|--------|------|------|
+| Layer 1 | async_scanner.py（常駐 daemon） | 9 exchanges × 20s = 180s 一輪 | 全部交易所 |
+| Layer 2 | light_scan.py（cron） | 每 3 分鐘 | Aster only（BTC/ETH/XRP/XAG/XAU） |
+
+## 平台路由
+
+market_data.py 會自動判斷幣種用邊個 API：
+- Aster pairs（BTC/ETH/XRP/XAG/XAU）→ Aster API
+- Binance pairs（BTC/ETH/SOL/POL）→ Binance API

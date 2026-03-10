@@ -17,12 +17,19 @@ audience: human,claude,github
 - 用 Telegram 通知你每一個動作
 - 新聞情緒分析，輔助判斷
 
-## 支持嘅幣種
+## 支持嘅幣種（7 pairs, 3 groups）
 
-| 交易所 | 幣種 |
-|--------|------|
-| Aster DEX | BTC, ETH, XRP, XAG, XAU |
-| Binance | BTC, ETH, SOL |
+| 幣種 | Aster | Binance | 組別 |
+|------|-------|---------|------|
+| BTCUSDT | ✅ | ✅ | crypto_correlated |
+| ETHUSDT | ✅ | ✅ | crypto_correlated |
+| SOLUSDT | — | ✅ | crypto_correlated |
+| XRPUSDT | ✅ | — | crypto_independent |
+| POLUSDT | — | ✅ | crypto_independent |
+| XAGUSDT | ✅ | — | commodity |
+| XAUUSDT | ✅ | — | commodity |
+
+每組最多 1 倉，最多 3 倉同時。
 
 ## 適合邊類用戶？
 

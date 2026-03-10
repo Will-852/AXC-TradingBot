@@ -11,12 +11,13 @@ audience: human,claude,github
 
 | 文件 | 寫入者 | 讀取者 |
 |------|--------|--------|
-| SIGNAL.md | aster_scanner | main, trader |
-| TRADE_STATE.md | aster_trader | main, dashboard |
-| SCAN_LOG.md | aster_scanner | dashboard |
+| SIGNAL.md | async_scanner / light_scan | trader_cycle |
+| TRADE_STATE.md | trader_cycle | main, dashboard |
+| SCAN_CONFIG.md | async_scanner + trader_cycle | dashboard |
+| SCAN_LOG.md | async_scanner / light_scan | dashboard |
 | prices_cache.json | async_scanner | dashboard, light_scan |
 | news_feed.json | news_scraper | news_sentiment |
-| news_sentiment.json | news_sentiment | trader_cycle |
+| news_sentiment.json | news_sentiment | trader_cycle (Step 9) |
 | activity_log.jsonl | write_activity | dashboard |
 | SYSTEM_STATUS.md | heartbeat | dashboard |
 
@@ -24,7 +25,7 @@ audience: human,claude,github
 
 ```
 ~/projects/axc-trading/
-├── openclaw.json          ← Gateway 設定（agents + 模型 + TG）
+├── openclaw.json          ← Gateway 設定（唔好動，放 ~/.openclaw/）
 ├── CLAUDE.md              ← Claude Code 入口
 ├── ai/                    ← AI 讀（CONTEXT / MEMORY / RULES / STRATEGY）
 ├── docs/                  ← 人類文件（setup / guides / architecture）
@@ -53,7 +54,7 @@ audience: human,claude,github
 | 倉位 | RISK_PER_TRADE_PCT | 2% |
 | 打法 | ACTIVE_PROFILE | AGGRESSIVE |
 | 幣種 | ASTER_SYMBOLS | BTC, ETH, XRP, XAG, XAU |
-| 幣種 | BINANCE_SYMBOLS | BTC, ETH, SOL |
+| 幣種 | BINANCE_SYMBOLS | BTC, ETH, SOL, POL |
 | 新聞 | NEWS_SCRAPE_INTERVAL_MIN | 15 分鐘 |
 
 改完 params.py 必須重啟相關服務先生效。

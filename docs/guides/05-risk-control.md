@@ -14,7 +14,7 @@ audience: human,claude,github
 | 機制 | 觸發條件 | 行為 |
 |------|----------|------|
 | 單筆熔斷 | 單倉虧損 ≥ 25% | 即時強制平倉 |
-| 日度熔斷 | 當日虧損 ≥ 15% | 停止當日所有交易 |
+| 日度熔斷 | 當日虧損 ≥ 20% | 停止當日所有交易 |
 | 連虧冷卻 | 連輸 2 次 | 暫停 30 分鐘 |
 | 重度冷卻 | 連輸 3 次 | 暫停 2 小時 |
 | 持倉上限 | 3 天未平倉 | 自動平倉（MAX_HOLD_HOURS=72） |
@@ -30,7 +30,7 @@ audience: human,claude,github
 | 參數 | 值 | 說明 |
 |------|-----|------|
 | CIRCUIT_BREAKER_SINGLE | 25% | 單倉虧損上限 |
-| CIRCUIT_BREAKER_DAILY | 15% | 日度虧損上限 |
+| CIRCUIT_BREAKER_DAILY | 20% | 日度虧損上限 |
 | COOLDOWN_2_LOSSES_MIN | 30 min | 連輸 2 次冷卻 |
 | COOLDOWN_3_LOSSES_MIN | 120 min | 連輸 3 次冷卻 |
 | MAX_HOLD_HOURS | 72 | 最長持倉時間 |
@@ -39,8 +39,19 @@ audience: human,claude,github
 | RANGE_MIN_RR / TREND | 2.3 / 3.0 | 最低風險回報比 |
 | REENTRY_SIZE_REDUCTION | 30% | 虧損後再入場縮減 |
 | ORDER_TIMEOUT_SEC | 300 | 未成交取消（5min） |
-| MAX_CRYPTO_POSITIONS | 2 | 加密貨幣同時持倉上限 |
-| MAX_XAG_POSITIONS | 1 | XAG 同時持倉上限 |
+| POSITION_GROUPS | 3 組 | 每組最多 1 倉（見下） |
+
+## 持倉分組（POSITION_GROUPS）
+
+取代舊嘅 MAX_CRYPTO_POSITIONS / MAX_XAG_POSITIONS（已成 dead code）。
+
+| 組別 | 幣種 | 最多倉位 |
+|------|------|----------|
+| crypto_correlated | BTC, ETH, SOL | 1 |
+| crypto_independent | XRP, POL | 1 |
+| commodity | XAG, XAU | 1 |
+
+同組幣種互斥：BTC 有倉就唔會開 ETH 或 SOL。最多同時 3 倉（每組各 1）。
 
 ## 常見問題
 

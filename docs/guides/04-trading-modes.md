@@ -9,13 +9,15 @@ audience: human,claude,github
 
 系統有三個交易模式，控制風險大小同觸發敏感度。
 
-## 模式比較
+## 三個打法 Profile
 
-| 模式 | 觸發門檻 | 風險 | 最多倉位 | 適合 |
-|------|----------|------|----------|------|
-| CONSERVATIVE | 3% | 低（1% risk） | 1 | 市場平靜 |
-| BALANCED | 2.5% | 中（2% risk） | 2 | 一般市況 |
-| AGGRESSIVE | 2% | 高（3% risk） | 3 | 市場活躍 |
+config/params.py 嘅 `ACTIVE_PROFILE` 控制交易風格。Profile 覆蓋 settings.py 嘅策略常數。
+
+| 打法 | Risk/Trade | SL (ATR) | Range R:R | Trend R:R | 適合 |
+|------|-----------|----------|-----------|-----------|------|
+| 穩 (CONSERVATIVE) | 1.5% | 1.5x | 2.5 | 3.5 | 市場平靜 |
+| 平 (BALANCED) | 2.0% | 1.2x | 2.3 | 3.0 | 一般市況 |
+| 攻 (AGGRESSIVE) | 2.5% | 1.0x | 2.0 | 2.5 | 市場活躍 |
 
 ## 點樣切換？
 
@@ -31,6 +33,13 @@ Telegram 指令：
 ## 注意事項
 
 揀定一個模式後，最少跑 30 次交易先換。頻繁切換令數據冇參考價值。
+
+## 持倉上限
+
+3 個組別，每組最多 1 倉：
+- **crypto_correlated**: BTC, ETH, SOL（互斥）
+- **crypto_independent**: XRP, POL（互斥）
+- **commodity**: XAG, XAU（互斥）
 
 ## 交易策略
 
