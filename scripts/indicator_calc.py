@@ -39,6 +39,7 @@ STOCH_D_SMOOTH = _params.STOCH_D_SMOOTH
 STOCH_OVERSOLD = _params.STOCH_OVERSOLD
 STOCH_OVERBOUGHT = _params.STOCH_OVERBOUGHT
 SR_PROXIMITY_TOL = _params.SR_PROXIMITY_TOL
+OBV_EMA_PERIOD = _params.OBV_EMA_PERIOD
 
 # ─── Exchange API bases ───
 API_BASE = "https://fapi.asterdex.com"
@@ -92,6 +93,13 @@ def calc_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return tv.rma(tr, period)
 
 
+def calc_obv(df: pd.DataFrame) -> pd.Series:
+    """OBV = 累計成交量，升加跌減。用於判斷資金流向。"""
+    close_diff = df["close"].diff()
+    direction = close_diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    return (df["volume"] * direction).cumsum()
+
+
 def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
     """計算所有指標，返回最新一行嘅結果"""
     close = df["close"]
@@ -130,6 +138,10 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
     except Exception:
         stoch_k = pd.Series([None] * len(close))
         stoch_d = pd.Series([None] * len(close))
+
+    # OBV + OBV EMA
+    obv = calc_obv(df)
+    obv_ema = tv.ema(obv, OBV_EMA_PERIOD)
 
     # MA50 / MA200（現有策略用）
     ma50 = tv.sma(close, 50) if len(close) >= 50 else pd.Series([None] * len(close))
@@ -199,6 +211,9 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         "macd_signal": safe_val(macd_signal, i),
         "macd_hist": safe_val(macd_hist, i),
         "macd_hist_prev": safe_val(macd_hist, i - 1),
+        # OBV
+        "obv": safe_val(obv, i),
+        "obv_ema": safe_val(obv_ema, i),
         # Support / Resistance（rolling）
         "rolling_low": safe_val(low.rolling(params["lookback_support"]).min(), i),
         "rolling_high": safe_val(high.rolling(params["lookback_support"]).max(), i),
@@ -210,9 +225,13 @@ def evaluate_range_signal(ind: dict, params: dict) -> dict:
     """評估 Range 入場信號"""
     signals = {"range_valid": False, "signal_long": 0, "signal_short": 0, "reasons": []}
 
-    # R0: BB 寬度
+    # R0: BB 寬度（上限：波動太大唔適合 Range；下限：squeeze 就嚟爆發）
+    squeeze_min = params.get("bb_width_squeeze", 0)
     if ind["bb_width"] is None or ind["bb_width"] >= BB_WIDTH_MIN:
-        signals["reasons"].append(f"R0_FAIL: bb_width={ind['bb_width']}")
+        signals["reasons"].append(f"R0_FAIL: bb_width={ind['bb_width']} >= {BB_WIDTH_MIN}")
+        return signals
+    if squeeze_min and ind["bb_width"] <= squeeze_min:
+        signals["reasons"].append(f"R0_SQUEEZE: bb_width={ind['bb_width']:.4f} <= {squeeze_min} (breakout imminent)")
         return signals
 
     # R1: ADX < threshold

@@ -144,7 +144,11 @@ class SelectSignalStep:
     name = "select_signal"
 
     # Priority order for tie-breaking
-    PAIR_PRIORITY = {"BTCUSDT": 4, "ETHUSDT": 3, "XRPUSDT": 2, "XAGUSDT": 1}
+    PAIR_PRIORITY = {
+        "BTCUSDT": 4, "ETHUSDT": 3, "SOLUSDT": 3,
+        "XRPUSDT": 2, "POLUSDT": 2,
+        "XAGUSDT": 1, "XAUUSDT": 1,
+    }
 
     def run(self, ctx: CycleContext) -> CycleContext:
         if not ctx.signals:

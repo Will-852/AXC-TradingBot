@@ -14,6 +14,7 @@ from ..config.settings import (
     TREND_RISK_PCT, TREND_LEVERAGE, TREND_SL_ATR_MULT, TREND_MIN_RR,
     BIAS_THRESHOLD, HKT, PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
     ENTRY_VOLUME_MIN, MACD_HIST_DECAY_THRESHOLD,
+    OBV_CONFIRM_BONUS, OBV_AGAINST_PENALTY,
 )
 from ..core.context import CycleContext, Signal
 from .base import StrategyBase, PositionParams
@@ -148,6 +149,10 @@ class TrendStrategy(StrategyBase):
         elif volume_ratio >= 1.5:
             vol_bonus = 0.5
 
+        # ─── OBV confirmation (Yunis Collection) ───
+        obv = ind_4h.get("obv")
+        obv_ema = ind_4h.get("obv_ema")
+
         # ─── Check LONG ───
         if long_count >= min_long and long_count > short_count:
             reasons = [f"LONG_TREND: {long_count}/4 KEY confirmed"]
@@ -158,6 +163,18 @@ class TrendStrategy(StrategyBase):
             if vol_bonus > 0:
                 reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
 
+            obv_adj = 0.0
+            if obv is not None and obv_ema is not None:
+                if obv > obv_ema:
+                    obv_adj = OBV_CONFIRM_BONUS
+                elif obv < obv_ema:
+                    obv_adj = OBV_AGAINST_PENALTY
+                if obv_adj != 0.0:
+                    obv_adj *= min(volume_ratio, 1.0)
+                    label = "OBV_CONFIRM" if obv_adj > 0 else "OBV_AGAINST"
+                    flow = "bullish" if obv > obv_ema else "bearish"
+                    reasons.append(f"  {label}: {obv_adj:+.2f} ({flow} flow, vol={volume_ratio:.2f})")
+
             base_score = 5.0 if long_count == 4 else 3.5
             return Signal(
                 pair=pair,
@@ -166,7 +183,7 @@ class TrendStrategy(StrategyBase):
                 strength="STRONG" if long_count == 4 else "BIAS",
                 entry_price=price_1h,
                 reasons=reasons,
-                score=base_score + vol_bonus,
+                score=base_score + vol_bonus + obv_adj,
             )
 
         # ─── Check SHORT ───
@@ -179,6 +196,18 @@ class TrendStrategy(StrategyBase):
             if vol_bonus > 0:
                 reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
 
+            obv_adj = 0.0
+            if obv is not None and obv_ema is not None:
+                if obv < obv_ema:
+                    obv_adj = OBV_CONFIRM_BONUS
+                elif obv > obv_ema:
+                    obv_adj = OBV_AGAINST_PENALTY
+                if obv_adj != 0.0:
+                    obv_adj *= min(volume_ratio, 1.0)
+                    label = "OBV_CONFIRM" if obv_adj > 0 else "OBV_AGAINST"
+                    flow = "bearish" if obv < obv_ema else "bullish"
+                    reasons.append(f"  {label}: {obv_adj:+.2f} ({flow} flow, vol={volume_ratio:.2f})")
+
             base_score = 5.0 if short_count == 4 else 3.5
             return Signal(
                 pair=pair,
@@ -187,7 +216,7 @@ class TrendStrategy(StrategyBase):
                 strength="STRONG" if short_count == 4 else "BIAS",
                 entry_price=price_1h,
                 reasons=reasons,
-                score=base_score + vol_bonus,
+                score=base_score + vol_bonus + obv_adj,
             )
 
         return None  # Not enough KEY conditions met

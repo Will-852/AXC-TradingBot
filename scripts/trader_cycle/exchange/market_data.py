@@ -1,6 +1,7 @@
 """
 market_data.py — Public market data fetching
 Imports from indicator_calc.py for indicator calculation
+Routes to Aster or Binance API per pair based on params.py symbol lists.
 """
 
 from __future__ import annotations
@@ -10,8 +11,10 @@ import sys
 import urllib.request
 import urllib.error
 
-from ..config.settings import ASTER_FAPI, API_TIMEOUT, PAIRS, PAIR_PREFIX, KLINE_LIMIT
-from ..config.settings import PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME
+from ..config.settings import (
+    ASTER_FAPI, BINANCE_FAPI, API_TIMEOUT, PAIRS, PAIR_PREFIX, KLINE_LIMIT,
+    PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME, ASTER_SYMBOLS,
+)
 from ..core.context import CycleContext, MarketSnapshot
 from ..core.pipeline import RecoverableError
 
@@ -33,6 +36,20 @@ def _fetch_json(url: str, timeout: int = API_TIMEOUT) -> dict:
         return {"error": str(e)}
 
 
+def _api_base(symbol: str) -> str:
+    """Route to Aster or Binance API based on symbol's exchange."""
+    if symbol in ASTER_SYMBOLS:
+        return ASTER_FAPI
+    return BINANCE_FAPI
+
+
+def _platform(symbol: str) -> str:
+    """Return platform name for fetch_klines()."""
+    if symbol in ASTER_SYMBOLS:
+        return "aster"
+    return "binance"
+
+
 class FetchMarketDataStep:
     """Step 4: Fetch live market data for all pairs."""
     name = "fetch_market_data"
@@ -42,15 +59,16 @@ class FetchMarketDataStep:
 
         for symbol in PAIRS:
             prefix = PAIR_PREFIX[symbol]
+            base = _api_base(symbol)
 
             # Ticker
-            ticker = _fetch_json(f"{ASTER_FAPI}/ticker/24hr?symbol={symbol}")
+            ticker = _fetch_json(f"{base}/ticker/24hr?symbol={symbol}")
             if "error" in ticker:
                 ctx.warnings.append(f"{symbol} ticker failed: {ticker['error']}")
                 continue
 
             # Funding
-            funding = _fetch_json(f"{ASTER_FAPI}/premiumIndex?symbol={symbol}")
+            funding = _fetch_json(f"{base}/premiumIndex?symbol={symbol}")
 
             snap = MarketSnapshot(
                 symbol=symbol,
@@ -93,8 +111,8 @@ class CalcIndicatorsStep:
                     if symbol in PRODUCT_OVERRIDES:
                         params.update(PRODUCT_OVERRIDES[symbol])
 
-                    # Fetch klines and calculate
-                    df = fetch_klines(symbol, timeframe, KLINE_LIMIT)
+                    # Fetch klines and calculate — route to correct exchange
+                    df = fetch_klines(symbol, timeframe, KLINE_LIMIT, platform=_platform(symbol))
                     indicators = calc_indicators(df, params)
 
                     # Also get volume average (last 30 candles vs last candle)

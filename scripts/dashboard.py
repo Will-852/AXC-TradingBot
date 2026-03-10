@@ -388,20 +388,68 @@ def get_live_trade_history():
         return _trade_history_cache["data"] or []
 
 
-def get_live_today_pnl():
-    """Get today's realized PnL from exchange income history."""
-    try:
-        client = _get_aster_client()
-        now = datetime.now(HKT)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        start_ms = int(today_start.timestamp() * 1000)
-        income = client.get_income(start_time=start_ms, limit=100)
-        realized = sum(float(e["income"]) for e in income if e["incomeType"] == "REALIZED_PNL")
-        funding = sum(float(e["income"]) for e in income if e["incomeType"] == "FUNDING_FEE")
-        commission = sum(float(e["income"]) for e in income if e["incomeType"] == "COMMISSION")
-        return {"realized": realized, "funding": funding, "commission": commission, "net": realized + funding + commission}
-    except Exception:
+def _get_exchange_income(start_time=None, end_time=None, limit=100):
+    """Query income from all connected exchanges. Returns summed totals.
+    Any single exchange failure logs warning but doesn't block others."""
+    exchanges = []
+    ak, asec = _get_aster_credentials()
+    if ak and asec:
+        exchanges.append(("Aster", _get_aster_client))
+    bk, bsec = _get_binance_credentials()
+    if bk and bsec:
+        exchanges.append(("Binance", _get_binance_client))
+    hpk, haddr = _get_hl_credentials()
+    if hpk and haddr:
+        exchanges.append(("HL", _get_hl_client))
+
+    if not exchanges:
         return None
+
+    total = {"realized": 0.0, "funding": 0.0, "commission": 0.0, "insurance": 0.0}
+    any_success = False
+    for name, get_client in exchanges:
+        try:
+            client = get_client()
+            kwargs = {"limit": limit}
+            if start_time is not None:
+                kwargs["start_time"] = start_time
+            if end_time is not None:
+                kwargs["end_time"] = end_time
+            income = client.get_income(**kwargs)
+            total["realized"] += sum(float(e["income"]) for e in income if e["incomeType"] == "REALIZED_PNL")
+            total["funding"] += sum(float(e["income"]) for e in income if e["incomeType"] == "FUNDING_FEE")
+            total["commission"] += sum(float(e["income"]) for e in income if e["incomeType"] == "COMMISSION")
+            total["insurance"] += sum(float(e["income"]) for e in income if e["incomeType"] == "INSURANCE_CLEAR")
+            any_success = True
+        except Exception:
+            logging.warning("Failed to get income from %s", name)
+
+    if not any_success:
+        return None
+    total["net"] = total["realized"] + total["funding"] + total["commission"] + total["insurance"]
+    return total
+
+
+def get_live_today_pnl():
+    """Get today's realized PnL from all connected exchanges."""
+    now = datetime.now(HKT)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_ms = int(today_start.timestamp() * 1000)
+    return _get_exchange_income(start_time=start_ms, limit=100)
+
+
+def _bootstrap_all_time_pnl():
+    """One-time pull of all historical income BEFORE today from all connected exchanges.
+    Used to seed all_time_realized when baseline has no such field.
+    Excludes today — today's PnL is added separately via today_net."""
+    today_start = datetime.now(HKT).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_ms = int(today_start.timestamp() * 1000)
+    result = _get_exchange_income(start_time=None, end_time=end_ms, limit=1000)
+    if result is None:
+        return 0.0
+    logging.info("Bootstrapped all-time realized PnL (excl today): %.4f (r=%.4f f=%.4f c=%.4f)",
+                 result["net"], result["realized"], result["funding"], result["commission"])
+    return result["net"]
 
 
 def parse_md(path):
@@ -527,6 +575,63 @@ def get_scan_log(n=10):
     with open(path) as f:
         lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
     return lines[-n:]
+
+
+_heatmap_cache = {"data": None, "ts": 0}
+_HEATMAP_CACHE_TTL = 120
+
+
+def get_signal_heatmap():
+    """Parse SCAN_LOG.md to build 7×24 signal frequency grid (weekday × hour).
+
+    Supports two log formats:
+    - New: [2026-03-10 16:38 UTC+8] LIGHT TRIGGER:...
+    - Old: 觸發  16:26  STRONG BTCUSDT@okx ...
+    Returns list of {day, hour, count} for non-zero cells.
+    """
+    global _heatmap_cache
+    now = time.time()
+    if now - _heatmap_cache["ts"] < _HEATMAP_CACHE_TTL and _heatmap_cache["data"] is not None:
+        return _heatmap_cache["data"]
+
+    path = os.path.join(HOME, "shared/SCAN_LOG.md")
+    if not os.path.exists(path):
+        return []
+
+    # 7 days × 24 hours grid
+    grid = [[0] * 24 for _ in range(7)]
+
+    # Only new format with full date is trustworthy for weekday×hour grid
+    # Old format (觸發 HH:MM ...) has no date — skipped to avoid false distribution
+    re_new = re.compile(r'^\[(\d{4}-\d{2}-\d{2})\s+(\d{2}):\d{2}.*\]\s+\w+\s+TRIGGER:')
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                m = re_new.match(line)
+                if m:
+                    try:
+                        dt = datetime.strptime(m.group(1), "%Y-%m-%d")
+                        weekday = dt.weekday()  # 0=Mon
+                        hour = int(m.group(2))
+                        grid[weekday][hour] += 1
+                    except ValueError:
+                        pass
+    except Exception:
+        pass
+
+    result = []
+    for day in range(7):
+        for hour in range(24):
+            result.append({"day": day, "hour": hour, "count": grid[day][hour]})
+
+    _heatmap_cache["data"] = result
+    _heatmap_cache["ts"] = now
+    return result
 
 
 def get_activity_log(n: int = 50) -> list:
@@ -726,12 +831,11 @@ def get_trigger_summary():
                 if m_asset:
                     asset = m_asset.group(1)
                     by_asset[asset] = by_asset.get(asset, 0) + 1
-                m_reason = re.search(r'REASON:(\w+?)_[+-]', line)
+                m_reason = re.search(r'REASON:(\S+)', line)
                 if m_reason:
-                    reason = m_reason.group(1)
-                    by_reason[reason] = by_reason.get(reason, 0) + 1
-                elif re.search(r'REASON:(\w+)', line):
-                    reason = re.search(r'REASON:(\w+)', line).group(1)
+                    raw_reason = m_reason.group(1)
+                    # Strip numeric suffix (e.g. _5.0pct, _3, _+2.1) and sign suffixes
+                    reason = re.sub(r'_[+-]?[\d.]+\w*$', '', raw_reason)
                     by_reason[reason] = by_reason.get(reason, 0) + 1
     asset_list = sorted(
         [{"name": k, "count": v} for k, v in by_asset.items()],
@@ -967,7 +1071,54 @@ def get_trade_history():
     return trades[-10:]
 
 
-def get_risk_status():
+def get_trade_stats(exchange_trades=None):
+    """Aggregate win/loss stats from REAL exchange fills (API data).
+
+    Uses exchange_trades (from get_live_trade_history) — fills with non-zero
+    realizedPnl represent closing trades. This is the only trustworthy source.
+    Returns: {total, wins, losses, win_rate, avg_win, avg_loss, profit_factor, source}
+    """
+    empty = {"total": 0, "wins": 0, "losses": 0, "win_rate": 0,
+             "avg_win": 0, "avg_loss": 0, "profit_factor": 0, "source": "exchange_api"}
+
+    if not exchange_trades:
+        return empty
+
+    # Non-zero realizedPnl = closing fill (actual profit/loss event)
+    closed_pnls = []
+    for t in exchange_trades:
+        rpnl = float(t.get("realizedPnl", 0))
+        if rpnl != 0:
+            closed_pnls.append(rpnl)
+
+    if not closed_pnls:
+        return empty
+
+    wins = [p for p in closed_pnls if p > 0]
+    losses = [p for p in closed_pnls if p < 0]
+    total = len(closed_pnls)
+    win_count = len(wins)
+    loss_count = len(losses)
+    win_rate = round(win_count / total * 100, 1) if total > 0 else 0
+    avg_win = round(sum(wins) / win_count, 2) if wins else 0
+    avg_loss = round(sum(losses) / loss_count, 2) if losses else 0
+    gross_win = sum(wins)
+    gross_loss = abs(sum(losses))
+    profit_factor = round(gross_win / gross_loss, 2) if gross_loss > 0 else 0
+
+    return {
+        "total": total,
+        "wins": win_count,
+        "losses": loss_count,
+        "win_rate": win_rate,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+        "profit_factor": profit_factor,
+        "source": "exchange_api",
+    }
+
+
+def get_risk_status(live_balance=None):
     """Read risk parameters dynamically from settings.py + TRADE_STATE.md. Zero hardcoded values."""
     import importlib.util
     # Load settings.py via importlib
@@ -996,12 +1147,16 @@ def get_risk_status():
         cons_losses = int(trade_state.get("CONSECUTIVE_LOSSES", "0"))
     except (ValueError, TypeError):
         pass
-    balance = 0.0
-    try:
-        balance = float(trade_state.get("BALANCE_USDT",
-                        trade_state.get("ACCOUNT_BALANCE", "0")))
-    except (ValueError, TypeError):
-        pass
+    # Prefer live API balance over TRADE_STATE for max_daily_loss calculation
+    if live_balance and live_balance > 0:
+        balance = live_balance
+    else:
+        balance = 0.0
+        try:
+            balance = float(trade_state.get("BALANCE_USDT",
+                            trade_state.get("ACCOUNT_BALANCE", "0")))
+        except (ValueError, TypeError):
+            pass
     max_daily_loss = round(balance * circuit_daily, 2) if circuit_daily else 0
     daily_loss = 0.0
     dl_str = trade_state.get("DAILY_LOSS", "0")
@@ -1027,13 +1182,15 @@ def get_risk_status():
     }
 
 
-def get_balance_baseline(current_balance):
+def get_balance_baseline(current_balance, fee_breakdown=None):
     """Get or create balance baseline. Resets start_of_day on new day.
-    Returns {"today_pnl": float, "total_pnl": float, "start_of_day": float, "all_time_start": float}."""
+    Tracks cumulative fees + all_time_realized (from exchange income API).
+    total_pnl is realized-based — immune to deposits/withdrawals."""
     try:
         bal = float(current_balance)
     except (ValueError, TypeError):
-        return {"today_pnl": 0, "total_pnl": 0, "start_of_day": 0, "all_time_start": 0}
+        return {"today_pnl": 0, "total_pnl": 0, "start_of_day": 0, "all_time_start": 0,
+                "cumulative_fees": {"realized": 0, "funding": 0, "commission": 0}}
 
     today = datetime.now(HKT).strftime("%Y-%m-%d")
     data = None
@@ -1044,30 +1201,83 @@ def get_balance_baseline(current_balance):
         except Exception:
             data = None
 
+    dirty = False
     if data is None:
-        # First ever call — create baseline
-        data = {"start_of_day": bal, "date": today, "all_time_start": bal}
-        with open(BALANCE_BASELINE_PATH, "w") as f:
-            json.dump(data, f)
-    elif data.get("date") != today:
-        # New day — roll start_of_day to current balance
-        data["start_of_day"] = bal
-        data["date"] = today
-        with open(BALANCE_BASELINE_PATH, "w") as f:
-            json.dump(data, f)
+        # First ever call — create baseline + bootstrap realized PnL from API
+        bootstrapped = _bootstrap_all_time_pnl()
+        data = {"start_of_day": bal, "date": today, "all_time_start": bal,
+                "all_time_realized": bootstrapped,
+                "cumulative_fees": {"realized": 0, "funding": 0, "commission": 0, "insurance": 0},
+                "yesterday_fees": {"realized": 0, "funding": 0, "commission": 0, "insurance": 0}}
+        dirty = True
+    else:
+        # Migration: seed all_time_realized if missing from existing baseline
+        if "all_time_realized" not in data:
+            data["all_time_realized"] = _bootstrap_all_time_pnl()
+            dirty = True
+
+        if data.get("date") != today:
+            # New day — roll. Accumulate yesterday's fees into cumulative totals.
+            cum = data.get("cumulative_fees", {"realized": 0, "funding": 0, "commission": 0, "insurance": 0})
+            yest = data.get("yesterday_fees", {"realized": 0, "funding": 0, "commission": 0, "insurance": 0})
+            yesterday_net = 0.0
+            for k in ("realized", "funding", "commission", "insurance"):
+                val = round(yest.get(k, 0), 4)
+                cum[k] = round(cum.get(k, 0) + val, 4)
+                yesterday_net += val
+            data["cumulative_fees"] = cum
+            data["all_time_realized"] = round(data.get("all_time_realized", 0) + yesterday_net, 4)
+            data["yesterday_fees"] = {"realized": 0, "funding": 0, "commission": 0, "insurance": 0}
+            data["start_of_day"] = bal
+            data["date"] = today
+            dirty = True
+
+    # Update yesterday_fees with current day's fee breakdown (overwrite, not accumulate)
+    if fee_breakdown:
+        data["yesterday_fees"] = {
+            "realized": fee_breakdown.get("realized", 0),
+            "funding": fee_breakdown.get("funding", 0),
+            "commission": fee_breakdown.get("commission", 0),
+            "insurance": fee_breakdown.get("insurance", 0),
+        }
+        dirty = True
+
+    if dirty:
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(BALANCE_BASELINE_PATH),
+                                          delete=False, suffix='.tmp')
+        json.dump(data, tmp)
+        tmp.close()
+        os.replace(tmp.name, BALANCE_BASELINE_PATH)
 
     today_pnl = round(bal - data["start_of_day"], 2)
-    total_pnl = round(bal - data["all_time_start"], 2)
+
+    # total_pnl = all_time_realized + today's running net (realized-based, not balance delta)
+    today_net = 0.0
+    if fee_breakdown:
+        for k in ("realized", "funding", "commission", "insurance"):
+            today_net += fee_breakdown.get(k, 0)
+    total_pnl = round(data.get("all_time_realized", 0) + today_net, 2)
+
+    # Total cumulative = stored cumulative + today's running fees
+    cum = data.get("cumulative_fees", {"realized": 0, "funding": 0, "commission": 0, "insurance": 0})
+    today_fees = data.get("yesterday_fees", {"realized": 0, "funding": 0, "commission": 0, "insurance": 0})
+    total_fees = {}
+    for k in ("realized", "funding", "commission", "insurance"):
+        total_fees[k] = round(cum.get(k, 0) + today_fees.get(k, 0), 4)
+
     return {
         "today_pnl": today_pnl,
         "total_pnl": total_pnl,
         "start_of_day": data["start_of_day"],
         "all_time_start": data["all_time_start"],
+        "cumulative_fees": total_fees,
     }
 
 
-def update_pnl_history(balance):
-    """Track PnL history for sparkline chart."""
+
+def update_pnl_history_verified(today_pnl):
+    """Track PnL history using verified today_pnl value (from fee_breakdown.net)."""
     data = {"history": []}
     if os.path.exists(PNL_HISTORY_PATH):
         try:
@@ -1075,13 +1285,8 @@ def update_pnl_history(balance):
                 data = json.load(f)
         except Exception:
             data = {"history": []}
-    try:
-        bal = float(balance)
-    except (ValueError, TypeError):
-        return data.get("history", [])
-    baseline = get_balance_baseline(bal)
     now = int(time.time())
-    pnl = baseline["today_pnl"]
+    pnl = round(today_pnl, 2)
     hist = data.get("history", [])
     if hist and now - hist[-1]["t"] < 30:
         hist[-1] = {"t": now, "v": pnl}
@@ -1096,7 +1301,120 @@ def update_pnl_history(balance):
     return data["history"]
 
 
+def calc_drawdown(pnl_history, all_time_start, current_balance):
+    """Calculate current and max drawdown.
+
+    Uses current_balance (real account value) for current drawdown instead of
+    pnl_history last entry, because pnl_history tracks today_pnl which resets
+    daily — causing cross-day drawdown to be invisible.
+
+    peak_value is still derived from pnl_history max + all_time_start (best
+    available estimate of historical peak account value).
+    """
+    empty = {"current_dd": 0, "current_dd_pct": 0, "max_dd": 0, "max_dd_pct": 0, "peak_value": 0}
+    if all_time_start <= 0:
+        return empty
+
+    # Peak account value = initial balance + highest recorded PnL snapshot
+    peak_pnl = 0.0
+    if pnl_history:
+        for point in pnl_history:
+            v = point.get("v", 0)
+            if v > peak_pnl:
+                peak_pnl = v
+
+    peak_value = round(all_time_start + peak_pnl, 2)
+
+    # Current drawdown: use REAL balance, not pnl_history last entry
+    current_dd = max(peak_value - current_balance, 0)
+    # Max drawdown: larger of historical intra-day max or current real drawdown
+    # (intra-day max from pnl_history may undercount cross-day drops)
+    intraday_max_dd = 0.0
+    if pnl_history:
+        running_peak = 0.0
+        for point in pnl_history:
+            v = point.get("v", 0)
+            if v > running_peak:
+                running_peak = v
+            dd = running_peak - v
+            if dd > intraday_max_dd:
+                intraday_max_dd = dd
+    max_dd = max(current_dd, intraday_max_dd)
+
+    return {
+        "current_dd": round(current_dd, 2),
+        "current_dd_pct": round(current_dd / peak_value * 100, 2) if peak_value > 0 else 0,
+        "max_dd": round(max_dd, 2),
+        "max_dd_pct": round(max_dd / peak_value * 100, 2) if peak_value > 0 else 0,
+        "peak_value": peak_value,
+    }
+
+
 PRICES_CACHE_PATH = os.path.join(HOME, "shared/prices_cache.json")
+_4h_cache = {"data": {}, "ts": 0}
+_4H_CACHE_TTL = 120  # seconds
+
+
+# API bases for kline fetching
+_KLINE_API = {
+    "binance": "https://fapi.binance.com",
+    "aster": "https://fapi.asterdex.com",
+}
+# Symbols only on Aster (not Binance Futures)
+_ASTER_ONLY = {"XAGUSDT", "XAUUSDT"}
+
+
+def _fetch_kline_change(symbol, interval="4h"):
+    """Fetch kline from appropriate exchange for a single symbol.
+    Returns (symbol, interval, pct_change) or None."""
+    base = _KLINE_API["aster"] if symbol in _ASTER_ONLY else _KLINE_API["binance"]
+    url = f"{base}/fapi/v1/klines?symbol={symbol}&interval={interval}&limit=2"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if len(data) >= 1:
+                candle = data[-1]  # current (incomplete) candle for real-time feel
+                open_price = float(candle[1])
+                close_price = float(candle[4])
+                if open_price > 0:
+                    return round((close_price - open_price) / open_price * 100, 2)
+    except Exception:
+        pass
+    return None
+
+
+def get_multi_interval_changes(symbols):
+    """Get 4H + 1H + 24H change for all symbols. 120s cache, concurrent fetching.
+    Returns {symbol: {"4h": pct, "1h": pct, "24h": pct}}."""
+    global _4h_cache
+    now = time.time()
+    if now - _4h_cache["ts"] < _4H_CACHE_TTL and _4h_cache["data"]:
+        return _4h_cache["data"]
+
+    intervals = ["1h", "4h"]
+    result = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {}
+        for sym in symbols:
+            for iv in intervals:
+                futures[pool.submit(_fetch_kline_change, sym, iv)] = (sym, iv)
+        for fut in as_completed(futures):
+            sym, iv = futures[fut]
+            try:
+                val = fut.result(timeout=8)
+                if val is not None:
+                    if sym not in result:
+                        result[sym] = {}
+                    result[sym][iv] = val
+            except Exception:
+                pass
+
+    _4h_cache["data"] = result
+    _4h_cache["ts"] = now
+    return result
+
+
 _action_cache = {"data": [], "ts": 0}
 
 
@@ -1120,6 +1438,16 @@ def get_action_plan(scan_config, trade_state):
         ))
         active_profile = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
         profiles = getattr(mod, "TRADING_PROFILES", {})
+        # Trader PAIRS = actually tradeable symbols (from trader_cycle settings)
+        try:
+            spec_tc = importlib.util.spec_from_file_location(
+                "settings_ap", os.path.join(HOME, "scripts/trader_cycle/config/settings.py")
+            )
+            mod_tc = importlib.util.module_from_spec(spec_tc)
+            spec_tc.loader.exec_module(mod_tc)
+            trader_pairs = set(getattr(mod_tc, "PAIRS", []))
+        except Exception:
+            trader_pairs = set()
     except Exception:
         return _action_cache["data"]
 
@@ -1137,6 +1465,10 @@ def get_action_plan(scan_config, trade_state):
 
     consecutive = int(trade_state.get("consecutive_losses", 0))
 
+    # Fetch 4H changes (cached, concurrent)
+    # Fetch multi-interval changes (1H + 4H) for all symbols
+    interval_changes = get_multi_interval_changes(all_symbols)
+
     plans = []
     for sym in all_symbols:
         short = sym.replace("USDT", "")
@@ -1145,7 +1477,11 @@ def get_action_plan(scan_config, trade_state):
         if price <= 0:
             continue
 
-        change = abs(float(data.get("change", 0)))
+        # Scanner platforms write inconsistent formats:
+        # bitget/mexc → fraction (0.043 = 4.3%), aster → percentage (4.3)
+        # Auto-detect: for BTC/ETH/XRP/XAG/SOL, <0.5 raw value is always a fraction
+        change_raw = abs(float(data.get("change", 0)))
+        change = change_raw * 100 if 0 < change_raw < 0.5 else change_raw
         atr = float(scan_config.get(f"{short}_ATR", 0))
         support = float(scan_config.get(f"{short}_support", 0))
         resistance = float(scan_config.get(f"{short}_resistance", 0))
@@ -1165,6 +1501,8 @@ def get_action_plan(scan_config, trade_state):
         # Global blocker
         blocker = f"連虧 {consecutive}" if consecutive >= 2 else None
 
+        is_tradeable = sym in trader_pairs
+
         plans.append({
             "symbol": sym, "price": price,
             "change_pct": round(change, 2),
@@ -1179,6 +1517,9 @@ def get_action_plan(scan_config, trade_state):
             "tp_long": round(price + tp_dist, 6) if tp_dist else None,
             "tp_short": round(price - tp_dist, 6) if tp_dist else None,
             "sl_pct": round(sl_dist / price * 100, 2) if sl_dist else None,
+            "tp_pct": round(tp_dist / price * 100, 2) if tp_dist else None,
+            "changes": interval_changes.get(sym, {}),
+            "tradeable": is_tradeable,
         })
     _action_cache["data"] = plans
     _action_cache["ts"] = now
@@ -1227,13 +1568,17 @@ def collect_data():
     live_positions = _aster_data.get("positions", []) if _aster_data else get_live_positions()
     has_position = len(live_positions) > 0
 
-    # Balance baseline for PnL (single source of truth: balance delta)
-    baseline = get_balance_baseline(live_bal)
-    today_pnl = baseline["today_pnl"]
-    pnl_history = update_pnl_history(live_bal)
+    # Balance baseline for PnL
+    # Today fee breakdown from exchange income API (verified source)
+    fee_breakdown_raw = get_live_today_pnl()
+    fee_breakdown = fee_breakdown_raw or {"realized": 0, "funding": 0, "commission": 0, "net": 0}
 
-    # Today fee breakdown from exchange income API
-    fee_breakdown = get_live_today_pnl() or {"realized": 0, "funding": 0, "commission": 0, "net": 0}
+    # Balance baseline + cumulative fee tracking
+    baseline = get_balance_baseline(live_bal, fee_breakdown if fee_breakdown_raw else None)
+
+    # today_pnl: use verified source when API succeeded, fallback to balance delta when API failed
+    today_pnl = fee_breakdown["net"] if fee_breakdown_raw is not None else baseline["today_pnl"]
+    pnl_history = update_pnl_history_verified(today_pnl)
 
     # Unrealized PnL from live positions
     unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 2)
@@ -1280,6 +1625,11 @@ def collect_data():
     # Exchange trade history (real fills from API)
     exchange_trades = get_live_trade_history()
 
+    # New: trade stats (from real exchange fills), drawdown, signal heatmap
+    trade_stats = get_trade_stats(exchange_trades)
+    drawdown = calc_drawdown(pnl_history, baseline.get("all_time_start", 0), live_bal)
+    signal_heatmap = get_signal_heatmap()
+
     return {
         "timestamp": ts,
         "balance": live_bal,
@@ -1311,12 +1661,16 @@ def collect_data():
         "pnl_history": pnl_history,
         "trade_history": trades,
         "exchange_trades": exchange_trades,
-        "risk_status": get_risk_status(),
+        "risk_status": get_risk_status(live_bal),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
         "fee_breakdown": fee_breakdown,
+        "cumulative_fees": baseline.get("cumulative_fees", {}),
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
         "activity_log": get_activity_log(50),
+        "trade_stats": trade_stats,
+        "drawdown": drawdown,
+        "signal_heatmap": signal_heatmap,
         "demo_mode": False,
         "exchanges": exchange_data,
     }
@@ -1399,6 +1753,152 @@ def handle_set_trading(body):
             f.write(content)
         return 200, {"ok": True, "enabled": enabled}
     except Exception as e:
+        return 500, {"error": str(e)}
+
+
+def handle_close_position(body):
+    """POST /api/close-position — market close a position via dashboard.
+    Reuses _get_*_client() + client.close_position_market(symbol).
+    Server binds 127.0.0.1 only; frontend enforces confirmation modal.
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return 400, {"error": "Invalid JSON"}
+
+    symbol = (data.get("symbol") or "").upper().strip()
+    platform = (data.get("platform") or "").lower().strip()
+
+    if not symbol or not symbol.endswith("USDT"):
+        return 400, {"error": f"Invalid symbol: {symbol}"}
+    if platform not in ("aster", "binance", "hyperliquid"):
+        return 400, {"error": f"Invalid platform: {platform}"}
+
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+    try:
+        client = client_fns[platform]()
+        result = client.close_position_market(symbol)
+        logging.info("Dashboard close-position: %s %s → %s", platform, symbol, result)
+        return 200, {"ok": True, "result": result}
+    except Exception as e:
+        logging.error("Dashboard close-position failed: %s %s → %s", platform, symbol, e)
+        return 500, {"error": str(e)}
+
+
+def handle_modify_sltp(body):
+    """POST /api/modify-sltp — cancel+recreate SL/TP orders for a position.
+    Same cancel+recreate pattern as tg_bot move_sl_to_entry and adjust_positions trailing SL.
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return 400, {"error": "Invalid JSON"}
+
+    symbol = (data.get("symbol") or "").upper().strip()
+    platform = (data.get("platform") or "").lower().strip()
+    try:
+        sl_price = float(data.get("sl_price") or 0)
+        tp_price = float(data.get("tp_price") or 0)
+    except (ValueError, TypeError):
+        return 400, {"error": "SL/TP 價格必須為數字"}
+
+    if not symbol or not symbol.endswith("USDT"):
+        return 400, {"error": f"Invalid symbol: {symbol}"}
+    if platform not in ("aster", "binance", "hyperliquid"):
+        return 400, {"error": f"Invalid platform: {platform}"}
+    if sl_price <= 0 and tp_price <= 0:
+        return 400, {"error": "至少提供一個 SL 或 TP 價格"}
+
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+    try:
+        client = client_fns[platform]()
+
+        # 1. Get position to determine side + qty
+        positions = client.get_positions(symbol)
+        pos = next((p for p in positions if float(p.get("positionAmt", 0)) != 0), None)
+        if not pos:
+            return 400, {"error": f"{symbol} 無持倉"}
+
+        amt = float(pos["positionAmt"])
+        direction = "LONG" if amt > 0 else "SHORT"
+        close_side = "SELL" if direction == "LONG" else "BUY"
+        qty = abs(amt)
+
+        results = {}
+        warnings = []
+
+        # Helper: classify order as "sl"/"tp"/None across Aster/Binance + HL formats
+        def _order_kind(o):
+            otype = o.get("type", "")
+            if otype == "STOP_MARKET":
+                return "sl"
+            if otype == "TAKE_PROFIT_MARKET":
+                return "tp"
+            # HL format: orderType contains "Stop Market" / "Take Profit"
+            if not otype and o.get("coin"):
+                hl_type = o.get("orderType", "").lower()
+                if "stop" in hl_type:
+                    return "sl"
+                if "take" in hl_type:
+                    return "tp"
+            return None
+
+        def _order_id(o):
+            return str(o.get("orderId", o.get("oid", "")))
+
+        # Fetch orders once if either SL or TP needs modification
+        orders = client.get_open_orders(symbol) if (sl_price > 0 or tp_price > 0) else []
+
+        # 2. Modify SL if provided
+        if sl_price > 0:
+            for o in orders:
+                if _order_kind(o) == "sl":
+                    try:
+                        client.cancel_order(symbol, _order_id(o))
+                    except Exception as e:
+                        logging.warning("Cancel SL order %s failed: %s", _order_id(o), e)
+            try:
+                client.create_stop_market(symbol, close_side, qty, sl_price)
+                results["sl"] = sl_price
+                logging.info("Dashboard modify SL: %s %s → %s", platform, symbol, sl_price)
+            except Exception as e:
+                warnings.append(f"SL 設置失敗: {e}")
+                logging.error("Dashboard create SL failed: %s %s → %s", platform, symbol, e)
+
+        # 3. Modify TP if provided
+        if tp_price > 0:
+            for o in orders:
+                if _order_kind(o) == "tp":
+                    try:
+                        client.cancel_order(symbol, _order_id(o))
+                    except Exception as e:
+                        logging.warning("Cancel TP order %s failed: %s", _order_id(o), e)
+            try:
+                client.create_take_profit_market(symbol, close_side, qty, tp_price)
+                results["tp"] = tp_price
+                logging.info("Dashboard modify TP: %s %s → %s", platform, symbol, tp_price)
+            except Exception as e:
+                warnings.append(f"TP 設置失敗: {e}")
+                logging.error("Dashboard create TP failed: %s %s → %s", platform, symbol, e)
+
+        if not results and warnings:
+            return 500, {"error": "; ".join(warnings)}
+
+        resp = {"ok": True, "results": results}
+        if warnings:
+            resp["warnings"] = warnings
+        return 200, resp
+
+    except Exception as e:
+        logging.error("Dashboard modify-sltp failed: %s %s → %s", platform, symbol, e)
         return 500, {"error": str(e)}
 
 
@@ -2227,6 +2727,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/hl/disconnect":
             code, data = handle_hl_disconnect()
+            self._json_response(code, data)
+        elif self.path == "/api/close-position":
+            code, data = handle_close_position(body)
+            self._json_response(code, data)
+        elif self.path == "/api/modify-sltp":
+            code, data = handle_modify_sltp(body)
             self._json_response(code, data)
         else:
             self._json_response(404, {"error": "Not found"})

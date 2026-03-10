@@ -1,0 +1,4 @@
+{"symbol": "ETHUSDT", "side": "SHORT", "entry": 2968.71, "exit": 2891.76281, "pnl": 721.06, "sl_price": 2999.488876, "ts": "2025-12-23 20:00:00", "closed": true}
+{"symbol": "ETHUSDT", "side": "SHORT", "entry": 2972.92, "exit": 2898.560107, "pnl": 720.01, "sl_price": 3002.663957, "ts": "2025-12-23 21:00:00", "closed": true}
+{"symbol": "ETHUSDT", "side": "SHORT", "entry": 2959.86, "exit": 2989.649383, "pnl": -329.81, "sl_price": 2989.649383, "ts": "2025-12-23 22:00:00", "closed": true}
+{"symbol": "ETHUSDT", "side": "LONG", "entry": 1942.11, "exit": 1931.252606, "pnl": -392.96, "sl_price": 1931.252606, "ts": "2026-02-22 18:00:00", "closed": true}

@@ -1,5 +1,5 @@
 # 加幣種操作指南
-> 最後更新：2026-03-05
+> 最後更新：2026-03-10
 
 ## 重要：修改後必須重啟
 
@@ -17,40 +17,90 @@ sleep 5 && cat ~/projects/axc-trading/logs/scanner_heartbeat.txt
 
 ---
 
-## Aster DEX 加幣種
+## 完整加幣種 Checklist（7 步）
 
+加一個新幣種需要改以下 7 個位置。漏任何一個 = 靜默缺失。
+
+### Step 1: `config/params.py` — 掃描入口
+根據交易所加到對應 list：
 ```python
-# ~/projects/axc-trading/config/params.py
-
-ASTER_SYMBOLS = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "XRPUSDT",
-    "XAGUSDT",
-    "SOLUSDT",   # <- 加呢行
-]
+ASTER_SYMBOLS = ["BTCUSDT", ..., "新幣USDT"]     # Aster DEX
+BINANCE_SYMBOLS = ["BTCUSDT", ..., "新幣USDT"]   # Binance Futures
+HL_SYMBOLS = ["BTCUSDT", ..., "新幣USDT"]        # HyperLiquid
 ```
 
-儲存 → 重啟掃描器 → 確認：
-
-```bash
-sleep 10 && grep "SOLUSDT" ~/projects/axc-trading/shared/SCAN_LOG.md
+### Step 2: `scripts/trader_cycle/config/pairs.py` — 交易對定義
+```python
+"新幣USDT": PairConfig(
+    symbol="新幣USDT", prefix="新幣",
+    group="crypto_independent",       # 揀組：crypto_correlated / crypto_independent / commodity
+    price_precision=4, qty_precision=0,  # 用 Binance exchangeInfo 確認
+    notes="描述",
+),
 ```
+
+### Step 3: `scripts/trader_cycle/config/settings.py` — 三個位
+```python
+# 3a: PAIRS + PAIR_PREFIX
+PAIRS = [..., "新幣USDT"]
+PAIR_PREFIX = {..., "新幣USDT": "新幣"}
+
+# 3b: POSITION_GROUPS（加到對應嘅組）
+POSITION_GROUPS = {
+    "crypto_correlated": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    "crypto_independent": ["XRPUSDT", "POLUSDT", "新幣USDT"],  # <- 加呢度
+    "commodity": ["XAGUSDT", "XAUUSDT"],
+}
+
+# 3c: TRADER_OWNED_FIELDS（加 ATR + S/R + zone）
+"新幣_ATR",
+"新幣_support", "新幣_resistance",
+"新幣_support_zone", "新幣_resistance_zone",
+```
+
+### Step 4: `scripts/trader_cycle/strategies/evaluate.py` — 信號優先級
+```python
+PAIR_PRIORITY = {
+    ...,
+    "新幣USDT": 2,  # 優先級：BTC=4, ETH/SOL=3, XRP/POL=2, XAG/XAU=1
+}
+```
+
+### Step 5: `scripts/light_scan.py` — 輕量掃描（只限 Aster 幣種）
+```python
+PAIRS = [..., "新幣USDT"]
+PAIR_PREFIX = {..., "新幣USDT": "新幣"}
+```
+⚠️ 只加 Aster 幣種。Binance 幣種由 async_scanner 負責。
+
+### Step 6: `scripts/slash_cmd.py` — `/price` 指令（只限 Aster 幣種）
+```python
+for pair in ["BTCUSDT", ..., "新幣USDT"]:
+```
+⚠️ 同 Step 5，只加 Aster 幣種。
+
+### Step 7: `agents/aster_scanner/workspace/SOUL.md` — Agent 文檔（只限 Aster 幣種）
+加一行到 pair 表格 + 更新 `skills/scan-rules/SKILL.md`。
+
+---
+
+## 當前幣種一覽
+
+| 幣種 | Aster | Binance | HL | 組 |
+|------|-------|---------|----|----|
+| BTCUSDT | ✅ | ✅ | ✅ | crypto_correlated |
+| ETHUSDT | ✅ | ✅ | ✅ | crypto_correlated |
+| SOLUSDT | - | ✅ | ✅ | crypto_correlated |
+| XRPUSDT | ✅ | - | - | crypto_independent |
+| POLUSDT | - | ✅ | - | crypto_independent |
+| XAGUSDT | ✅ | - | - | commodity |
+| XAUUSDT | ✅ | - | - | commodity |
 
 ---
 
 ## 幣種代碼格式
 
-| 加咩 | 代碼 |
-|------|------|
-| 比特幣 | `BTCUSDT` |
-| 以太幣 | `ETHUSDT` |
-| 白銀 | `XAGUSDT` |
-| Solana | `SOLUSDT` |
-| BNB | `BNBUSDT` |
-| XRP | `XRPUSDT` |
-
-格式：幣種縮寫 + USDT，全大楷。
+格式：幣種縮寫 + USDT，全大楷。例：`BTCUSDT`, `POLUSDT`
 
 ---
 
@@ -64,17 +114,7 @@ ASTER_SYMBOLS = [
 ]
 ```
 
----
-
-## Binance 幣種（整合後）
-
-```python
-BINANCE_SYMBOLS = [
-    "SOLUSDT",
-]
-```
-
-同一幣種可以同時喺兩個平台掃。結果自動標示 `@aster` / `@binance`。
+⚠️ 移除都要改同樣嘅 7 個位。
 
 ---
 

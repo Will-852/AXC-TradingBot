@@ -14,6 +14,7 @@ from ..config.settings import (
     RANGE_RISK_PCT, RANGE_LEVERAGE, RANGE_SL_ATR_MULT, RANGE_MIN_RR,
     SECONDARY_TIMEFRAME, PRIMARY_TIMEFRAME,
     ENTRY_VOLUME_MIN,
+    OBV_CONFIRM_BONUS, OBV_AGAINST_PENALTY,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
@@ -97,6 +98,10 @@ class RangeStrategy(StrategyBase):
         elif volume_ratio >= 1.5:
             vol_bonus = 0.5
 
+        # ─── OBV confirmation (Yunis Collection) ───
+        obv = ind_4h.get("obv")
+        obv_ema = ind_4h.get("obv_ema")
+
         # ─── LONG signal ───
         if result["signal_long"] == 1:
             strength = "STRONG" if any("STRONG" in r for r in result["reasons"]) else "WEAK"
@@ -104,6 +109,19 @@ class RangeStrategy(StrategyBase):
             reasons = list(result["reasons"])
             if vol_bonus > 0:
                 reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+
+            obv_adj = 0.0
+            if obv is not None and obv_ema is not None:
+                if obv > obv_ema:
+                    obv_adj = OBV_CONFIRM_BONUS
+                elif obv < obv_ema:
+                    obv_adj = OBV_AGAINST_PENALTY
+                if obv_adj != 0.0:
+                    obv_adj *= min(volume_ratio, 1.0)
+                    label = "OBV_CONFIRM" if obv_adj > 0 else "OBV_AGAINST"
+                    flow = "bullish" if obv > obv_ema else "bearish"
+                    reasons.append(f"{label}: {obv_adj:+.2f} ({flow} flow, vol={volume_ratio:.2f})")
+
             return Signal(
                 pair=pair,
                 direction="LONG",
@@ -111,7 +129,7 @@ class RangeStrategy(StrategyBase):
                 strength=strength,
                 entry_price=ind_1h.get("price", 0),
                 reasons=reasons,
-                score=base_score + vol_bonus,
+                score=base_score + vol_bonus + obv_adj,
             )
 
         # ─── SHORT signal ───
@@ -121,6 +139,19 @@ class RangeStrategy(StrategyBase):
             reasons = list(result["reasons"])
             if vol_bonus > 0:
                 reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+
+            obv_adj = 0.0
+            if obv is not None and obv_ema is not None:
+                if obv < obv_ema:
+                    obv_adj = OBV_CONFIRM_BONUS
+                elif obv > obv_ema:
+                    obv_adj = OBV_AGAINST_PENALTY
+                if obv_adj != 0.0:
+                    obv_adj *= min(volume_ratio, 1.0)
+                    label = "OBV_CONFIRM" if obv_adj > 0 else "OBV_AGAINST"
+                    flow = "bearish" if obv < obv_ema else "bullish"
+                    reasons.append(f"{label}: {obv_adj:+.2f} ({flow} flow, vol={volume_ratio:.2f})")
+
             return Signal(
                 pair=pair,
                 direction="SHORT",
@@ -128,7 +159,7 @@ class RangeStrategy(StrategyBase):
                 strength=strength,
                 entry_price=ind_1h.get("price", 0),
                 reasons=reasons,
-                score=base_score + vol_bonus,
+                score=base_score + vol_bonus + obv_adj,
             )
 
         return None  # Range valid but no entry trigger

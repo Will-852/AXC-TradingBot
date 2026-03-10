@@ -68,7 +68,7 @@ def fetch_json(url, timeout=5):
 def get_prices():
     """Fetch current prices from Aster DEX."""
     prices = {}
-    for pair in ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]:
+    for pair in ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"]:
         data = fetch_json(f"{ASTER_FAPI}/fapi/v1/ticker/24hr?symbol={pair}")
         if data:
             prices[pair] = {

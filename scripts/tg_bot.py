@@ -534,7 +534,7 @@ def execute_order(order: dict) -> dict:
         if price <= 0:
             return {"ok": False, "error": f"無法取得 {symbol} 價格"}
 
-        leverage = 10  # default
+        leverage = order.get("leverage", 10)
         # precision values are step sizes (0.001), convert to decimal places (3)
         import math
         def _step_to_dp(step):
@@ -672,19 +672,23 @@ def parse_order_intent(text: str) -> dict | None:
     prompt = f"""判斷以下訊息是否包含下單/交易指令。
 
 當前餘額：${balance:.2f}
-可交易幣種：BTCUSDT, ETHUSDT, XRPUSDT, XAGUSDT
+可交易幣種：BTCUSDT, ETHUSDT, XRPUSDT, SOLUSDT, XAGUSDT, XAUUSDT
 支持交易所：aster（預設）, binance, hyperliquid（hl）
 
 訊息：「{text}」
 
 如果係下單指令，只返回 JSON：
-{{"is_order": true, "symbol": "ETHUSDT", "side": "LONG", "amount": 1.0, "exchange": "aster", "confidence": 0.95, "description": "做多ETH $1"}}
+{{"is_order": true, "symbol": "ETHUSDT", "side": "LONG", "amount": 1.0, "leverage": 10, "exchange": "aster", "confidence": 0.95, "description": "做多ETH $1 10x"}}
 
 交易所識別：
 - 提及 "aster" → "exchange": "aster"
 - 提及 "binance"/"bn" → "exchange": "binance"
 - 提及 "hl"/"hyperliquid"/"hyper" → "exchange": "hyperliquid"
 - 冇提及 → "exchange": "aster"（default）
+
+槓桿規則：
+- 用戶講「10倍」/「10x」/「lev 10」→ "leverage": 10
+- 冇提及 → 唔好加 leverage 欄位（用預設 10x）
 
 SL/TP 規則（最重要）：
 - 用戶冇講 → 唔好加任何 SL/TP 欄位

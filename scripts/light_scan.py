@@ -36,8 +36,8 @@ SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
 SCAN_LOG_PATH = os.path.join(_SHARED, "SCAN_LOG.md")
 
 ASTER_BASE = "https://fapi.asterdex.com/fapi/v1"
-PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
-PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "XAGUSDT": "XAG"}
+PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"]
+PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "XAGUSDT": "XAG", "XAUUSDT": "XAU"}
 
 # Trigger thresholds
 PRICE_TRIGGER_PCT = 0.38      # >0.38% price change

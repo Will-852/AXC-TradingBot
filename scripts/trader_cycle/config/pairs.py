@@ -46,11 +46,29 @@ PAIR_CONFIGS: dict[str, PairConfig] = {
         price_precision=4, qty_precision=0,
         notes="獨立走勢",
     ),
+    "SOLUSDT": PairConfig(
+        symbol="SOLUSDT", prefix="SOL",
+        group="crypto_correlated",
+        price_precision=2, qty_precision=0,
+        notes="Trend 5W/2L in 180d backtest; 已喺 Binance+HL scanner",
+    ),
+    "POLUSDT": PairConfig(
+        symbol="POLUSDT", prefix="POL",
+        group="crypto_independent",
+        price_precision=7, qty_precision=0,
+        notes="Binance only; 同 XRP 一組",
+    ),
     "XAGUSDT": PairConfig(
         symbol="XAGUSDT", prefix="XAG",
         group="commodity",
         price_precision=2, qty_precision=3,
         notes="Silver, scalp 只限 Asia+London; 先查 XAUUSD 方向",
+    ),
+    "XAUUSDT": PairConfig(
+        symbol="XAUUSDT", prefix="XAU",
+        group="commodity",
+        price_precision=2, qty_precision=2,
+        notes="Gold, Aster only; XAG 參考方向用",
     ),
 }
 

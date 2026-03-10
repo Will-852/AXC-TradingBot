@@ -34,6 +34,7 @@ python3 /Users/wai/projects/axc-trading/workspace/tools/trader_cycle/main.py --d
 | ETHUSDT | Ethereum 永續合約 |
 | XRPUSDT | XRP 永續合約 |
 | XAGUSDT | 白銀 永續合約 |
+| XAUUSDT | 黃金 永續合約 |
 
 ## Trigger 閾值
 

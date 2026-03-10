@@ -26,6 +26,10 @@ telegram/
 update-check.json
 .openclaw/
 
+# Backtest cached data (regenerable via fetch_historical.py)
+backtest/data/*.csv
+backtest/data/*.png
+
 # Large model files (local LLM — rejected in architecture)
 mlx_model/
 

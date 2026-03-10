@@ -74,7 +74,7 @@ description: Entry criteria and signal scoring rules for all trading pairs
 ## 信號選擇優先級
 
 1. 最高 score 勝出
-2. 同分時：BTC(4) > ETH(3) > XRP(2) > XAG(1)
+2. 同分時：BTC(4) > ETH(3) > XRP(2) > XAG(1) > XAU(1)
 
 ## Pair-specific 覆蓋
 
@@ -84,3 +84,4 @@ description: Entry criteria and signal scoring rules for all trading pairs
 | ETHUSDT | 30 | 70 | 0.005 |
 | XRPUSDT | 35 | 65 | 0.008 |
 | XAGUSDT | 30 | 70 | 0.005 |
+| XAUUSDT | 30 | 70 | 0.005 |

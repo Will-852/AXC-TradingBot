@@ -328,39 +328,65 @@ Bot 會結合你嘅持倉、歷史交易記錄（RAG 記憶）同實時價格生
 ## 🏗 架構
 
 ```
-你 (Telegram)
-  │
-  ▼
-tg_bot.py ─────── Telegram Bot 主控
-  ├── slash_cmd.py ──── 查詢指令（/pos /bal /pnl — 零 AI）
-  ├── aster_client.py ── Aster DEX API（落單、查倉、止損）
-  ├── Claude API ─────── AI 分析 + 自然語言理解
-  └── memory/ ──────── RAG 記憶系統（歷史對話 + 交易記錄）
+┌─────────────────────────────────────────────────────────────┐
+│                    Scanner（9 交易所輪詢）                     │
+│  Aster · Binance · HyperLiquid · Bybit · OKX · KuCoin ...  │
+│  → prices_cache.json + SCAN_CONFIG.md                       │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                  Trader Cycle（自動交易引擎）                  │
+│  fetch_market → calc_indicators → detect_mode               │
+│  → range/trend strategy → position_sizer → execute_trade    │
+└────────┬──────────────────┬──────────────────┬──────────────┘
+         │                  │                  │
+┌────────▼────────┐ ┌──────▼───────┐ ┌────────▼────────┐
+│   Dashboard     │ │ Telegram Bot │ │  Risk Manager   │
+│   port 5555     │ │  查詢 + 落單  │ │  移動止損/TP延伸 │
+└─────────────────┘ └──────────────┘ └─────────────────┘
 ```
+
+### 交易對（7 pairs, 3 groups）
+
+| Pair | Exchange | Group | 備註 |
+|------|----------|-------|------|
+| BTCUSDT | Aster, Binance, HL | crypto_correlated | 核心 |
+| ETHUSDT | Aster, Binance, HL | crypto_correlated | 跟隨 BTC |
+| SOLUSDT | Binance, HL | crypto_correlated | Trend 強勢 |
+| XRPUSDT | Aster | crypto_independent | 獨立走勢 |
+| POLUSDT | Binance | crypto_independent | Polygon |
+| XAGUSDT | Aster | commodity | Silver |
+| XAUUSDT | Aster | commodity | Gold |
 
 ### 檔案結構
 
 ```
-openclaw/
-├── scripts/
-│   ├── tg_bot.py                # Telegram Bot 主程式
-│   ├── slash_cmd.py             # 查詢指令處理
-│   ├── axc_client.py            # OpenClaw API client
-│   └── trader_cycle/exchange/
-│       ├── aster_client.py      # Aster DEX 交易 client
-│       └── exceptions.py        # 交易異常定義
-├── memory/
-│   ├── writer.py                # 寫入記憶
-│   ├── retriever.py             # RAG 搜索
-│   └── embedder.py              # 向量嵌入
-├── secrets/
-│   ├── .env.example             # 環境變數模板
-│   └── .env                     # 你嘅 API keys（唔會上傳 git）
-├── shared/                      # 運行時數據
-├── logs/                        # 日誌檔案
-├── requirements.txt             # Python 依賴
-├── QUICKSTART.md                # 極簡上手指南
-└── README.md
+axc-trading/
+├── scripts/                     # 所有可執行程式
+│   ├── tg_bot.py                #   Telegram Bot
+│   ├── dashboard.py             #   Web Dashboard
+│   ├── async_scanner.py         #   9 交易所掃描器
+│   ├── indicator_calc.py        #   技術指標計算
+│   └── trader_cycle/            #   ⭐ 自動交易引擎
+│       ├── strategies/          #     Range + Trend 策略
+│       ├── exchange/            #     Aster / Binance / HyperLiquid
+│       ├── risk/                #     風控（SL/TP/倉位）
+│       ├── state/               #     狀態管理
+│       └── config/              #     pairs (7) + settings.py
+├── backtest/                    # 回測系統
+│   ├── engine.py                #   Candle-by-candle 模擬器
+│   ├── run_backtest.py          #   CLI 入口
+│   └── compare_configs.py       #   A/B 測試
+├── config/
+│   ├── params.py                #   共用參數（唔好直接改）
+│   ├── user_params.py           #   你嘅 override（gitignored）
+│   └── modes/                   #   RANGE / TREND / VOLATILE
+├── agents/                      # AI Agents（各有 SOUL.md）
+├── memory/                      # RAG 記憶系統（jsonl + npy）
+├── shared/                      # 運行時狀態
+├── secrets/.env                 # API keys（gitignored）
+├── docs/                        # 文檔 + 分析
+└── canvas/                      # Dashboard 前端
 ```
 
 ### 安全
@@ -556,21 +582,27 @@ git stash pop               # 還原改動，手動解決衝突
 
 ```
 ~/projects/axc-trading/
-├── scripts/           # 所有可執行程式
-│   ├── tg_bot.py      #   Telegram Bot 入口
-│   ├── dashboard.py   #   Web Dashboard（port 5555）
-│   ├── async_scanner.py #  市場掃描器
-│   └── trader_cycle/  #   自動交易引擎
+├── scripts/              # 所有可執行程式
+│   ├── tg_bot.py         #   Telegram Bot
+│   ├── dashboard.py      #   Web Dashboard（port 5555）
+│   ├── async_scanner.py  #   9 交易所掃描器
+│   ├── indicator_calc.py #   技術指標計算
+│   └── trader_cycle/     #   ⭐ 自動交易引擎
+│       ├── strategies/   #     Range + Trend + Mode Detector
+│       ├── exchange/     #     Aster / Binance / HyperLiquid
+│       ├── risk/         #     風控 + 移動止損
+│       └── config/       #     pairs (7) + settings
+├── backtest/             # 回測系統（180d × 8 pairs）
 ├── config/
-│   ├── params.py      #   共用參數（唔好直接改）
-│   ├── user_params.py #   你嘅 override（gitignored）
-│   └── modes/         #   交易模式定義
-├── agents/            # 9 個 AI agents，各自有 SOUL.md
-├── canvas/            # Dashboard 前端 HTML
-├── memory/            # RAG 記憶系統（jsonl + npy）
-├── secrets/.env       # API keys（gitignored）
-├── shared/            # 運行時狀態檔案
-└── logs/              # 日誌
+│   ├── params.py         #   共用參數（唔好直接改）
+│   ├── user_params.py    #   你嘅 override（gitignored）
+│   └── modes/            #   RANGE / TREND / VOLATILE
+├── agents/               # 9 個 AI agents，各自有 SOUL.md
+├── canvas/               # Dashboard 前端 HTML + SVG
+├── memory/               # RAG 記憶系統（jsonl + npy）
+├── secrets/.env          # API keys（gitignored）
+├── shared/               # 運行時狀態（TRADE_STATE、SCAN_CONFIG）
+└── logs/                 # 日誌
 ```
 
 ### 常用指令
@@ -594,11 +626,11 @@ bash scripts/health_check.sh
 | 層面 | 技術 |
 |------|------|
 | 語言 | Python 3.9+ |
-| AI 推理 | Claude API（經 proxy） |
+| AI 推理 | Claude API（Sonnet / Haiku / GPT-5-mini） |
 | 向量嵌入 | Voyage AI（voyage-3） |
 | 記憶儲存 | jsonl + numpy（唔用資料庫） |
-| 交易所 | Aster DEX / Binance |
-| 介面 | Telegram Bot + 本地 Web Dashboard |
+| 交易所 | Aster DEX / Binance Futures / HyperLiquid |
+| 介面 | Telegram Bot + Web Dashboard + 回測系統 |
 
 ---
 

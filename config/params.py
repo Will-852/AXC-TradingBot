@@ -66,6 +66,7 @@ TIMEFRAME_PARAMS = {
         "rsi_long": 30, "rsi_short": 70,
         "adx_range_max": 20,
         "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
+        "bb_width_squeeze": 0.008,
         "lookback_support": 50,
     },
     "1h": {
@@ -75,6 +76,7 @@ TIMEFRAME_PARAMS = {
         "rsi_long": 35, "rsi_short": 65,
         "adx_range_max": 20,
         "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
+        "bb_width_squeeze": 0.012,
         "lookback_support": 30,
     },
     "4h": {
@@ -84,6 +86,7 @@ TIMEFRAME_PARAMS = {
         "rsi_long": 35, "rsi_short": 65,
         "adx_range_max": 18,
         "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
+        "bb_width_squeeze": 0.020,
         "lookback_support": 30,
     },
 }
@@ -99,6 +102,9 @@ STOCH_K_SMOOTH = 1
 STOCH_D_SMOOTH = 3
 STOCH_OVERSOLD = 20
 STOCH_OVERBOUGHT = 80
+
+# OBV 參數（indicator_calc 讀）
+OBV_EMA_PERIOD = 20
 
 # 支撐/阻力接近容忍度（indicator_calc 讀）
 SR_PROXIMITY_TOL = 0.005
@@ -209,6 +215,7 @@ BINANCE_SYMBOLS = [
     "BTCUSDT",
     "ETHUSDT",
     "SOLUSDT",
+    "POLUSDT",
     # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
 ]
 

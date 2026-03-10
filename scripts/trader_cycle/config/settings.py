@@ -8,6 +8,7 @@ from datetime import timezone, timedelta
 
 # ─── Paths ───
 AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+WORKSPACE = AXC_HOME  # alias for memory_keeper.py
 _SHARED = os.path.join(AXC_HOME, "shared")
 SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
 TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
@@ -18,14 +19,15 @@ LOG_DIR = os.path.join(AXC_HOME, "logs")
 # ─── Timezone ───
 HKT = timezone(timedelta(hours=8))
 
-# ─── Aster DEX API ───
+# ─── Exchange APIs ───
 ASTER_BASE = "https://fapi.asterdex.com"
 ASTER_FAPI = f"{ASTER_BASE}/fapi/v1"
+BINANCE_FAPI = "https://fapi.binance.com/fapi/v1"
 API_TIMEOUT = 10  # seconds
 
 # ─── Pairs ───
-PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT"]
-PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "XAGUSDT": "XAG"}
+PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT"]
+PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "SOLUSDT": "SOL", "POLUSDT": "POL", "XAGUSDT": "XAG", "XAUUSDT": "XAU"}
 
 # ─── Mode Detection (4H, 5 indicators) ───
 MODE_RSI_TREND_LOW = 32          # RSI < 32 = trend signal
@@ -38,7 +40,7 @@ MODE_CONFIRMATION_REQUIRED = 2   # consecutive same-mode before switch
 
 # ─── Risk — Circuit Breakers (Non-negotiable) ───
 CIRCUIT_BREAKER_SINGLE = 0.25    # 25% single position loss → immediate close
-CIRCUIT_BREAKER_DAILY = 0.15     # 15% daily loss → stop all
+CIRCUIT_BREAKER_DAILY = 0.20     # 20% daily realized loss → stop all
 COOLDOWN_2_LOSSES_MIN = 30       # 2 consecutive losses → 30min pause
 COOLDOWN_3_LOSSES_MIN = 120      # 3 consecutive losses → 2hr pause
 MAX_HOLD_HOURS = 72              # 3 days max hold
@@ -51,11 +53,11 @@ NO_TRADE_FUNDING_EXTREME = 0.002  # ±0.2% funding = extreme
 # ─── Risk — Position Limits ───
 MAX_CRYPTO_POSITIONS = 2
 MAX_XAG_POSITIONS = 1
-# BTC + ETH = same group (max 1 combined)
+# BTC + ETH + SOL = same group (max 1 combined)
 POSITION_GROUPS = {
-    "crypto_correlated": ["BTCUSDT", "ETHUSDT"],  # max 1 total
-    "crypto_independent": ["XRPUSDT"],              # max 1
-    "commodity": ["XAGUSDT"],                        # max 1
+    "crypto_correlated": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],  # max 1 total
+    "crypto_independent": ["XRPUSDT", "POLUSDT"],             # max 1
+    "commodity": ["XAGUSDT", "XAUUSDT"],                       # max 1
 }
 
 # ─── Range Strategy (Mode A) ───
@@ -82,6 +84,10 @@ ENTRY_VOLUME_MIN = 0.8              # volume_ratio < 0.8 → skip entry (low con
 
 # ─── Yunis Collection: MACD Weakening Exit ───
 MACD_HIST_DECAY_THRESHOLD = 0.6     # histogram shrinks to <60% of prev → weakening
+
+# ─── Yunis Collection: OBV Confirmation ───
+OBV_CONFIRM_BONUS = 0.5              # OBV 方向同信號一致 → +0.5
+OBV_AGAINST_PENALTY = -0.5           # OBV 方向同信號相反 → -0.5
 
 # ─── Yunis Collection: Signal Confidence → Position Size ───
 CONFIDENCE_RISK_HIGH = 1.25         # score >= 4.5 → risk × 1.25
@@ -125,15 +131,20 @@ TRADER_OWNED_FIELDS = [
     "CONFIG_VALID", "SILENT_MODE", "SILENT_MODE_CYCLES",
     "last_updated", "update_count",
     # ATR fields
-    "BTC_ATR", "ETH_ATR", "XRP_ATR", "XAG_ATR",
+    "BTC_ATR", "ETH_ATR", "XRP_ATR", "SOL_ATR", "POL_ATR", "XAG_ATR", "XAU_ATR",
     # S/R fields
     "BTC_support", "BTC_resistance", "ETH_support", "ETH_resistance",
-    "XRP_support", "XRP_resistance", "XAG_support", "XAG_resistance",
+    "XRP_support", "XRP_resistance", "SOL_support", "SOL_resistance",
+    "POL_support", "POL_resistance",
+    "XAG_support", "XAG_resistance", "XAU_support", "XAU_resistance",
     # S/R zones
     "BTC_support_zone", "BTC_resistance_zone",
     "ETH_support_zone", "ETH_resistance_zone",
     "XRP_support_zone", "XRP_resistance_zone",
+    "SOL_support_zone", "SOL_resistance_zone",
+    "POL_support_zone", "POL_resistance_zone",
     "XAG_support_zone", "XAG_resistance_zone",
+    "XAU_support_zone", "XAU_resistance_zone",
 ]
 
 # ─── Indicator Timeframes ───
@@ -151,6 +162,10 @@ PAPER_GATE_HOURS = 48                # minimum DRY_RUN hours before --live
 PAPER_GATE_FILE = os.path.join(LOG_DIR, "paper_gate_start.txt")
 CYCLE_LOG_DIR = os.path.join(LOG_DIR, "cycles")
 
+# ─── Platform Symbol Lists (fallback; overridden by params.py below) ───
+ASTER_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"}
+BINANCE_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "POLUSDT"}
+
 # ─── Profile Override ───
 # Read ACTIVE_PROFILE from config/params.py → override strategy constants
 # This makes 打法 (穩/平/攻) actually control trading behavior
@@ -163,6 +178,9 @@ try:
     _spec.loader.exec_module(_mod)
     _profiles = getattr(_mod, "TRADING_PROFILES", {})
     _active = getattr(_mod, "ACTIVE_PROFILE", None)
+    # ─── Platform symbol lists from params.py ───
+    ASTER_SYMBOLS = set(getattr(_mod, "ASTER_SYMBOLS", []))
+    BINANCE_SYMBOLS = set(getattr(_mod, "BINANCE_SYMBOLS", []))
     # ─── Mode Detection overrides from params.py ───
     MODE_RSI_TREND_LOW = getattr(_mod, "MODE_RSI_TREND_LOW", MODE_RSI_TREND_LOW)
     MODE_RSI_TREND_HIGH = getattr(_mod, "MODE_RSI_TREND_HIGH", MODE_RSI_TREND_HIGH)

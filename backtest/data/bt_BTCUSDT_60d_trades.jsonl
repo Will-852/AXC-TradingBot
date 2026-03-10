@@ -1,0 +1,4 @@
+{"symbol": "BTCUSDT", "side": "LONG", "entry": 91005.6, "exit": 92460.35836, "pnl": 703.08, "sl_price": 90423.696656, "ts": "2026-01-12 21:00:00", "closed": true}
+{"symbol": "BTCUSDT", "side": "LONG", "entry": 91204.0, "exit": 92624.543503, "pnl": 701.85, "sl_price": 90635.782599, "ts": "2026-01-12 22:00:00", "closed": true}
+{"symbol": "BTCUSDT", "side": "LONG", "entry": 91446.5, "exit": 92899.470517, "pnl": 702.8, "sl_price": 90865.311793, "ts": "2026-01-12 20:00:00", "closed": true}
+{"symbol": "BTCUSDT", "side": "SHORT", "entry": 87661.8, "exit": 88211.229984, "pnl": -421.19, "sl_price": 88211.229984, "ts": "2026-01-26 01:00:00", "closed": true}
