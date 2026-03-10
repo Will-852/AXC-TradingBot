@@ -183,7 +183,8 @@
       <div class="sd">Download the ZIP, then paste this in PowerShell:</div>
       <div class="cmd" onclick="copy(this)">$dest = "$HOME\projects\axc-trading"
 New-Item -ItemType Directory -Force -Path $dest
-Expand-Archive -Path "$HOME\Downloads\axc-setup-*.zip" -DestinationPath $dest -Force</div>
+$zip = Get-Item "$HOME\Downloads\axc-setup-*.zip" | Select-Object -First 1
+Expand-Archive -Path $zip.FullName -DestinationPath $dest -Force</div>
     </div>
   </div>
   <div class="step">
