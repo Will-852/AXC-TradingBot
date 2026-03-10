@@ -1607,7 +1607,7 @@ function renderSidebarLayers(D) {
 
   el.innerHTML = layers.map(function(l) {
     var m = _LAYER_META[l.role] || {icon: "fa-folder", color: "#6b7280", desc: ""};
-    var fullPath = '~/.openclaw/' + l.path;
+    var fullPath = '~/axc-trading/' + l.path;
     return '<li class="nav-item">' +
       '<a href="#" class="nav-link layer-link" onclick="copyPath(this,\'' + fullPath + '\');return false" title="' + l.role + ' · ' + m.desc + '">' +
         '<i class="nav-icon fas ' + m.icon + ' layer-icon" data-color="' + m.color + '"></i>' +

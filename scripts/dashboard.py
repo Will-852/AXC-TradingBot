@@ -61,13 +61,13 @@ PARAMS_DISPLAY = [
 
 def generate_share_package() -> bytes:
     """
-    生成 OpenClaw setup zip（io.BytesIO，記憶體操作）。
-    包含：scripts/, config/, canvas/, docs/,
+    生成 AXC setup zip（io.BytesIO，記憶體操作）。
+    包含：scripts/, config/, canvas/, docs/, backtest/（源碼）,
           agents/*/SOUL.md, CLAUDE.md, requirements.txt, openclaw.json
     排除：secrets/, logs/, memory/, shared/, backups/,
           mlx_model/, __pycache__/, .git/,
           agents/*/workspace/, agents/*/agent/,
-          agents/main/sessions/
+          agents/main/sessions/, backtest/data/
     自動生成 secrets/.env.example（變數名，值清空）
     """
     ROOT = HOME
@@ -87,12 +87,15 @@ def generate_share_package() -> bytes:
             return True
         if rel.startswith(os.path.join("agents", "main", "sessions")):
             return True
+        # backtest/data/ 排除（CSV cache + 生成嘅 PNG/JSONL）
+        if rel.startswith(os.path.join("backtest", "data")):
+            return True
         return False
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         # 包含主要目錄
-        for inc in ["scripts", "config", "canvas", "docs"]:
+        for inc in ["scripts", "config", "canvas", "docs", "backtest"]:
             inc_path = os.path.join(ROOT, inc)
             if not os.path.exists(inc_path):
                 continue
@@ -124,7 +127,7 @@ def generate_share_package() -> bytes:
 
         # 動態生成 .env.example（從現有 .env 取 key 名，清空值）
         env_example = [
-            "# OpenClaw .env.example",
+            "# AXC Trading System .env.example",
             "# 複製為 secrets/.env 並填入你的 API Key",
             "# cp secrets/.env.example secrets/.env",
             "",
@@ -2648,7 +2651,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 zip_bytes = generate_share_package()
                 date_str = datetime.now().strftime("%Y%m%d")
-                filename = f"openclaw-setup-{date_str}.zip"
+                filename = f"axc-setup-{date_str}.zip"
                 self.send_response(200)
                 self.send_header("Content-Type", "application/zip")
                 self.send_header(
