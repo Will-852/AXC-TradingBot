@@ -530,7 +530,7 @@ git pull
 
 ```bash
 # 1. Clone
-git clone https://github.com/Will-852/AXC-TradingBot.git ~/.openclaw
+git clone https://github.com/Will-852/AXC-TradingBot.git ~/projects/axc-trading
 cd ~/projects/axc-trading
 
 # 2. 安裝依賴

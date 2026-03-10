@@ -18,7 +18,7 @@
 ## 快速開始
 
 ```bash
-git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
+git clone https://github.com/Will-852/AXC-TradingBot.git ~/projects/axc-trading
 cd ~/projects/axc-trading
 pip3 install -r requirements.txt --break-system-packages
 cp docs/friends/.env.example secrets/.env

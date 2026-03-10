@@ -8,7 +8,7 @@
 ### 1. 安裝
 
 ```bash
-git clone https://github.com/Will-852/AXC-TradingBot ~/.openclaw
+git clone https://github.com/Will-852/AXC-TradingBot.git ~/projects/axc-trading
 pip3 install -r ~/projects/axc-trading/requirements.txt --break-system-packages
 ```
 
