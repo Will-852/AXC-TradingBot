@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>AXC</title>
 
   <!-- Google Font -->
@@ -197,10 +198,10 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       border: 1px solid var(--border);
-      min-height: 72px;
+      min-height: 85px;
     }
     .info-box-icon {
-      width: 60px; line-height: 72px;
+      width: 60px; line-height: 70px;
       font-size: 1.2rem;
       border-radius: var(--radius) 0 0 var(--radius);
     }
@@ -277,7 +278,7 @@
       font-variant-numeric: tabular-nums;
     }
     .ap-sr { color: var(--text-3); font-size: .8rem; }
-    .ap-no-atr { color: var(--text-3); font-style: normal; font-size: .82rem; }
+    .ap-no-atr { color: var(--text-3); font-style: italic; font-size: .78rem; opacity: .5; }
 
     /* ── Trades ───────────────────────────────────── */
     .trade-open   { color: var(--warn); font-weight: 600; }
@@ -353,6 +354,22 @@
     .profile-AGGRESSIVE   { background: #fef3c7; color: var(--warn); }
     .profile-CONSERVATIVE { background: #eff6ff; color: #2563eb; }
 
+    /* ── Profile Focus Tips ─────────────────────── */
+    .profile-tips {
+      display: none; position: absolute; top: 100%; right: 0; z-index: 1040;
+      background: #fff; border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.10); padding: 10px 14px;
+      width: 340px; white-space: nowrap; font-size: .78rem; line-height: 1.5;
+    }
+    .profile-tips.show { display: block; }
+    .profile-tips .tip-title {
+      font-weight: 700; font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .04em; margin-bottom: 6px; color: var(--text-2);
+    }
+    .profile-tips ul { list-style: none; padding: 0; margin: 0; }
+    .profile-tips li { padding: 2px 0; color: var(--text-1); }
+    .profile-tips li::before { content: "→ "; color: var(--text-3); font-weight: 600; }
+
     /* ── Market State ────────────────────────────── */
     .market-RANGE    { color: var(--text-3); }
     .market-TREND    { color: var(--pos); }
@@ -406,6 +423,55 @@
     /* ── Scrollbar ───────────────────────────────── */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* ── News Sentiment Card ───────────────────── */
+    .ns-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .ns-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px;
+      font-size: .82rem; font-weight: 700;
+    }
+    .ns-badge.bullish { background: #ecfdf5; color: #16a34a; }
+    .ns-badge.bearish { background: #fef2f2; color: #dc2626; }
+    .ns-badge.neutral { background: #f1f5f9; color: #64748b; }
+    .ns-badge.mixed   { background: #fffbeb; color: #d97706; }
+    .ns-conf { font-size: .75rem; color: var(--text-3); font-weight: 500; margin-left: 8px; }
+    .ns-impact {
+      font-size: .72rem; font-weight: 600; padding: 2px 8px;
+      border-radius: 4px; margin-left: 8px;
+    }
+    .ns-impact.high   { background: #fef2f2; color: #dc2626; }
+    .ns-impact.medium { background: #fffbeb; color: #d97706; }
+    .ns-impact.low    { background: #f1f5f9; color: var(--text-3); }
+    .ns-meta { font-size: .72rem; color: var(--text-3); }
+    .ns-stale {
+      font-size: .6rem; padding: 2px 6px; border-radius: 3px;
+      background: #fffbeb; color: #92400e; font-weight: 600; margin-left: 6px;
+    }
+    .ns-symbols { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    .ns-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: .68rem; color: var(--text-3); margin-bottom: 10px; align-items: center; }
+    .ns-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .ns-sym {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border-radius: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+      font-size: .78rem;
+    }
+    .ns-sym-name { font-weight: 600; color: var(--text-1); }
+    .ns-sym-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ns-sym-impact { font-size: .68rem; font-weight: 600; }
+    .ns-section-title {
+      font-size: .72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .04em; margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ns-list { margin: 0; padding-left: 16px; font-size: .78rem; color: var(--text-2); line-height: 1.6; }
+    .ns-summary {
+      font-size: .78rem; color: var(--text-2); margin-top: 10px;
+      padding: 8px 10px; border-radius: 6px;
+      background: rgba(148,163,184,.08); line-height: 1.6;
+      border-left: 2px solid var(--accent);
+    }
   </style>
 </head>
 
@@ -455,7 +521,10 @@
       </li>
 
       <!-- 模式切換 -->
-      <li class="nav-item dropdown d-none d-sm-inline-block">
+      <li class="nav-item dropdown d-none d-sm-inline-block" style="position:relative"
+          onmouseenter="if(!this.classList.contains('show'))byId('profile-tips').classList.add('show')"
+          onmouseleave="byId('profile-tips').classList.remove('show')"
+          onclick="byId('profile-tips').classList.remove('show')">
         <a class="nav-link" href="#" data-toggle="dropdown" style="cursor:pointer">
           <span id="nav-profile" class="profile-badge profile-BALANCED">BALANCED</span>
         </a>
@@ -469,6 +538,10 @@
           <a class="dropdown-item" href="#" onclick="switchProfile('AGGRESSIVE');return false">
             <span class="profile-badge profile-AGGRESSIVE" style="font-size:.7rem">AGGRESSIVE</span>
           </a>
+        </div>
+        <div class="profile-tips" id="profile-tips">
+          <div class="tip-title" id="tip-title">重點指標</div>
+          <ul id="tip-list"></ul>
         </div>
       </li>
 
@@ -1181,6 +1254,7 @@ function notifyChanges(D) {
 // ── 工具函數（byId 避免同 jQuery $ 衝突）─────
 function byId(id) { return document.getElementById(id); }
 function setText(id, val) { var el = byId(id); if (el) el.textContent = val; }
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function fmtPnl(n) {
   var v = parseFloat(n) || 0;
   return (v >= 0 ? '+' : '') + v.toFixed(2);
@@ -1255,6 +1329,29 @@ function render(D) {
 }
 
 // ── Navbar ───────────────────────────────────
+var PROFILE_TIPS = {
+  CONSERVATIVE: [
+    'BB 觸帶 + RSI 超買超賣',
+    'ATR ×1.5 寬 SL',
+    'Quarter Kelly，風險 1%',
+    'Funding 異常 → 暫停'
+  ],
+  BALANCED: [
+    'BB + RSI + EMA 方向確認',
+    'ADX 判斷 Range/Trend',
+    'OBV 量確認（過濾假突破）',
+    'ATR ×1.2 SL + Fib TP',
+    'OI + CVD 大戶方向'
+  ],
+  AGGRESSIVE: [
+    'EMA + ADX 趨勢確認',
+    'ATR ×1.0 緊 SL（快止損）',
+    'MACD 動力 + RSI 75/25',
+    'OI + Funding 清算風險',
+    '3 倉 ×3% = 最多 9% at risk'
+  ]
+};
+
 function renderNavbar(D) {
   var profile = D.active_profile || 'BALANCED';
   var navP = byId('nav-profile');
@@ -1263,6 +1360,17 @@ function renderNavbar(D) {
     navP.className = 'profile-badge profile-' + profile;
   }
   setText('sb-profile', profile);
+
+  // Update profile focus tips
+  var tipList = byId('tip-list');
+  var tipTitle = byId('tip-title');
+  if (tipList && PROFILE_TIPS[profile]) {
+    tipTitle.textContent = profile + ' 重點指標';
+    tipList.innerHTML = PROFILE_TIPS[profile].map(function(t) {
+      return '<li>' + t + '</li>';
+    }).join('');
+  }
+
   buildNotifications(D);
   renderNotifDropdown();
 }
@@ -1438,8 +1546,8 @@ function renderNotifDropdown() {
       '<div class="notif-bar" style="background:' + n.bar + '"></div>' +
       '<div class="notif-icon" style="background:' + n.bg + '"><i class="fas ' + n.icon + '"></i></div>' +
       '<div class="notif-body">' +
-        '<div class="notif-msg">' + n.msg + '</div>' +
-        (n.detail ? '<div class="notif-detail">' + n.detail + '</div>' : '') +
+        '<div class="notif-msg">' + esc(n.msg) + '</div>' +
+        (n.detail ? '<div class="notif-detail">' + esc(n.detail) + '</div>' : '') +
       '</div>' +
       '<div class="notif-time">' + n.time + '</div>' +
     '</div>';
@@ -1778,11 +1886,13 @@ function renderActionPlan(D) {
       var parts = [];
       if (chg4h !== null) {
         var c4color = chg4h >= 0 ? '#0d9488' : '#ef4444';
-        parts.push('<span style="color:' + c4color + '">' + chg4h + '%</span><span style="font-size:.5rem;padding:0 3px;border-radius:2px;margin-left:1px;background:#ecfdf5;color:#0d9488">4H</span>');
+        var c4bg = chg4h >= 0 ? '#ecfdf5' : '#fef2f2';
+        parts.push('<span style="color:' + c4color + '">' + chg4h + '%</span><span style="font-size:.5rem;padding:0 3px;border-radius:2px;margin-left:1px;background:' + c4bg + ';color:' + c4color + '">4H</span>');
       }
       if (chg1h !== null) {
         var c1color = chg1h >= 0 ? '#0d9488' : '#ef4444';
-        parts.push('<span style="color:' + c1color + '">' + chg1h + '%</span><span style="font-size:.5rem;padding:0 3px;border-radius:2px;margin-left:1px;background:#f8fafc;color:#94a3b8">1H</span>');
+        var c1bg = chg1h >= 0 ? '#ecfdf5' : '#fef2f2';
+        parts.push('<span style="color:' + c1color + '">' + chg1h + '%</span><span style="font-size:.5rem;padding:0 3px;border-radius:2px;margin-left:1px;background:' + c1bg + ';color:' + c1color + '">1H</span>');
       }
       subChgHtml = '<br><span style="font-size:.62rem">' + parts.join(' ') + '</span>';
     }
@@ -1901,7 +2011,7 @@ function renderPnlChart(D) {
       type: 'gradient',
       gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 100] }
     },
-    stroke: { curve: 'smooth', width: 2.5 },
+    stroke: { curve: 'smooth', width: 3 },
     dataLabels: { enabled: false },
     annotations: {
       yaxis: [{ y: 0, borderColor: '#94a3b8', strokeDashArray: 4, borderWidth: 1 }]
@@ -1916,7 +2026,7 @@ function renderPnlChart(D) {
         formatter: function(v) { return '$' + v.toFixed(1); }
       }
     },
-    grid: { show: true, borderColor: '#f1f5f9', strokeDashArray: 3, padding: { left: 4, right: 8, top: -5, bottom: 0 } },
+    grid: { show: true, borderColor: 'rgba(148,163,184,.15)', strokeDashArray: 3, padding: { left: 4, right: 8, top: -5, bottom: 0 } },
     tooltip: {
       x: { format: 'HH:mm' },
       y: { formatter: function(v) { return '$' + v.toFixed(2); } },
@@ -2241,7 +2351,7 @@ function renderActivityTimeline(D) {
       '<div>' +
       '<i class="fas ' + m.icon + ' bg-' + m.color + '"></i>' +
       '<div class="timeline-item ' + m.cls + '" style="border-left-width:3px">' +
-      '<div class="timeline-body" style="font-size:.8rem">' + (e.msg || '') + '</div>' +
+      '<div class="timeline-body" style="font-size:.8rem">' + esc(e.msg || '') + '</div>' +
       '</div>' +
       '</div>';
   }).join('');
@@ -2361,93 +2471,101 @@ function renderNewsCard(D) {
   if (!el) return;
   var ns = D.news_sentiment;
   if (!ns) {
-    el.innerHTML = '<div class="text-center text-muted py-3" style="font-size:.8rem">暫無新聞數據</div>';
+    el.innerHTML = '<div class="empty-state"><i class="fas fa-newspaper"></i><span>暫無新聞數據</span></div>';
     return;
   }
 
-  var sentColors = { bullish: '#28a745', bearish: '#dc3545', neutral: '#6c757d', mixed: '#ffc107' };
-  var sentIcons = { bullish: '🟢', bearish: '🔴', neutral: '⚪', mixed: '🟡' };
+  var dotColors = { bullish: '#22c55e', bearish: '#ef4444', neutral: '#94a3b8', mixed: '#f59e0b' };
+  var sentLabels = { bullish: '睇好', bearish: '睇淡', neutral: '中性', mixed: '混合' };
   var sent = ns.overall_sentiment || 'neutral';
-  var color = sentColors[sent] || sentColors.neutral;
-  var icon = sentIcons[sent] || '⚪';
   var conf = Math.round((ns.confidence || 0) * 100);
+  var impact = ns.overall_impact != null ? ns.overall_impact : null;
   var stale = ns.stale;
 
-  // Format update time
   var timeStr = '';
   if (ns.updated_at) {
-    try {
-      var d = new Date(ns.updated_at);
-      timeStr = d.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch(e) { timeStr = ''; }
+    try { var d = new Date(ns.updated_at); timeStr = d.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit', hour12: false }); } catch(e) {}
   }
-  var staleBadge = stale ? ' <span style="background:#ffc107;color:#000;font-size:.6rem;padding:1px 4px;border-radius:3px;vertical-align:middle">⚠ 過期</span>' : '';
 
-  // Header row
-  var html = '<div class="d-flex justify-content-between align-items-center mb-2">' +
-    '<div>' +
-      '<span style="font-size:1.1rem;font-weight:700;color:' + color + '">' + icon + ' ' + sent.charAt(0).toUpperCase() + sent.slice(1) + '</span>' +
-      '<span style="font-size:.85rem;color:var(--text-3);margin-left:8px">(' + conf + '%)</span>' +
-      staleBadge +
+  var impactCls = impact >= 70 ? 'high' : impact >= 40 ? 'medium' : 'low';
+  var impactHtml = impact != null ? '<span class="ns-impact ' + impactCls + '">影響 ' + impact + '</span>' : '';
+  var staleHtml = stale ? '<span class="ns-stale">過期</span>' : '';
+
+  // Header
+  var html = '<div class="ns-header">' +
+    '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
+      '<span class="ns-badge ' + sent + '">' +
+        '<i class="fas fa-circle" style="font-size:7px;color:' + (dotColors[sent] || dotColors.neutral) + '"></i>' +
+        esc(sentLabels[sent] || sent) +
+      '</span>' +
+      '<span class="ns-conf">' + conf + '% 信心</span>' +
+      impactHtml + staleHtml +
     '</div>' +
-    '<div style="font-size:.75rem;color:var(--text-3)">' +
-      (timeStr ? '更新 ' + timeStr : '') +
-      (ns.articles_analyzed ? ' · ' + ns.articles_analyzed + ' 篇分析' : '') +
+    '<div class="ns-meta">' +
+      (timeStr ? timeStr : '') +
+      (ns.articles_analyzed ? ' · ' + ns.articles_analyzed + ' 篇' : '') +
     '</div>' +
   '</div>';
 
-  // Per-symbol sentiment
+  // Per-symbol pills
   var syms = ns.sentiment_by_symbol || {};
   var symKeys = Object.keys(syms);
-  var watchedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT'];
-  // Merge: show watched symbols + any extra from API
+  var watchedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'XAGUSDT', 'XAUUSDT', 'POLUSDT'];
   var allSyms = watchedSymbols.slice();
   symKeys.forEach(function(s) { if (allSyms.indexOf(s) === -1) allSyms.push(s); });
 
   if (allSyms.length) {
-    html += '<div style="margin-bottom:8px">';
+    html += '<div class="ns-symbols">';
     allSyms.forEach(function(sym) {
-      var s = syms[sym];
-      var sIcon = s ? (sentIcons[s] || '⚪') : '—';
+      var v = syms[sym];
+      var sSent, sImpact;
+      if (!v) { sSent = 'neutral'; sImpact = null; }
+      else if (typeof v === 'string') { sSent = v; sImpact = null; }
+      else { sSent = v.sentiment || 'neutral'; sImpact = v.impact; }
+      var dotCol = dotColors[sSent] || dotColors.neutral;
+      var impCol = sImpact >= 70 ? '#dc2626' : sImpact >= 40 ? '#d97706' : 'var(--text-3)';
       var short = sym.replace('USDT', '');
-      html += '<span style="display:inline-block;margin-right:12px;font-size:.82rem">' +
-        '<span style="font-weight:600">' + short + '</span> ' + sIcon +
+      html += '<span class="ns-sym">' +
+        '<span class="ns-sym-dot" style="background:' + dotCol + '"></span>' +
+        '<span class="ns-sym-name">' + esc(short) + '</span>' +
+        (sImpact != null ? '<span class="ns-sym-impact" style="color:' + impCol + '">' + sImpact + '</span>' : '<span class="ns-sym-impact" style="color:var(--text-3)">–</span>') +
       '</span>';
     });
     html += '</div>';
+    html += '<div class="ns-legend">' +
+      '<span><i class="fas fa-circle" style="font-size:6px;color:#22c55e"></i> 睇好</span>' +
+      '<span><i class="fas fa-circle" style="font-size:6px;color:#ef4444"></i> 睇淡</span>' +
+      '<span><i class="fas fa-circle" style="font-size:6px;color:#f59e0b"></i> 混合</span>' +
+      '<span><i class="fas fa-circle" style="font-size:6px;color:#94a3b8"></i> 中性</span>' +
+      '<span style="color:var(--text-3)">數字 = 影響力 0-100</span>' +
+    '</div>';
   }
 
-  // Narratives + Risk events in two columns
+  // Narratives + Risk events
   var narratives = ns.key_narratives || [];
   var risks = ns.risk_events || [];
   html += '<div class="row">';
-
-  // Narratives
   html += '<div class="col-lg-6 col-12">';
   if (narratives.length) {
-    html += '<div style="font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:3px">主要敘事</div>';
-    html += '<ul style="margin:0;padding-left:16px;font-size:.78rem;color:var(--text-2)">';
-    narratives.slice(0, 5).forEach(function(n) { html += '<li>' + n + '</li>'; });
+    html += '<div class="ns-section-title" style="color:var(--text-2)"><i class="fas fa-bullhorn mr-1" style="color:var(--accent)"></i>主要敘事</div>';
+    html += '<ul class="ns-list">';
+    narratives.slice(0, 5).forEach(function(n) { html += '<li>' + esc(n) + '</li>'; });
     html += '</ul>';
   }
   html += '</div>';
-
-  // Risk events
   html += '<div class="col-lg-6 col-12">';
   if (risks.length) {
-    html += '<div style="font-size:.75rem;font-weight:600;color:#dc3545;margin-bottom:3px">風險事件</div>';
-    html += '<ul style="margin:0;padding-left:16px;font-size:.78rem;color:var(--text-2)">';
-    risks.slice(0, 5).forEach(function(n) { html += '<li>' + n + '</li>'; });
+    html += '<div class="ns-section-title" style="color:var(--neg)"><i class="fas fa-exclamation-triangle mr-1"></i>風險事件</div>';
+    html += '<ul class="ns-list">';
+    risks.slice(0, 5).forEach(function(n) { html += '<li>' + esc(n) + '</li>'; });
     html += '</ul>';
   } else {
     html += '<div style="font-size:.75rem;color:var(--text-3)">無重大風險事件</div>';
   }
   html += '</div></div>';
 
-  // Summary
   if (ns.summary) {
-    html += '<div style="font-size:.75rem;color:var(--text-3);margin-top:6px;border-top:1px solid var(--border);padding-top:6px">' +
-      ns.summary + '</div>';
+    html += '<div class="ns-summary">' + esc(ns.summary) + '</div>';
   }
 
   el.innerHTML = html;
@@ -2485,7 +2603,7 @@ function renderScanLog(D, todayScans) {
       '<div>' +
       '<i class="fas ' + iconClass + ' bg-' + bgColor + '"></i>' +
       '<div class="timeline-item ' + tlCls + '" style="border-left-width:3px">' +
-      '<div class="timeline-body" style="font-size:.78rem">' + detail + '</div>' +
+      '<div class="timeline-body" style="font-size:.78rem">' + esc(detail) + '</div>' +
       '</div>' +
       '</div>';
   }).join('');
@@ -2498,17 +2616,27 @@ function renderFooter(D) {
 }
 
 // ── Fetch + Refresh ─────────────────────────
+var _fetchCtrl = null;
+var _fetchFails = 0;
 async function fetchData() {
+  if (_fetchCtrl) _fetchCtrl.abort();
+  _fetchCtrl = new AbortController();
   var dot = byId('refresh-dot');
   if (dot) dot.classList.add('loading');
   try {
-    var res = await fetch('/api/data');
+    var res = await fetch('/api/data', {signal: _fetchCtrl.signal});
     var D = await res.json();
+    _fetchFails = 0;
     render(D);
     if (dot) dot.classList.remove('loading');
   } catch (e) {
+    if (e.name === 'AbortError') return;
+    _fetchFails++;
     console.error('fetchData error:', e);
     if (dot) dot.classList.add('loading');
+    if (_fetchFails >= 3) {
+      setText('last-update', 'API 離線');
+    }
   }
 }
 
@@ -2537,13 +2665,13 @@ function openExchangeModal(exch) {
       body.innerHTML =
         '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">' +
           '<div style="color:#16a34a;font-weight:700;font-size:.9rem"><i class="fas fa-check-circle mr-1"></i>Connected</div>' +
-          '<div style="color:#64748b;font-size:.75rem;margin-top:4px">' + (d.key_preview||d.addr_preview||'') + '</div>' +
+          '<div style="color:#64748b;font-size:.75rem;margin-top:4px">' + esc(d.key_preview||d.addr_preview||'') + '</div>' +
         '</div>' +
         '<div class="d-flex justify-content-between mb-2" style="font-size:.85rem">' +
           '<span style="color:#64748b">Balance</span>' +
           '<span style="font-weight:700">$' + (d.balance||0).toFixed(2) + '</span>' +
         '</div>' +
-        (d.account_type ? '<div class="d-flex justify-content-between mb-3" style="font-size:.85rem"><span style="color:#64748b">Account</span><span style="font-weight:600">' + d.account_type + '</span></div>' : '') +
+        (d.account_type ? '<div class="d-flex justify-content-between mb-3" style="font-size:.85rem"><span style="color:#64748b">Account</span><span style="font-weight:600">' + esc(d.account_type) + '</span></div>' : '') +
         '<button class="btn btn-block btn-sm" onclick="exchangeDisconnect()" style="border:1px solid #fca5a5;color:#dc2626;border-radius:8px;font-size:.8rem;padding:8px">Disconnect</button>' +
         '<div class="text-center mt-3" style="font-size:.68rem;color:#94a3b8"><i class="fas fa-shield-alt mr-1"></i>Credentials stored locally only &middot; <span style="font-family:monospace;font-size:.65rem">secrets/.env</span></div>' +
         (exch === 'aster' ? '<div style="margin-top:10px;background:linear-gradient(135deg,#1a1a2e,#2d2b55);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between"><div style="font-size:.72rem;color:#c4b5fd"><i class="fas fa-gift mr-1" style="color:#a78bfa"></i>推薦好友 · <span style="color:#4ade80;font-weight:600">6% 回佣</span></div><a href="https://www.asterdex.com/en/referral/E5Ce6c" target="_blank" style="background:#635bff;color:#fff;font-size:.68rem;font-weight:600;padding:4px 10px;border-radius:5px;text-decoration:none;white-space:nowrap">E5Ce6c</a></div>' : '') +
@@ -2551,7 +2679,7 @@ function openExchangeModal(exch) {
     } else if (d.status === 'error') {
       body.innerHTML =
         '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px">' +
-          '<div style="color:#dc2626;font-size:.82rem"><i class="fas fa-exclamation-triangle mr-1"></i>' + (d.error||'Connection failed') + '</div>' +
+          '<div style="color:#dc2626;font-size:.82rem"><i class="fas fa-exclamation-triangle mr-1"></i>' + esc(d.error||'Connection failed') + '</div>' +
         '</div>' + _exchangeForm();
     } else {
       body.innerHTML = _exchangeForm();
@@ -2617,7 +2745,7 @@ function exchangeConnect() {
   }).then(function(r){return r.json()}).then(function(d) {
     if (d.ok) { openExchangeModal(_currentExchange); }
     else {
-      body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px"><div style="color:#dc2626;font-size:.82rem">' + (d.error||'Failed') + '</div></div>' + _exchangeForm();
+      body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px"><div style="color:#dc2626;font-size:.82rem">' + esc(d.error||'Failed') + '</div></div>' + _exchangeForm();
     }
   });
 }

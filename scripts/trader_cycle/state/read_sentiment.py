@@ -61,8 +61,9 @@ class ReadSentimentStep:
         if ctx.verbose:
             sentiment = data.get("overall_sentiment", "?")
             confidence = data.get("confidence", 0)
+            impact = data.get("overall_impact", "?")
             articles = data.get("articles_analyzed", 0)
-            print(f"    [SENTIMENT] {sentiment} (conf: {confidence:.0%}, {articles} articles)")
+            print(f"    [SENTIMENT] {sentiment} (conf: {confidence:.0%}, impact: {impact}, {articles} articles)")
 
             risk_events = data.get("risk_events", [])
             if risk_events:

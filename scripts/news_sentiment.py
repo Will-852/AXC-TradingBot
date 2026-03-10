@@ -117,23 +117,29 @@ def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -
 
     articles_block = "\n".join(article_texts)
 
-    prompt = f"""Analyze the sentiment of these crypto news headlines.
+    prompt = f"""Analyze the sentiment AND market impact of these crypto news headlines.
 
 {articles_block}
 
 Respond in JSON format ONLY (no markdown, no explanation):
 {{
   "overall_sentiment": "bullish|bearish|neutral|mixed",
+  "overall_impact": 0-100,
   "confidence": 0.0-1.0,
   "sentiment_by_symbol": {{
-    "BTCUSDT": "bullish|bearish|neutral",
-    "ETHUSDT": "bullish|bearish|neutral"
+    "BTCUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}},
+    "ETHUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}}
   }},
   "key_narratives": ["narrative1", "narrative2"],
   "risk_events": ["event1"],
   "summary": "One sentence overall market sentiment summary"
 }}
 
+IMPORTANT: All text values (key_narratives, risk_events, summary) MUST be in Traditional Chinese (香港繁體中文).
+
+overall_impact: integer 0-100. How much these headlines will move the market.
+  0 = routine noise, 50 = moderate, 100 = extreme market-moving event.
+Per-symbol impact: same 0-100 scale for that specific asset.
 Only include symbols that appear in the articles. If no articles mention a symbol, omit it.
 risk_events: regulatory actions, hacks, major liquidations, black swan events.
 key_narratives: dominant themes (ETF flows, rate decisions, adoption, etc.)."""
@@ -170,7 +176,28 @@ key_narratives: dominant themes (ETF flows, rate decisions, adoption, etc.)."""
             text = text[:-3]
         text = text.strip()
 
-    return json.loads(text)
+    result = json.loads(text)
+
+    # Normalize: ensure overall_impact exists
+    result.setdefault("overall_impact", 50)
+    try:
+        result["overall_impact"] = int(result["overall_impact"])
+    except (ValueError, TypeError):
+        result["overall_impact"] = 50
+
+    # Normalize: per-symbol values may be string (old format) or dict (new)
+    syms = result.get("sentiment_by_symbol", {})
+    for sym, val in syms.items():
+        if isinstance(val, str):
+            syms[sym] = {"sentiment": val, "impact": 50}
+        elif isinstance(val, dict):
+            val.setdefault("sentiment", "neutral")
+            try:
+                val["impact"] = int(val.get("impact", 50))
+            except (ValueError, TypeError):
+                val["impact"] = 50
+
+    return result
 
 
 def atomic_write_json(path: Path, data):
@@ -267,6 +294,7 @@ def main():
         "articles_analyzed": len(fresh_articles) + len(manual_entries),
         "analysis_window_hours": ANALYSIS_WINDOW_HOURS,
         "overall_sentiment": sentiment.get("overall_sentiment", "neutral"),
+        "overall_impact": sentiment.get("overall_impact", 50),
         "confidence": sentiment.get("confidence", 0.0),
         "sentiment_by_symbol": sentiment.get("sentiment_by_symbol", {}),
         "key_narratives": sentiment.get("key_narratives", []),

@@ -47,6 +47,7 @@ LOGS_DIR   = BASE_DIR / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 SHARED_DIR.mkdir(parents=True, exist_ok=True)
 
+sys.path.insert(0, str(BASE_DIR))
 sys.path.insert(0, str(BASE_DIR / "config"))
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
@@ -67,8 +68,7 @@ LOG_MAX_LINES   = 500
 LOG_MAX_BYTES   = 10_485_760
 LOG_BACKUPS     = 5
 _FALLBACK_TRIGGER = 0.05
-_PROFILES         = {}
-_ACTIVE           = None
+_CACHED_TRIGGER   = None  # set by reload_params() via profile loader
 _EXCHANGE_ROTATION = [
     "aster", "binance", "hyperliquid",
     "bybit", "okx", "kucoin", "gate", "mexc", "bitget",
@@ -81,7 +81,7 @@ def reload_params():
     更新所有 module globals，包括 9 路輪轉設定。"""
     global SCAN_INTERVAL, SCAN_TIMEOUT
     global SCAN_WORKERS, LOG_MAX_LINES, LOG_MAX_BYTES, LOG_BACKUPS
-    global _FALLBACK_TRIGGER, _PROFILES, _ACTIVE
+    global _FALLBACK_TRIGGER, _CACHED_TRIGGER
     global _EXCHANGE_ROTATION, _ALL_SYMBOLS
 
     try:
@@ -97,8 +97,14 @@ def reload_params():
         LOG_MAX_BYTES     = int(getattr(mod,  "SCAN_LOG_MAX_BYTES", 10_485_760))
         LOG_BACKUPS       = int(getattr(mod,  "SCAN_LOG_BACKUPS", 5))
         _FALLBACK_TRIGGER = float(getattr(mod, "TRIGGER_PCT", 0.05))
-        _PROFILES         = getattr(mod, "TRADING_PROFILES", {})
-        _ACTIVE           = getattr(mod, "ACTIVE_PROFILE", None)
+
+        # Profile loader → get trigger_pct
+        try:
+            from config.profiles.loader import load_profile
+            _p = load_profile()
+            _CACHED_TRIGGER = _p.get("trigger_pct", _FALLBACK_TRIGGER)
+        except Exception:
+            _CACHED_TRIGGER = _FALLBACK_TRIGGER
 
         # 9 路輪轉
         _EXCHANGE_ROTATION = list(getattr(mod, "EXCHANGE_ROTATION", _EXCHANGE_ROTATION))
@@ -121,8 +127,9 @@ reload_params()
 
 def get_trigger_pct() -> float:
     """讀當前 profile 觸發門檻。由 reload_params() 更新。"""
-    profile = _PROFILES.get(_ACTIVE, {})
-    return profile.get("trigger_pct", _FALLBACK_TRIGGER)
+    if _CACHED_TRIGGER is not None:
+        return _CACHED_TRIGGER
+    return _FALLBACK_TRIGGER
 
 # Fix R1: Bounded ThreadPoolExecutor — thread hang 最多佔 SCAN_WORKERS 個 slot
 _executor = concurrent.futures.ThreadPoolExecutor(

@@ -167,37 +167,66 @@ ASTER_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"
 BINANCE_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "POLUSDT"}
 
 # ─── Profile Override ───
-# Read ACTIVE_PROFILE from config/params.py → override strategy constants
-# This makes 打法 (穩/平/攻) actually control trading behavior
+# config/profiles/ 獨立文件 → override 策略常數
+# Consumer files 繼續用 `from ...config.settings import X` — 零改動
+import logging as _logging
+_log = _logging.getLogger(__name__)
+
 try:
     import importlib.util as _ilu
+
+    # ─── params.py: symbols + mode detection (唔係 profile 層) ───
     _spec = _ilu.spec_from_file_location(
         "_params", os.path.join(AXC_HOME, "config", "params.py")
     )
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
-    _profiles = getattr(_mod, "TRADING_PROFILES", {})
-    _active = getattr(_mod, "ACTIVE_PROFILE", None)
-    # ─── Platform symbol lists from params.py ───
     ASTER_SYMBOLS = set(getattr(_mod, "ASTER_SYMBOLS", []))
     BINANCE_SYMBOLS = set(getattr(_mod, "BINANCE_SYMBOLS", []))
-    # ─── Mode Detection overrides from params.py ───
     MODE_RSI_TREND_LOW = getattr(_mod, "MODE_RSI_TREND_LOW", MODE_RSI_TREND_LOW)
     MODE_RSI_TREND_HIGH = getattr(_mod, "MODE_RSI_TREND_HIGH", MODE_RSI_TREND_HIGH)
     MODE_VOLUME_LOW = getattr(_mod, "MODE_VOLUME_LOW", MODE_VOLUME_LOW)
     MODE_VOLUME_HIGH = getattr(_mod, "MODE_VOLUME_HIGH", MODE_VOLUME_HIGH)
     MODE_FUNDING_THRESHOLD = getattr(_mod, "MODE_FUNDING_THRESHOLD", MODE_FUNDING_THRESHOLD)
     MODE_CONFIRMATION_REQUIRED = getattr(_mod, "MODE_CONFIRMATION_REQUIRED", MODE_CONFIRMATION_REQUIRED)
-
-    _p = _profiles.get(_active, {}) if _active else {}
-    if _p:
-        RANGE_RISK_PCT = _p.get("risk_per_trade_pct", RANGE_RISK_PCT)
-        TREND_RISK_PCT = _p.get("risk_per_trade_pct", TREND_RISK_PCT)
-        RANGE_SL_ATR_MULT = _p.get("sl_atr_mult", RANGE_SL_ATR_MULT)
-        TREND_SL_ATR_MULT = _p.get("sl_atr_mult", TREND_SL_ATR_MULT)
-        RANGE_MIN_RR = _p.get("range_min_rr", RANGE_MIN_RR)
-        TREND_MIN_RR = _p.get("trend_min_rr", TREND_MIN_RR)
-        MAX_CRYPTO_POSITIONS = _p.get("max_open_positions", MAX_CRYPTO_POSITIONS)
-    del _ilu, _spec, _mod, _profiles, _active, _p
+    _active_name = getattr(_mod, "ACTIVE_PROFILE", "BALANCED")
+    del _ilu, _spec, _mod
 except Exception:
-    pass  # fallback to hardcoded defaults above
+    _active_name = "BALANCED"  # fallback
+
+import sys as _sys
+if AXC_HOME not in _sys.path:
+    _sys.path.insert(0, AXC_HOME)
+
+try:
+    from config.profiles.loader import load_profile as _load_profile
+    _p = _load_profile(_active_name)  # 直接傳 name，唔重複讀 params.py
+
+    # Tier 1 映射（原有 TRADING_PROFILES keys）
+    RANGE_RISK_PCT      = _p["risk_per_trade_pct"]
+    TREND_RISK_PCT      = _p["risk_per_trade_pct"]
+    RANGE_SL_ATR_MULT   = _p["sl_atr_mult"]
+    TREND_SL_ATR_MULT   = _p["sl_atr_mult"]
+    RANGE_MIN_RR        = _p["range_min_rr"]
+    TREND_MIN_RR        = _p["trend_min_rr"]
+    MAX_CRYPTO_POSITIONS = _p["max_open_positions"]
+
+    # Tier 2 映射（從 settings.py 硬編碼升級為 per-profile）
+    RANGE_LEVERAGE                = _p["range_leverage"]
+    TREND_LEVERAGE                = _p["trend_leverage"]
+    CONFIDENCE_RISK_HIGH          = _p["confidence_risk_high"]
+    CONFIDENCE_RISK_NORMAL        = _p["confidence_risk_normal"]
+    CONFIDENCE_RISK_LOW           = _p["confidence_risk_low"]
+    CONFIDENCE_RISK_CAP           = _p["confidence_risk_cap"]
+    ENTRY_VOLUME_MIN              = _p["entry_volume_min"]
+    TRAILING_SL_BREAKEVEN_ATR     = _p["trailing_sl_breakeven_atr"]
+    TRAILING_SL_LOCK_PROFIT_ATR   = _p["trailing_sl_lock_profit_atr"]
+    EARLY_EXIT_RSI_OVERBOUGHT     = _p["early_exit_rsi_overbought"]
+    EARLY_EXIT_RSI_OVERSOLD       = _p["early_exit_rsi_oversold"]
+    REENTRY_SIZE_REDUCTION        = _p["reentry_size_reduction"]
+    REENTRY_COOLDOWN_CYCLES       = _p["reentry_cooldown_cycles"]
+    BIAS_THRESHOLD                = _p["bias_threshold"]
+
+    del _load_profile, _p
+except Exception as _e:
+    _log.error("Profile load failed, using hardcoded defaults: %s", _e)

@@ -45,6 +45,8 @@ SYMBOL_KEYWORDS = {
     "SOLUSDT": ["solana", "sol"],
     "XRPUSDT": ["xrp", "ripple"],
     "XAGUSDT": ["silver", "xag"],
+    "XAUUSDT": ["gold", "xau"],
+    "POLUSDT": ["polymarket", "pol", "polygon"],
 }
 
 # General crypto keywords (always include)

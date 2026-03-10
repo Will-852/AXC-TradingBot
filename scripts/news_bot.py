@@ -89,6 +89,7 @@ def format_sentiment(data: dict) -> str:
     """Format sentiment data as Telegram HTML message."""
     sent = data.get("overall_sentiment", "neutral")
     conf = round(data.get("confidence", 0) * 100)
+    impact = data.get("overall_impact")
     icons = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪", "mixed": "🟡"}
     icon = icons.get(sent, "⚪")
     articles = data.get("articles_analyzed", 0)
@@ -102,12 +103,20 @@ def format_sentiment(data: dict) -> str:
         except (ValueError, TypeError):
             pass
 
-    # Per-symbol
+    # Per-symbol (backward compat: value may be string or dict)
     syms = data.get("sentiment_by_symbol", {})
     sym_parts = []
     for s, v in syms.items():
         short = s.replace("USDT", "")
-        sym_parts.append(f"{short} {icons.get(v, '⚪')}")
+        if isinstance(v, str):
+            sym_parts.append(f"{short} {icons.get(v, '⚪')}")
+        elif isinstance(v, dict):
+            s_icon = icons.get(v.get("sentiment", ""), "⚪")
+            s_impact = v.get("impact")
+            imp_str = f" {s_impact}" if s_impact is not None else ""
+            sym_parts.append(f"{short} {s_icon}{imp_str}")
+        else:
+            sym_parts.append(f"{short} ⚪")
     sym_line = " | ".join(sym_parts) if sym_parts else "—"
 
     # Narratives + risks
@@ -120,10 +129,12 @@ def format_sentiment(data: dict) -> str:
     stale = data.get("stale", False)
     stale_tag = " ⚠️過期" if stale else ""
 
+    impact_str = f" | 影響力 {impact}/100" if impact is not None else ""
+
     msg = (
         f"📰 <b>新聞情緒分析</b>{stale_tag}\n"
         f"━━━━━━━━━━━━━━\n"
-        f"整體：{icon} <b>{sent.capitalize()}</b> ({conf}%)\n"
+        f"整體：{icon} <b>{sent.capitalize()}</b> ({conf}%){impact_str}\n"
         f"分析：{articles} 篇 | {time_str} 更新\n\n"
         f"幣種：{sym_line}\n\n"
         f"敘事：{narr_line}\n"

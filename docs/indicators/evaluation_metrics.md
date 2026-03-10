@@ -2,6 +2,9 @@
 > 更新：2026-03-10
 > 涵蓋：Sharpe、Sortino、Calmar、Drawdown、Kelly、Risk of Ruin、Position Sizing
 
+### talk16 — 呢個文件係咩
+入場指標話你知「幾時買賣」，呢個文件答另一個問題：「我嘅策略到底掂唔掂？」同「每次應該落幾多注？」。分五層，由淺到深：第一層睇每筆交易賺定蝕（Expectancy）、第二層睇成個策略長期表現（Sharpe/Sortino）、第三層話你知數學上最優嘅下注比例（Kelly）、第四層計你會唔會爆倉（Risk of Ruin）、第五層係各種注碼管理方法。最尾仲有 backtest 嘅正確做法同常見陷阱。如果你只記一樣嘢：**正 Expectancy 係一切嘅前提，冇正 EV 其他全部冇意義。**
+
 ---
 
 ## ⚠️ Crypto 特殊注意

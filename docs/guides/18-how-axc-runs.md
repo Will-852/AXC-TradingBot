@@ -44,14 +44,16 @@ macOS 內建嘅排程系統。每個 plist 文件 = 一個鬧鐘。
 ```
 ~/Library/LaunchAgents/
 │
-├── ai.openclaw.scanner.plist       每 5 分鐘    → 掃描 9 個交易所
-├── ai.openclaw.tradercycle.plist   觸發時跑      → 分析 + 下單
-├── ai.openclaw.heartbeat.plist     每 15 分鐘   → 檢查倉位 + SL
-├── ai.openclaw.newsagent.plist     每 15 分鐘   → 抓新聞 + AI 分析
-├── ai.openclaw.telegram.plist      長駐          → @AXCTradingBot
-├── ai.openclaw.newsbot.plist       長駐          → @AXCnews_bot
-├── ai.openclaw.lightscan.plist     每 3 分鐘    → 輕量價格更新
-├── ai.openclaw.report.plist        每日          → 生成報告
+├── ai.openclaw.scanner.plist        每 5 分鐘    → 掃描 9 個交易所
+├── ai.openclaw.tradercycle.plist    觸發時跑      → 分析 + 下單
+├── ai.openclaw.heartbeat.plist      每 15 分鐘   → 檢查倉位 + SL
+├── ai.openclaw.newsscraper.plist    每 5 分鐘    → RSS 抓取新聞
+├── ai.openclaw.newssentiment.plist  每 15 分鐘   → AI 情緒分析
+├── ai.openclaw.telegram.plist       長駐          → @AXCTradingBot
+├── ai.openclaw.newsbot.plist        長駐          → @AXCnews_bot
+├── ai.openclaw.xmonitor.plist       每小時        → X 帳號推文監察（LunarCrush MCP）
+├── ai.openclaw.lightscan.plist      每 3 分鐘    → 輕量價格更新
+├── ai.openclaw.report.plist         每日          → 生成報告
 └── ai.openclaw.strategyreview.plist 每週一       → 策略回顧
 ```
 

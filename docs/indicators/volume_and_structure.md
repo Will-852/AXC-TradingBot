@@ -2,6 +2,9 @@
 > 更新：2026-03-10
 > 涵蓋：ATR、OBV、VWAP、Volume Profile、Fibonacci、Pivot、Ichimoku、MTF
 
+### talk16 — 呢個文件係咩
+入場指標話你知「方向」，但冇話你知「喺邊個價位入」同「止損放邊」。呢個文件填呢兩個空缺。ATR 量波動大細（用嚟設止損距離同計倉位）、OBV/VWAP 確認成交量有冇配合（升但冇量 = 假突破）、Fibonacci/Pivot/Ichimoku 標出具體支撐阻力位（邊個價有得守）、Market Structure 判斷趨勢結構（HH/HL = 上升中）。最尾講多時間框架分析（MTF）— 大 TF 定方向、中 TF 搵設置、細 TF 精準入場。
+
 ---
 
 ## 1. ATR (Average True Range)

@@ -2,6 +2,9 @@
 > 更新：2026-03-10
 > 涵蓋：Funding Rate、OI、Liquidation、CVD、On-chain、Fear & Greed
 
+### talk16 — 呢個文件係咩
+普通指標（RSI、MACD）咩市場都用得。但 crypto 有啲獨有嘅數據係股票冇嘅：永續合約嘅 funding rate（多頭定空頭擠迫）、未平倉合約量 OI（幾多人仲揸住注）、清算瀑布風險、鏈上數據（大戶錢包搬緊錢）、同市場恐懼指數。呢啲係 crypto 獨有嘅「內部情報」— 唔使猜，直接睇到市場參與者嘅倉位同行為。呢個文件逐個講點睇、咩水平算危險、同 AXC 而家有冇用到。
+
 ---
 
 ## 1. Funding Rate（永續合約資金費率）

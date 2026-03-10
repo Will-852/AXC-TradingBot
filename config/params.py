@@ -6,24 +6,17 @@
 # 呢個文件 = 用戶可見參數層
 # 讀取者：
 #   dashboard.py    → 顯示 UI 設定（get_params() 動態讀全部）
-#   settings.py     → profile override（只讀 TRADING_PROFILES 4 個 key）
+#   settings.py     → 讀 ACTIVE_PROFILE + symbols + mode detection
 #   indicator_calc  → BB + TIMEFRAME + MACD + STOCH + SR 參數
 #   async_scanner   → 幣種 + 掃描設定
 #   weekly_review   → trigger_pct
 #
 # 唔放喺呢度：
 #   交易引擎內部邏輯參數 → scripts/trader_cycle/config/settings.py
+#   Profile 參數         → config/profiles/（_base.py + per-profile override）
 #   敏感 API keys        → secrets/.env
 #
-# TRADING_PROFILES override 映射（settings.py line 141-148）：
-#   risk_per_trade_pct  → RANGE_RISK_PCT + TREND_RISK_PCT
-#   sl_atr_mult         → RANGE_SL_ATR_MULT + TREND_SL_ATR_MULT
-#   range_min_rr        → RANGE_MIN_RR
-#   trend_min_rr        → TREND_MIN_RR
-#   tp_atr_mult         → (reserved for future TP calc, not consumed by settings.py)
-#   max_open_positions  → MAX_CRYPTO_POSITIONS
-#
-# ⚠️ 加新 profile key 前：先 grep settings.py 確認有消費者
+# ⚠️ 加新 profile key → 改 config/profiles/_base.py
 # ═══════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════
@@ -136,58 +129,13 @@ MODE_CONFIRMATION_REQUIRED = 2   # 連續同 mode 先切換
 # Section 6: 倉位管理（dashboard 讀）
 # ═══════════════════════════════════════
 MAX_POSITION_SIZE_USDT = 50
-MAX_OPEN_POSITIONS = 3
-RISK_PER_TRADE_PCT = 0.02
 
 # ═══════════════════════════════════════
-# Section 7: 打法 Profiles（dashboard + settings 讀）
+# Section 7: Profile 設定
 # ═══════════════════════════════════════
-# 三個打法對應不同風險偏好：
-#   CONSERVATIVE → 低波動市場，RANGE only
-#   BALANCED     → 中等波動，RANGE + 部分 TREND
-#   AGGRESSIVE   → 高波動市場，追趨勢
-
-TRADING_PROFILES = {
-    "CONSERVATIVE": {
-        "description": "保守：等待 RANGE 機會，最低風險",
-        "trigger_pct":          0.03,    # 3%（較嚴格，減少噪音）
-        "risk_per_trade_pct":   0.01,
-        "sl_atr_mult":          1.5,
-        "tp_atr_mult":          2.0,    # reserved: TP = N × ATR（未接入）
-        "range_min_rr":         2.3,    # Range 最低 reward:risk
-        "trend_min_rr":         3.0,    # Trend 最低 reward:risk（更嚴）
-        "max_open_positions":   1,
-        "allow_trend":          False,
-        "allow_range":          True,
-        "trend_min_change_pct": None,
-    },
-    "BALANCED": {
-        "description": "平衡：RANGE 為主，容許部分 TREND",
-        "trigger_pct":          0.025,   # 2.5%（市場 -4% 可觸發）
-        "risk_per_trade_pct":   0.02,
-        "sl_atr_mult":          1.2,
-        "tp_atr_mult":          2.0,    # reserved: TP = N × ATR（未接入）
-        "range_min_rr":         2.3,    # Range 最低 reward:risk
-        "trend_min_rr":         3.0,    # Trend 最低 reward:risk（更嚴）
-        "max_open_positions":   2,
-        "allow_trend":          True,
-        "allow_range":          True,
-        "trend_min_change_pct": 5.0,
-    },
-    "AGGRESSIVE": {
-        "description": "進取：追趨勢，最高風險最高回報",
-        "trigger_pct":          0.02,    # 2%（最敏感，追趨勢用）
-        "risk_per_trade_pct":   0.03,
-        "sl_atr_mult":          1.0,
-        "tp_atr_mult":          3.0,    # reserved: TP = N × ATR（未接入）
-        "range_min_rr":         2.0,    # Range 最低 reward:risk（較鬆）
-        "trend_min_rr":         2.5,    # Trend 最低 reward:risk（仍高於 Range）
-        "max_open_positions":   3,
-        "allow_trend":          True,
-        "allow_range":          True,
-        "trend_min_change_pct": 2.0,
-    },
-}
+# Profile 參數已搬到 config/profiles/（conservative.py, balanced.py, aggressive.py）
+# _base.py = 預設值，每個 profile 只 override 差異
+# user_params.py 唔再支援 TRADING_PROFILES override
 
 # 當前啟用模式（可手動改 或 由 /api/set_mode 自動寫入）
 ACTIVE_PROFILE = "AGGRESSIVE"
@@ -233,7 +181,7 @@ SCAN_LOG_MAX_LINES  = 500         # SCAN_LOG 保留行數
 SCAN_LOG_MAX_BYTES  = 10_485_760  # scanner.log 單文件上限（10MB）
 SCAN_LOG_BACKUPS    = 5           # scanner.log 保留備份數
 # ⚠️  CRITICAL: 呢個係 fallback 值。Scanner 優先讀 ACTIVE_PROFILE 的 trigger_pct。
-# 只有 params.py import 失敗時先用呢個值。正常情況改 TRADING_PROFILES 就得。
+# 只有 params.py import 失敗時先用呢個值。正常情況改 config/profiles/ 就得。
 TRIGGER_PCT         = 0.05        # fallback 信號觸發閾值（5%）
 
 # ═══════════════════════════════════════
@@ -243,7 +191,8 @@ NEWS_ARCHIVE_WINDOW_HOURS = 6     # RSS 文章保留時間
 NEWS_ANALYSIS_WINDOW_HOURS = 1    # Sentiment 分析只看最近 N 小時
 NEWS_STALE_MINUTES = 30           # Sentiment 數據過期閾值
 BEARISH_BLOCK_LONG_CONF = 0.70    # bearish confidence > 70% → block LONG signals
-NEWS_SCRAPE_INTERVAL_MIN = 15     # LaunchAgent 排程間隔
+NEWS_SCRAPE_INTERVAL_MIN = 5      # RSS 抓取間隔（分鐘）
+NEWS_ANALYSIS_INTERVAL_MIN = 15   # Sentiment 分析間隔（分鐘）
 
 # ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）

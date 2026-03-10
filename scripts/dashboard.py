@@ -39,13 +39,16 @@ except ImportError:
 PORT = 5555
 HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
+if HOME not in sys.path:
+    sys.path.insert(0, HOME)
 HKT = timezone(timedelta(hours=8))
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
+_profiles_cache = {"ts": 0, "data": {}, "active": ""}
 
 # Whitelist: profile-aware params with Chinese labels
-# Keys starting with _ are resolved from TRADING_PROFILES[ACTIVE_PROFILE]
+# Keys starting with _ are resolved from active profile (config/profiles/)
 PARAMS_DISPLAY = [
     ("RISK_PER_TRADE_PCT",      "風險/單",   "%"),
     ("MAX_OPEN_POSITIONS",      "最大倉位",  ""),
@@ -521,6 +524,7 @@ def get_news_sentiment():
                 stale = True
         result = {
             "overall_sentiment": raw.get("overall_sentiment", "neutral"),
+            "overall_impact": raw.get("overall_impact"),
             "confidence": raw.get("confidence", 0.0),
             "sentiment_by_symbol": raw.get("sentiment_by_symbol", {}),
             "key_narratives": raw.get("key_narratives", []),
@@ -956,23 +960,32 @@ def get_trading_params():
             v = getattr(mod, k)
             if isinstance(v, (int, float, str, bool, list)):
                 params[k] = v
-            elif isinstance(v, dict) and k in ("TRADING_PROFILES", "TIMEFRAME_PARAMS"):
+            elif isinstance(v, dict) and k == "TIMEFRAME_PARAMS":
                 params[k] = v
 
-        # Resolve active profile → override top-level display values
-        profiles = getattr(mod, "TRADING_PROFILES", {})
-        active = getattr(mod, "ACTIVE_PROFILE", "CONSERVATIVE")
-        profile = profiles.get(active, {})
+        # Resolve active profile via loader (cached 30s)
+        try:
+            from config.profiles.loader import load_profile, get_all_profiles
+            active = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+            profile = load_profile(active)
+            now_t = time.time()
+            if now_t - _profiles_cache["ts"] > 30 or _profiles_cache["active"] != active:
+                _profiles_cache.update(ts=now_t, data=get_all_profiles(), active=active)
+            params["TRADING_PROFILES"] = _profiles_cache["data"]
+        except Exception:
+            active = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+            profile = {}
+
         if profile:
             params["_profile_name"] = active
             params["_profile_desc"] = profile.get("description", "")
-            params["RISK_PER_TRADE_PCT"] = profile.get("risk_per_trade_pct", params.get("RISK_PER_TRADE_PCT", 0.02))
-            params["MAX_OPEN_POSITIONS"] = profile.get("max_open_positions", params.get("MAX_OPEN_POSITIONS", 2))
+            params["RISK_PER_TRADE_PCT"] = profile.get("risk_per_trade_pct", 0.02)
+            params["MAX_OPEN_POSITIONS"] = profile.get("max_open_positions", 2)
             params["_SL_ATR_MULT"] = profile.get("sl_atr_mult", 1.2)
             params["_TP_ATR_MULT"] = profile.get("tp_atr_mult", 2.0)
             params["_ALLOW_TREND"] = profile.get("allow_trend", True)
             params["_ALLOW_RANGE"] = profile.get("allow_range", True)
-            params["_TRIGGER_PCT"] = profile.get("trigger_pct", 0.38)
+            params["_TRIGGER_PCT"] = profile.get("trigger_pct", 0.025)
             params["_TREND_MIN"] = profile.get("trend_min_change_pct")
 
         return params
@@ -1523,7 +1536,11 @@ def get_action_plan(scan_config, trade_state):
             getattr(mod, "ASTER_SYMBOLS", []) + getattr(mod, "BINANCE_SYMBOLS", [])
         ))
         active_profile = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
-        profiles = getattr(mod, "TRADING_PROFILES", {})
+        try:
+            from config.profiles.loader import load_profile as _lp
+            profiles = {active_profile: _lp(active_profile)}
+        except Exception:
+            profiles = {}
         # Trader PAIRS = actually tradeable symbols (from trader_cycle settings)
         try:
             spec_tc = importlib.util.spec_from_file_location(
@@ -2513,11 +2530,20 @@ def handle_hl_disconnect():
     return 200, {"ok": True, "status": "disconnected"}
 
 
+def _safe_docs_path(rel_path):
+    """Resolve path and ensure it stays within HOME/docs/. Returns None if traversal detected."""
+    docs_root = os.path.abspath(os.path.join(HOME, "docs"))
+    resolved = os.path.abspath(os.path.join(HOME, rel_path))
+    if not resolved.startswith(docs_root + os.sep) and resolved != docs_root:
+        return None
+    return resolved
+
+
 def handle_file_read(rel_path):
     """GET /api/file?path=docs/..."""
-    if not rel_path.startswith("docs/"):
+    fp = _safe_docs_path(rel_path)
+    if fp is None:
         return 403, "Forbidden"
-    fp = os.path.join(HOME, rel_path)
     if not os.path.exists(fp):
         return 404, "Not found"
     with open(fp) as f:
@@ -2526,9 +2552,9 @@ def handle_file_read(rel_path):
 
 def handle_open_folder(rel_path):
     """GET /api/open_folder?path=docs/..."""
-    if not rel_path.startswith("docs/"):
+    fp = _safe_docs_path(rel_path)
+    if fp is None:
         return 403, {"error": "Forbidden"}
-    fp = os.path.join(HOME, rel_path)
     if os.path.exists(fp):
         subprocess.Popen(["open", fp])
     return 200, {"ok": True}
@@ -2645,12 +2671,39 @@ def serve_doc(filename: str):
     return 200, content, "text/plain; charset=utf-8"
 
 
+_ALLOWED_ORIGINS = {
+    f"http://127.0.0.1:{PORT}",
+    f"http://localhost:{PORT}",
+}
+
+
 class Handler(BaseHTTPRequestHandler):
+
+    def _check_origin(self):
+        """Block cross-origin POST requests (CSRF protection)."""
+        origin = self.headers.get("Origin", "")
+        referer = self.headers.get("Referer", "")
+        if origin:
+            if origin not in _ALLOWED_ORIGINS:
+                self._json_response(403, {"error": "Forbidden origin"})
+                return False
+        elif referer:
+            if not any(referer == o or referer.startswith(o + "/") for o in _ALLOWED_ORIGINS):
+                self._json_response(403, {"error": "Forbidden referer"})
+                return False
+        ct = self.headers.get("Content-Type", "")
+        if not ct.startswith("application/json"):
+            self._json_response(400, {"error": "Content-Type must be application/json"})
+            return False
+        return True
+
     def _json_response(self, code, data):
         body = json.dumps(data, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "") if hasattr(self, 'headers') and self.headers else ""
+        allowed = origin if origin in _ALLOWED_ORIGINS else f"http://127.0.0.1:{PORT}"
+        self.send_header("Access-Control-Allow-Origin", allowed)
         self.end_headers()
         self.wfile.write(body)
 
@@ -2669,7 +2722,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/health":
             self._json_response(200, handle_api_health())
         elif path == "/api/debug":
-            self._json_response(200, collect_debug())
+            if qs.get("token", [""])[0] != "axc-debug":
+                self._json_response(403, {"error": "Forbidden"})
+            else:
+                self._json_response(200, collect_debug())
         elif path == "/api/suggest_mode":
             self._json_response(200, handle_suggest_mode())
         elif path == "/api/binance/status":
@@ -2687,7 +2743,7 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(content, str):
                 self.send_response(code)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Origin", f"http://127.0.0.1:{PORT}")
                 self.end_headers()
                 self.wfile.write(content.encode())
             else:
@@ -2716,7 +2772,7 @@ class Handler(BaseHTTPRequestHandler):
             code, content, ctype = serve_doc(filename)
             self.send_response(code)
             self.send_header("Content-Type", ctype)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Origin", f"http://127.0.0.1:{PORT}")
             self.end_headers()
             self.wfile.write(content.encode() if isinstance(content, str) else content)
         elif path in ("/share", "/share/windows"):
@@ -2785,6 +2841,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"canvas/index.html not found")
 
     def do_POST(self):
+        if not self._check_origin():
+            return
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode() if length > 0 else ""
         if self.path == "/api/set_mode":
@@ -2824,8 +2882,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(404, {"error": "Not found"})
 
     def do_OPTIONS(self):
+        origin = self.headers.get("Origin", "")
+        allowed = origin if origin in _ALLOWED_ORIGINS else f"http://127.0.0.1:{PORT}"
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", allowed)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
@@ -2842,11 +2902,9 @@ def main():
             port = int(sys.argv[idx + 1])
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
-    bind = "0.0.0.0"
+    bind = "127.0.0.1"
     server = ThreadedHTTPServer((bind, port), Handler)
-    print(f"AXC Dashboard: http://localhost:{port}")
-    print(f"⚠️  局域網可連：http://<你的IP>:{port} — 同一 WiFi 嘅設備都可以存取（包括平倉等操作）")
-    print(f"   如果喺公共網絡，建議改回 127.0.0.1（編輯 dashboard.py 最尾 bind 變數）")
+    print(f"AXC Dashboard: http://127.0.0.1:{port}")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()

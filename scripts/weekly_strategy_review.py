@@ -50,11 +50,18 @@ logging.basicConfig(
 log = logging.getLogger("strategy_review")
 
 # ── Config/params import ──
+sys.path.insert(0, str(BASE_DIR))
 sys.path.insert(0, str(BASE_DIR / "config"))
 try:
     import params as _params
 except ImportError:
     _params = None
+
+try:
+    from config.profiles.loader import load_profile as _load_profile
+    _active_profile = _load_profile()
+except Exception:
+    _active_profile = None
 
 
 def read_jsonl(path: Path, limit: int = 0) -> list[dict]:
@@ -80,14 +87,16 @@ def get_params_snapshot() -> dict:
     """Extract current trading params for context."""
     if _params is None:
         return {"error": "params.py not found"}
+    # Profile-aware values (from config/profiles/)
+    _ap = _active_profile or {}
     return {
         "active_profile": getattr(_params, "ACTIVE_PROFILE", "?"),
-        "risk_per_trade": getattr(_params, "RISK_PER_TRADE_PCT", 0),
+        "risk_per_trade": _ap.get("risk_per_trade_pct", 0.02),
         "max_position_usdt": getattr(_params, "MAX_POSITION_SIZE_USDT", 0),
-        "max_open_positions": getattr(_params, "MAX_OPEN_POSITIONS", 0),
+        "max_open_positions": _ap.get("max_open_positions", 2),
         "aster_symbols": getattr(_params, "ASTER_SYMBOLS", []),
         "binance_symbols": getattr(_params, "BINANCE_SYMBOLS", []),
-        "trigger_pct": getattr(_params, "TRIGGER_PCT", 0),
+        "trigger_pct": _ap.get("trigger_pct", getattr(_params, "TRIGGER_PCT", 0)),
         "bb_touch_tol": getattr(_params, "BB_TOUCH_TOL_DEFAULT", 0),
         "bb_width_min": getattr(_params, "BB_WIDTH_MIN", 0),
     }
