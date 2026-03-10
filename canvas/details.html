@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpenClaw 系統說明</title>
+  <title>AXC 系統說明</title>
   <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -23,8 +23,8 @@
   --blue:      #60a5fa;
   --cyan:      #7dd3fc;
   --purple:    #a78bfa;
-  --sidebar-w: 220px;
-  --content-w: 680px;
+  --sidebar-w: 240px;
+  --content-w: 720px;
   --font:      -apple-system, 'Segoe UI', sans-serif;
   --mono:      'SF Mono', 'Fira Code', monospace;
 }
@@ -38,6 +38,13 @@ body {
   font-size: 15px;
   line-height: 1.7;
   min-height: 100vh;
+}
+
+/* ── Reading Progress Bar ───────────── */
+.progress-bar {
+  position: fixed; top: 0; left: 0; z-index: 100;
+  height: 3px; background: var(--accent);
+  width: 0; transition: width 0.1s;
 }
 
 /* ── Layout ──────────────────────────── */
@@ -62,7 +69,7 @@ body {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.toc-logo-name { font-size: 1rem; font-weight: 700; color: var(--yellow); }
+.toc-logo-name { font-size: 1.1rem; font-weight: 700; color: var(--yellow); }
 .toc-logo-sub  { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
 
 .toc-nav {
@@ -85,7 +92,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0.3rem 1.2rem;
+  padding: 0.35rem 1.2rem;
   font-size: 0.8rem;
   color: var(--text-dim);
   text-decoration: none;
@@ -142,7 +149,7 @@ body {
 /* ── Search Bar (sticky) ─────────────── */
 .search-bar-wrap {
   position: sticky;
-  top: 0; z-index: 50;
+  top: 3px; z-index: 50;
   width: 100%;
   background: rgba(10,10,15,0.92);
   backdrop-filter: blur(12px);
@@ -222,6 +229,42 @@ body {
   font-size: 0.85rem;
 }
 
+/* ── On-This-Page mini-TOC ───────────── */
+.page-toc {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.page-toc-title {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.4rem;
+}
+.page-toc-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+}
+.page-toc-list li a {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 0.15rem 0;
+  transition: color 0.12s;
+}
+.page-toc-list li a:hover { color: var(--accent); }
+.page-toc-list li a::before {
+  content: '›';
+  margin-right: 0.3rem;
+  color: var(--text-muted);
+}
+
 /* ── Rendered Markdown Styles ────────── */
 #doc-content { min-height: 400px; }
 
@@ -260,6 +303,10 @@ body {
   color: var(--accent); text-decoration: none;
 }
 #doc-content a:hover { text-decoration: underline; }
+#doc-content hr {
+  border: none; border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
 
 /* Code blocks */
 .cmd-block {
@@ -279,6 +326,12 @@ body {
   cursor: pointer;
   transition: border-color 0.3s;
 }
+.cmd-block-lang {
+  position: absolute; top: 0.4rem; left: 0.8rem;
+  font-size: 0.6rem; color: var(--text-muted);
+  font-family: var(--font); text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .cmd-copy-btn {
   position: absolute; top: 0.5rem; right: 0.6rem;
   font-size: 0.65rem; color: var(--text-muted);
@@ -292,11 +345,59 @@ body {
 .cmd-block:hover .cmd-copy-btn { color: var(--accent); border-color: var(--accent); }
 .cmd-block.copied { border-color: var(--green) !important; }
 .cmd-block.copied .cmd-copy-btn { color: var(--green); border-color: var(--green); }
+.cmd-block.has-lang { padding-top: 1.6rem; }
+
+/* Blockquote */
+.md-blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: 0 6px 6px 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem;
+  margin: 0.6rem 0;
+  line-height: 1.6;
+  color: #b4b8d8;
+}
+
+/* Callout boxes */
+.callout {
+  border-radius: 0 6px 6px 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem;
+  margin: 0.6rem 0;
+  line-height: 1.6;
+}
+.callout-warn {
+  background: #1a1400;
+  border-left: 3px solid var(--yellow);
+  color: #fcd34d;
+}
+.callout-danger {
+  background: #1a0a0a;
+  border-left: 3px solid var(--red);
+  color: #fca5a5;
+}
+.callout-info {
+  background: #0a1020;
+  border-left: 3px solid var(--blue);
+  color: #93c5fd;
+}
+.callout-tip {
+  background: #0a1a10;
+  border-left: 3px solid var(--green);
+  color: #86efac;
+}
 
 /* Tables */
+.table-wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0 1rem;
+  -webkit-overflow-scrolling: touch;
+}
 .data-table {
   width: 100%; border-collapse: collapse;
-  margin: 0.5rem 0 1rem; font-size: 0.82rem;
+  font-size: 0.82rem;
+  min-width: 400px;
 }
 .data-table th {
   background: var(--bg-card); color: var(--accent);
@@ -304,6 +405,7 @@ body {
   text-align: left; font-weight: 600;
   border-bottom: 1px solid var(--border);
   text-transform: uppercase; letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 .data-table td {
   padding: 7px 12px; color: #a0a8c0;
@@ -314,32 +416,42 @@ body {
 }
 .data-table tr:hover td { background: var(--bg-hover); }
 
-/* Tip / Warn in rendered content */
-.md-note {
-  border-radius: 0 6px 6px 0;
-  padding: 0.65rem 0.9rem;
-  font-size: 0.83rem;
-  margin: 0.6rem 0;
-  line-height: 1.5;
-  background: #0a1a10;
-  border-left: 3px solid var(--green);
-  color: #86efac;
+/* Prev / Next navigation */
+.page-nav {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
 }
-
-/* Arch diagrams (``` blocks without language) */
-.arch-block {
-  background: #05060f;
-  border: 1px solid #1e2a4a;
+.page-nav-btn {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1rem 1.2rem;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  color: var(--cyan);
-  white-space: pre;
-  overflow-x: auto;
-  line-height: 1.9;
-  margin: 0.5rem 0 1rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
 }
+.page-nav-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.page-nav-btn.prev { text-align: left; }
+.page-nav-btn.next { text-align: right; }
+.page-nav-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.page-nav-title {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-top: 0.2rem;
+}
+.page-nav-btn:hover .page-nav-title { color: var(--accent); }
 
 /* GitHub link */
 .gh-link {
@@ -354,7 +466,7 @@ body {
 
 /* Page footer */
 .page-footer {
-  margin-top: 3rem; padding-top: 1.5rem;
+  margin-top: 1.5rem; padding-top: 1.5rem;
   border-top: 1px solid var(--border);
 }
 .warn-footer {
@@ -402,17 +514,21 @@ body {
   .main-content { margin-left: 0; }
   .article { padding: 1.5rem 1rem 4rem; }
   .search-bar-wrap { padding: 0.6rem 1rem; padding-left: 56px; }
+  .page-nav { flex-direction: column; }
+  .page-toc-list { flex-direction: column; gap: 0.15rem; }
 }
   </style>
 </head>
 <body>
+
+<div class="progress-bar" id="progress-bar"></div>
 
 <div class="layout">
 
 <!-- TOC Sidebar -->
 <nav class="toc-sidebar" id="toc-sidebar">
   <div class="toc-logo">
-    <div class="toc-logo-name">OpenClaw</div>
+    <div class="toc-logo-name">AXC Trading</div>
     <div class="toc-logo-sub">系統說明文件</div>
   </div>
   <div class="toc-nav" id="toc-nav">
@@ -433,7 +549,7 @@ body {
     <div class="search-bar">
       <span class="search-icon">&#x1F50D;</span>
       <input class="search-input" id="search-input" type="text"
-             placeholder="搜尋所有指南... 例如「止蝕」「API」「Telegram」" autocomplete="off">
+             placeholder="搜尋所有指南... 例如「止蝕」「API」「Telegram」「改參數」" autocomplete="off">
       <span class="search-kbd">/</span>
     </div>
     <div class="search-results" id="search-results"></div>
@@ -441,17 +557,21 @@ body {
 
   <div class="article">
     <div class="page-header">
-      <h1 class="page-title">OpenClaw</h1>
+      <h1 class="page-title">AXC Trading System</h1>
       <p class="page-sub">AI 加密貨幣交易系統 — 系統說明文件</p>
     </div>
+
+    <div id="page-toc-container"></div>
 
     <div id="doc-content">
       <div class="loading">載入中...</div>
     </div>
 
+    <div id="page-nav-container"></div>
+
     <div class="page-footer">
       <a href="https://github.com/Will-852/AXC-TradingBot" target="_blank" class="gh-link">github.com/Will-852/AXC-TradingBot</a>
-      <div class="warn-footer">安全提示：API 密鑰、資金資訊不會在此頁面顯示。敏感設定：<code>secrets/.env</code> + <code>openclaw.json</code></div>
+      <div class="warn-footer">安全提示：API 密鑰、資金資訊不會在此頁面顯示。敏感設定：<code>secrets/.env</code></div>
     </div>
   </div>
 </div>
@@ -463,21 +583,19 @@ body {
 // ═══════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════
-var guides = [];       // [{file, title, section, order, content}]
+var guides = [];
 var activeFile = null;
 
 // ═══════════════════════════════════════════
-// Init: fetch all guides, build TOC, load first
+// Init
 // ═══════════════════════════════════════════
 (async function init() {
   try {
     var files = await fetch('/api/docs-list').then(function(r) { return r.json(); });
-    // Filter numbered guides only
     var guideFiles = files.filter(function(f) {
       return /^guides\/\d{2}-/.test(f);
     }).sort();
 
-    // Fetch all content + parse frontmatter
     guides = await Promise.all(guideFiles.map(async function(f) {
       var text = await fetch('/api/doc/' + encodeURIComponent(f)).then(function(r) { return r.text(); });
       var meta = parseFrontmatter(text);
@@ -569,16 +687,25 @@ function loadGuide(file) {
     a.classList.toggle('active', a.dataset.file === file);
   });
 
-  // Render
+  // Render content
   var el = document.getElementById('doc-content');
   el.innerHTML = renderMarkdown(g.content);
+
+  // Build on-this-page mini-TOC
+  buildPageTOC(el);
+
+  // Build prev/next nav
+  buildPageNav(file);
 
   // Attach click-to-copy on code blocks
   el.querySelectorAll('.cmd-block').forEach(function(block) {
     block.addEventListener('click', function() {
       var btn = block.querySelector('.cmd-copy-btn');
+      var langLabel = block.querySelector('.cmd-block-lang');
       var text = block.textContent;
-      if (btn) text = text.replace(btn.textContent, '').trim();
+      if (btn) text = text.replace(btn.textContent, '');
+      if (langLabel) text = text.replace(langLabel.textContent, '');
+      text = text.trim();
       navigator.clipboard.writeText(text).then(function() {
         block.classList.add('copied');
         if (btn) btn.textContent = '已複製';
@@ -595,7 +722,69 @@ function loadGuide(file) {
 }
 
 // ═══════════════════════════════════════════
-// Markdown → HTML renderer (no external libs)
+// On-this-page mini-TOC
+// ═══════════════════════════════════════════
+function buildPageTOC(contentEl) {
+  var container = document.getElementById('page-toc-container');
+  var h2s = contentEl.querySelectorAll('h2');
+
+  if (h2s.length < 3) {
+    container.innerHTML = '';
+    return;
+  }
+
+  var items = [];
+  h2s.forEach(function(h2, i) {
+    var id = 'section-' + i;
+    h2.id = id;
+    items.push('<li><a href="#' + id + '">' + h2.textContent + '</a></li>');
+  });
+
+  container.innerHTML =
+    '<div class="page-toc">' +
+    '<div class="page-toc-title">本頁目錄</div>' +
+    '<ul class="page-toc-list">' + items.join('') + '</ul>' +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════
+// Prev / Next navigation
+// ═══════════════════════════════════════════
+function buildPageNav(file) {
+  var container = document.getElementById('page-nav-container');
+  var idx = guides.findIndex(function(g) { return g.file === file; });
+  var prev = idx > 0 ? guides[idx - 1] : null;
+  var next = idx < guides.length - 1 ? guides[idx + 1] : null;
+
+  if (!prev && !next) {
+    container.innerHTML = '';
+    return;
+  }
+
+  var html = '<div class="page-nav">';
+
+  if (prev) {
+    html += '<div class="page-nav-btn prev" onclick="loadGuide(\'' + prev.file + '\')">' +
+      '<div class="page-nav-label">&#8592; 上一篇</div>' +
+      '<div class="page-nav-title">' + escHtml(prev.title) + '</div></div>';
+  } else {
+    html += '<div style="flex:1"></div>';
+  }
+
+  if (next) {
+    html += '<div class="page-nav-btn next" onclick="loadGuide(\'' + next.file + '\')">' +
+      '<div class="page-nav-label">下一篇 &#8594;</div>' +
+      '<div class="page-nav-title">' + escHtml(next.title) + '</div></div>';
+  } else {
+    html += '<div style="flex:1"></div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// Markdown → HTML renderer
 // ═══════════════════════════════════════════
 function renderMarkdown(md) {
   var lines = md.split('\n');
@@ -616,33 +805,50 @@ function renderMarkdown(md) {
         code.push(lines[i]);
         i++;
       }
-      i++; // skip closing ```
+      i++;
       closeList();
       var codeText = escHtml(code.join('\n'));
-      if (lang === 'bash' || lang === 'python' || lang === '') {
-        html.push('<div class="cmd-block"><span class="cmd-copy-btn">複製</span>' + codeText + '</div>');
-      } else {
-        html.push('<div class="cmd-block"><span class="cmd-copy-btn">複製</span>' + codeText + '</div>');
-      }
+      var langLabel = lang ? '<span class="cmd-block-lang">' + escHtml(lang) + '</span>' : '';
+      var extraClass = lang ? ' has-lang' : '';
+      html.push('<div class="cmd-block' + extraClass + '">' + langLabel + '<span class="cmd-copy-btn">複製</span>' + codeText + '</div>');
       continue;
     }
 
+    // Horizontal rule
+    if (line.match(/^---\s*$/) || line.match(/^\*\*\*\s*$/)) {
+      closeList();
+      html.push('<hr>');
+      i++; continue;
+    }
+
     // Table
-    if (line.match(/^\|/) && i + 1 < lines.length && lines[i + 1].match(/^\|[\s-|]+$/)) {
+    if (line.match(/^\|/) && i + 1 < lines.length && lines[i + 1].match(/^\|[\s-:|]+$/)) {
       closeList();
       var headerCells = parseCells(line);
-      i += 2; // skip header + separator
+      i += 2;
       var rows = [];
       while (i < lines.length && lines[i].match(/^\|/)) {
         rows.push(parseCells(lines[i]));
         i++;
       }
-      html.push('<table class="data-table">');
+      html.push('<div class="table-wrap"><table class="data-table">');
       html.push('<tr>' + headerCells.map(function(c) { return '<th>' + inlineFormat(c) + '</th>'; }).join('') + '</tr>');
       rows.forEach(function(row) {
         html.push('<tr>' + row.map(function(c) { return '<td>' + inlineFormat(c) + '</td>'; }).join('') + '</tr>');
       });
-      html.push('</table>');
+      html.push('</table></div>');
+      continue;
+    }
+
+    // Blockquote
+    if (line.match(/^>\s?/)) {
+      closeList();
+      var bqLines = [];
+      while (i < lines.length && lines[i].match(/^>\s?/)) {
+        bqLines.push(lines[i].replace(/^>\s?/, ''));
+        i++;
+      }
+      html.push('<div class="md-blockquote">' + inlineFormat(bqLines.join(' ')) + '</div>');
       continue;
     }
 
@@ -691,9 +897,20 @@ function renderMarkdown(md) {
       i++; continue;
     }
 
-    // Paragraph
+    // Paragraph — detect callout
     closeList();
-    html.push('<p>' + inlineFormat(line) + '</p>');
+    var trimmed = line.trim();
+    if (trimmed.startsWith('⚠️')) {
+      html.push('<div class="callout callout-warn">' + inlineFormat(trimmed) + '</div>');
+    } else if (trimmed.startsWith('💡')) {
+      html.push('<div class="callout callout-tip">' + inlineFormat(trimmed) + '</div>');
+    } else if (trimmed.startsWith('🔴') || trimmed.startsWith('❌')) {
+      html.push('<div class="callout callout-danger">' + inlineFormat(trimmed) + '</div>');
+    } else if (trimmed.startsWith('ℹ️') || trimmed.startsWith('📌')) {
+      html.push('<div class="callout callout-info">' + inlineFormat(trimmed) + '</div>');
+    } else {
+      html.push('<p>' + inlineFormat(line) + '</p>');
+    }
     i++;
   }
 
@@ -750,7 +967,6 @@ function doSearch() {
     var idx = g.content.toLowerCase().indexOf(q);
     if (idx === -1) return;
 
-    // Extract context around match
     var start = Math.max(0, idx - 30);
     var end = Math.min(g.content.length, idx + q.length + 50);
     var snippet = g.content.slice(start, end).replace(/\n/g, ' ').trim();
@@ -820,11 +1036,17 @@ function toggleMobileToc() {
 }
 
 // ═══════════════════════════════════════════
-// Back to top
+// Back to top + Reading progress
 // ═══════════════════════════════════════════
 var topBtn = document.getElementById('top-btn');
+var progressBar = document.getElementById('progress-bar');
+
 window.addEventListener('scroll', function() {
   topBtn.classList.toggle('show', window.scrollY > 400);
+
+  var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  var pct = docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0;
+  progressBar.style.width = pct + '%';
 });
 </script>
 </body>
