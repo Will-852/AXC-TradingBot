@@ -72,6 +72,18 @@ class EvaluateSignalsStep:
             signal = strategy.evaluate(symbol, pair_indicators, ctx)
 
             if signal:
+                # Preserve original score for position sizing (before any boosts)
+                signal.original_score = signal.score
+
+                # Re-entry signal boost: +0.5 score if pair/direction matches
+                if (ctx.reentry_eligible
+                        and signal.pair == ctx.reentry_pair
+                        and signal.direction == ctx.reentry_direction):
+                    signal.score += 0.5
+                    signal.reasons.append("REENTRY_BOOST +0.5")
+                    if ctx.verbose:
+                        print(f"    {symbol}: re-entry boost applied (score +0.5)")
+
                 ctx.signals.append(signal)
                 if ctx.verbose:
                     print(f"    {symbol}: {signal.direction} {signal.strength} "

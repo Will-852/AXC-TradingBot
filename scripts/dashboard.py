@@ -10,6 +10,7 @@ Usage:
 
 import io
 import json
+import logging
 import os
 import re
 import subprocess
@@ -20,9 +21,14 @@ import urllib.error
 import urllib.parse
 import zipfile
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from openclaw_bridge import bridge
+from socketserver import ThreadingMixIn
+try:
+    from openclaw_bridge import bridge
+except ImportError:
+    bridge = None
 
 try:
     import psutil
@@ -32,12 +38,11 @@ except ImportError:
 
 PORT = 5555
 HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 HKT = timezone(timedelta(hours=8))
 PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
-CANVAS_HTML = os.path.expanduser("~/.openclaw/canvas/index.html")
+CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 
 # Whitelist: profile-aware params with Chinese labels
 # Keys starting with _ are resolved from TRADING_PROFILES[ACTIVE_PROFILE]
@@ -168,6 +173,120 @@ def _get_hl_client():
         sys.path.insert(0, SCRIPTS_DIR)
     from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
     return HyperLiquidClient()
+
+
+def _get_binance_client():
+    """Lazy-load BinanceClient for live exchange queries."""
+    if SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, SCRIPTS_DIR)
+    from trader_cycle.exchange.binance_client import BinanceClient
+    return BinanceClient()
+
+
+def _normalize_positions(raw, orders, platform):
+    """Normalize raw positions + open orders → dashboard format with platform tag.
+    Works for Aster/Binance (native format) and HL (pre-normalized by client).
+    """
+    positions = []
+    for p in raw:
+        amt = float(p.get("positionAmt", 0))
+        if amt == 0:
+            continue
+        symbol = p.get("symbol", "")
+        entry = float(p.get("entryPrice", 0))
+        mark = float(p.get("markPrice", 0))
+        leverage = int(float(p.get("leverage", 1)))
+        size = abs(amt)
+        notional = size * mark
+        upnl = float(p.get("unRealizedProfit", 0))
+        upnl_pct = round(upnl / (notional / leverage) * 100, 2) if notional > 0 else 0
+
+        # SL/TP from open orders — format differs by exchange
+        sl_price = 0
+        tp_price = 0
+        for o in orders:
+            # Aster/Binance format: type + stopPrice
+            otype = o.get("type", "")
+            if otype == "STOP_MARKET":
+                if not symbol or o.get("symbol") == symbol:
+                    sl_price = float(o.get("stopPrice", 0))
+            elif otype == "TAKE_PROFIT_MARKET":
+                if not symbol or o.get("symbol") == symbol:
+                    tp_price = float(o.get("stopPrice", 0))
+            # HL format: coin + orderType contains "Stop" / "Take"
+            if not otype and o.get("coin"):
+                hl_type = o.get("orderType", "")
+                hl_sym = o.get("coin", "") + "USDT"
+                if hl_sym == symbol or not symbol:
+                    if "stop" in hl_type.lower():
+                        sl_price = float(o.get("triggerPx", o.get("limitPx", 0)))
+                    elif "take" in hl_type.lower():
+                        tp_price = float(o.get("triggerPx", o.get("limitPx", 0)))
+
+        positions.append({
+            "pair": symbol,
+            "direction": "LONG" if amt > 0 else "SHORT",
+            "entry_price": entry,
+            "mark_price": mark,
+            "size": size,
+            "notional": round(notional, 2),
+            "leverage": leverage,
+            "margin_type": p.get("marginType", "cross"),
+            "margin": round(float(p.get("isolatedWallet", p.get("marginUsed", 0))), 2),
+            "liq_price": float(p.get("liquidationPrice", p.get("liquidationPx", 0)) or 0),
+            "unrealized_pnl": upnl,
+            "unrealized_pct": upnl_pct,
+            "sl_price": sl_price,
+            "tp_price": tp_price,
+            "platform": platform,
+        })
+    return positions
+
+
+def _query_single_exchange(name, client_fn, cred_check):
+    """Query one exchange — called inside thread pool."""
+    c1, c2 = cred_check()
+    if not c1 or not c2:
+        return None
+    try:
+        client = client_fn()
+        orders = []
+        try:
+            orders = client.get_open_orders()
+        except Exception:
+            pass
+        return {
+            "balance": client.get_usdt_balance(),
+            "positions": _normalize_positions(client.get_positions(), orders, name),
+        }
+    except Exception as e:
+        logging.warning("exchange query %s error: %s", name, e)
+        return None
+
+
+def get_all_exchange_data():
+    """Query all connected exchanges in parallel → per-exchange balance + positions."""
+    exchanges = [
+        ("aster", _get_aster_client, _get_aster_credentials),
+        ("binance", _get_binance_client, _get_binance_credentials),
+        ("hyperliquid", _get_hl_client, _get_hl_credentials),
+    ]
+    result = {}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(_query_single_exchange, name, cfn, cred): name
+            for name, cfn, cred in exchanges
+        }
+        for fut in as_completed(futures):
+            name = futures[fut]
+            try:
+                data = fut.result(timeout=10)
+                if data is not None:
+                    result[name] = data
+            except Exception as e:
+                logging.warning("exchange query %s timeout/error: %s", name, e)
+
+    return result
 
 
 def get_live_balance():
@@ -322,7 +441,7 @@ def get_agent_info():
         "decision": "claude-opus",
     }
     # Model fallback from openclaw.json (via bridge, empty if unavailable)
-    oc_models = bridge.agent_models()
+    oc_models = bridge.agent_models() if bridge else {}
     la = get_launchagents()
     agents = []
     for aid, meta in agent_map.items():
@@ -448,7 +567,11 @@ def get_file_tree():
 
 def get_agent_activity():
     """Derive agent call counts from scan log + cost from tracker."""
-    ct = parse_md(os.path.join(WORKSPACE, "routing/COST_TRACKER.md"))
+    ct = {}
+    try:
+        ct = parse_md(os.path.join(os.path.expanduser("~/.openclaw/workspace"), "routing/COST_TRACKER.md"))
+    except Exception:
+        pass
     today = datetime.now(HKT).strftime("%Y-%m-%d")
     ct_date = ct.get("DATE", "")
     daily_total = ct.get("DAILY_TOTAL", "$0.00") if ct_date == today else "—"
@@ -1095,11 +1218,13 @@ def collect_data():
     params = get_trading_params()
     trade = get_trade_state()
 
-    # LIVE balance from exchange (source of truth)
-    live_bal = get_live_balance()
+    # Multi-exchange breakdown — single pass, reuse for balance/positions
+    exchange_data = get_all_exchange_data()
 
-    # LIVE positions from exchange
-    live_positions = get_live_positions()
+    # Extract Aster data from exchange_data (avoid double API call)
+    _aster_data = exchange_data.get("aster", {})
+    live_bal = _aster_data.get("balance", 0.0) if _aster_data else get_live_balance()
+    live_positions = _aster_data.get("positions", []) if _aster_data else get_live_positions()
     has_position = len(live_positions) > 0
 
     # Balance baseline for PnL (single source of truth: balance delta)
@@ -1124,7 +1249,7 @@ def collect_data():
         direction_str = trade["direction"]
 
     # Prices from scan config
-    scan_config = parse_md(os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md"))
+    scan_config = parse_md(os.path.join(HOME, "shared/SCAN_CONFIG.md"))
     signal = parse_md(os.path.join(HOME, "shared/SIGNAL.md"))
     prices = {
         "BTC": scan_config.get("BTC_price", "0"),
@@ -1193,6 +1318,7 @@ def collect_data():
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
         "activity_log": get_activity_log(50),
         "demo_mode": False,
+        "exchanges": exchange_data,
     }
 
 
@@ -1834,25 +1960,12 @@ def collect_debug():
         "scripts/trader_cycle/config/settings.py",
         "secrets/.env",
     ]
-    # Files in OPENCLAW_WORKSPACE
-    ws_files = [
-        "routing/COST_TRACKER.md",
-        "agents/aster_trader/config/SCAN_CONFIG.md",
-        "agents/aster_trader/TRADE_LOG.md",
-    ]
+    home_files += ["shared/SCAN_CONFIG.md", "shared/TRADE_LOG.md"]
     results["files"] = {}
     for f in home_files:
         p = os.path.join(HOME, f)
         exists = os.path.exists(p)
         results["files"][f] = {
-            "exists": exists,
-            "size": os.path.getsize(p) if exists else 0,
-            "modified": os.path.getmtime(p) if exists else 0,
-        }
-    for f in ws_files:
-        p = os.path.join(WORKSPACE, f)
-        exists = os.path.exists(p)
-        results["files"][f"workspace/{f}"] = {
             "exists": exists,
             "size": os.path.getsize(p) if exists else 0,
             "modified": os.path.getmtime(p) if exists else 0,
@@ -1872,14 +1985,14 @@ def collect_debug():
     except Exception as e:
         results["signal_raw"] = f"ERROR: {e}"
     # Raw SCAN_CONFIG.md
-    sc_path = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
+    sc_path = os.path.join(HOME, "shared/SCAN_CONFIG.md")
     try:
         with open(sc_path) as f:
             results["scan_config_raw"] = f.read()
     except Exception as e:
         results["scan_config_raw"] = f"ERROR: {e}"
     # Raw TRADE_LOG.md
-    tl_path = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
+    tl_path = os.path.join(HOME, "shared/TRADE_LOG.md")
     try:
         with open(tl_path) as f:
             results["trade_log_raw"] = f.read()
@@ -2131,7 +2244,9 @@ def main():
         idx = sys.argv.index("--port")
         if idx + 1 < len(sys.argv):
             port = int(sys.argv[idx + 1])
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+    server = ThreadedHTTPServer(("127.0.0.1", port), Handler)
     print(f"OpenClaw ICU Dashboard: http://127.0.0.1:{port}")
     print("Press Ctrl+C to stop")
     try:

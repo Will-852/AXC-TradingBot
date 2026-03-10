@@ -33,7 +33,8 @@ class Signal:
     tp1_price: float = 0.0
     tp2_price: float | None = None
     reasons: list[str] = field(default_factory=list)
-    score: float = 0.0             # numeric strength for ranking
+    score: float = 0.0             # numeric strength for ranking (may include boosts)
+    original_score: float = 0.0    # pre-boost score for position sizing
     # Phase 3 — populated by SizePositionStep for ExecuteTradeStep
     position_size_qty: float = 0.0  # quantity in base asset (e.g., 0.003 BTC)
     position_notional: float = 0.0  # notional value in USDT
@@ -55,6 +56,7 @@ class Position:
     entry_time: datetime | None = None
     unrealized_pnl: float = 0.0
     funding_cost: float = 0.0
+    platform: str = "aster"         # "aster", "binance", or "hyperliquid"
 
 
 @dataclass
@@ -137,6 +139,7 @@ class CycleContext:
     entry_order_id: str = ""
     sl_order_id: str = ""
     tp_order_id: str = ""
+    tp2_order_id: str = ""
 
     # ─── Outputs (written at end) ───
     scan_config_updates: dict = field(default_factory=dict)
@@ -146,6 +149,11 @@ class CycleContext:
     closed_positions: list[ClosedPosition] = field(default_factory=list)
     scan_log_entry: str = ""
     telegram_messages: list[str] = field(default_factory=list)
+
+    # ─── Re-entry (from AdjustPositionsStep early exit) ───
+    reentry_eligible: bool = False
+    reentry_pair: str = ""
+    reentry_direction: str = ""
 
     # ─── Error Tracking ───
     errors: list[str] = field(default_factory=list)

@@ -7,13 +7,13 @@ import os
 from datetime import timezone, timedelta
 
 # ─── Paths ───
-WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "/Users/wai/.openclaw/workspace")
-SCAN_CONFIG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/config/SCAN_CONFIG.md")
-TRADE_STATE_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_STATE.md")
-TRADE_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/TRADE_LOG.md")
-SCAN_LOG_PATH = os.path.join(WORKSPACE, "agents/aster_trader/logs/SCAN_LOG.md")
-API_KEYS_PATH = os.path.join(WORKSPACE, "keys/API_KEYS.md")
-LOG_DIR = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "logs")
+AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+_SHARED = os.path.join(AXC_HOME, "shared")
+SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
+TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
+TRADE_LOG_PATH   = os.path.join(_SHARED, "TRADE_LOG.md")
+SCAN_LOG_PATH    = os.path.join(_SHARED, "SCAN_LOG.md")
+LOG_DIR = os.path.join(AXC_HOME, "logs")
 
 # ─── Timezone ───
 HKT = timezone(timedelta(hours=8))
@@ -77,6 +77,18 @@ SCALP_LEVERAGE = 5
 SCALP_SL_ATR_MULT = 1.0
 SCALP_TP_ATR_MULT = 2.5
 
+# ─── Yunis Collection: Volume Gate ───
+ENTRY_VOLUME_MIN = 0.8              # volume_ratio < 0.8 → skip entry (low conviction)
+
+# ─── Yunis Collection: MACD Weakening Exit ───
+MACD_HIST_DECAY_THRESHOLD = 0.6     # histogram shrinks to <60% of prev → weakening
+
+# ─── Yunis Collection: Signal Confidence → Position Size ───
+CONFIDENCE_RISK_HIGH = 1.25         # score >= 4.5 → risk × 1.25
+CONFIDENCE_RISK_NORMAL = 1.0        # score 3.0-4.4 → risk × 1.0
+CONFIDENCE_RISK_LOW = 0.6           # score < 3.0 → risk × 0.6
+CONFIDENCE_RISK_CAP = 0.03          # absolute cap: never exceed 3% risk
+
 # ─── Day-of-Week Bias (UTC+8) ───
 # Thursday 21:00-01:00 → SHORT bias (3.5/5 sufficient)
 # Friday  21:00-03:00 → LONG bias  (3.5/5 sufficient)
@@ -86,6 +98,20 @@ BIAS_THRESHOLD = 3.5              # reduced from 4/5 to 3.5/5
 REENTRY_MIN_WAIT_MIN = 10        # minimum 10min between trades
 REENTRY_INDICATORS_REQUIRED = 5  # 5/5 indicators (stricter)
 REENTRY_SIZE_REDUCTION = 0.30    # 30% smaller position
+
+# ─── Trailing SL/TP + Early Exit (AdjustPositionsStep) ───
+TRAILING_SL_BREAKEVEN_ATR = 1.0    # profit > 1×ATR → SL to entry
+TRAILING_SL_LOCK_PROFIT_ATR = 2.0  # profit > 2×ATR → SL to entry+1×ATR
+EARLY_EXIT_RSI_OVERBOUGHT = 70     # LONG exit threshold
+EARLY_EXIT_RSI_OVERSOLD = 30       # SHORT exit threshold
+EARLY_EXIT_VOLUME_SPIKE = 2.0      # opposite-direction volume threshold
+EARLY_EXIT_MIN_ADVERSE_PCT = 0.002 # 0.2% minimum adverse move for volume exit
+TP_EXTEND_ADX_MIN = 25             # trend confirmed for TP extension
+TP_EXTEND_RSI_LONG_MAX = 75        # RSI still room for LONG
+TP_EXTEND_RSI_SHORT_MIN = 25       # RSI still room for SHORT
+TP_EXTEND_ATR_MULT = 1.0           # extend TP by 1×ATR
+TP_PROXIMITY_PCT = 0.003           # 0.3% = near TP
+REENTRY_COOLDOWN_CYCLES = 3        # 3 cycles ≈ 1.5h
 
 # ─── Telegram ───
 TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
@@ -119,7 +145,7 @@ KLINE_LIMIT = 200                # candles to fetch
 SCAN_LOG_MAX_LINES = 200
 
 # ─── Phase 3: Live Trading ───
-SECRETS_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "secrets", ".env")
+SECRETS_PATH = os.path.join(AXC_HOME, "secrets", ".env")
 ORDER_TIMEOUT_SEC = 300              # 5 min unfilled → cancel
 PAPER_GATE_HOURS = 48                # minimum DRY_RUN hours before --live
 PAPER_GATE_FILE = os.path.join(LOG_DIR, "paper_gate_start.txt")
@@ -131,7 +157,7 @@ CYCLE_LOG_DIR = os.path.join(LOG_DIR, "cycles")
 try:
     import importlib.util as _ilu
     _spec = _ilu.spec_from_file_location(
-        "_params", os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "config", "params.py")
+        "_params", os.path.join(AXC_HOME, "config", "params.py")
     )
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)

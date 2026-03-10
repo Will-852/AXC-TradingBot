@@ -6,6 +6,7 @@ TRADE_STATE.md 格式比 SCAN_CONFIG 複雜（有 sections + code blocks）
 from __future__ import annotations
 import os
 import re
+import tempfile
 from datetime import datetime
 
 from ..config.settings import TRADE_STATE_PATH, HKT
@@ -83,8 +84,20 @@ def write_trade_state(updates: dict, path: str | None = None) -> bool:
         if not updated:
             new_lines.append(line)
 
-    with open(p, "w") as f:
-        f.writelines(new_lines)
+    # Atomic write: tempfile in same dir → os.replace
+    dir_name = os.path.dirname(p)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.writelines(new_lines)
+        os.replace(tmp_path, p)
+    except Exception:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
     return True
 
 
@@ -125,4 +138,15 @@ def _default_state() -> dict:
         "TRADES_TODAY": 0,
         "WINS_TODAY": 0,
         "LOSSES_TODAY": 0,
+        # Trailing SL/TP + Re-entry
+        "TRAILING_SL_ACTIVE": "NO",
+        "TRAILING_SL_LAST_MOVE": "—",
+        "TP_EXTENDED": "NO",
+        "TP_EXTEND_COUNT": 0,
+        "REENTRY_ELIGIBLE": "NO",
+        "REENTRY_PAIR": "—",
+        "REENTRY_DIRECTION": "—",
+        "REENTRY_ORIGINAL_ENTRY": 0.0,
+        "REENTRY_EXIT_TIME": "—",
+        "REENTRY_CYCLES_REMAINING": 0,
     }

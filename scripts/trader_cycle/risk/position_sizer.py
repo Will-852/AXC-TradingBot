@@ -15,6 +15,8 @@ from __future__ import annotations
 from ..config.settings import (
     PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
     REENTRY_SIZE_REDUCTION,
+    CONFIDENCE_RISK_HIGH, CONFIDENCE_RISK_NORMAL, CONFIDENCE_RISK_LOW,
+    CONFIDENCE_RISK_CAP,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
@@ -106,7 +108,20 @@ class SizePositionStep:
 
         # ─── Position Size ───
         balance = ctx.account_balance if ctx.account_balance > 0 else 100.0
-        risk_amount = balance * params.risk_pct
+
+        # ─── Signal confidence → risk adjustment (Yunis Collection) ───
+        # Use original_score (pre-boost) to prevent re-entry boost inflating size
+        base_risk = params.risk_pct
+        sizing_score = signal.original_score if signal.original_score != 0.0 else signal.score
+        if sizing_score >= 4.5:
+            adjusted_risk = base_risk * CONFIDENCE_RISK_HIGH
+        elif sizing_score >= 3.0:
+            adjusted_risk = base_risk * CONFIDENCE_RISK_NORMAL
+        else:
+            adjusted_risk = base_risk * CONFIDENCE_RISK_LOW
+        adjusted_risk = min(adjusted_risk, CONFIDENCE_RISK_CAP)
+
+        risk_amount = balance * adjusted_risk
 
         # Re-entry size reduction after losses
         consecutive_losses = _parse_int(ctx.trade_state.get("CONSECUTIVE_LOSSES", 0))
@@ -145,6 +160,8 @@ class SizePositionStep:
             if tp1_price:
                 rr = abs(tp1_price - entry_price) / sl_distance if sl_distance > 0 else 0
                 print(f"      R:R = 1:{rr:.1f} (min 1:{params.min_rr})")
+            if adjusted_risk != base_risk:
+                print(f"      Confidence: score={sizing_score:.1f} → risk {base_risk:.1%} × {adjusted_risk/base_risk:.2f} = {adjusted_risk:.1%}")
             if consecutive_losses > 0:
                 print(f"      Re-entry: {REENTRY_SIZE_REDUCTION:.0%} size reduction ({consecutive_losses} losses)")
 

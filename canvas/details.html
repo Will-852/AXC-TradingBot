@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenClaw 系統說明</title>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0a0f;
+  --bg-card:   #10111a;
+  --bg-hover:  #16182a;
+  --border:    #1e2030;
+  --text:      #d4d8e8;
+  --text-dim:  #5a6080;
+  --text-muted:#343650;
+  --accent:    #6366f1;
+  --accent-dim:rgba(99,102,241,0.12);
+  --green:     #10b981;
+  --yellow:    #f59e0b;
+  --red:       #ef4444;
+  --blue:      #60a5fa;
+  --cyan:      #7dd3fc;
+  --purple:    #a78bfa;
+  --sidebar-w: 220px;
+  --content-w: 680px;
+  --font:      -apple-system, 'Segoe UI', sans-serif;
+  --mono:      'SF Mono', 'Fira Code', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* ── Layout ──────────────────────────── */
+.layout { display: flex; min-height: 100vh; }
+
+/* ── TOC Sidebar ─────────────────────── */
+.toc-sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 60;
+}
+
+.toc-logo {
+  padding: 1.2rem 1.2rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.toc-logo-name { font-size: 1rem; font-weight: 700; color: var(--yellow); }
+.toc-logo-sub  { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.toc-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+.toc-nav::-webkit-scrollbar { width: 3px; }
+.toc-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.toc-section-label {
+  padding: 0.8rem 1.2rem 0.3rem;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.toc-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.3rem 1.2rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all 0.12s;
+  cursor: pointer;
+}
+.toc-link:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.toc-link.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--accent-dim);
+}
+.toc-num {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  min-width: 18px;
+}
+.toc-link.active .toc-num { color: var(--accent); }
+
+.toc-back {
+  flex-shrink: 0;
+  padding: 0.8rem 1.2rem;
+  border-top: 1px solid var(--border);
+}
+.toc-back a {
+  display: block;
+  padding: 0.4rem 0.8rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.75rem;
+  text-align: center;
+  transition: all 0.12s;
+}
+.toc-back a:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Main Content ────────────────────── */
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Search Bar (sticky) ─────────────── */
+.search-bar-wrap {
+  position: sticky;
+  top: 0; z-index: 50;
+  width: 100%;
+  background: rgba(10,10,15,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 2rem;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: var(--content-w);
+  margin: 0 auto;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  transition: border-color 0.15s;
+}
+.search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.search-icon { color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; }
+.search-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 0.85rem; font-family: var(--font);
+}
+.search-input::placeholder { color: var(--text-muted); }
+.search-kbd {
+  font-size: 0.65rem; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 5px; font-family: var(--mono);
+}
+.search-results {
+  max-width: var(--content-w);
+  margin: 0.5rem auto 0;
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.search-result-item {
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--bg-hover); color: var(--text); }
+.sr-title { color: var(--text); font-weight: 600; }
+.sr-num { font-family: var(--mono); font-size: 0.7rem; color: var(--accent); margin-right: 6px; }
+.sr-match { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.sr-match mark { background: none; color: var(--accent); }
+
+/* ── Article ─────────────────────────── */
+.article {
+  width: 100%;
+  max-width: var(--content-w);
+  padding: 2.5rem 1.5rem 6rem;
+}
+
+.page-header { margin-bottom: 2rem; }
+.page-title  { font-size: 2rem; font-weight: 800; color: var(--yellow); }
+.page-sub    { color: var(--text-dim); font-size: 0.88rem; margin-top: 0.4rem; }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ── Rendered Markdown Styles ────────── */
+#doc-content { min-height: 400px; }
+
+#doc-content h1 {
+  font-size: 1.3rem; font-weight: 700; color: var(--text);
+  margin: 0 0 1.2rem; padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+#doc-content h2 {
+  font-size: 1rem; font-weight: 600; color: var(--accent);
+  margin: 2rem 0 0.6rem; padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+#doc-content h3 {
+  font-size: 0.88rem; color: var(--text-dim);
+  font-weight: 600; margin: 1.4rem 0 0.5rem;
+}
+
+#doc-content p {
+  color: #a0a8c0; font-size: 0.87rem;
+  margin-bottom: 0.6rem; line-height: 1.7;
+}
+#doc-content ul, #doc-content ol {
+  padding-left: 1.3rem; margin-bottom: 0.8rem;
+}
+#doc-content li {
+  color: #a0a8c0; font-size: 0.87rem; margin-bottom: 0.25rem;
+}
+#doc-content strong { color: var(--text); }
+#doc-content code {
+  font-family: var(--mono); font-size: 0.8em;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 5px; color: var(--cyan);
+}
+#doc-content a {
+  color: var(--accent); text-decoration: none;
+}
+#doc-content a:hover { text-decoration: underline; }
+
+/* Code blocks */
+.cmd-block {
+  background: #05060f;
+  border: 1px solid #1e2a4a;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  padding-right: 3.5rem;
+  margin: 0.5rem 0 1rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+.cmd-copy-btn {
+  position: absolute; top: 0.5rem; right: 0.6rem;
+  font-size: 0.65rem; color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--bg-card);
+  font-family: var(--font);
+  transition: all 0.12s;
+  pointer-events: none;
+}
+.cmd-block:hover .cmd-copy-btn { color: var(--accent); border-color: var(--accent); }
+.cmd-block.copied { border-color: var(--green) !important; }
+.cmd-block.copied .cmd-copy-btn { color: var(--green); border-color: var(--green); }
+
+/* Tables */
+.data-table {
+  width: 100%; border-collapse: collapse;
+  margin: 0.5rem 0 1rem; font-size: 0.82rem;
+}
+.data-table th {
+  background: var(--bg-card); color: var(--accent);
+  font-size: 0.72rem; padding: 7px 12px;
+  text-align: left; font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.data-table td {
+  padding: 7px 12px; color: #a0a8c0;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td:first-child {
+  color: var(--text); font-family: var(--mono); font-size: 0.8rem;
+}
+.data-table tr:hover td { background: var(--bg-hover); }
+
+/* Tip / Warn in rendered content */
+.md-note {
+  border-radius: 0 6px 6px 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem;
+  margin: 0.6rem 0;
+  line-height: 1.5;
+  background: #0a1a10;
+  border-left: 3px solid var(--green);
+  color: #86efac;
+}
+
+/* Arch diagrams (``` blocks without language) */
+.arch-block {
+  background: #05060f;
+  border: 1px solid #1e2a4a;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--cyan);
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.9;
+  margin: 0.5rem 0 1rem;
+}
+
+/* GitHub link */
+.gh-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 6px; color: #58a6ff;
+  text-decoration: none; font-size: 0.83rem;
+  transition: all 0.12s;
+}
+.gh-link:hover { background: var(--bg-hover); border-color: #58a6ff; }
+
+/* Page footer */
+.page-footer {
+  margin-top: 3rem; padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.warn-footer {
+  background: #1a0a0a; border-left: 3px solid var(--red);
+  border-radius: 0 6px 6px 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem; margin-top: 1rem;
+  color: #fca5a5;
+}
+
+/* Back to top */
+.top-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 90;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 14px; cursor: pointer;
+  opacity: 0; transition: opacity 0.2s;
+}
+.top-btn.show { opacity: 1; }
+.top-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Mobile */
+.toc-hamburger {
+  display: none;
+  position: fixed; top: 12px; left: 12px; z-index: 70;
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 16px; cursor: pointer;
+  align-items: center; justify-content: center;
+}
+.toc-hamburger:hover { border-color: var(--accent); color: var(--accent); }
+.toc-overlay {
+  display: none; position: fixed; inset: 0; z-index: 55;
+  background: rgba(0,0,0,0.5);
+}
+
+@media (max-width: 768px) {
+  .toc-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .toc-sidebar.open { transform: translateX(0); }
+  .toc-hamburger { display: flex; }
+  .toc-overlay.open { display: block; }
+  .main-content { margin-left: 0; }
+  .article { padding: 1.5rem 1rem 4rem; }
+  .search-bar-wrap { padding: 0.6rem 1rem; padding-left: 56px; }
+}
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- TOC Sidebar -->
+<nav class="toc-sidebar" id="toc-sidebar">
+  <div class="toc-logo">
+    <div class="toc-logo-name">OpenClaw</div>
+    <div class="toc-logo-sub">系統說明文件</div>
+  </div>
+  <div class="toc-nav" id="toc-nav">
+    <div class="loading">載入目錄中...</div>
+  </div>
+  <div class="toc-back">
+    <a href="/">&#8592; 返回儀表板</a>
+  </div>
+</nav>
+
+<!-- Mobile -->
+<button class="toc-hamburger" id="toc-hamburger" onclick="toggleMobileToc()">&#x2630;</button>
+<div class="toc-overlay" id="toc-overlay" onclick="toggleMobileToc()"></div>
+
+<!-- Main Content -->
+<div class="main-content">
+  <div class="search-bar-wrap">
+    <div class="search-bar">
+      <span class="search-icon">&#x1F50D;</span>
+      <input class="search-input" id="search-input" type="text"
+             placeholder="搜尋所有指南... 例如「止蝕」「API」「Telegram」" autocomplete="off">
+      <span class="search-kbd">/</span>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <div class="article">
+    <div class="page-header">
+      <h1 class="page-title">OpenClaw</h1>
+      <p class="page-sub">AI 加密貨幣交易系統 — 系統說明文件</p>
+    </div>
+
+    <div id="doc-content">
+      <div class="loading">載入中...</div>
+    </div>
+
+    <div class="page-footer">
+      <a href="https://github.com/Will-852/AXC-TradingBot" target="_blank" class="gh-link">github.com/Will-852/AXC-TradingBot</a>
+      <div class="warn-footer">安全提示：API 密鑰、資金資訊不會在此頁面顯示。敏感設定：<code>secrets/.env</code> + <code>openclaw.json</code></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<button class="top-btn" id="top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="返回頂部">&#x2191;</button>
+
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+var guides = [];       // [{file, title, section, order, content}]
+var activeFile = null;
+
+// ═══════════════════════════════════════════
+// Init: fetch all guides, build TOC, load first
+// ═══════════════════════════════════════════
+(async function init() {
+  try {
+    var files = await fetch('/api/docs-list').then(function(r) { return r.json(); });
+    // Filter numbered guides only
+    var guideFiles = files.filter(function(f) {
+      return /^guides\/\d{2}-/.test(f);
+    }).sort();
+
+    // Fetch all content + parse frontmatter
+    guides = await Promise.all(guideFiles.map(async function(f) {
+      var text = await fetch('/api/doc/' + encodeURIComponent(f)).then(function(r) { return r.text(); });
+      var meta = parseFrontmatter(text);
+      var body = text.replace(/^<!--[\s\S]*?-->/, '').trim();
+      return {
+        file: f,
+        title: meta.title,
+        section: meta.section,
+        order: parseInt(meta.order) || 99,
+        content: body
+      };
+    }));
+
+    guides.sort(function(a, b) { return a.order - b.order; });
+    buildTOC();
+    if (guides.length) loadGuide(guides[0].file);
+  } catch (e) {
+    document.getElementById('doc-content').innerHTML =
+      '<p style="color:var(--red)">載入失敗: ' + e.message + '</p>';
+  }
+})();
+
+function parseFrontmatter(text) {
+  var match = text.match(/^<!--\s*([\s\S]*?)\s*-->/);
+  if (!match) return { title: '未知', section: '其他', order: '99' };
+  var meta = {};
+  match[1].split('\n').forEach(function(line) {
+    var idx = line.indexOf(':');
+    if (idx > 0) {
+      meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+    }
+  });
+  return {
+    title: meta.title || '未知',
+    section: meta.section || '其他',
+    order: meta.order || '99'
+  };
+}
+
+// ═══════════════════════════════════════════
+// Build TOC
+// ═══════════════════════════════════════════
+function buildTOC() {
+  var nav = document.getElementById('toc-nav');
+  nav.innerHTML = '';
+  var lastSection = '';
+
+  guides.forEach(function(g) {
+    if (g.section !== lastSection) {
+      var label = document.createElement('div');
+      label.className = 'toc-section-label';
+      label.textContent = g.section;
+      nav.appendChild(label);
+      lastSection = g.section;
+    }
+
+    var a = document.createElement('a');
+    a.className = 'toc-link';
+    a.dataset.file = g.file;
+
+    var num = document.createElement('span');
+    num.className = 'toc-num';
+    num.textContent = String(g.order).padStart(2, '0');
+    a.appendChild(num);
+
+    var title = document.createTextNode(g.title);
+    a.appendChild(title);
+
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      loadGuide(g.file);
+      if (window.innerWidth <= 768) toggleMobileToc();
+    });
+    nav.appendChild(a);
+  });
+}
+
+// ═══════════════════════════════════════════
+// Load + render a guide
+// ═══════════════════════════════════════════
+function loadGuide(file) {
+  var g = guides.find(function(x) { return x.file === file; });
+  if (!g) return;
+
+  activeFile = file;
+
+  // Update TOC active state
+  document.querySelectorAll('.toc-link').forEach(function(a) {
+    a.classList.toggle('active', a.dataset.file === file);
+  });
+
+  // Render
+  var el = document.getElementById('doc-content');
+  el.innerHTML = renderMarkdown(g.content);
+
+  // Attach click-to-copy on code blocks
+  el.querySelectorAll('.cmd-block').forEach(function(block) {
+    block.addEventListener('click', function() {
+      var btn = block.querySelector('.cmd-copy-btn');
+      var text = block.textContent;
+      if (btn) text = text.replace(btn.textContent, '').trim();
+      navigator.clipboard.writeText(text).then(function() {
+        block.classList.add('copied');
+        if (btn) btn.textContent = '已複製';
+        setTimeout(function() {
+          block.classList.remove('copied');
+          if (btn) btn.textContent = '複製';
+        }, 1200);
+      });
+    });
+  });
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════
+// Markdown → HTML renderer (no external libs)
+// ═══════════════════════════════════════════
+function renderMarkdown(md) {
+  var lines = md.split('\n');
+  var html = [];
+  var i = 0;
+  var inList = false;
+  var listType = '';
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    // Code block
+    if (line.match(/^```/)) {
+      var lang = line.slice(3).trim();
+      var code = [];
+      i++;
+      while (i < lines.length && !lines[i].match(/^```/)) {
+        code.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing ```
+      closeList();
+      var codeText = escHtml(code.join('\n'));
+      if (lang === 'bash' || lang === 'python' || lang === '') {
+        html.push('<div class="cmd-block"><span class="cmd-copy-btn">複製</span>' + codeText + '</div>');
+      } else {
+        html.push('<div class="cmd-block"><span class="cmd-copy-btn">複製</span>' + codeText + '</div>');
+      }
+      continue;
+    }
+
+    // Table
+    if (line.match(/^\|/) && i + 1 < lines.length && lines[i + 1].match(/^\|[\s-|]+$/)) {
+      closeList();
+      var headerCells = parseCells(line);
+      i += 2; // skip header + separator
+      var rows = [];
+      while (i < lines.length && lines[i].match(/^\|/)) {
+        rows.push(parseCells(lines[i]));
+        i++;
+      }
+      html.push('<table class="data-table">');
+      html.push('<tr>' + headerCells.map(function(c) { return '<th>' + inlineFormat(c) + '</th>'; }).join('') + '</tr>');
+      rows.forEach(function(row) {
+        html.push('<tr>' + row.map(function(c) { return '<td>' + inlineFormat(c) + '</td>'; }).join('') + '</tr>');
+      });
+      html.push('</table>');
+      continue;
+    }
+
+    // Headings
+    if (line.match(/^### /)) {
+      closeList();
+      html.push('<h3>' + inlineFormat(line.slice(4)) + '</h3>');
+      i++; continue;
+    }
+    if (line.match(/^## /)) {
+      closeList();
+      html.push('<h2>' + inlineFormat(line.slice(3)) + '</h2>');
+      i++; continue;
+    }
+    if (line.match(/^# /)) {
+      closeList();
+      html.push('<h1>' + inlineFormat(line.slice(2)) + '</h1>');
+      i++; continue;
+    }
+
+    // Unordered list
+    if (line.match(/^- /)) {
+      if (!inList || listType !== 'ul') {
+        closeList();
+        html.push('<ul>');
+        inList = true; listType = 'ul';
+      }
+      html.push('<li>' + inlineFormat(line.slice(2)) + '</li>');
+      i++; continue;
+    }
+
+    // Ordered list
+    if (line.match(/^\d+\. /)) {
+      if (!inList || listType !== 'ol') {
+        closeList();
+        html.push('<ol>');
+        inList = true; listType = 'ol';
+      }
+      html.push('<li>' + inlineFormat(line.replace(/^\d+\. /, '')) + '</li>');
+      i++; continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      closeList();
+      i++; continue;
+    }
+
+    // Paragraph
+    closeList();
+    html.push('<p>' + inlineFormat(line) + '</p>');
+    i++;
+  }
+
+  closeList();
+  return html.join('\n');
+
+  function closeList() {
+    if (inList) {
+      html.push(listType === 'ul' ? '</ul>' : '</ol>');
+      inList = false; listType = '';
+    }
+  }
+}
+
+function parseCells(line) {
+  return line.split('|').slice(1, -1).map(function(c) { return c.trim(); });
+}
+
+function inlineFormat(text) {
+  return escHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/&lt;(\/?code)&gt;/g, '<$1>');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ═══════════════════════════════════════════
+// Search
+// ═══════════════════════════════════════════
+var searchInput = document.getElementById('search-input');
+var searchResults = document.getElementById('search-results');
+var searchTimer = null;
+
+searchInput.addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 150);
+});
+
+function doSearch() {
+  var q = searchInput.value.trim().toLowerCase();
+  if (!q) {
+    searchResults.style.display = 'none';
+    return;
+  }
+
+  var matches = [];
+  var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+
+  guides.forEach(function(g) {
+    var idx = g.content.toLowerCase().indexOf(q);
+    if (idx === -1) return;
+
+    // Extract context around match
+    var start = Math.max(0, idx - 30);
+    var end = Math.min(g.content.length, idx + q.length + 50);
+    var snippet = g.content.slice(start, end).replace(/\n/g, ' ').trim();
+    if (start > 0) snippet = '...' + snippet;
+    if (end < g.content.length) snippet += '...';
+
+    matches.push({
+      file: g.file,
+      title: g.title,
+      order: g.order,
+      snippet: snippet,
+      re: re
+    });
+  });
+
+  if (!matches.length) {
+    searchResults.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">搵唔到「' + escHtml(q) + '」</div>';
+    searchResults.style.display = 'block';
+    return;
+  }
+
+  searchResults.innerHTML = matches.slice(0, 8).map(function(m) {
+    var hiTitle = escHtml(m.title).replace(m.re, '<mark>$1</mark>');
+    var hiSnippet = escHtml(m.snippet).replace(m.re, '<mark>$1</mark>');
+    return '<div class="search-result-item" data-file="' + m.file + '">' +
+      '<div><span class="sr-num">' + String(m.order).padStart(2, '0') + '</span><span class="sr-title">' + hiTitle + '</span></div>' +
+      '<div class="sr-match">' + hiSnippet + '</div>' +
+      '</div>';
+  }).join('');
+  searchResults.style.display = 'block';
+}
+
+searchResults.addEventListener('click', function(e) {
+  var item = e.target.closest('.search-result-item');
+  if (item && item.dataset.file) {
+    loadGuide(item.dataset.file);
+    searchResults.style.display = 'none';
+    searchInput.value = '';
+  }
+});
+
+// ═══════════════════════════════════════════
+// Keyboard shortcuts
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  if (e.key === '/' && document.activeElement !== searchInput) {
+    e.preventDefault();
+    searchInput.focus();
+  }
+  if (e.key === 'Escape') {
+    searchInput.blur();
+    searchInput.value = '';
+    searchResults.style.display = 'none';
+    if (window.innerWidth <= 768) {
+      document.getElementById('toc-sidebar').classList.remove('open');
+      document.getElementById('toc-overlay').classList.remove('open');
+    }
+  }
+});
+
+// ═══════════════════════════════════════════
+// Mobile TOC
+// ═══════════════════════════════════════════
+function toggleMobileToc() {
+  document.getElementById('toc-sidebar').classList.toggle('open');
+  document.getElementById('toc-overlay').classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════
+// Back to top
+// ═══════════════════════════════════════════
+var topBtn = document.getElementById('top-btn');
+window.addEventListener('scroll', function() {
+  topBtn.classList.toggle('show', window.scrollY > 400);
+});
+</script>
+</body>
+</html>
