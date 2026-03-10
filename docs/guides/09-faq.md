@@ -11,7 +11,7 @@ audience: human,claude,github
 
 - 市場波動唔夠大（低於觸發門檻）→ 正常，繼續等
 - 連虧冷卻中（2 次暫停 30min，3 次暫停 2hr）→ Telegram `/health` 查看
-- 日度熔斷（當日虧 ≥15%）→ 第二日自動恢復
+- 日度熔斷（當日虧 ≥20%）→ 第二日自動恢復
 - 暫停模式 → Telegram `/resume` 恢復
 - 服務停咗 → `launchctl list | grep openclaw` 確認
 

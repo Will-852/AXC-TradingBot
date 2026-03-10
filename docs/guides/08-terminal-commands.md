@@ -72,7 +72,10 @@ open http://localhost:5555
 ## 手動交易
 
 ```bash
-cd ~/projects/axc-trading/workspace/tools && python3 -m trader_cycle.main --live --verbose
+cd ~/projects/axc-trading && python3 scripts/trader_cycle/main.py --live --verbose
+
+# 或者乾跑（唔落盤，只睇信號）
+cd ~/projects/axc-trading && python3 scripts/trader_cycle/main.py --dry-run --verbose
 ```
 
 ## 策略回顧
@@ -81,12 +84,18 @@ cd ~/projects/axc-trading/workspace/tools && python3 -m trader_cycle.main --live
 python3 ~/projects/axc-trading/scripts/weekly_strategy_review.py
 ```
 
-## 加幣種
+## 加幣種（7 步）
+
+加一隻新幣需要改 7 個位，詳見 `docs/guides/SYMBOLS.md`。
+
+## 回測
 
 ```bash
-# 1. 編輯 config/params.py，加 "XXXUSDT" 到 SYMBOLS list
-# 2. 重啟掃描器
-launchctl stop ai.openclaw.scanner && sleep 2 && launchctl start ai.openclaw.scanner
+# 單 pair 回測
+python3 backtest/run_backtest.py --symbol BTCUSDT --days 180
+
+# A/B 對比（4 configs × 8 pairs）
+python3 backtest/compare_configs.py
 ```
 
 ## RAG 記憶
