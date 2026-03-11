@@ -1639,10 +1639,15 @@ async def handle_free_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if chat_id in _order_wizard:
         wiz = _order_wizard[chat_id]
         if wiz.get("step") == "custom_symbol":
+            # Timeout check
+            if time.time() - wiz["ts"] > _WIZARD_TIMEOUT:
+                _order_wizard.pop(chat_id, None)
+                await update.message.reply_text("⏱ 已過期，請重新 /order")
+                return
             # 自定義幣種輸入
             sym = text.upper().replace("USDT", "").replace("/", "").strip()
-            if not sym or not sym.isalpha():
-                await update.message.reply_text("❌ 幣種格式唔啱，請輸入英文（例如 BTC、DOGE）")
+            if not sym or not sym.isalnum():
+                await update.message.reply_text("❌ 幣種格式唔啱，請輸入英文（例如 BTC、DOGE、1INCH）")
                 return
             wiz["symbol"] = sym + "USDT"
             wiz["step"] = "side"
