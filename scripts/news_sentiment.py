@@ -154,14 +154,15 @@ Respond in JSON format ONLY (no markdown, no explanation):
     "BTCUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}},
     "ETHUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}}
   }},
-  "key_narratives": [{{"text": "narrative1", "time": "HH:MM"}}, {{"text": "narrative2", "time": "HH:MM"}}],
-  "risk_events": [{{"text": "event1", "time": "HH:MM"}}],
+  "key_narratives": [{{"text": "narrative1", "time": "HH:MM", "src": "CoinDesk"}}, {{"text": "narrative2", "time": "HH:MM", "src": "Reuters"}}],
+  "risk_events": [{{"text": "event1", "time": "HH:MM", "src": "CoinTelegraph"}}],
   "summary": "One sentence overall market sentiment summary"
 }}
 
 IMPORTANT: All text values MUST be in Traditional Chinese (香港繁體中文).
 overall_impact: 0=noise, 50=moderate, 100=extreme.
-Only include symbols mentioned in articles. time: HH:MM in UTC+8."""
+Only include symbols mentioned in articles. time: HH:MM in UTC+8.
+src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bloomberg). Use the [source] tag from each article."""
 
     url = f"{PROXY_BASE_URL}/messages"
     payload = json.dumps({
@@ -312,6 +313,16 @@ def main():
     except Exception as e:
         log.error(f"Haiku API call failed: {e}")
         return
+
+    # Stamp narratives/risks with current run time (HKT)
+    # Haiku 估唔到真正發佈時間，用分析時間代替（每 15 分鐘跑一次）
+    run_time = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M")
+    for n in sentiment.get("key_narratives", []):
+        if isinstance(n, dict):
+            n["time"] = run_time
+    for r in sentiment.get("risk_events", []):
+        if isinstance(r, dict):
+            r["time"] = run_time
 
     # Mark manual entries as processed
     if manual_entries:

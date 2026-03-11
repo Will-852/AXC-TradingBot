@@ -36,7 +36,7 @@ def now_hkt():
 
 
 def parse_state(path):
-    """Parse key-value pairs from MD state file."""
+    """Parse key-value pairs from MD state file. Matches UPPER_CASE keys only."""
     state = {}
     if not os.path.exists(path):
         return state
@@ -47,6 +47,37 @@ def parse_state(path):
             if m:
                 state[m.group(1)] = m.group(2).strip()
     return state
+
+
+def parse_scan_config(path=None):
+    """Parse SCAN_CONFIG.md — handles mixed-case keys like BTC_price, BTC_ATR.
+
+    點解獨立於 parse_state：SCAN_CONFIG 用 mixed-case keys (BTC_price, XAG_ATR)，
+    parse_state 只匹配 UPPER_CASE，會漏晒價格同 ATR 數據。
+    """
+    path = path or SCAN_CONFIG_PATH
+    config = {}
+    if not os.path.exists(path):
+        return config
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            m = re.match(r'^([A-Za-z_]+[A-Za-z0-9_]*):\s*(.+)', line)
+            if m:
+                config[m.group(1)] = m.group(2).strip()
+    return config
+
+
+def _format_compact_price(price):
+    """Format price with full amount: 70198.6→70199, 2037.2→2037, 88.4→88.40, 1.38→1.3864."""
+    if price >= 100:
+        return f"{price:,.0f}"
+    elif price >= 1:
+        return f"{price:.2f}"
+    else:
+        return f"{price:.4f}"
 
 
 def parse_float(val, default=0.0):
@@ -298,15 +329,105 @@ def cmd_dryrun():
     return f"\U0001f4ca 模擬執行 \u00b7 {now_hkt()} UTC+8\n\n{r.strip()}"
 
 
-def cmd_new():
-    prices = get_prices()
+def _scan_data():
+    """共用邏輯：返回 (mode, trigger, trigger_pair, sorted_pairs, scan_config)。"""
+    scan = parse_scan_config()
     ts = parse_state(TRADE_STATE_PATH)
-    scan = parse_state(SCAN_CONFIG_PATH)
+
     trigger = scan.get("TRIGGER_PENDING", "OFF")
     trigger_pair = scan.get("TRIGGER_PAIR", "")
+    mode = ts.get("MARKET_MODE", scan.get("MARKET_MODE", "?"))
+
+    try:
+        prices = get_prices()
+    except Exception:
+        prices = {}
+
+    if not prices:
+        pair_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "XRP": "XRPUSDT", "XAG": "XAGUSDT"}
+        for prefix, sym in pair_map.items():
+            p_str = scan.get(f"{prefix}_price", "")
+            if p_str:
+                try:
+                    prices[sym] = {"price": float(p_str), "change": 0}
+                except ValueError:
+                    pass
+
+    sorted_pairs = sorted(
+        prices.items(), key=lambda x: abs(x[1].get("change", 0)), reverse=True,
+    ) if prices else []
+
+    return mode, trigger, trigger_pair, sorted_pairs, scan
+
+
+def _scan_note(trigger, trigger_pair, sorted_pairs, scan):
+    """Line 3 邏輯：signal summary 或 S/R 提示。"""
     if trigger == "ON" and trigger_pair:
-        return f"\U0001f4ca 信號掃描 \u00b7 {now_hkt()} UTC+8\n\n觸發 {trigger_pair} \u26a0\ufe0f\n原因: {scan.get('TRIGGER_REASON', '?')}"
-    return f"無信號 \u00b7 {now_hkt()} UTC+8"
+        return f"信號觸發：{scan.get('TRIGGER_REASON', '')}"
+    if sorted_pairs:
+        top_prefix = sorted_pairs[0][0].replace("USDT", "")
+        res_str = scan.get(f"{top_prefix}_resistance", "")
+        sup_str = scan.get(f"{top_prefix}_support", "")
+        if res_str:
+            try:
+                return f"無信號 · {top_prefix} 留意 {_format_compact_price(float(res_str))} 阻力"
+            except ValueError:
+                pass
+        elif sup_str:
+            try:
+                return f"無信號 · {top_prefix} 留意 {_format_compact_price(float(sup_str))} 支撐"
+            except ValueError:
+                pass
+    return "無信號"
+
+
+def cmd_new():
+    """CLI 用 plain text 版。"""
+    mode, trigger, trigger_pair, sorted_pairs, scan = _scan_data()
+    ts_str = datetime.now(HKT).strftime("%H:%M")
+
+    if trigger == "ON" and trigger_pair:
+        header = f"\u26a0\ufe0f {mode} \u00b7 {ts_str} UTC+8 \u00b7 觸發 {trigger_pair}"
+    else:
+        header = f"\U0001f4ca {mode} \u00b7 {ts_str} UTC+8"
+
+    if sorted_pairs:
+        parts = []
+        for sym, data in sorted_pairs[:3]:
+            label = sym.replace("USDT", "")
+            parts.append(f"{label} {_format_compact_price(data['price'])} ({data['change']:+.1f}%)")
+        body = " \u00b7 ".join(parts)
+    else:
+        body = "價格數據暫時無法取得"
+
+    note = _scan_note(trigger, trigger_pair, sorted_pairs, scan)
+    return f"{header}\n{body}\n{note}"
+
+
+def cmd_new_html():
+    """Telegram HTML 版 — 垂直排版，emoji 方向指示。"""
+    mode, trigger, trigger_pair, sorted_pairs, scan = _scan_data()
+    ts_str = datetime.now(HKT).strftime("%H:%M")
+
+    if trigger == "ON" and trigger_pair:
+        header = f"\u26a0\ufe0f <b>{mode}</b> \u00b7 {ts_str} UTC+8 \u00b7 觸發 {trigger_pair}"
+    else:
+        header = f"\U0001f4ca <b>{mode}</b> \u00b7 {ts_str} UTC+8"
+
+    lines = [header, ""]
+    if sorted_pairs:
+        for sym, data in sorted_pairs:
+            label = sym.replace("USDT", "")
+            p = _format_compact_price(data["price"])
+            chg = data["change"]
+            icon = "\U0001f7e2" if chg >= 0 else "\U0001f534"
+            lines.append(f"{icon} {label} {p} \u00b7 <b>{chg:+.1f}%</b>")
+    else:
+        lines.append("價格數據暫時無法取得")
+
+    lines.append("")
+    lines.append(_scan_note(trigger, trigger_pair, sorted_pairs, scan))
+    return "\n".join(lines)
 
 
 def cmd_stop():

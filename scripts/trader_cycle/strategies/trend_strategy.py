@@ -33,6 +33,7 @@ try:
     TREND_RSI_LONG_HIGH = getattr(_mod, "TREND_RSI_LONG_HIGH", 55)
     TREND_RSI_SHORT_LOW = getattr(_mod, "TREND_RSI_SHORT_LOW", 45)
     TREND_RSI_SHORT_HIGH = getattr(_mod, "TREND_RSI_SHORT_HIGH", 60)
+    TREND_MIN_KEYS = getattr(_mod, "TREND_MIN_KEYS", 4)
     del _ilu, _spec, _mod
 except Exception:
     PULLBACK_TOLERANCE = 0.015
@@ -40,6 +41,7 @@ except Exception:
     TREND_RSI_LONG_HIGH = 55
     TREND_RSI_SHORT_LOW = 45
     TREND_RSI_SHORT_HIGH = 60
+    TREND_MIN_KEYS = 4
 
 
 def _check_day_bias(now: datetime) -> str | None:
@@ -138,9 +140,9 @@ class TrendStrategy(StrategyBase):
         long_count = sum(1 for v in long_keys.values() if v)
         short_count = sum(1 for v in short_keys.values() if v)
 
-        # Minimum required (4/4 normally, 3/4 with matching bias)
-        min_long = 3 if bias == "LONG" else 4
-        min_short = 3 if bias == "SHORT" else 4
+        # Minimum required (TREND_MIN_KEYS normally, -1 with matching bias)
+        min_long = max(TREND_MIN_KEYS - (1 if bias == "LONG" else 0), 3)
+        min_short = max(TREND_MIN_KEYS - (1 if bias == "SHORT" else 0), 3)
 
         # ─── Volume score bonus (Yunis Collection) ───
         vol_bonus = 0.0

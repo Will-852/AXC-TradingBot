@@ -467,6 +467,7 @@
     }
     .ns-list { margin: 0; padding-left: 16px; font-size: .78rem; color: var(--text-2); line-height: 1.6; }
     .ns-time { display: inline-block; font-size: .68rem; color: var(--accent); font-weight: 600; min-width: 38px; font-variant-numeric: tabular-nums; }
+    .ns-src { font-size: .6rem; color: var(--text-3); font-weight: 400; margin-left: 4px; }
     .ns-summary {
       font-size: .78rem; color: var(--text-2); margin-top: 10px;
       padding: 8px 10px; border-radius: 6px;
@@ -2553,7 +2554,8 @@ function renderNewsCard(D) {
     narratives.slice(0, 5).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
-      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + '</li>';
+      var src = typeof n === 'object' && n.src ? n.src : '';
+      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
     html += '</ul>';
   }
@@ -2565,7 +2567,8 @@ function renderNewsCard(D) {
     risks.slice(0, 5).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
-      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + '</li>';
+      var src = typeof n === 'object' && n.src ? n.src : '';
+      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
     html += '</ul>';
   } else {

@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -61,9 +62,35 @@ TG_TOKEN        = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "0"))
 PROXY_API_KEY   = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL  = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
-CLAUDE_MODEL    = "claude-haiku-4-5-20251001"
+MODEL_HAIKU     = "claude-haiku-4-5-20251001"
+MODEL_SONNET    = "claude-sonnet-4-6"
+CLAUDE_MODEL    = MODEL_HAIKU  # backward compat default
+
+# Sonnet 日限（避免成本失控）
+_SONNET_DAILY_CAP = 20
+_sonnet_calls_today = 0
+_sonnet_calls_date = datetime.now(timezone(timedelta(hours=8))).date()
+
+# 分析 keywords → 觸發 Sonnet
+_ANALYSIS_KEYWORDS = ["分析", "策略", "建議", "點睇", "應唔應該", "如果",
+                      "compare", "review", "評估", "風險"]
 
 HKT = timezone(timedelta(hours=8))
+
+# ── Price Watch（一次性價格警報）──
+_price_watches: dict[str, list[dict]] = {}  # {symbol: [{direction, target, chat_id}]}
+_PAIR_ALIASES = {
+    "btc": "BTCUSDT", "bitcoin": "BTCUSDT",
+    "eth": "ETHUSDT", "ethereum": "ETHUSDT",
+    "xrp": "XRPUSDT", "ripple": "XRPUSDT",
+    "xag": "XAGUSDT", "silver": "XAGUSDT", "白銀": "XAGUSDT",
+    "xau": "XAUUSDT", "gold": "XAUUSDT", "黃金": "XAUUSDT",
+    "sol": "SOLUSDT", "solana": "SOLUSDT",
+}
+
+# ── ATR Spike Detection ──
+_last_atr: dict[str, float] = {}  # {prefix: last_atr_value}
+_ATR_SPIKE_THRESHOLD = 0.30       # 30% jump triggers alert
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,6 +101,15 @@ log = logging.getLogger("tg_bot")
 # ── Pending orders (chat_id → order data) ─────────
 pending_orders: dict = {}
 PENDING_FILE = BASE_DIR / "shared/pending_orders.json"
+
+# ── Order Wizard (interactive /order flow) ──
+_order_wizard: dict[int, dict] = {}   # {chat_id: wizard state}
+_WIZARD_TIMEOUT = 60                   # seconds
+_ORDER_SYMBOLS = {
+    "aster": ["BTC", "ETH", "XRP", "XAG", "XAU"],
+    "binance": ["BTC", "ETH", "SOL", "POL"],
+    "hyperliquid": ["BTC", "ETH", "SOL"],
+}
 
 # ── Short-term conversation memory (last 5 exchanges) ──
 # 每個 chat_id 保留最近 5 組對話，10 分鐘無活動自動清除
@@ -224,11 +260,73 @@ def _clean_for_telegram(text: str) -> str:
     text = re.sub(r'```\w*\n?', '', text)
     # ` inline code ` → keep content
     text = re.sub(r'`([^`]+)`', r'\1', text)
+    # Markdown tables → strip pipes and alignment rows
+    text = re.sub(r'^\|[-: |]+\|$', '', text, flags=re.MULTILINE)  # |---|---|
+    text = re.sub(r'^\|(.+)\|$', lambda m: m.group(1).replace('|', ' · ').strip(),
+                  text, flags=re.MULTILINE)  # | a | b | → a · b
     # - bullet → • (Telegram friendly)
     text = re.sub(r'^- ', '• ', text, flags=re.MULTILINE)
     # Clean up triple+ newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+
+def _parse_price_watch(text: str) -> dict | None:
+    """偵測價格警報指令。返回 {symbol, target, direction} 或 None。
+
+    支援格式：「XAG 破 89 通知我」「BTC 到 90000 alert」「ETH 跌穿 2000 通知」
+    點解用 keyword 位置後嘅數字：避免「3 分鐘破 89」錯讀成 target=3。
+    """
+    watch_kw = ["通知", "alert", "提醒", "watch"]
+    trigger_kw = ["突破", "跌穿", "升穿", "跌破", "破", "到"]  # 長 keyword 排前面
+
+    text_lower = text.lower()
+    # 必須含有至少一個 watch_kw 才算 watch 意圖（避免同 order intent 衝突）
+    if not any(kw in text_lower for kw in watch_kw):
+        return None
+
+    # 找幣種
+    symbol = None
+    for alias, sym in _PAIR_ALIASES.items():
+        if alias in text_lower:
+            symbol = sym
+            break
+    if not symbol:
+        return None
+
+    # 找 trigger keyword 位置，取其後嘅第一個數字
+    trigger_pos = -1
+    direction = "above"  # default
+    for kw in trigger_kw:
+        idx = text_lower.find(kw)
+        if idx >= 0:
+            trigger_pos = idx + len(kw)
+            if kw in ("跌穿", "跌破"):
+                direction = "below"
+            break
+
+    # 如果冇 trigger keyword，用 watch keyword 位置
+    if trigger_pos < 0:
+        for kw in watch_kw:
+            idx = text_lower.find(kw)
+            if idx >= 0:
+                trigger_pos = 0  # search from start
+                break
+
+    # 提取數字（trigger keyword 之後的第一個數字）
+    remaining = text[trigger_pos:]
+    numbers = re.findall(r'[\d.]+', remaining)
+    if not numbers:
+        return None
+
+    try:
+        target = float(numbers[0])
+        if target <= 0:
+            return None
+    except ValueError:
+        return None
+
+    return {"symbol": symbol, "target": target, "direction": direction}
 
 
 async def _send_html(target, text: str):
@@ -240,21 +338,39 @@ async def _send_html(target, text: str):
         await target.reply_text(clean)
 
 
+def _use_sonnet() -> bool:
+    """Check if Sonnet quota available, increment counter if yes.
+
+    日期 rollover：每日 00:00 HKT 重置計數。
+    """
+    global _sonnet_calls_today, _sonnet_calls_date
+    today = datetime.now(timezone(timedelta(hours=8))).date()
+    if today != _sonnet_calls_date:
+        _sonnet_calls_today = 0
+        _sonnet_calls_date = today
+    if _sonnet_calls_today >= _SONNET_DAILY_CAP:
+        log.info(f"[Sonnet] 日限已滿 ({_sonnet_calls_today}/{_SONNET_DAILY_CAP})，fallback Haiku")
+        return False
+    _sonnet_calls_today += 1
+    return True
+
+
 def call_claude(user_msg: str, context: str, system: str = None,
                 max_tokens: int = 1200,
-                history: list[dict] | None = None) -> str:
+                history: list[dict] | None = None,
+                model: str = None) -> str:
     """Call Claude via proxy (Anthropic messages format).
 
+    model: 指定模型。None = 用 CLAUDE_MODEL (Haiku)。傳 MODEL_SONNET 用 Sonnet。
     history: 可選嘅多輪對話 [{role, content}, ...]，會放喺當前訊息前面。
     """
+    use_model = model or CLAUDE_MODEL
     url = f"{PROXY_BASE_URL}/messages"
     # 組裝 messages：history + 當前用戶訊息（context 塞入第一條）
     messages = []
     if history:
-        # 第一條 user message 加 context prefix
         for i, m in enumerate(history):
             messages.append({"role": m["role"], "content": m["content"]})
-        # 當前用戶訊息（帶 context）
         messages.append({
             "role": "user",
             "content": f"{context}\n\n---\n\n用戶：{user_msg}",
@@ -265,11 +381,13 @@ def call_claude(user_msg: str, context: str, system: str = None,
             "content": f"{context}\n\n---\n\n用戶：{user_msg}",
         }]
     body = json.dumps({
-        "model": CLAUDE_MODEL,
+        "model": use_model,
         "max_tokens": max_tokens,
         "system": system or SYSTEM_PROMPT,
         "messages": messages,
     }).encode()
+
+    log.info(f"[Claude] model={use_model} max_tokens={max_tokens} msg_len={len(messages)}")
 
     req = urllib.request.Request(url, body, headers={
         "Content-Type":      "application/json",
@@ -772,6 +890,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/resume — 恢復\n"
         "/cancel — 取消待確認訂單\n\n"
         "<b>下單</b>\n"
+        "/order — 互動式下單精靈\n"
         "/trade &lt;交易所&gt; &lt;幣種&gt; &lt;方向&gt; [金額]\n"
         "/close [交易所] &lt;幣種&gt;\n"
         "直接輸入：「喺 hl 做多 BTC 50蚊」\n\n"
@@ -874,7 +993,13 @@ async def cmd_log(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _send_deterministic(update, slash_cmd.cmd_log)
 
 async def cmd_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _send_deterministic(update, slash_cmd.cmd_new)
+    if not is_allowed(update):
+        return
+    try:
+        html = slash_cmd.cmd_new_html()
+        await update.message.reply_text(html, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
 
 async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _send_deterministic(update, slash_cmd.cmd_stats)
@@ -1113,6 +1238,211 @@ async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ 無待確認訂單")
 
 
+# ── /order — 互動式下單精靈 ──
+
+async def cmd_order(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Interactive order wizard — Step 1: select exchange."""
+    if not is_allowed(update):
+        return
+    chat_id = update.effective_chat.id
+    _order_wizard[chat_id] = {"step": "exchange", "ts": time.time()}
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("Aster", callback_data="ow_ex_aster"),
+        InlineKeyboardButton("Binance", callback_data="ow_ex_binance"),
+        InlineKeyboardButton("HL", callback_data="ow_ex_hyperliquid"),
+        InlineKeyboardButton("❌ 取消", callback_data="ow_cancel"),
+    ]])
+    await update.message.reply_text(
+        "📋 <b>落單精靈</b>\n\nStep 1/6：揀交易所",
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle ow_* callbacks for order wizard Steps 1-4."""
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    data = query.data
+
+    wiz = _order_wizard.get(chat_id)
+    if not wiz or time.time() - wiz["ts"] > _WIZARD_TIMEOUT:
+        _order_wizard.pop(chat_id, None)
+        await query.edit_message_text("⏱ 已過期，請重新 /order")
+        return
+
+    if data == "ow_cancel":
+        _order_wizard.pop(chat_id, None)
+        await query.edit_message_text("❌ 已取消")
+        return
+
+    # Step 1 → 2: Exchange selected
+    if data.startswith("ow_ex_"):
+        exchange = data[6:]
+        wiz["exchange"] = exchange
+        wiz["step"] = "symbol"
+        wiz["ts"] = time.time()
+
+        symbols = _ORDER_SYMBOLS.get(exchange, ["BTC"])
+        display = EXCHANGE_DISPLAY.get(exchange, exchange)
+        btns = [InlineKeyboardButton(s, callback_data=f"ow_sym_{s}")
+                for s in symbols]
+        rows = [btns[i:i+3] for i in range(0, len(btns), 3)]
+        rows.append([InlineKeyboardButton("❌ 取消", callback_data="ow_cancel")])
+
+        await query.edit_message_text(
+            f"📋 <b>落單精靈</b> ({display})\n\nStep 2/6：揀幣種",
+            reply_markup=InlineKeyboardMarkup(rows),
+            parse_mode="HTML",
+        )
+        return
+
+    # Step 2 → 3: Symbol selected
+    if data.startswith("ow_sym_"):
+        symbol = data[7:] + "USDT"
+        wiz["symbol"] = symbol
+        wiz["step"] = "side"
+        wiz["ts"] = time.time()
+
+        display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+        prefix = symbol.replace("USDT", "")
+
+        await query.edit_message_text(
+            f"📋 <b>落單精靈</b> ({display} {prefix})\n\nStep 3/6：揀方向",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🟢 LONG", callback_data="ow_side_LONG"),
+                InlineKeyboardButton("🔴 SHORT", callback_data="ow_side_SHORT"),
+                InlineKeyboardButton("❌ 取消", callback_data="ow_cancel"),
+            ]]),
+            parse_mode="HTML",
+        )
+        return
+
+    # Step 3 → 4: Side selected
+    if data.startswith("ow_side_"):
+        side = data[8:]
+        wiz["side"] = side
+        wiz["step"] = "sizing"
+        wiz["ts"] = time.time()
+
+        display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+        prefix = wiz["symbol"].replace("USDT", "")
+        side_icon = "🟢" if side == "LONG" else "🔴"
+
+        await query.edit_message_text(
+            f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{side})\n\n"
+            f"Step 4/6：揀倉位計算方式",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💰 金額 + 槓桿", callback_data="ow_sz_amount_lev")],
+                [InlineKeyboardButton("📐 金額 + 名義", callback_data="ow_sz_amount_notional")],
+                [InlineKeyboardButton("⚡ 槓桿 + 名義", callback_data="ow_sz_lev_notional")],
+                [InlineKeyboardButton("❌ 取消", callback_data="ow_cancel")],
+            ]),
+            parse_mode="HTML",
+        )
+        return
+
+    # Step 4 → 5: Sizing mode selected, ask first number
+    if data.startswith("ow_sz_"):
+        sizing_mode = data[6:]
+        wiz["sizing_mode"] = sizing_mode
+        wiz["step"] = "input1"
+        wiz["ts"] = time.time()
+
+        if sizing_mode == "amount_lev":
+            prompt = "金額幾多 USDT？"
+        elif sizing_mode == "amount_notional":
+            prompt = "金額幾多 USDT？"
+        else:
+            prompt = "槓桿幾多x？"
+
+        display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+        prefix = wiz["symbol"].replace("USDT", "")
+        side_icon = "🟢" if wiz["side"] == "LONG" else "🔴"
+
+        await query.edit_message_text(
+            f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{wiz['side']})\n\n"
+            f"Step 5/6：{prompt}\n\n"
+            f"<i>直接打數字回覆（{_WIZARD_TIMEOUT}秒內）</i>",
+            parse_mode="HTML",
+        )
+        return
+
+
+async def _order_wizard_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle numeric input for order wizard Step 5 (input1 + input2)."""
+    chat_id = update.effective_chat.id
+    text = (update.message.text or "").strip()
+    wiz = _order_wizard.get(chat_id)
+
+    if not wiz:
+        return
+
+    # Check timeout
+    if time.time() - wiz["ts"] > _WIZARD_TIMEOUT:
+        _order_wizard.pop(chat_id, None)
+        await update.message.reply_text("⏱ 已過期，請重新 /order")
+        return
+
+    # Parse number
+    try:
+        value = float(text)
+        if value <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("❌ 請輸入正數")
+        return
+
+    mode = wiz["sizing_mode"]
+    display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+    prefix = wiz["symbol"].replace("USDT", "")
+    side_icon = "🟢" if wiz["side"] == "LONG" else "🔴"
+
+    if wiz["step"] == "input1":
+        wiz["input1_value"] = value
+        wiz["step"] = "input2"
+        wiz["ts"] = time.time()
+
+        if mode == "amount_lev":
+            prompt = f"金額 ${value:.1f} 收到。槓桿幾多x？"
+        elif mode == "amount_notional":
+            prompt = f"金額 ${value:.1f} 收到。名義幾多 USDT？"
+        else:
+            prompt = f"槓桿 {value:.0f}x 收到。名義幾多 USDT？"
+
+        await update.message.reply_text(
+            f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{wiz['side']})\n\n"
+            f"Step 5/6：{prompt}\n\n"
+            f"<i>直接打數字回覆（{_WIZARD_TIMEOUT}秒內）</i>",
+            parse_mode="HTML",
+        )
+        return
+
+    if wiz["step"] == "input2":
+        v1 = wiz["input1_value"]
+
+        if mode == "amount_lev":
+            amount, leverage, notional = v1, value, v1 * value
+        elif mode == "amount_notional":
+            amount, notional = v1, value
+            leverage = notional / amount if amount > 0 else 10
+        else:  # lev_notional
+            leverage, notional = v1, value
+            amount = notional / leverage if leverage > 0 else 50
+
+        order = {
+            "symbol": wiz["symbol"],
+            "side": wiz["side"],
+            "amount": round(amount, 2),
+            "leverage": max(1, int(leverage)),
+            "exchange": wiz["exchange"],
+        }
+
+        _order_wizard.pop(chat_id, None)
+        await _request_order_confirmation(update, order)
+        return
+
+
 # ── /trade — 明確語法多交易所下單 ──
 
 async def cmd_trade(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1291,7 +1621,19 @@ async def _handle_analysis(update: Update, text: str):
     # 取短期對話歷史（最近 5 組，10 分鐘過期）
     history = _get_history(chat_id)
 
-    reply = _clean_for_telegram(call_claude(text, context, history=history, max_tokens=400))
+    # Sonnet routing：分析類 keyword 用 Sonnet（cap 內），其他用 Haiku
+    if any(kw in text for kw in _ANALYSIS_KEYWORDS) and _use_sonnet():
+        ai_model = MODEL_SONNET
+    else:
+        ai_model = MODEL_HAIKU
+
+    raw = call_claude(text, context, history=history, max_tokens=250, model=ai_model)
+    reply = _clean_for_telegram(raw)
+
+    # Hard limit: max 8 lines (proxy may ignore max_tokens)
+    lines = [l for l in reply.split('\n') if l.strip()]
+    if len(lines) > 8:
+        reply = '\n'.join(lines[:8])
 
     await _send_html(update.message, reply)
 
@@ -1299,17 +1641,48 @@ async def _handle_analysis(update: Update, text: str):
     _append_history(chat_id, text, reply)
     write_conversation(text, reply)
 
-    analysis_kw = ["分析", "策略", "建議", "點睇", "應唔應該", "如果", "compare"]
-    if any(kw in text for kw in analysis_kw):
+    if any(kw in text for kw in _ANALYSIS_KEYWORDS):
         write_analysis(text, reply)
 
 
 async def handle_free_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Free text: detect order intent first, else RAG analysis."""
+    """Free text: price watch → order intent → RAG analysis."""
     if not is_allowed(update):
         return
     text = (update.message.text or "").strip()
     if not text:
+        return
+
+    # Order wizard text input intercept
+    chat_id = update.effective_chat.id
+    if chat_id in _order_wizard:
+        wiz = _order_wizard[chat_id]
+        if wiz.get("step") in ("input1", "input2"):
+            await _order_wizard_text(update, ctx)
+            return
+        # Wizard exists but not in text-input step → ignore wizard
+        # (user may have typed something while buttons are showing)
+
+    # Price watch intercept (before order check)
+    watch = _parse_price_watch(text)
+    if watch:
+        symbol = watch["symbol"]
+        target = watch["target"]
+        direction = watch["direction"]
+        prefix = symbol.replace("USDT", "")
+        dir_text = "升穿" if direction == "above" else "跌穿"
+
+        if symbol not in _price_watches:
+            _price_watches[symbol] = []
+        _price_watches[symbol].append({
+            "direction": direction,
+            "target": target,
+            "chat_id": update.effective_chat.id,
+        })
+        await update.message.reply_text(
+            f"\U0001f514 收到！{prefix} {dir_text} {target} 會通知你",
+        )
+        log.info(f"[Watch] {prefix} {direction} {target}")
         return
 
     # Check for order-like keywords first (avoid Claude call for obvious non-orders)
@@ -1338,7 +1711,7 @@ async def _request_order_confirmation(update: Update, order: dict):
     amount  = order.get("amount", 0)
     exchange = order.get("exchange", "aster")
     exchange_display = EXCHANGE_DISPLAY.get(exchange, exchange)
-    leverage = 10
+    leverage = order.get("leverage", 10)
 
     # Resolve SL/TP same logic as execute_order
     DEFAULT_SL_PCT = 0.025
@@ -1436,6 +1809,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
 
+    # ── Order Wizard buttons ──
+    if data.startswith("ow_"):
+        await _order_wizard_callback(update, ctx)
+        return
+
     # ── Mode switch buttons ──
     if data.startswith("mode_"):
         mode = data.replace("mode_", "")
@@ -1531,6 +1909,65 @@ async def check_and_push_alerts(app):
     while True:
         try:
             await asyncio.sleep(60)
+
+            # ── Price Watch Alerts ──
+            if _price_watches:
+                try:
+                    live_prices = slash_cmd.get_prices()
+                    triggered = []
+                    for symbol, watches in list(_price_watches.items()):
+                        price_data = live_prices.get(symbol)
+                        if not price_data:
+                            continue
+                        current_price = price_data["price"]
+                        prefix = symbol.replace("USDT", "")
+                        remaining = []
+                        for w in watches:
+                            hit = False
+                            if w["direction"] == "above" and current_price >= w["target"]:
+                                hit = True
+                            elif w["direction"] == "below" and current_price <= w["target"]:
+                                hit = True
+                            if hit:
+                                dir_text = "升穿" if w["direction"] == "above" else "跌穿"
+                                triggered.append((
+                                    w["chat_id"],
+                                    f"\U0001f514 {prefix} {dir_text} {w['target']}！"
+                                    f"\n現價 {current_price}",
+                                ))
+                            else:
+                                remaining.append(w)
+                        if remaining:
+                            _price_watches[symbol] = remaining
+                        else:
+                            del _price_watches[symbol]
+                    for chat_id, msg in triggered:
+                        await app.bot.send_message(chat_id, msg)
+                except Exception as e:
+                    log.debug(f"Price watch check error: {e}")
+
+            # ── ATR Spike Detection ──
+            try:
+                scan_cfg = slash_cmd.parse_scan_config()
+                for prefix in ("BTC", "ETH", "XRP", "XAG"):
+                    atr_str = scan_cfg.get(f"{prefix}_ATR", "")
+                    if not atr_str:
+                        continue
+                    try:
+                        atr_now = float(atr_str)
+                    except ValueError:
+                        continue
+                    if prefix in _last_atr and _last_atr[prefix] > 0:
+                        change = (atr_now - _last_atr[prefix]) / _last_atr[prefix]
+                        if change > _ATR_SPIKE_THRESHOLD:
+                            await app.bot.send_message(
+                                ALLOWED_CHAT_ID,
+                                f"\u26a1 {prefix} ATR 急升 +{change*100:.0f}%。波動加劇",
+                            )
+                            log.info(f"[ATR] {prefix} spike +{change*100:.0f}%")
+                    _last_atr[prefix] = atr_now
+            except Exception as e:
+                log.debug(f"ATR check error: {e}")
 
             # Get current positions
             try:
@@ -1654,7 +2091,8 @@ async def check_and_push_alerts(app):
                         f"最尾問一條問題迫交易員反思。"
                     )
 
-                    report = call_claude(coach_prompt, context)
+                    coach_model = MODEL_SONNET if _use_sonnet() else MODEL_HAIKU
+                    report = call_claude(coach_prompt, context, model=coach_model)
                     report = _clean_for_telegram(report)
                     write_analysis(f"{symbol} 平倉報告", report)
 
@@ -1766,6 +2204,7 @@ def main():
     app.add_handler(CommandHandler("pause",   cmd_pause))
     app.add_handler(CommandHandler("resume",  cmd_resume_handler))
     app.add_handler(CommandHandler("cancel",  cmd_cancel))
+    app.add_handler(CommandHandler("order",   cmd_order))
     app.add_handler(CommandHandler("trade",   cmd_trade))
     app.add_handler(CommandHandler("close",   cmd_close))
 

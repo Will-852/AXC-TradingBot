@@ -90,40 +90,53 @@ INFLUENCE_THRESHOLD = 5
 
 # (score, keywords) — 由高到低。匹配到最高嗰個 tier 就停。
 INFLUENCE_TIERS = [
+    # Tier 10: 鯨魚/大戶真金白銀動向
     (10, [
-        "whale", "鯨魚", "鲸鱼", "大額轉", "大额转", "large transfer",
-        "liquidat", "清算", "billion", "百億", "百亿",
-        "flash crash", "閃崩", "闪崩", "bank run", "擠兌",
+        "whale", "鯨魚", "鲸鱼",
+        "large transfer", "大額轉", "大额转",
+        "dumped", "accumulated", "moved $", "sold $", "bought $",
+        "liquidat", "清算爆倉",  # "清算" 太寬，加「爆倉」收窄
+        "flash crash", "閃崩", "闪崩",
+        "bank run", "擠兌",
     ]),
+    # Tier 9: 流動性/成交量異常
     (9, [
         "volume spike", "成交量暴", "liquidity", "流動性", "流动性",
         "fund flow", "資金流", "资金流", "outflow", "inflow",
         "exchange reserve", "交易所儲備", "交易所储备",
+        "short squeeze", "long squeeze", "margin call",
+        "orderbook imbalance",
     ]),
+    # Tier 8: 政策/地緣衝擊
     (8, [
         "tariff", "關稅", "关税", "sanction", "制裁",
         "rate cut", "rate hike", "降息", "加息",
         "fed ", "fomc", "war ", "戰爭", "战争",
         "invasion", "ceasefire", "停火",
+        "crash", "plunge", "surge", "soar",
     ]),
+    # Tier 7: 交易所/監管事件
     (7, [
         "hack", "exploit", "漏洞", "rug pull",
         "etf approv", "etf reject", "etf filing",
         "sec ", "cftc", "regulation", "監管", "监管",
-        "ban ", "禁止", "delist", "下架",
+        "banned", "禁止", "delist", "下架",
     ]),
+    # Tier 6: 宏觀指標（要有實際數據，唔係「分析師話」）
     (6, [
         "dxy", "美元指數", "vix", "恐慌指數",
-        "oil crash", "油價", "油价", "crude",
-        "treasury", "國債", "国债", "bond yield",
+        "oil crash", "crude oil",
+        "treasury", "bond yield",
         "nikkei", "日經", "carry trade",
-        "gold", "黃金", "黄金", "silver", "白銀", "白银",
+        "gold price", "silver price",
     ]),
+    # Tier 5: On-chain / 結構數據（實際數據，唔係觀點）
     (5, [
-        "on-chain", "鏈上", "链上", "funding rate",
-        "open interest", "未平倉", "hashrate",
+        "on-chain", "funding rate",
+        "open interest", "hashrate",
         "difficulty", "mining revenue",
-        "stablecoin", "穩定幣", "稳定币",
+        "stablecoin flow", "stablecoin mint",
+        "leverage ratio",
     ]),
     # Below threshold — noise
     (3, ["partner", "合作", "launch", "上線", "rebrand", "upgrade"]),
@@ -193,17 +206,35 @@ def _get_attr(elem, tag: str, attr: str) -> str:
     return ""
 
 
+# 觀點/噪音標記 — 命中任何一個就降 2 分（「講嘢」vs「做嘢」）
+OPINION_NOISE = [
+    "analyst", "分析師", "分析师",
+    "source say", "sources say", "知情人士", "據報", "据报",
+    "could ", "may ", "might ", "predict", "forecast", "預測", "预测",
+    "expert", "專家", "专家", "report say",
+]
+
+
 def score_influence(article: dict) -> int:
     """Keyword 預篩影響力分數 0-10。匹配最高 tier 即停。
 
-    流動性/鯨魚 > 政策 > 宏觀 > on-chain > noise。
-    成本：零（純 keyword match，唔使 API）。
+    核心原則：成交量 + 流動性 + 真金白銀 > 一切。
+    「講嘢」（分析師、知情人士）自動降分。
     """
     text = (article.get("title", "") + " " + article.get("description", "")).lower()
+
+    # Base score from tier matching
+    base = 1
     for score, keywords in INFLUENCE_TIERS:
         if any(kw in text for kw in keywords):
-            return score
-    return 1  # default: generic news
+            base = score
+            break
+
+    # Penalty: opinion/noise language → -2 (「講嘢」唔係「做嘢」)
+    if any(noise in text for noise in OPINION_NOISE):
+        base = max(1, base - 2)
+
+    return base
 
 
 def match_symbols(article: dict) -> list[str]:
@@ -307,10 +338,9 @@ def main():
         except Exception:
             pass
 
-    # Backfill influence score for old articles missing it
+    # Always re-score (keyword list may have been updated)
     for a in deduped:
-        if "influence_score" not in a:
-            a["influence_score"] = score_influence(a)
+        a["influence_score"] = score_influence(a)
 
     # Sort by fetch time (newest first)
     deduped.sort(key=lambda a: a.get("fetched_at", ""), reverse=True)

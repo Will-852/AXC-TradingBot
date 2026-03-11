@@ -119,6 +119,9 @@ class BacktestEngine:
         sl_slippage_pct: float = SL_SLIPPAGE_PCT,
         allowed_modes: list[str] | None = None,
         param_overrides: dict | None = None,
+        strategy_overrides: dict | None = None,
+        mode_confirmation: int | None = None,
+        quiet: bool = False,
     ):
         self.symbol = symbol.upper()
         self.df_1h = df_1h.reset_index(drop=True)
@@ -128,15 +131,20 @@ class BacktestEngine:
         self.balance = initial_balance
         self.commission_rate = commission_rate
         self.sl_slippage_pct = sl_slippage_pct
+        self.quiet = quiet
 
         # Indicator params with product overrides + backtest overrides
         self.param_overrides = param_overrides or {}
         self.params_1h = self._build_params("1h")
         self.params_4h = self._build_params("4h")
 
-        # Strategies
-        self.range_strategy = RangeStrategy()
-        self.trend_strategy = TrendStrategy()
+        # Mode confirmation override (for optimizer: 1 or 2)
+        self._mode_confirmation = mode_confirmation or MODE_CONFIRMATION_REQUIRED
+
+        # Strategies — injectable for optimizer
+        strats = strategy_overrides or {}
+        self.range_strategy = strats.get("range", RangeStrategy())
+        self.trend_strategy = strats.get("trend", TrendStrategy())
 
         # State
         self.positions: list[BTPosition] = []
@@ -184,10 +192,11 @@ class BacktestEngine:
         close_times_4h = self.df_4h["close_time"].astype(int).values
 
         test_candles = total_1h - WARMUP_CANDLES
-        print(f"\n  Running: {self.symbol}")
-        print(f"  1H: {total_1h} candles (warmup={WARMUP_CANDLES}, test={test_candles})")
-        print(f"  4H: {len(self.df_4h)} candles")
-        print(f"  Balance: ${self.initial_balance:,.0f}")
+        if not self.quiet:
+            print(f"\n  Running: {self.symbol}")
+            print(f"  1H: {total_1h} candles (warmup={WARMUP_CANDLES}, test={test_candles})")
+            print(f"  4H: {len(self.df_4h)} candles")
+            print(f"  Balance: ${self.initial_balance:,.0f}")
 
         # Apply param_overrides to indicator_calc module for RangeStrategy
         # (it reads TIMEFRAME_PARAMS directly inside evaluate())
@@ -306,11 +315,11 @@ class BacktestEngine:
         # Mode confirmation (mirrors DetectModeStep)
         if raw_mode == "UNKNOWN":
             self.current_mode = self.prev_mode
-            self.mode_confirmed = self.prev_mode_cycles >= MODE_CONFIRMATION_REQUIRED
+            self.mode_confirmed = self.prev_mode_cycles >= self._mode_confirmation
         elif raw_mode == self.prev_mode:
             self.current_mode = raw_mode
             self.prev_mode_cycles += 1
-            self.mode_confirmed = self.prev_mode_cycles >= MODE_CONFIRMATION_REQUIRED
+            self.mode_confirmed = self.prev_mode_cycles >= self._mode_confirmation
         else:
             self.current_mode = raw_mode
             self.mode_confirmed = False

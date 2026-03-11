@@ -77,7 +77,7 @@ TIMEFRAME_PARAMS = {
         "rsi_period": 14, "adx_period": 14,
         "ema_fast": 10, "ema_slow": 50, "atr_period": 14,
         "rsi_long": 35, "rsi_short": 65,
-        "adx_range_max": 18,
+        "adx_range_max": 25,   # 2026-03-11 optimizer: 6/6 viable ≥22, shrinkage→25 (was 18)
         "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
         "bb_width_squeeze": 0.020,
         "lookback_support": 30,
@@ -112,7 +112,12 @@ TREND_RSI_SHORT_LOW = 45      # SHORT: RSI 下限
 TREND_RSI_SHORT_HIGH = 60     # SHORT: RSI 上限
 
 # 回調容忍度：價格距 1H MA50 幾 % 先算 "pullback"
-PULLBACK_TOLERANCE = 0.015    # 1.5%
+# 2026-03-11 optimizer Stage1: 6/6 viable configs 用 ≥0.020，收縮後 0.025
+PULLBACK_TOLERANCE = 0.025    # 2.5% (was 1.5%, optimizer shrinkage)
+
+# Trend 入場最少 KEY 數（4=全部確認，3=允許 1 個唔 pass）
+# 2026-03-11 optimizer Stage1: 5/6 viable configs 用 3
+TREND_MIN_KEYS = 3            # (was hardcoded 4)
 
 # ═══════════════════════════════════════
 # Section 5: 模式偵測閾值（settings.py 讀）

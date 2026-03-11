@@ -1,0 +1,244 @@
+{
+  "stage1": [
+    {
+      "params": {
+        "bb_width_min": 0.099,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0371,
+        "adx_range_max": 29.1644,
+        "entry_volume_min": 0.9132,
+        "mode_confirmation": 1,
+        "rsi_long_low": 44.5477,
+        "rsi_long_high": 62.7394,
+        "bb_touch_tol": 0.0116,
+        "rsi_short_low": 46.8247,
+        "rsi_short_high": 65.323
+      },
+      "total_trades": 226,
+      "total_pnl": 4621.18,
+      "trades_per_pair": {
+        "BTCUSDT": 98,
+        "ETHUSDT": 63,
+        "XRPUSDT": 65
+      },
+      "objective": 21.7059,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0738,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0295,
+        "adx_range_max": 27.4441,
+        "entry_volume_min": 0.9715,
+        "mode_confirmation": 2,
+        "rsi_long_low": 34.9953,
+        "rsi_long_high": 69.1257,
+        "bb_touch_tol": 0.0072,
+        "rsi_short_low": 37.5995,
+        "rsi_short_high": 68.0315
+      },
+      "total_trades": 232,
+      "total_pnl": 5618.29,
+      "trades_per_pair": {
+        "BTCUSDT": 95,
+        "ETHUSDT": 65,
+        "XRPUSDT": 72
+      },
+      "objective": 21.6836,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0426,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0199,
+        "adx_range_max": 25.8759,
+        "entry_volume_min": 0.8671,
+        "mode_confirmation": 1,
+        "rsi_long_low": 33.2199,
+        "rsi_long_high": 67.5321,
+        "bb_touch_tol": 0.0149,
+        "rsi_short_low": 44.4372,
+        "rsi_short_high": 62.0596
+      },
+      "total_trades": 131,
+      "total_pnl": 4291.47,
+      "trades_per_pair": {
+        "BTCUSDT": 57,
+        "ETHUSDT": 36,
+        "XRPUSDT": 38
+      },
+      "objective": 21.2458,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.048,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.038,
+        "adx_range_max": 24.4028,
+        "entry_volume_min": 0.6756,
+        "mode_confirmation": 1,
+        "rsi_long_low": 38.7495,
+        "rsi_long_high": 55.9546,
+        "bb_touch_tol": 0.0089,
+        "rsi_short_low": 41.5553,
+        "rsi_short_high": 55.8072
+      },
+      "total_trades": 244,
+      "total_pnl": 2249.57,
+      "trades_per_pair": {
+        "BTCUSDT": 111,
+        "ETHUSDT": 63,
+        "XRPUSDT": 70
+      },
+      "objective": 20.6505,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0524,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0204,
+        "adx_range_max": 28.2679,
+        "entry_volume_min": 0.5664,
+        "mode_confirmation": 1,
+        "rsi_long_low": 37.4043,
+        "rsi_long_high": 64.3447,
+        "bb_touch_tol": 0.0134,
+        "rsi_short_low": 47.4838,
+        "rsi_short_high": 60.4682
+      },
+      "total_trades": 53,
+      "total_pnl": 3928.75,
+      "trades_per_pair": {
+        "BTCUSDT": 22,
+        "ETHUSDT": 11,
+        "XRPUSDT": 20
+      },
+      "objective": 20.558,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0774,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0304,
+        "adx_range_max": 21.9632,
+        "entry_volume_min": 0.7543,
+        "mode_confirmation": 1,
+        "rsi_long_low": 42.3583,
+        "rsi_long_high": 56.4279,
+        "bb_touch_tol": 0.0059,
+        "rsi_short_low": 40.0992,
+        "rsi_short_high": 58.9438
+      },
+      "total_trades": 210,
+      "total_pnl": 1076.24,
+      "trades_per_pair": {
+        "BTCUSDT": 101,
+        "ETHUSDT": 50,
+        "XRPUSDT": 59
+      },
+      "objective": 20.2891,
+      "viable": true
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0882,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0331,
+        "adx_range_max": 23.7664,
+        "entry_volume_min": 0.492,
+        "mode_confirmation": 2,
+        "rsi_long_low": 40.2686,
+        "rsi_long_high": 60.6339,
+        "bb_touch_tol": 0.0123,
+        "rsi_short_low": 53.065,
+        "rsi_short_high": 66.5113
+      },
+      "total_trades": 42,
+      "total_pnl": -1472.74,
+      "trades_per_pair": {
+        "BTCUSDT": 13,
+        "ETHUSDT": 14,
+        "XRPUSDT": 15
+      },
+      "objective": "-inf",
+      "viable": false
+    },
+    {
+      "params": {
+        "bb_width_min": 0.083,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.024,
+        "adx_range_max": 18.854,
+        "entry_volume_min": 0.7791,
+        "mode_confirmation": 2,
+        "rsi_long_low": 32.7001,
+        "rsi_long_high": 53.9853,
+        "bb_touch_tol": 0.0092,
+        "rsi_short_low": 35.6703,
+        "rsi_short_high": 62.9423
+      },
+      "total_trades": 63,
+      "total_pnl": -5065.01,
+      "trades_per_pair": {
+        "BTCUSDT": 34,
+        "ETHUSDT": 12,
+        "XRPUSDT": 17
+      },
+      "objective": "-inf",
+      "viable": false
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0653,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0261,
+        "adx_range_max": 20.2322,
+        "entry_volume_min": 0.6331,
+        "mode_confirmation": 2,
+        "rsi_long_low": 30.7934,
+        "rsi_long_high": 58.8695,
+        "bb_touch_tol": 0.0102,
+        "rsi_short_low": 49.7306,
+        "rsi_short_high": 57.1696
+      },
+      "total_trades": 30,
+      "total_pnl": -1203.18,
+      "trades_per_pair": {
+        "BTCUSDT": 11,
+        "ETHUSDT": 7,
+        "XRPUSDT": 12
+      },
+      "objective": "-inf",
+      "viable": false
+    },
+    {
+      "params": {
+        "bb_width_min": 0.0582,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0158,
+        "adx_range_max": 21.281,
+        "entry_volume_min": 0.4018,
+        "mode_confirmation": 2,
+        "rsi_long_low": 40.9247,
+        "rsi_long_high": 51.1013,
+        "bb_touch_tol": 0.0067,
+        "rsi_short_low": 52.8072,
+        "rsi_short_high": 68.6461
+      },
+      "total_trades": 16,
+      "total_pnl": 1127.2,
+      "trades_per_pair": {
+        "BTCUSDT": 8,
+        "ETHUSDT": 2,
+        "XRPUSDT": 6
+      },
+      "objective": "-inf",
+      "viable": false
+    }
+  ]
+}
