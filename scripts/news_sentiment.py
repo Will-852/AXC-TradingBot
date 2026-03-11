@@ -92,6 +92,28 @@ def mark_manual_processed():
         log.warning(f"Failed to update manual processed timestamp: {e}")
 
 
+_HKT = timezone(timedelta(hours=8))
+
+def _parse_pub_time_hkt(raw: str) -> str:
+    """Parse various date formats → HH:MM (HKT). Returns '' on failure."""
+    from email.utils import parsedate_to_datetime
+    try:
+        # Try ISO format first: "2026-03-11 09:12:58" or "2026-03-11T09:12:58+00:00"
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)  # naive → assume UTC
+        return dt.astimezone(_HKT).strftime("%H:%M")
+    except (ValueError, TypeError):
+        pass
+    try:
+        # RFC 2822: "Wed, 11 Mar 2026 09:17:31 GMT" or "+0800"
+        dt = parsedate_to_datetime(raw)
+        return dt.astimezone(_HKT).strftime("%H:%M")
+    except Exception:
+        pass
+    return ""
+
+
 def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -> dict:
     """Call Claude Haiku for sentiment classification.
 
@@ -104,16 +126,11 @@ def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -
     article_texts = []
     for i, a in enumerate(articles[:20], 1):  # max 20 articles per call
         symbols_str = ", ".join(a.get("symbols", [])) or "general"
-        pub_time = a.get("published", "")
-        # Extract HH:MM if available
+        pub_time = a.get("pub_date", "") or a.get("published", "")
+        # Parse HH:MM (HKT) from multiple date formats
         time_str = ""
         if pub_time:
-            try:
-                from datetime import datetime as _dt
-                _p = _dt.fromisoformat(pub_time.replace("Z", "+00:00"))
-                time_str = _p.strftime("%H:%M")
-            except Exception:
-                time_str = ""
+            time_str = _parse_pub_time_hkt(pub_time)
         article_texts.append(
             f"{i}. [{a.get('source', '?')}] {a.get('title', '?')} "
             f"(symbols: {symbols_str}){' [' + time_str + ']' if time_str else ''}"
@@ -321,14 +338,13 @@ def main():
         log.error(f"Haiku API call failed: {e}")
         return
 
-    # Stamp narratives/risks with current run time (HKT)
-    # Haiku 估唔到真正發佈時間，用分析時間代替（每 15 分鐘跑一次）
-    run_time = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M")
+    # Haiku 收到真實 [HH:MM] 時間，應該 echo 返。冇嘅先用 run_time fallback
+    run_time = datetime.now(_HKT).strftime("%H:%M")
     for n in sentiment.get("key_narratives", []):
-        if isinstance(n, dict):
+        if isinstance(n, dict) and not n.get("time"):
             n["time"] = run_time
     for r in sentiment.get("risk_events", []):
-        if isinstance(r, dict):
+        if isinstance(r, dict) and not r.get("time"):
             r["time"] = run_time
 
     # Mark manual entries as processed
