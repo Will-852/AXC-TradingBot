@@ -121,9 +121,11 @@ def format_sentiment(data: dict) -> str:
 
     # Narratives + risks
     narratives = data.get("key_narratives", [])
-    narr_line = "、".join(narratives[:3]) if narratives else "—"
+    narr_labels = [n.get("text", str(n)) if isinstance(n, dict) else str(n) for n in narratives[:3]]
+    narr_line = "、".join(narr_labels) if narr_labels else "—"
     risks = data.get("risk_events", [])
-    risk_line = "、".join(risks[:3]) if risks else "無"
+    risk_labels = [r.get("text", str(r)) if isinstance(r, dict) else str(r) for r in risks[:3]]
+    risk_line = "、".join(risk_labels) if risk_labels else "無"
     summary = data.get("summary", "")
 
     stale = data.get("stale", False)

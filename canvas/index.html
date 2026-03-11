@@ -1261,7 +1261,7 @@ function fmtPnl(n) {
   var v = parseFloat(n) || 0;
   return (v >= 0 ? '+' : '') + v.toFixed(2);
 }
-var _SVG_MAP = {BTC:'btc',ETH:'eth',XRP:'xrp',XAG:'xag',XAU:'xau',ADA:'ada',SOL:'sol',BINANCE:'binance'};
+var _SVG_MAP = {BTC:'btc',ETH:'eth',XRP:'xrp',XAG:'xag',XAU:'xau',ADA:'ada',SOL:'sol',POL:'pol',BINANCE:'binance'};
 function symbolIcon(sym) {
   var name = (sym||'').replace('USDT','').toUpperCase();
   var file = _SVG_MAP[name];

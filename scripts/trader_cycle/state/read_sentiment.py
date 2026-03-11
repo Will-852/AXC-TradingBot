@@ -67,6 +67,8 @@ class ReadSentimentStep:
 
             risk_events = data.get("risk_events", [])
             if risk_events:
-                print(f"    [SENTIMENT] Risk events: {', '.join(risk_events[:3])}")
+                # risk_events can be dicts (with "text" key) or plain strings
+                labels = [r.get("text", str(r)) if isinstance(r, dict) else str(r) for r in risk_events[:3]]
+                print(f"    [SENTIMENT] Risk events: {', '.join(labels)}")
 
         return ctx
