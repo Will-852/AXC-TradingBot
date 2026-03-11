@@ -1253,7 +1253,7 @@ async def cmd_order(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("❌ 取消", callback_data="ow_cancel"),
     ]])
     await update.message.reply_text(
-        "📋 <b>落單精靈</b>\n\nStep 1/6：揀交易所",
+        "📋 <b>落單精靈</b>\n\nStep 1/4：揀交易所",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -1291,7 +1291,7 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         rows.append([InlineKeyboardButton("❌ 取消", callback_data="ow_cancel")])
 
         await query.edit_message_text(
-            f"📋 <b>落單精靈</b> ({display})\n\nStep 2/6：揀幣種",
+            f"📋 <b>落單精靈</b> ({display})\n\nStep 2/4：揀幣種",
             reply_markup=InlineKeyboardMarkup(rows),
             parse_mode="HTML",
         )
@@ -1308,7 +1308,7 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         prefix = symbol.replace("USDT", "")
 
         await query.edit_message_text(
-            f"📋 <b>落單精靈</b> ({display} {prefix})\n\nStep 3/6：揀方向",
+            f"📋 <b>落單精靈</b> ({display} {prefix})\n\nStep 3/4：揀方向",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🟢 LONG", callback_data="ow_side_LONG"),
                 InlineKeyboardButton("🔴 SHORT", callback_data="ow_side_SHORT"),
@@ -1318,11 +1318,11 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         )
         return
 
-    # Step 3 → 4: Side selected
+    # Step 3 → input: Side selected, ask 金額,槓桿
     if data.startswith("ow_side_"):
         side = data[8:]
         wiz["side"] = side
-        wiz["step"] = "sizing"
+        wiz["step"] = "input"
         wiz["ts"] = time.time()
 
         display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
@@ -1331,38 +1331,9 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
 
         await query.edit_message_text(
             f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{side})\n\n"
-            f"Step 4/6：揀倉位計算方式",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💰 金額 + 槓桿", callback_data="ow_sz_amount_lev")],
-                [InlineKeyboardButton("📐 金額 + 名義", callback_data="ow_sz_amount_notional")],
-                [InlineKeyboardButton("⚡ 槓桿 + 名義", callback_data="ow_sz_lev_notional")],
-                [InlineKeyboardButton("❌ 取消", callback_data="ow_cancel")],
-            ]),
-            parse_mode="HTML",
-        )
-        return
-
-    # Step 4 → 5: Sizing mode selected, ask first number
-    if data.startswith("ow_sz_"):
-        sizing_mode = data[6:]
-        wiz["sizing_mode"] = sizing_mode
-        wiz["step"] = "input1"
-        wiz["ts"] = time.time()
-
-        if sizing_mode == "amount_lev":
-            prompt = "金額幾多 USDT？"
-        elif sizing_mode == "amount_notional":
-            prompt = "金額幾多 USDT？"
-        else:
-            prompt = "槓桿幾多x？"
-
-        display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
-        prefix = wiz["symbol"].replace("USDT", "")
-        side_icon = "🟢" if wiz["side"] == "LONG" else "🔴"
-
-        await query.edit_message_text(
-            f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{wiz['side']})\n\n"
-            f"Step 5/6：{prompt}\n\n"
+            f"Step 4/4：輸入 <b>金額,槓桿</b>\n\n"
+            f"例：<code>5,5</code> = $5 · 5x · 名義 ~$25\n"
+            f"例：<code>10,20</code> = $10 · 20x · 名義 ~$200\n\n"
             f"<i>直接打數字回覆（{_WIZARD_TIMEOUT}秒內）</i>",
             parse_mode="HTML",
         )
@@ -1370,7 +1341,7 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
 
 
 async def _order_wizard_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle numeric input for order wizard Step 5 (input1 + input2)."""
+    """Handle 金額,槓桿 input for order wizard Step 4."""
     chat_id = update.effective_chat.id
     text = (update.message.text or "").strip()
     wiz = _order_wizard.get(chat_id)
@@ -1384,63 +1355,46 @@ async def _order_wizard_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏱ 已過期，請重新 /order")
         return
 
-    # Parse number
-    try:
-        value = float(text)
-        if value <= 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text("❌ 請輸入正數")
-        return
-
-    mode = wiz["sizing_mode"]
-    display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
-    prefix = wiz["symbol"].replace("USDT", "")
-    side_icon = "🟢" if wiz["side"] == "LONG" else "🔴"
-
-    if wiz["step"] == "input1":
-        wiz["input1_value"] = value
-        wiz["step"] = "input2"
-        wiz["ts"] = time.time()
-
-        if mode == "amount_lev":
-            prompt = f"金額 ${value:.1f} 收到。槓桿幾多x？"
-        elif mode == "amount_notional":
-            prompt = f"金額 ${value:.1f} 收到。名義幾多 USDT？"
-        else:
-            prompt = f"槓桿 {value:.0f}x 收到。名義幾多 USDT？"
-
+    # Parse 金額,槓桿 (comma, space, or slash separated)
+    parts = re.split(r'[,\s/]+', text)
+    if len(parts) != 2:
         await update.message.reply_text(
-            f"📋 <b>落單精靈</b> ({display} {prefix} {side_icon}{wiz['side']})\n\n"
-            f"Step 5/6：{prompt}\n\n"
-            f"<i>直接打數字回覆（{_WIZARD_TIMEOUT}秒內）</i>",
+            "❌ 格式：<code>金額,槓桿</code>\n例：<code>5,5</code>",
             parse_mode="HTML",
         )
         return
 
-    if wiz["step"] == "input2":
-        v1 = wiz["input1_value"]
-
-        if mode == "amount_lev":
-            amount, leverage, notional = v1, value, v1 * value
-        elif mode == "amount_notional":
-            amount, notional = v1, value
-            leverage = notional / amount if amount > 0 else 10
-        else:  # lev_notional
-            leverage, notional = v1, value
-            amount = notional / leverage if leverage > 0 else 50
-
-        order = {
-            "symbol": wiz["symbol"],
-            "side": wiz["side"],
-            "amount": round(amount, 2),
-            "leverage": max(1, int(leverage)),
-            "exchange": wiz["exchange"],
-        }
-
-        _order_wizard.pop(chat_id, None)
-        await _request_order_confirmation(update, order)
+    try:
+        amount = float(parts[0])
+        leverage = float(parts[1])
+        if amount <= 0 or leverage <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            "❌ 格式：<code>金額,槓桿</code>\n例：<code>5,5</code>",
+            parse_mode="HTML",
+        )
         return
+
+    notional = amount * leverage
+    if notional < 5:
+        await update.message.reply_text(
+            f"❌ 名義值 ${notional:.1f} 太細（最少 $5）\n"
+            f"試吓加大金額或槓桿",
+        )
+        return
+
+    order = {
+        "symbol": wiz["symbol"],
+        "side": wiz["side"],
+        "amount": round(amount, 2),
+        "leverage": max(1, int(leverage)),
+        "exchange": wiz["exchange"],
+    }
+
+    _order_wizard.pop(chat_id, None)
+    await _request_order_confirmation(update, order)
+    return
 
 
 # ── /trade — 明確語法多交易所下單 ──
@@ -1657,7 +1611,7 @@ async def handle_free_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id in _order_wizard:
         wiz = _order_wizard[chat_id]
-        if wiz.get("step") in ("input1", "input2"):
+        if wiz.get("step") == "input":
             await _order_wizard_text(update, ctx)
             return
         # Wizard exists but not in text-input step → ignore wizard
