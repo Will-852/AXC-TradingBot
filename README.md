@@ -4,6 +4,8 @@
     本地 AI 加密貨幣交易系統 — Telegram Bot + 自動交易 + 智能分析
     <br />
     你嘅 key 永遠唔會離開你部機。
+    <br />
+    <code>v2.3</code> · 2026-03
     <br /><br />
     <a href="#-快速開始"><strong>快速開始 »</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -60,13 +62,23 @@ OpenClaw 係一個**完全本地運行**嘅 AI 加密貨幣交易系統，連接
 | `/sl breakeven` | 移動止損到入場價（保本） |
 | `/health` | 系統狀態檢查 |
 
+### 落單
+
+| Command | 功能 |
+|---------|------|
+| `/order` | 互動式落單精靈（按鈕引導：交易所→幣種→方向→倉位）|
+| `/trade <交易所> <幣種> <方向> [金額]` | 快速落單（例：`/trade aster BTC LONG 50`） |
+| `/close [交易所] <幣種>` | 平倉 |
+| 自然語言 | 「做多 ETH $50」→ 確認 → 自動落單 |
+
+> `/order` 支援三種倉位計算：金額+槓桿、金額+名義、槓桿+名義。所有落單都有二次確認。
+
 ### AI 分析（需要 `PROXY_API_KEY`）
 
 | Command | 功能 |
 |---------|------|
 | `/ask <問題>` | AI 分析市場（結合你嘅持倉 + RAG 記憶） |
-| 自然語言 | 「做多 ETH $50」→ 確認 → 自動落單 |
-| 自動推送 | 倉位平倉時自動生成 AI 報告 |
+| 自動推送 | 倉位平倉時自動生成 AI 報告 + 教練評語 |
 
 ### 自然語言落單示例
 
@@ -148,7 +160,7 @@ python scripts\tg_bot.py
 
 啟動成功你會見到：
 ```
-🦞 OpenClaw Telegram v2.0 啟動
+🦞 OpenClaw Telegram v2.3 啟動
   Chat ID: 你嘅chat_id
 ```
 
@@ -256,6 +268,24 @@ ETHUSDT LONG  50.0 USDT
   PnL    +$12.50 (+1.4%)
   SL     $2,100.00
 ```
+
+### 互動式落單（推薦）
+
+Send `/order`，按鈕引導你完成落單：
+```
+/order
+  → Step 1: 揀交易所 [Aster] [Binance] [HL]
+  → Step 2: 揀幣種（按交易所過濾）
+  → Step 3: 揀方向 [🟢 LONG] [🔴 SHORT]
+  → Step 4: 倉位計算方式
+     💰 金額 + 槓桿 → 自動算名義
+     📐 金額 + 名義 → 自動算槓桿
+     ⚡ 槓桿 + 名義 → 自動算金額
+  → Step 5: 輸入兩個數字
+  → Step 6: 確認頁（顯示 SL/TP 預覽）
+```
+
+每步有 ❌ 取消按鈕，60 秒無操作自動過期。
 
 ### 自然語言落單
 
@@ -375,8 +405,11 @@ axc-trading/
 │       └── config/              #     pairs (7) + settings.py
 ├── backtest/                    # 回測系統
 │   ├── engine.py                #   Candle-by-candle 模擬器
+│   ├── optimizer.py             #   參數自動優化（Stage 1+2）
+│   ├── grid_search.py           #   Grid search 引擎
+│   ├── scoring.py               #   策略評分系統
 │   ├── run_backtest.py          #   CLI 入口
-│   └── compare_configs.py       #   A/B 測試
+│   └── strategies/              #   回測專用策略
 ├── config/
 │   ├── params.py                #   共用參數（唔好直接改）
 │   ├── user_params.py           #   你嘅 override（gitignored）
