@@ -2551,7 +2551,7 @@ function renderNewsCard(D) {
   if (narratives.length) {
     html += '<div class="ns-section-title" style="color:var(--text-2)"><i class="fas fa-bullhorn mr-1" style="color:var(--accent)"></i>主要敘事</div>';
     html += '<ul class="ns-list">';
-    narratives.slice(0, 5).forEach(function(n) {
+    narratives.slice(0, 10).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
       var src = typeof n === 'object' && n.src ? n.src : '';
@@ -2564,7 +2564,7 @@ function renderNewsCard(D) {
   if (risks.length) {
     html += '<div class="ns-section-title" style="color:var(--neg)"><i class="fas fa-exclamation-triangle mr-1"></i>風險事件</div>';
     html += '<ul class="ns-list">';
-    risks.slice(0, 5).forEach(function(n) {
+    risks.slice(0, 10).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
       var src = typeof n === 'object' && n.src ? n.src : '';

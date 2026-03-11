@@ -145,6 +145,13 @@ TRUMP PATTERN（必須識別）:
 特朗普經常宣布強硬政策（關稅、戰爭威脅）→ 市場恐慌大跌 → 2 週內軟化/取消 → 市場反彈。
 如果偵測到此模式，risk_events 標注「⚠️ Trump 政策反覆模式：短期恐慌可能係入場機會」。
 
+FILTER（嚴格執行，違反即失敗）:
+- 只報已發生嘅事實同已確認嘅行動，唔好報推測
+- 禁止用：「可能」「暗示」「預示」「或將」「料將」「預計」「恐將」
+- 錯誤示例：❌「暗示風險資產可能面臨避險資金流出」→ 呢啲係猜測，15分鐘後真發生先報
+- 正確示例：✅「SEC 主席宣布啟動跨機構監管協調」→ 已發生嘅事實
+- 鏈上數據（鯨魚錢包異動、大額轉帳、交易所淨流入流出）= 最高優先級，必須包含
+
 Respond in JSON format ONLY (no markdown, no explanation):
 {{
   "overall_sentiment": "bullish|bearish|neutral|mixed",
@@ -331,7 +338,59 @@ def main():
     # Track analyzed hashes (union of old + new — include all fresh, not just high)
     all_analyzed = analyzed_hashes | {a.get("url_hash") for a in fresh_articles}
 
-    # Build output
+    # ── 24h rolling accumulation ──
+    # Load existing items within 24h, append new ones, dedup by text
+    ACCUMULATE_HOURS = 24
+    cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=ACCUMULATE_HOURS)).isoformat()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    existing = {}
+    if SENTIMENT_FILE.exists():
+        try:
+            existing = json.loads(SENTIMENT_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    # Keep old items within 24h window
+    old_narratives = [
+        n for n in existing.get("key_narratives", [])
+        if isinstance(n, dict) and n.get("added_at", "") > cutoff_24h
+    ]
+    old_risks = [
+        r for r in existing.get("risk_events", [])
+        if isinstance(r, dict) and r.get("added_at", "") > cutoff_24h
+    ]
+
+    # Stamp new items with added_at
+    for n in sentiment.get("key_narratives", []):
+        if isinstance(n, dict):
+            n["added_at"] = now_iso
+    for r in sentiment.get("risk_events", []):
+        if isinstance(r, dict):
+            r["added_at"] = now_iso
+
+    # Dedup: skip new items whose text already exists in old
+    old_narrative_texts = {n.get("text", "") for n in old_narratives}
+    new_narratives = [
+        n for n in sentiment.get("key_narratives", [])
+        if isinstance(n, dict) and n.get("text", "") not in old_narrative_texts
+    ]
+    old_risk_texts = {r.get("text", "") for r in old_risks}
+    new_risks = [
+        r for r in sentiment.get("risk_events", [])
+        if isinstance(r, dict) and r.get("text", "") not in old_risk_texts
+    ]
+
+    # Merge: newest first
+    merged_narratives = new_narratives + old_narratives
+    merged_risks = new_risks + old_risks
+
+    log.info(
+        f"Accumulate: +{len(new_narratives)} narratives, +{len(new_risks)} risks "
+        f"(total: {len(merged_narratives)}N {len(merged_risks)}R, 24h window)"
+    )
+
+    # Build output — overall_sentiment from latest batch only (唔用累積)
     output = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "stale": False,
@@ -342,8 +401,8 @@ def main():
         "overall_impact": sentiment.get("overall_impact", 50),
         "confidence": sentiment.get("confidence", 0.0),
         "sentiment_by_symbol": sentiment.get("sentiment_by_symbol", {}),
-        "key_narratives": sentiment.get("key_narratives", []),
-        "risk_events": sentiment.get("risk_events", []),
+        "key_narratives": merged_narratives[:20],   # cap 20
+        "risk_events": merged_risks[:15],            # cap 15
         "summary": sentiment.get("summary", ""),
         "analyzed_hashes": list(all_analyzed)[-200:],  # keep last 200
     }
