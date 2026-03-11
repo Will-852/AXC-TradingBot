@@ -42,6 +42,7 @@ LUNARCRUSH_API_KEY = os.environ.get("LUNARCRUSH_API_KEY", "")
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+FALLBACK_MODEL = "gpt-5-mini"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -135,27 +136,50 @@ def call_haiku_filter(tweets_text: str) -> list[dict]:
 - 完全無關 crypto 嘅推文唔放入 array
 - 如果冇相關推文，回覆空 array: []"""
 
-    url = f"{PROXY_BASE_URL}/messages"
-    payload = json.dumps({
-        "model": CLAUDE_MODEL,
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode("utf-8")
-
-    req = urllib.request.Request(url, data=payload, method="POST", headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
-    })
-
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode())
-
     text = ""
-    for block in data.get("content", []):
-        if block.get("type") == "text":
-            text = block.get("text", "")
+    # Try Haiku first, fallback to GPT-5-mini
+    for model in [CLAUDE_MODEL, FALLBACK_MODEL]:
+        try:
+            if model == FALLBACK_MODEL:
+                # OpenAI-compatible endpoint
+                url = f"{PROXY_BASE_URL}/chat/completions"
+                payload = json.dumps({
+                    "model": model,
+                    "max_tokens": 1024,
+                    "messages": [{"role": "user", "content": prompt}],
+                }).encode("utf-8")
+                req = urllib.request.Request(url, data=payload, method="POST", headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {PROXY_API_KEY}",
+                })
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode())
+                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            else:
+                # Anthropic endpoint
+                url = f"{PROXY_BASE_URL}/messages"
+                payload = json.dumps({
+                    "model": model,
+                    "max_tokens": 1024,
+                    "messages": [{"role": "user", "content": prompt}],
+                }).encode("utf-8")
+                req = urllib.request.Request(url, data=payload, method="POST", headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {PROXY_API_KEY}",
+                    "anthropic-version": "2023-06-01",
+                })
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode())
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        text = block.get("text", "")
+                        break
+            log.info(f"Model {model} succeeded")
             break
+        except Exception as e:
+            log.warning(f"Model {model} failed: {e}")
+            text = ""
+            continue
 
     text = text.strip()
     if text.startswith("```"):
