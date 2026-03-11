@@ -2178,7 +2178,7 @@ def main():
         print("❌ 缺少 TELEGRAM_CHAT_ID")
         sys.exit(1)
 
-    log.info("🦞 OpenClaw Telegram v2.0 啟動")
+    log.info("🦞 OpenClaw Telegram v2.3 啟動")
     log.info(f"  Chat ID: {ALLOWED_CHAT_ID}")
     log.info(f"  Claude: {CLAUDE_MODEL} via {PROXY_BASE_URL}")
     log.info(f"  Memory: {BASE_DIR / 'memory'}")
