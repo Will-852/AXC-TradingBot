@@ -297,6 +297,29 @@ class AsterClient:
         return self._private_request("POST", "/fapi/v1/order", params)
 
     @retry_quadratic()
+    def create_limit_order(
+        self, symbol: str, side: str, qty: float,
+        price: float, reduce_only: bool = False,
+    ) -> Dict[str, Any]:
+        """GTC 限價單"""
+        precision = self.validate_symbol_precision(symbol)
+        qty = self._round_to_precision(qty, precision["qty_precision"])
+        price = self._round_to_precision(price, precision["price_precision"])
+
+        params: Dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "type": "LIMIT",
+            "quantity": qty,
+            "price": price,
+            "timeInForce": "GTC",
+        }
+        if reduce_only:
+            params["reduceOnly"] = "true"
+
+        return self._private_request("POST", "/fapi/v1/order", params)
+
+    @retry_quadratic()
     def create_stop_market(
         self, symbol: str, side: str, qty: float,
         stop_price: float, reduce_only: bool = True,

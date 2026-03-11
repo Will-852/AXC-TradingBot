@@ -2051,12 +2051,12 @@ def handle_modify_sltp(body):
 
 def handle_place_order(body):
     """POST /api/place-order — open a new position from dashboard trade modal.
-    Execution sequence mirrors execute_trade.py:
+    Execution sequence:
       ① set_margin_mode ISOLATED
       ② set_leverage
-      ③ market entry
-      ④ SL (critical — failure triggers emergency close)
-      ⑤ TP (best-effort)
+      ③ market/limit entry
+      ④ SL (critical — failure triggers emergency close; skipped for pending limit)
+      ⑤ TP (best-effort; skipped for pending limit)
     """
     try:
         data = json.loads(body)
@@ -2066,14 +2066,16 @@ def handle_place_order(body):
     symbol = (data.get("symbol") or "").upper().strip()
     platform = (data.get("platform") or "").lower().strip()
     side = (data.get("side") or "").upper().strip()       # BUY or SELL
+    order_type = (data.get("order_type") or "MARKET").upper().strip()
     sl_price = data.get("sl_price")
     tp_price = data.get("tp_price")
 
     try:
         qty = float(data.get("qty", 0))
         leverage = int(data.get("leverage", 5))
+        limit_price = float(data.get("limit_price") or 0)
     except (ValueError, TypeError):
-        return 400, {"error": "qty/leverage 必須為數字"}
+        return 400, {"error": "qty/leverage/limit_price 必須為數字"}
 
     # Validation
     if not symbol or not symbol.endswith("USDT"):
@@ -2086,6 +2088,10 @@ def handle_place_order(body):
         return 400, {"error": "數量必須大於 0"}
     if leverage < 1 or leverage > 125:
         return 400, {"error": f"Invalid leverage: {leverage}"}
+    if order_type not in ("MARKET", "LIMIT"):
+        return 400, {"error": f"Invalid order_type: {order_type}"}
+    if order_type == "LIMIT" and limit_price <= 0:
+        return 400, {"error": "限價單需要有效價格"}
 
     exit_side = "SELL" if side == "BUY" else "BUY"
     client_fns = {
@@ -2122,6 +2128,8 @@ def handle_place_order(body):
             return 400, {"error": f"交易所不支援 {symbol}: {prec_err}"}
         logging.warning("Pre-validation skipped (non-fatal): %s", prec_err)
 
+    t_start = time.time()
+
     try:
         # ① Margin mode
         try:
@@ -2132,26 +2140,36 @@ def handle_place_order(body):
         # ② Leverage
         client.set_leverage(symbol, leverage)
 
-        # ③ Market entry
-        entry_result = client.create_market_order(symbol, side, qty)
+        # ③ Entry (market or limit)
+        t_entry = time.time()
+        if order_type == "LIMIT":
+            entry_result = client.create_limit_order(symbol, side, qty, limit_price)
+        else:
+            entry_result = client.create_market_order(symbol, side, qty)
+        t_fill = time.time()
 
+        is_limit = order_type == "LIMIT"
         fill_qty = float(entry_result.get("executedQty", 0)) or qty
         fill_price = float(entry_result.get("avgPrice", 0))
+        # Limit order may fill immediately if price matches market
+        actually_pending = is_limit and fill_price == 0
         resp = {
             "ok": True,
+            "pending": actually_pending,
             "entry": {
                 "orderId": str(entry_result.get("orderId", "")),
-                "avgPrice": fill_price,
+                "avgPrice": fill_price if fill_price > 0 else limit_price,
                 "executedQty": fill_qty,
             },
         }
         logging.info(
-            "Dashboard place-order: %s %s %s qty=%s lev=%sx → %s",
-            platform, symbol, side, qty, leverage, entry_result
+            "Dashboard place-order: %s %s %s %s qty=%s lev=%sx%s → %s",
+            platform, symbol, side, order_type, qty, leverage,
+            f" @{limit_price}" if is_limit else "", entry_result
         )
 
-        # ④ SL (critical)
-        if sl_price and float(sl_price) > 0:
+        # ④ SL (critical) — skip for pending limit orders (not yet filled)
+        if not actually_pending and sl_price and float(sl_price) > 0:
             try:
                 sl_result = client.create_stop_market(
                     symbol, exit_side, fill_qty, float(sl_price)
@@ -2166,8 +2184,8 @@ def handle_place_order(body):
                     logging.error("Emergency close also failed: %s", close_err)
                     return 500, {"error": f"SL 落單失敗，緊急平倉也失敗！倉位仍開放，請手動處理: {sl_err}"}
 
-        # ⑤ TP (best-effort)
-        if tp_price and float(tp_price) > 0:
+        # ⑤ TP (best-effort) — skip for pending limit orders
+        if not actually_pending and tp_price and float(tp_price) > 0:
             try:
                 tp_result = client.create_take_profit_market(
                     symbol, exit_side, fill_qty, float(tp_price)
@@ -2176,6 +2194,16 @@ def handle_place_order(body):
             except Exception as tp_err:
                 logging.warning("Dashboard TP failed (SL active): %s %s → %s", platform, symbol, tp_err)
                 resp["warnings"] = [f"TP 設置失敗 (SL 保護中): {tp_err}"]
+
+        # Timing: total + entry fill
+        t_end = time.time()
+        resp["timing"] = {
+            "total_ms": round((t_end - t_start) * 1000),
+            "fill_ms": round((t_fill - t_entry) * 1000),
+        }
+
+        # Invalidate caches so next fetchData() shows updated positions
+        _action_cache["ts"] = 0
 
         return 200, resp
 

@@ -1280,6 +1280,17 @@
             <button class="tm-dir-btn" id="tm-dir-short" onclick="_setDirection('SHORT')">SHORT</button>
           </div>
 
+          <!-- Order Type -->
+          <div class="tm-label">訂單類型</div>
+          <div class="tm-dir-row" id="tm-ordertype-row">
+            <button class="tm-dir-btn long-active" id="tm-type-market" onclick="_setOrderType('MARKET')">市價</button>
+            <button class="tm-dir-btn" id="tm-type-limit" onclick="_setOrderType('LIMIT')">限價</button>
+          </div>
+          <div class="tm-input-group" id="tm-limit-group" style="display:none">
+            <div class="tm-label">限價</div>
+            <input type="number" class="tm-input" id="tm-limit-price" step="any" placeholder="限價價格" oninput="_updatePreview()">
+          </div>
+
           <!-- Qty -->
           <div class="tm-label">數量 (USDT)</div>
           <div class="tm-qty-row">
@@ -1296,14 +1307,15 @@
           <!-- Leverage -->
           <div class="tm-input-group">
             <div class="tm-label">槓桿</div>
-            <select class="tm-lev-select" id="tm-leverage">
-              <option value="1">1x</option>
-              <option value="2">2x</option>
-              <option value="3">3x</option>
-              <option value="5" selected>5x</option>
-              <option value="10">10x</option>
-              <option value="20">20x</option>
-            </select>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" class="tm-input" id="tm-leverage" value="5" min="1" max="125" step="1" style="flex:1" oninput="_updatePreview()">
+              <div style="display:flex;gap:3px;flex-shrink:0">
+                <button class="tm-quick-btn" onclick="document.getElementById('tm-leverage').value=1;_updatePreview()">1x</button>
+                <button class="tm-quick-btn" onclick="document.getElementById('tm-leverage').value=5;_updatePreview()">5x</button>
+                <button class="tm-quick-btn" onclick="document.getElementById('tm-leverage').value=10;_updatePreview()">10x</button>
+                <button class="tm-quick-btn" onclick="document.getElementById('tm-leverage').value=20;_updatePreview()">20x</button>
+              </div>
+            </div>
           </div>
 
           <!-- SL / TP -->
@@ -2855,22 +2867,41 @@ function renderNewsCard(D) {
     html += '</div>';
   }
 
-  // No pre-sort here — _renderNewsList handles sorting (added_at desc + time desc)
+  // No pre-sort here — _renderNewsList handles sorting (date desc + time desc)
   var narratives = ns.key_narratives || [];
   var risks = ns.risk_events || [];
 
-  // Time label: today → "17:03", yesterday → "昨23:01", no added_at → just time field
-  var _todayStr = new Date().toISOString().slice(0, 10);
+  // Time label: today → "04:00", yesterday → "昨22:07"
+  // Uses HKT timezone. If news time > scan time (HKT) → news is from previous day.
+  var _todayStr = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Hong_Kong'});
+
+  // Returns the actual news date (YYYY-MM-DD in HKT) for sorting + display
+  function _newsDay(n) {
+    if (typeof n !== 'object') return _todayStr;
+    var aa = n.added_at || '';
+    var t = n.time || '';
+    if (!aa) return _todayStr;
+    try {
+      var scanD = new Date(aa);
+      var scanHKT = scanD.toLocaleString('sv-SE', {timeZone: 'Asia/Hong_Kong'});
+      var scanDay = scanHKT.slice(0, 10);
+      var scanTime = scanHKT.slice(11, 16);
+      return (t && t > scanTime)
+        ? new Date(scanD.getTime() - 86400000).toLocaleDateString('sv-SE', {timeZone: 'Asia/Hong_Kong'})
+        : scanDay;
+    } catch(e) { return _todayStr; }
+  }
+
   function _newsTime(n) {
     if (typeof n !== 'object') return '';
     var aa = n.added_at || '';
     var t = n.time || '';
-    if (aa) {
-      var day = aa.slice(0, 10);
-      // Convert added_at to HKT for display if time field missing
-      if (!t) { try { var d = new Date(aa); t = d.toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Hong_Kong'}); } catch(e){} }
-      if (day < _todayStr) return '昨' + t;
+    if (!t && aa) {
+      try { var d = new Date(aa); t = d.toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Hong_Kong'}); } catch(e){}
     }
+    if (!t) return '';
+    var day = _newsDay(n);
+    if (day < _todayStr) return '昨' + t;
     return t;
   }
 
@@ -2910,23 +2941,27 @@ function renderNewsCard(D) {
   }
 
   function _renderNewsList(items, limit) {
-    // Sort: primary by added_at desc, secondary by time (HH:MM) desc
-    var sorted = items.slice().sort(function(a, b) {
-      var ta = (typeof a === 'object' && a.added_at) || '';
-      var tb = (typeof b === 'object' && b.added_at) || '';
-      // Primary: added_at descending
-      if (ta !== tb) {
-        if (ta && tb) return ta > tb ? -1 : 1;
-        return ta ? -1 : 1;
-      }
-      // Secondary: time (HH:MM) descending — within same batch
-      var ha = (typeof a === 'object' && a.time) || '';
-      var hb = (typeof b === 'object' && b.time) || '';
-      if (ha && hb) return ha > hb ? -1 : ha < hb ? 1 : 0;
+    // R2 fix: precompute _newsDay once per item, then sort by date desc + time desc
+    var tagged = items.map(function(n) {
+      return { n: n, day: _newsDay(n), time: (typeof n === 'object' && n.time) || '' };
+    });
+    tagged.sort(function(a, b) {
+      if (a.day !== b.day) return a.day > b.day ? -1 : 1;
+      if (a.time !== b.time) return a.time > b.time ? -1 : a.time < b.time ? 1 : 0;
       return 0;
     });
+    var sorted = tagged.map(function(t) { return t.n; });
+    // Dedup: same time + same source = same story (different scan batches rephrase)
+    var seen = {};
+    var deduped = [];
+    sorted.forEach(function(n) {
+      var t = (typeof n === 'object' && n.time) || '';
+      var src = (typeof n === 'object' && n.src) || '';
+      var key = t + '|' + src;
+      if (!seen[key]) { seen[key] = true; deduped.push(n); }
+    });
     var out = '';
-    sorted.slice(0, limit).forEach(function(n) {
+    deduped.slice(0, limit).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = _newsTime(n);
       var src = typeof n === 'object' && n.src ? n.src : '';
@@ -2940,12 +2975,26 @@ function renderNewsCard(D) {
       var note = _aiNote(txt, sc);
       var noteHtml = '<span class="ns-note">' + esc(note) + '</span>';
 
+      // Extract related coins from headline text (R3: word-boundary for short tickers)
+      var coins = [];
+      var tl = txt;
+      if (/\bBTC\b|bitcoin|比特幣/i.test(tl)) coins.push('BTC');
+      if (/\bETH\b|ethereum|以太坊/i.test(tl)) coins.push('ETH');
+      if (/\bXRP\b|ripple|瑞波/i.test(tl)) coins.push('XRP');
+      if (/\bSOL\b|solana/i.test(tl)) coins.push('SOL');
+      if (/\bPOL\b|polygon|\bMATIC\b/i.test(tl)) coins.push('POL');
+      if (/金價|黃金|\bGOLD\b|\bXAU\b/i.test(tl)) coins.push('XAU');
+      if (/白銀|\bSILVER\b|\bXAG\b/i.test(tl)) coins.push('XAG');
+      var coinsHtml = coins.length
+        ? ' <span style="color:#94a3b8;font-size:.65rem">' + coins.join(' ') + '</span>'
+        : '';
+
       out += '<li class="' + cls + '"' + safeTitle + ' style="display:flex;align-items:center;gap:6px">' +
         '<span style="flex:1;min-width:0">' +
           (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') +
           esc(display) +
           (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') +
-          ' ' + verdictHtml +
+          ' ' + verdictHtml + coinsHtml +
         '</span>' +
         noteHtml +
       '</li>';

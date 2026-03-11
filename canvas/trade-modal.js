@@ -12,6 +12,7 @@ var _tmState = {
   requestId: 0,        // guards against stale fetch callbacks
   symbolInfo: {},      // current active info { step_size, min_qty, ... }
   symbolInfoCache: {}, // keyed by "platform:SYMBOL"
+  orderType: 'MARKET', // MARKET or LIMIT
 };
 
 function openTradeModal(planData) {
@@ -40,6 +41,9 @@ function openTradeModal(planData) {
   // Leverage default + clear inputs (before _setDirection, which triggers preview)
   document.getElementById('tm-leverage').value = '5';
   document.getElementById('tm-qty-input').value = '';
+
+  // Reset order type to MARKET
+  _setOrderType('MARKET');
 
   // Set direction to LONG → internally calls _updateSltpFromPlan → _updatePreview
   _setDirection('LONG');
@@ -119,6 +123,29 @@ function _setDirection(dir) {
 }
 
 
+function _setOrderType(type) {
+  _tmState.orderType = type;
+  var mBtn = document.getElementById('tm-type-market');
+  var lBtn = document.getElementById('tm-type-limit');
+  mBtn.className = 'tm-dir-btn' + (type === 'MARKET' ? ' long-active' : '');
+  lBtn.className = 'tm-dir-btn' + (type === 'LIMIT' ? ' long-active' : '');
+  var limitGroup = document.getElementById('tm-limit-group');
+  if (limitGroup) limitGroup.style.display = type === 'LIMIT' ? '' : 'none';
+  // Auto-fill limit price with current price
+  if (type === 'LIMIT') {
+    var lpInput = document.getElementById('tm-limit-price');
+    if (lpInput && !lpInput.value) lpInput.value = _tmState.price || '';
+  }
+  // Disable SL/TP for limit orders (not set until filled)
+  var slInput = document.getElementById('tm-sl-price');
+  var tpInput = document.getElementById('tm-tp-price');
+  if (slInput) { slInput.disabled = type === 'LIMIT'; if (type === 'LIMIT') slInput.value = ''; }
+  if (tpInput) { tpInput.disabled = type === 'LIMIT'; if (type === 'LIMIT') tpInput.value = ''; }
+  // Restore SL/TP from plan when switching back to market
+  if (type === 'MARKET') _updateSltpFromPlan();
+  _updatePreview();
+}
+
 function _updateSltpFromPlan() {
   var p = _tmState.planData;
   if (!p) return;
@@ -193,16 +220,16 @@ function _renderRules() {
   var displayName = _tmState.symbol.replace('USDT', '');
   var safeDN = typeof esc === 'function' ? esc(displayName) : displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
   var minUsdt = info.min_qty * _tmState.price;
-  var items = [];
-  items.push('最低數量 <b>' + info.min_qty + ' ' + safeDN + '</b> (~$' + minUsdt.toFixed(2) + ')');
-  if (info.min_notional) items.push('最低名義值 <b>$' + info.min_notional + '</b>');
-  items.push('步長 <b>' + info.step_size + ' ' + safeDN + '</b>');
-  items.push('市價單 ✓');
+  var lines = [];
+  lines.push('• 最低數量 <b>' + info.min_qty + ' ' + safeDN + '</b> (~$' + minUsdt.toFixed(2) + ')');
+  if (info.min_notional) lines.push('• 最低名義值 <b>$' + info.min_notional + '</b>');
+  lines.push('• 每次增減 <b>' + info.step_size + ' ' + safeDN + '</b>');
+  lines.push('• 市價單 ✓ 限價單 ✓');
 
   el.innerHTML =
     '<div style="display:flex;align-items:flex-start;gap:6px">' +
-      '<i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0"></i>' +
-      '<span>' + items.join(' · ') + '</span>' +
+      '<i class="fas fa-info-circle" style="margin-top:3px;flex-shrink:0"></i>' +
+      '<div style="line-height:1.8">' + lines.join('<br>') + '</div>' +
     '</div>';
 }
 
@@ -231,8 +258,13 @@ function _updatePreview() {
   var slPrice = parseFloat(document.getElementById('tm-sl-price').value) || 0;
   var tpPrice = parseFloat(document.getElementById('tm-tp-price').value) || 0;
 
+  // Use limit price for calculations when in limit mode
+  var effectivePrice = _tmState.orderType === 'LIMIT'
+    ? (parseFloat(document.getElementById('tm-limit-price').value) || price)
+    : price;
+
   // Estimated qty with min_qty warning
-  var qty = price > 0 ? usdtInput * leverage / price : 0;
+  var qty = effectivePrice > 0 ? usdtInput * leverage / effectivePrice : 0;
   var estEl = document.getElementById('tm-est-pos');
   var displayName = _tmState.symbol.replace('USDT', '');
   var info = _tmState.symbolInfo;
@@ -319,24 +351,34 @@ function submitTradeOrder() {
   if (!platform) { _tmShowError('請選擇交易所'); return; }
 
   var price = _getEntryPrice();
-  var leverage = parseInt(document.getElementById('tm-leverage').value) || 5;
+  var leverage = Math.min(Math.max(parseInt(document.getElementById('tm-leverage').value) || 5, 1), 125);
   var usdtInput = parseFloat(document.getElementById('tm-qty-input').value) || 0;
   var slPrice = parseFloat(document.getElementById('tm-sl-price').value) || 0;
   var tpPrice = parseFloat(document.getElementById('tm-tp-price').value) || 0;
 
-  if (usdtInput <= 0) { _tmShowError('請輸入數量'); return; }
-  if (price <= 0) { _tmShowError('無法取得價格'); return; }
+  var isLimit = _tmState.orderType === 'LIMIT';
+  var limitPrice = isLimit ? (parseFloat(document.getElementById('tm-limit-price').value) || 0) : 0;
 
-  // SL/TP direction sanity check
-  if (_tmState.direction === 'LONG') {
-    if (slPrice > 0 && slPrice >= price) { _tmShowError('LONG 止損應低於入場價 (' + fmtPrice(price) + ')'); return; }
-    if (tpPrice > 0 && tpPrice <= price) { _tmShowError('LONG 止盈應高於入場價 (' + fmtPrice(price) + ')'); return; }
-  } else {
-    if (slPrice > 0 && slPrice <= price) { _tmShowError('SHORT 止損應高於入場價 (' + fmtPrice(price) + ')'); return; }
-    if (tpPrice > 0 && tpPrice >= price) { _tmShowError('SHORT 止盈應低於入場價 (' + fmtPrice(price) + ')'); return; }
+  if (usdtInput <= 0) { _tmShowError('請輸入數量'); return; }
+  if (isLimit && limitPrice <= 0) { _tmShowError('請輸入限價'); return; }
+  if (!isLimit && price <= 0) { _tmShowError('無法取得價格'); return; }
+
+  // For limit orders, use limit price for qty calculation
+  var calcPrice = isLimit ? limitPrice : price;
+  if (calcPrice <= 0) { _tmShowError('無法取得價格'); return; }
+
+  // SL/TP direction sanity check (skip for limit orders — SL/TP not set until filled)
+  if (!isLimit) {
+    if (_tmState.direction === 'LONG') {
+      if (slPrice > 0 && slPrice >= price) { _tmShowError('LONG 止損應低於入場價 (' + fmtPrice(price) + ')'); return; }
+      if (tpPrice > 0 && tpPrice <= price) { _tmShowError('LONG 止盈應高於入場價 (' + fmtPrice(price) + ')'); return; }
+    } else {
+      if (slPrice > 0 && slPrice <= price) { _tmShowError('SHORT 止損應高於入場價 (' + fmtPrice(price) + ')'); return; }
+      if (tpPrice > 0 && tpPrice >= price) { _tmShowError('SHORT 止盈應低於入場價 (' + fmtPrice(price) + ')'); return; }
+    }
   }
 
-  var qty = usdtInput * leverage / price;
+  var qty = usdtInput * leverage / calcPrice;
   if (qty <= 0) { _tmShowError('計算數量錯誤'); return; }
 
   // Frontend pre-validation using exchange symbol info
@@ -349,12 +391,12 @@ function submitTradeOrder() {
   var step = info.step_size;
   var roundedQty = step > 0 ? Math.round(Math.round(qty / step) * step * 1e8) / 1e8 : qty;
   if (roundedQty <= 0) {
-    var minUsdt = (info.min_qty || step) * price / leverage;
+    var minUsdt = (info.min_qty || step) * calcPrice / leverage;
     _tmShowError('數量太小：' + qty.toFixed(8) + ' 經精度調整後為 0。最低需 ~$' + minUsdt.toFixed(2) + ' USDT');
     return;
   }
   if (info.min_qty && roundedQty < info.min_qty) {
-    var minUsdt2 = info.min_qty * price / leverage;
+    var minUsdt2 = info.min_qty * calcPrice / leverage;
     _tmShowError('數量 ' + roundedQty + ' 低於最低 ' + info.min_qty + '。最低需 ~$' + minUsdt2.toFixed(2) + ' USDT');
     return;
   }
@@ -380,6 +422,8 @@ function submitTradeOrder() {
     leverage: leverage,
     sl_price: slPrice > 0 ? slPrice : null,
     tp_price: tpPrice > 0 ? tpPrice : null,
+    order_type: _tmState.orderType,
+    limit_price: isLimit ? limitPrice : null,
   };
 
   // Build confirmation overlay content
@@ -395,13 +439,17 @@ function submitTradeOrder() {
     row('交易所', platNames[platform] || platform) +
     row('幣種', '<span style="font-size:.9rem">' + safeName + '</span>') +
     row('方向', dirTag) +
-    row('類型', '市價') +
+    row('類型', isLimit ? '限價 $' + fmtPrice(limitPrice) : '市價') +
     row('數量', qty.toFixed(6) + ' ' + safeName + ' <span style="color:#64748b;font-size:.72rem">(~$' + (usdtInput * leverage).toFixed(2) + ')</span>') +
     row('保證金', '$' + usdtInput.toFixed(2)) +
     row('槓桿', leverage + 'x');
-  if (slPrice > 0) html += row('止損', '$' + fmtPrice(slPrice));
-  if (tpPrice > 0) html += row('止盈', '$' + fmtPrice(tpPrice));
-  html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>市價單，實際成交價可能因滑點而與現價有偏差</div>';
+  if (!isLimit && slPrice > 0) html += row('止損', '$' + fmtPrice(slPrice));
+  if (!isLimit && tpPrice > 0) html += row('止盈', '$' + fmtPrice(tpPrice));
+  if (isLimit) {
+    html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>限價單掛單後未成交，SL/TP 需成交後手動設定</div>';
+  } else {
+    html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>市價單，實際成交價可能因滑點而與現價有偏差</div>';
+  }
 
   document.getElementById('tm-confirm-body').innerHTML = html;
 
@@ -456,25 +504,59 @@ function _tmConfirmExecute() {
   .then(function(res) {
     if (thisReqId !== _tmState.requestId) return;
     if (res.data.ok) {
-      // R2 fix: hide overlay immediately so warning is visible
+      // Hide overlay immediately
       document.getElementById('tm-confirm-overlay').classList.remove('show');
       _tmUnfreezeForm();
-      // Show success on submit button instead
+      // Show success + execution timing
       var submitBtn = document.getElementById('tm-submit-btn');
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！';
-      submitBtn.style.background = '#0d9488';
+      var timing = res.data.timing;
+      var isPending = res.data.pending;
+      var entry = res.data.entry;
+      var dn = payload.symbol.replace('USDT', '');
+      var timeStr = timing ? ' (' + timing.fill_ms + 'ms 成交 / ' + timing.total_ms + 'ms 總計)' : '';
+
+      if (isPending) {
+        // Limit order — pending
+        submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>掛單成功！' + timeStr;
+        submitBtn.style.background = '#635bff';
+        submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">限價 $' + fmtPrice(payload.limit_price) + ' × ' + payload.qty.toFixed(6) + '</span>';
+      } else {
+        // Market order — filled
+        submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！' + timeStr;
+        submitBtn.style.background = '#0d9488';
+        if (entry && entry.avgPrice > 0) {
+          submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">成交價 $' + parseFloat(entry.avgPrice).toFixed(4) + ' × ' + parseFloat(entry.executedQty).toFixed(6) + '</span>';
+        }
+      }
       var warnings = res.data.warnings;
       if (warnings && warnings.length) {
         _tmShowError(warnings.join('; '));
         document.getElementById('tm-error').style.background = '#fffbeb';
         document.getElementById('tm-error').style.color = '#92400e';
       }
+      // Push notification with execution timing
+      if (typeof pushNotif === 'function') {
+        if (isPending) {
+          pushNotif('trade',
+            '掛單 ' + dn + ' ' + payload.side + ' @ $' + fmtPrice(payload.limit_price) + (timing ? ' (' + timing.total_ms + 'ms)' : ''),
+            payload.qty.toFixed(6) + ' ' + dn + ' | 保證金 $' + (payload.limit_price * payload.qty / payload.leverage).toFixed(2)
+          );
+        } else {
+          pushNotif('trade',
+            '成交 ' + dn + ' ' + payload.side + (timing ? ' (' + timing.fill_ms + 'ms)' : ''),
+            (entry && entry.avgPrice > 0 ? '$' + parseFloat(entry.avgPrice).toFixed(2) + ' × ' + parseFloat(entry.executedQty).toFixed(6) : '') +
+            ' | 保證金 $' + (payload.qty * (entry && entry.avgPrice > 0 ? parseFloat(entry.avgPrice) : 1) / payload.leverage).toFixed(2)
+          );
+        }
+      }
+      // Refresh dashboard immediately (backend cache already invalidated)
+      if (typeof fetchData === 'function') fetchData();
       setTimeout(function() {
         $('#trade-modal').modal('hide');
         submitBtn.style.background = '';
         if (typeof fetchData === 'function') fetchData();
-      }, 1200);
+      }, 2000);
     } else {
       goBtn.disabled = false;
       goBtn.innerHTML = '<i class="fas fa-check mr-1"></i>確定下單';
@@ -500,7 +582,7 @@ function _tmConfirmExecute() {
 // Bind events after DOM ready
 $(function() {
   // Qty input → update preview
-  $('#tm-qty-input, #tm-sl-price, #tm-tp-price, #tm-leverage').on('input change', function() {
+  $('#tm-qty-input, #tm-sl-price, #tm-tp-price, #tm-leverage, #tm-limit-price').on('input change', function() {
     _updatePreview();
   });
 });

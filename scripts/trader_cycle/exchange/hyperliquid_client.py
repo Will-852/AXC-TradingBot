@@ -325,6 +325,28 @@ class HyperLiquidClient:
         return self._wrap_error(result, "market_order")
 
     @retry_quadratic()
+    def create_limit_order(
+        self, symbol: str, side: str, qty: float,
+        price: float, reduce_only: bool = False,
+    ) -> Dict[str, Any]:
+        """GTC 限價單"""
+        coin = self._to_hl(symbol)
+        is_buy = side.upper() == "BUY"
+        sz = self._round_size(qty, coin)
+        px = round(float(price), 6)
+
+        try:
+            order_type = {"limit": {"tif": "Gtc"}}
+            result = self.exchange.order(
+                coin, is_buy, sz, px, order_type,
+                reduce_only=reduce_only,
+            )
+        except Exception as e:
+            raise TemporaryError(f"HL limit order error: {e}")
+
+        return self._wrap_error(result, "limit_order")
+
+    @retry_quadratic()
     def create_stop_market(
         self, symbol: str, side: str, qty: float,
         stop_price: float, reduce_only: bool = True,
