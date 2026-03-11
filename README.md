@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🦞 OpenClaw</h1>
+  <h1 align="center">AXC Trading System</h1>
   <p align="center">
     本地 AI 加密貨幣交易系統 — Telegram Bot + 自動交易 + 智能分析
     <br />
@@ -35,14 +35,14 @@
 
 ## 📖 簡介
 
-OpenClaw 係一個**完全本地運行**嘅 AI 加密貨幣交易系統，連接 [Aster DEX](https://asterdex.com) 合約交易所。
+AXC 係一個**完全本地運行**嘅 AI 加密貨幣交易系統，連接 [Aster DEX](https://asterdex.com) 合約交易所。
 
 **兩種使用方式：**
 
 | 模式 | 適合 | 包含 |
 |------|------|------|
 | **🤖 AXC Standalone** | 想用 Telegram Bot 查倉落單 | Telegram Bot + AI 分析 + 落單 |
-| **🦞 Full OpenClaw** | 想要自動交易 + Dashboard | 以上全部 + 9 AI Agents + Dashboard + 自動掃描 |
+| **🦞 Full AXC** | 想要自動交易 + Dashboard | 以上全部 + 9 AI Agents + Dashboard + 自動掃描 |
 
 > 大部分朋友用 **AXC Standalone** 就夠。以下指南以 AXC 為主。
 
@@ -160,7 +160,7 @@ python scripts\tg_bot.py
 
 啟動成功你會見到：
 ```
-🦞 OpenClaw Telegram v2.3 啟動
+🦞 AXC v2.3 啟動
   Chat ID: 你嘅chat_id
 ```
 
@@ -500,9 +500,9 @@ nano secrets/.env
 </details>
 
 <details>
-<summary><b>/mode 或 /pause 顯示「需要 OpenClaw 環境」</b></summary>
+<summary><b>/mode 或 /pause 顯示「需要 AXC 環境」</b></summary>
 
-呢啲指令需要完整 OpenClaw 系統（有 `config/params.py`）。
+呢啲指令需要完整 AXC 系統（有 `config/params.py`）。
 
 Standalone 模式唔支援，但**唔影響**查詢同落單功能。
 </details>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-tg_bot.py — OpenClaw Telegram 完整控制中心 v2.0
+tg_bot.py — AXC Telegram 完整控制中心 v2.3
 
 功能：
   查詢：/report /pos /bal /pnl /scan /log /health — 零 AI (slash_cmd live exchange)
@@ -196,7 +196,7 @@ def is_allowed(update: Update) -> bool:
 # Claude API (via proxy, no SDK)
 # ════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """你係 OpenClaw 交易系統嘅 AI，跑喺本地 Mac。
+SYSTEM_PROMPT = """你係 AXC 交易系統嘅 AI，跑喺本地 Mac。
 
 身份：老友記交易搭檔。唔係客服、唔係助手、唔係老師。
 
@@ -873,7 +873,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     await update.message.reply_text(
-        "🦞 <b>OpenClaw v2.0</b>\n\n"
+        "🦞 <b>AXC v2.3</b>\n\n"
         "<b>查詢</b>\n"
         "/report — 倉位報告\n"
         "/pos — 持倉\n"
@@ -1136,7 +1136,7 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
         write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
     else:
-        await update.message.reply_text("⚠️ 無法切換模式（需要 OpenClaw 環境）", parse_mode="HTML")
+        await update.message.reply_text("⚠️ 無法切換模式（需要 AXC 環境）", parse_mode="HTML")
 
 
 def _get_current_mode() -> str:
@@ -1546,7 +1546,7 @@ async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏸ <b>交易已暫停</b>", parse_mode="HTML")
         write_conversation("暫停交易", "已暫停")
     else:
-        await update.message.reply_text("⚠️ 無法暫停（需要 OpenClaw 環境）", parse_mode="HTML")
+        await update.message.reply_text("⚠️ 無法暫停（需要 AXC 環境）", parse_mode="HTML")
 
 
 async def cmd_resume_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1556,7 +1556,7 @@ async def cmd_resume_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("▶️ <b>交易已恢復</b>", parse_mode="HTML")
         write_conversation("恢復交易", "已恢復")
     else:
-        await update.message.reply_text("⚠️ 無法恢復（需要 OpenClaw 環境）", parse_mode="HTML")
+        await update.message.reply_text("⚠️ 無法恢復（需要 AXC 環境）", parse_mode="HTML")
 
 
 def _set_trading_enabled(enabled: bool) -> bool:
@@ -1828,7 +1828,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 write_conversation(f"切換模式 {mode}", f"已切換至 {mode}")
                 write_activity("mode_change", f"切換至 {mode}", {"from": old_mode, "to": mode})
             else:
-                await query.edit_message_text("⚠️ 無法切換模式（需要 OpenClaw 環境）", parse_mode="HTML")
+                await query.edit_message_text("⚠️ 無法切換模式（需要 AXC 環境）", parse_mode="HTML")
         return
 
     # ── Order buttons ──
@@ -2178,7 +2178,7 @@ def main():
         print("❌ 缺少 TELEGRAM_CHAT_ID")
         sys.exit(1)
 
-    log.info("🦞 OpenClaw Telegram v2.3 啟動")
+    log.info("🦞 AXC v2.3 啟動")
     log.info(f"  Chat ID: {ALLOWED_CHAT_ID}")
     log.info(f"  Claude: {CLAUDE_MODEL} via {PROXY_BASE_URL}")
     log.info(f"  Memory: {BASE_DIR / 'memory'}")
