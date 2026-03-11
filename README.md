@@ -641,6 +641,41 @@ git pull                    # 更新
 git stash pop               # 還原改動，手動解決衝突
 ```
 
+### 提交新方案（PR 流程）
+
+想改共用 code（策略、dashboard、scripts）？用 branch + Pull Request：
+
+```bash
+# 1. 確保 main 係最新
+git checkout main
+git pull
+
+# 2. 開新分支（名稱描述你做嘅嘢）
+git checkout -b friend-new-approach
+
+# 3. 做嘢、測試、commit
+#    可以有多個 commit，每個做一件事
+git add <改咗嘅文件>
+git commit -m "feat: 你嘅改動描述"
+
+# 4. Push 分支到 GitHub
+git push -u origin friend-new-approach
+
+# 5. 開 Pull Request
+#    去 https://github.com/Will-852/AXC-TradingBot/pulls
+#    撳 "New pull request" → base: main ← compare: friend-new-approach
+#    寫清楚：改咗咩、點解要改、點樣測試
+#    或者用 CLI：
+gh pr create --title "你嘅標題" --body "改咗咩 + 點解"
+```
+
+之後 owner 會 review → approve → merge 入 main。你嘅分支 merge 完可以刪除。
+
+**注意：**
+- 唔好直接 push 去 `main`
+- 一個 PR 做一件事，唔好混合多個功能
+- 如果改策略邏輯，附上 backtest 結果會加快 review
+
 ### 架構速查（畀 LLM 讀）
 
 ```
