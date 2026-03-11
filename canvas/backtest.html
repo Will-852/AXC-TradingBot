@@ -372,6 +372,19 @@
       user-select: none; font-size: .72rem;
     }
     .chart-header label input { margin: 0; }
+    /* Order Flow group */
+    .fp-group-label {
+      font-size: .62rem; color: #545862; font-weight: 600; letter-spacing: .03em;
+      text-transform: uppercase; margin-right: 2px;
+    }
+    .fp-toggle.active { color: #26a69a; }
+    .fp-toggle.active input { accent-color: #26a69a; }
+    .fp-loading-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #f59e0b; margin-left: 2px;
+      animation: fpPulse 1s ease-in-out infinite;
+    }
+    @keyframes fpPulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
 
     /* ── Drawing toolbar (Phase 3) ── */
     .draw-toolbar {
@@ -659,10 +672,12 @@
       <span class="sep">|</span>
       <label title="Mode"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> Mode</label>
       <span class="sep">|</span>
-      <label title="大額成交" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('large')"> Whale</label>
-      <label title="Delta Volume" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('delta')"> Delta</label>
-      <label title="Volume Profile" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('profile')"> VP</label>
-      <label title="Footprint Heatmap" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
+      <span class="fp-group-label">Order Flow</span>
+      <label title="大額成交（$100K+）" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> Whale</label>
+      <label title="Delta Volume（買-賣淨量）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> Delta</label>
+      <label title="Volume Profile（價位成交分佈）" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> VP</label>
+      <label title="Footprint Heatmap（蠟燭成交熱力圖）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
+      <span class="fp-loading-dot" id="fp-loading-dot" style="display:none"></span>
     </div>
     <div style="position:relative">
       <!-- Drawing toolbar (Phase 3) -->
@@ -929,61 +944,78 @@ var fpLoading = false;
 var fpFetched = false;
 var fpActive = { large: false, delta: false, profile: false, heatmap: false };
 
+function _syncFpToggleStyle() {
+  // Sync active class on fp-toggle labels with fpActive state
+  Object.keys(fpActive).forEach(function(f) {
+    var label = document.getElementById('fp-' + f);
+    if (label) {
+      if (fpActive[f]) label.classList.add('active');
+      else label.classList.remove('active');
+    }
+  });
+}
+
+function _showFpLoading(show) {
+  var dot = document.getElementById('fp-loading-dot');
+  if (dot) dot.style.display = show ? 'inline-block' : 'none';
+}
+
 function toggleFootprint(feature) {
   fpActive[feature] = !fpActive[feature];
+  _syncFpToggleStyle();
 
-  // First time any feature toggled on → fetch all data
-  if (!fpFetched && !fpLoading && (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap)) {
-    fetchFootprintData();
+  // Already have data → apply immediately
+  if (fpFetched) {
+    applyFootprintFeature(feature);
     return;
   }
 
-  applyFootprintFeature(feature);
+  // Currently loading → just toggle state, will be applied when fetch completes
+  if (fpLoading) return;
+
+  // First time any feature toggled on → fetch all data (checkboxes stay enabled)
+  if (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap) {
+    fetchFootprintData();
+  }
 }
 
-var _fpFetchSymbol = '';  // track which symbol the in-flight fetch is for
+var _fpFetchVersion = 0;  // version counter — prevents stale fetch race condition
 
 function fetchFootprintData() {
   var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value);
   if (days > 14) days = 14;
 
+  var myVersion = ++_fpFetchVersion;
   fpLoading = true;
-  _fpFetchSymbol = symbol;
-  showToast('正在拉取 aggTrades（' + days + '日）...', 'info');
-  // Disable footprint checkboxes while loading
-  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = true; });
+  _showFpLoading(true);
+  showToast('正在拉取 aggTrades（' + days + '日）— 可以繼續撳其他 toggle', 'info');
 
   api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap')
     .then(function(data) {
-      // Stale response guard: discard if symbol changed during fetch
-      var currentSymbol = document.getElementById('sel-symbol').value;
-      if (_fpFetchSymbol !== currentSymbol) {
-        fpLoading = false;
-        document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = false; });
-        return;
-      }
+      // Stale response guard: a newer fetch was started → discard
+      if (myVersion !== _fpFetchVersion) return;
+      _showFpLoading(false);
       footprintData.delta_volume = data.delta_volume || {};
       footprintData.large_trades = data.large_trades || [];
       footprintData.volume_profile = data.volume_profile || [];
       footprintData.heatmap = data.heatmap || {};
       fpFetched = true;
       fpLoading = false;
-      document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = false; });
       showToast('AggTrades 載入完成 (' + (footprintData.large_trades.length) + ' whale trades)', 'success');
 
-      // Apply all active features
+      // Apply all features toggled on during loading
       Object.keys(fpActive).forEach(function(f) {
         if (fpActive[f]) applyFootprintFeature(f);
       });
     })
     .catch(function(e) {
+      if (myVersion !== _fpFetchVersion) return;
+      _showFpLoading(false);
       fpLoading = false;
       fpActive = { large: false, delta: false, profile: false, heatmap: false };
-      document.querySelectorAll('.fp-toggle input').forEach(function(el) {
-        el.disabled = false;
-        el.checked = false;
-      });
+      _syncFpToggleStyle();
+      document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
       showToast('AggTrades 載入失敗: ' + e.message, 'error');
     });
 }
@@ -1035,6 +1067,7 @@ function clearLargeTradeMarkers() {
 
 function resetFootprintData() {
   fpLoading = false;
+  _showFpLoading(false);
   clearLargeTradeMarkers();
   ['AXC_DELTA','AXC_VP','AXC_HEATMAP'].forEach(function(name) {
     if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
@@ -1042,6 +1075,7 @@ function resetFootprintData() {
   footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {} };
   fpFetched = false;
   fpActive = { large: false, delta: false, profile: false, heatmap: false };
+  _syncFpToggleStyle();
   document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
 }
 
@@ -2128,17 +2162,20 @@ function onIntervalChange() {
 
 var _lastGatedInterval = '1h';
 function gateIndicators(interval) {
-  // Only hide indicator labels + seps, keep interval tabs visible
-  var labels = document.querySelectorAll('#ind-toolbar label, #ind-toolbar .sep');
+  // Hide indicator labels + seps for non-1h, but KEEP fp-toggle + fp-group-label visible
+  var labels = document.querySelectorAll('#ind-toolbar label:not(.fp-toggle), #ind-toolbar .sep');
+  var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label');
   if (interval !== '1h') {
     labels.forEach(function(el) { el.style.display = 'none'; });
+    fpEls.forEach(function(el) { el.style.display = 'flex'; });
     ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH'].forEach(function(name) {
       if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
     });
     clearModeOverlays();
-    if (_lastGatedInterval === '1h') showToast('指標只喺 1h 顯示', 'info');
+    if (_lastGatedInterval === '1h') showToast('指標只喺 1h 顯示（Order Flow 仍可用）', 'info');
   } else {
     labels.forEach(function(el) { el.style.display = 'flex'; });
+    fpEls.forEach(function(el) { el.style.display = 'flex'; });
     if (currentResult && currentResult.indicator_series) {
       applyIndicatorData(currentResult.indicator_series);
     }
