@@ -187,7 +187,8 @@ IMPORTANT: All text values MUST be in Traditional Chinese (香港繁體中文).
 overall_impact: 0=noise, 50=moderate, 100=extreme.
 Only include symbols mentioned in articles. time: HH:MM in UTC+8.
 src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bloomberg). Use the [source] tag from each article.
-s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative and risk_event MUST have "s"."""
+s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative and risk_event MUST have "s".
+CRITICAL: Each narrative/risk_event "text" MUST be ≤50 characters (Chinese). Be concise — headline style, no filler words."""
 
     url = f"{PROXY_BASE_URL}/messages"
     payload = json.dumps({
@@ -386,16 +387,17 @@ def main():
         if isinstance(r, dict):
             r["added_at"] = now_iso
 
-    # Dedup: skip new items whose text already exists in old
-    old_narrative_texts = {n.get("text", "") for n in old_narratives}
+    # Fuzzy dedup: same first 20 chars = duplicate (near-identical headlines from different runs)
+    DEDUP_PREFIX_LEN = 20
+    old_narrative_prefixes = {n.get("text", "")[:DEDUP_PREFIX_LEN] for n in old_narratives if n.get("text")}
     new_narratives = [
         n for n in sentiment.get("key_narratives", [])
-        if isinstance(n, dict) and n.get("text", "") not in old_narrative_texts
+        if isinstance(n, dict) and n.get("text") and n["text"][:DEDUP_PREFIX_LEN] not in old_narrative_prefixes
     ]
-    old_risk_texts = {r.get("text", "") for r in old_risks}
+    old_risk_prefixes = {r.get("text", "")[:DEDUP_PREFIX_LEN] for r in old_risks if r.get("text")}
     new_risks = [
         r for r in sentiment.get("risk_events", [])
-        if isinstance(r, dict) and r.get("text", "") not in old_risk_texts
+        if isinstance(r, dict) and r.get("text") and r["text"][:DEDUP_PREFIX_LEN] not in old_risk_prefixes
     ]
 
     # Merge: newest first

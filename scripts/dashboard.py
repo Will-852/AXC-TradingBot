@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -163,6 +164,30 @@ def generate_share_package() -> bytes:
             zf.write(install_path, "INSTALL.md")
 
     return buf.getvalue()
+
+
+CONNECT_TIMEOUT_SEC = 15
+
+
+def _run_with_timeout(fn, timeout=CONNECT_TIMEOUT_SEC):
+    """Run fn() in a daemon thread, raise TimeoutError if exceeds timeout."""
+    result = [None]
+    error = [None]
+
+    def target():
+        try:
+            result[0] = fn()
+        except Exception as e:
+            error[0] = e
+
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        raise TimeoutError(f"連接超時（>{timeout}s），請檢查網絡或交易所狀態")
+    if error[0]:
+        raise error[0]
+    return result[0]
 
 
 def _get_aster_client():
@@ -2117,7 +2142,9 @@ def _get_aster_credentials():
 
 
 def _save_aster_credentials(api_key, api_secret):
-    """Write or update Aster keys in secrets/.env"""
+    """Write or update Aster keys in secrets/.env + os.environ."""
+    os.environ["ASTER_API_KEY"] = api_key
+    os.environ["ASTER_API_SECRET"] = api_secret
     os.makedirs(os.path.dirname(SECRETS_ENV_PATH), exist_ok=True)
     lines = []
     if os.path.exists(SECRETS_ENV_PATH):
@@ -2160,13 +2187,16 @@ def handle_aster_connect(body):
         return 400, {"ok": False, "error": "API Key 和 Secret 不能為空"}
     _save_aster_credentials(api_key, api_secret)
     try:
-        # Reimport with new creds
-        if SCRIPTS_DIR not in sys.path:
-            sys.path.insert(0, SCRIPTS_DIR)
-        from trader_cycle.exchange.aster_client import AsterClient
-        client = AsterClient()
-        bal = client.get_usdt_balance()
+        def verify():
+            if SCRIPTS_DIR not in sys.path:
+                sys.path.insert(0, SCRIPTS_DIR)
+            from trader_cycle.exchange.aster_client import AsterClient
+            client = AsterClient()
+            return client.get_usdt_balance()
+        bal = _run_with_timeout(verify)
         return 200, {"ok": True, "status": "connected", "key_preview": f"{api_key[:4]}...{api_key[-4:]}", "balance": round(bal, 2)}
+    except TimeoutError as e:
+        return 504, {"ok": False, "error": str(e)}
     except Exception as e:
         return 401, {"ok": False, "error": f"驗證失敗：{str(e)[:120]}"}
 
@@ -2380,7 +2410,9 @@ def _get_demo_data() -> dict:
 
 
 def _save_binance_credentials(api_key, api_secret):
-    """Write or update Binance keys in secrets/.env"""
+    """Write or update Binance keys in secrets/.env + os.environ."""
+    os.environ["BINANCE_API_KEY"] = api_key
+    os.environ["BINANCE_API_SECRET"] = api_secret
     os.makedirs(os.path.dirname(SECRETS_ENV_PATH), exist_ok=True)
     lines = []
     if os.path.exists(SECRETS_ENV_PATH):
@@ -2430,9 +2462,13 @@ def handle_binance_connect(body):
     if not api_key or not api_secret:
         return 400, {"ok": False, "error": "API Key 和 Secret 不能為空"}
     try:
-        from binance.spot import Spot
-        client = Spot(api_key=api_key, api_secret=api_secret)
-        account = client.account()
+        def verify():
+            from binance.spot import Spot
+            client = Spot(api_key=api_key, api_secret=api_secret)
+            return client.account()
+        account = _run_with_timeout(verify)
+    except TimeoutError as e:
+        return 504, {"ok": False, "error": str(e)}
     except Exception as e:
         return 401, {"ok": False, "error": f"驗證失敗：{str(e)[:120]}"}
     _save_binance_credentials(api_key, api_secret)
@@ -2472,7 +2508,9 @@ def _get_hl_credentials():
 
 
 def _save_hl_credentials(private_key, account_address):
-    """Write or update HL keys in secrets/.env"""
+    """Write or update HL keys in secrets/.env + os.environ."""
+    os.environ["HL_PRIVATE_KEY"] = private_key
+    os.environ["HL_ACCOUNT_ADDRESS"] = account_address
     lines = []
     if os.path.exists(SECRETS_ENV_PATH):
         with open(SECRETS_ENV_PATH) as f:
@@ -2503,20 +2541,28 @@ def handle_hl_status():
 
 def handle_hl_connect(body):
     """POST /api/hl/connect"""
-    private_key = body.get("private_key", "").strip()
-    account_address = body.get("account_address", "").strip()
+    try:
+        data = json.loads(body) if isinstance(body, str) else body
+    except Exception:
+        return 400, {"ok": False, "error": "Invalid JSON"}
+    private_key = (data.get("private_key") or "").strip()
+    account_address = (data.get("account_address") or "").strip()
     if not private_key or not account_address:
-        return 400, {"error": "Missing private_key or account_address"}
+        return 400, {"ok": False, "error": "Missing private_key or account_address"}
 
     _save_hl_credentials(private_key, account_address)
 
     try:
-        client = _get_hl_client()
-        bal = client.get_usdt_balance()
+        def verify():
+            client = _get_hl_client()
+            return client.get_usdt_balance()
+        bal = _run_with_timeout(verify)
         addr_preview = f"{account_address[:6]}...{account_address[-4:]}"
         return 200, {"ok": True, "status": "connected", "addr_preview": addr_preview, "balance": round(bal, 2)}
+    except TimeoutError as e:
+        return 504, {"ok": False, "error": str(e)}
     except Exception as e:
-        return 200, {"ok": False, "status": "error", "error": str(e)[:120]}
+        return 401, {"ok": False, "status": "error", "error": str(e)[:120]}
 
 
 def handle_hl_disconnect():

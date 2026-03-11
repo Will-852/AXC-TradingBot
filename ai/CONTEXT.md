@@ -167,13 +167,30 @@ Python   → scanner, trader_cycle, heartbeat（確定性 + 零 AI cost）
 | state/ | state_manager.py, scan_config_writer.py | 狀態讀寫 |
 
 ## Backtest 系統
+> 完整指引（CLI + gotchas + pass/fail 標準）：docs/guides/BACKTEST.md
+> ⚠️ **Model 路由**：數據分析用 Sonnet subagent，代碼/決策用 Opus main context
+
+**標準流程（每次必跟）：**
+```
+Step 1  run_backtest.py     確認 baseline（單次回測）
+Step 2  grid_search.py      搵最佳參數（1-2 params sweep）
+Step 3  validate.py         驗證結果（must-use: monte-carlo + walk-forward + heatmap）
+Step 4  validate.py         可選驗證（noise / delay / dsr）
+Step 5  validate.py all    一次跑全部 must-use
+Step 6  改 config/params.py 全部 PASS + 記錄 DEV_LOG + git commit
+```
+
+**文件：**
 ```
 backtest/
+├── engine.py             — 核心模擬器（1H+4H MTF, signal_delay support）
 ├── fetch_historical.py   — Binance klines + CSV cache
-├── engine.py             — Candle-by-candle 模擬器（reuse production 策略）
+├── grid_search.py        — 參數優化（8 params, ProcessPoolExecutor）
+├── validate.py           — 6 驗證工具（monte-carlo/walk-forward/heatmap/noise/delay/dsr）
+├── optimizer.py          — LHS 優化器
 ├── run_backtest.py       — 單 pair CLI
-├── compare_configs.py    — A/B 4 configs × 8 pairs
-└── data/                 — CSV cache + trades.jsonl + equity.png
+├── compare_configs.py    — A/B configs 對比
+└── data/                 — CSV cache + grid search JSON + heatmap PNG
 ```
 特性：No look-ahead bias, SL slippage 0.02%, cluster-adjusted win rate。
 

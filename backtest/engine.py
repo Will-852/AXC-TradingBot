@@ -91,11 +91,13 @@ class BTTrade:
 
 @dataclass
 class _PendingSignal:
-    """Signal generated at candle i, to be executed at candle i+1 open."""
+    """Signal generated at candle i, to be executed after signal_delay candles."""
     direction: str
     strategy: str
     atr: float
     signal_time: str
+    score: float = 0.0        # signal score for confidence-based sizing + filtering
+    remaining_delay: int = 1  # candles until execution (1 = next candle = default)
 
 
 class BacktestEngine:
@@ -121,6 +123,9 @@ class BacktestEngine:
         param_overrides: dict | None = None,
         strategy_overrides: dict | None = None,
         mode_confirmation: int | None = None,
+        signal_delay: int = 1,
+        min_score: float = 0.0,
+        scorer=None,
         quiet: bool = False,
     ):
         self.symbol = symbol.upper()
@@ -131,6 +136,9 @@ class BacktestEngine:
         self.balance = initial_balance
         self.commission_rate = commission_rate
         self.sl_slippage_pct = sl_slippage_pct
+        self.signal_delay = max(1, signal_delay)  # minimum 1 (current behavior)
+        self.min_score = min_score  # signal score below this → discard
+        self._scorer = scorer       # WeightedScorer for confidence-based sizing (optional)
         self.quiet = quiet
 
         # Indicator params with product overrides + backtest overrides
@@ -243,9 +251,11 @@ class BacktestEngine:
                 self._update_4h(completed_4h_idx)
                 self._last_4h_idx = completed_4h_idx
 
-            # ── Step 2: Execute pending signal at THIS candle's open ──
+            # ── Step 2: Execute pending signal (after delay countdown) ──
             if self._pending_signal is not None:
-                self._execute_pending(candle, candle_time)
+                self._pending_signal.remaining_delay -= 1
+                if self._pending_signal.remaining_delay <= 0:
+                    self._execute_pending(candle, candle_time)
 
             # ── Step 3: Check SL/TP ──
             self._check_sl_tp(candle, candle_time)
@@ -407,6 +417,10 @@ class BacktestEngine:
             signal = self.trend_strategy.evaluate(self.symbol, indicators, ctx)
 
         if signal:
+            # Score-based filtering: discard low-quality signals
+            if signal.score < self.min_score:
+                return
+
             atr = ind_1h.get("atr")
             if atr and atr > 0:
                 self._pending_signal = _PendingSignal(
@@ -414,6 +428,8 @@ class BacktestEngine:
                     strategy=signal.strategy,
                     atr=atr,
                     signal_time=candle_time,
+                    score=signal.score,
+                    remaining_delay=self.signal_delay,
                 )
 
     def _execute_pending(self, candle, candle_time: str):
@@ -442,12 +458,16 @@ class BacktestEngine:
             sl_price = entry_price + sl_dist
             tp_price = entry_price - tp_dist
 
-        # Position sizing
+        # Position sizing (score-based confidence multiplier)
         sl_dist_pct = sl_dist / entry_price
         if sl_dist_pct <= 0:
             return
 
-        risk_amount = self.balance * params.risk_pct
+        risk_pct = params.risk_pct
+        if self._scorer is not None:
+            risk_pct *= self._scorer.risk_multiplier(sig.score)
+
+        risk_amount = self.balance * risk_pct
         notional = risk_amount / sl_dist_pct
         max_notional = self.balance * params.leverage
         notional = min(notional, max_notional)

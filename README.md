@@ -5,7 +5,7 @@
     <br />
     你嘅 key 永遠唔會離開你部機。
     <br />
-    <code>v2.3</code> · 2026-03
+    <code>v2.4</code> · 2026-03
     <br /><br />
     <a href="#-快速開始"><strong>快速開始 »</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -160,7 +160,7 @@ python scripts\tg_bot.py
 
 啟動成功你會見到：
 ```
-🦞 AXC v2.3 啟動
+🦞 AXC v2.4 啟動
   Chat ID: 你嘅chat_id
 ```
 
@@ -516,15 +516,48 @@ Standalone 模式唔支援，但**唔影響**查詢同落單功能。
 </details>
 
 <details>
-<summary><b>點樣更新？</b></summary>
+<summary><b>點樣更新到最新版？</b></summary>
 
+**Git clone 方式（推薦）：**
 ```bash
-# Git clone 方式
-git pull
-
-# ZIP 方式
-# 重新下載 → 解壓覆蓋 → 保留你嘅 secrets/.env
+cd ~/projects/axc-trading    # 或者你嘅安裝目錄
+git pull origin main
+pip install -r axc_requirements.txt   # 如有新依賴
 ```
+
+**ZIP 方式：**
+1. 去 [GitHub Releases](https://github.com/Will-852/AXC-TradingBot/releases) 下載最新 ZIP
+2. 解壓到同一個資料夾（覆蓋舊文件）
+3. 你嘅 `secrets/.env` 同 `config/user_params.py` **唔會被覆蓋**（唔使擔心）
+
+**更新後必做：**
+```bash
+# 重新安裝依賴（可能有新 package）
+pip install -r axc_requirements.txt
+
+# 重啟所有服務
+# macOS / Linux:
+pkill -f tg_bot.py; sleep 2; AXC_HOME=$(pwd) python3 scripts/tg_bot.py
+pkill -f dashboard.py; sleep 2; python3 scripts/dashboard.py
+
+# Windows CMD:
+taskkill /F /IM python.exe
+set AXC_HOME=%cd%
+python scripts\tg_bot.py
+```
+
+**檢查更新是否成功：**
+- Telegram 發 `/start` → 應顯示新版本號
+- Dashboard `http://127.0.0.1:5555` → 右下角版本號
+
+> ⚠️ 如果 `git pull` 有衝突，代表你改咗唔應該改嘅檔案：
+> ```bash
+> git stash          # 暫存你嘅改動
+> git pull           # 更新
+> git stash pop      # 還原，手動解決衝突
+> ```
+> 自訂參數應該放 `config/user_params.py`（gitignored），唔好改 `config/params.py`。
+
 </details>
 
 <details>

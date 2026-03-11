@@ -87,6 +87,8 @@ WEIGHT_SEARCH_SPACE: list[WeightParam] = [
                 description="High-confidence position threshold"),
     WeightParam("confidence_risk_high_mult", 1.0, 2.0, 1.25,
                 description="High-confidence risk multiplier"),
+    WeightParam("min_score", 0.0, 3.5, 0.0,
+                description="Minimum signal score to accept (0 = no filter)"),
 ]
 
 WEIGHT_DEFAULTS = {p.name: p.default for p in WEIGHT_SEARCH_SPACE}

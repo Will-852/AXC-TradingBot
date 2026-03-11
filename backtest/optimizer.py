@@ -78,6 +78,15 @@ def load_all_data(pairs: list[str], days: int) -> dict[str, tuple]:
     return data
 
 
+def _split_weights(weights: dict | None) -> tuple[dict | None, float]:
+    """Separate min_score from scoring weights dict."""
+    if not weights:
+        return None, 0.0
+    min_score = weights.get("min_score", 0.0)
+    scoring_only = {k: v for k, v in weights.items() if k != "min_score"}
+    return scoring_only or None, min_score
+
+
 # ═══════════════════════════════════════════════════════
 # Single Backtest Run
 # ═══════════════════════════════════════════════════════
@@ -88,8 +97,15 @@ def run_single_backtest(
     df_4h: pd.DataFrame,
     entry_params: dict,
     scoring_weights: dict | None = None,
+    min_score: float = 0.0,
 ) -> dict:
-    """Run one backtest with given entry params and scoring weights."""
+    """Run one backtest with given entry params and scoring weights.
+
+    Score integration:
+      - Strategies compute signal.score via WeightedScorer
+      - Engine filters signals below min_score
+      - Engine uses scorer.risk_multiplier(score) for confidence-based position sizing
+    """
     weights = ScoringWeights.from_dict(scoring_weights) if scoring_weights else ScoringWeights()
     scorer = WeightedScorer(weights)
 
@@ -114,6 +130,8 @@ def run_single_backtest(
         param_overrides=engine_overrides,
         strategy_overrides={"range": range_strat, "trend": trend_strat},
         mode_confirmation=mode_conf,
+        min_score=min_score,
+        scorer=scorer,
         quiet=True,
     )
 
@@ -264,11 +282,7 @@ def run_stage1(
 
         # Viability check
         min_per_pair = min(trades_per_pair.values()) if trades_per_pair else 0
-        viable = (
-            min_per_pair >= config.stage1_min_trades
-            if config.stage1_require_positive_pnl
-            else min_per_pair >= config.stage1_min_trades
-        )
+        viable = min_per_pair >= config.stage1_min_trades
         if config.stage1_require_positive_pnl:
             viable = viable and total_pnl > 0
 
@@ -341,11 +355,15 @@ def run_stage2(
             )
 
         # Run final eval with best weights
+        best_min_score = best_weights.get("min_score", 0.0)
+        best_scoring_weights = {k: v for k, v in best_weights.items() if k != "min_score"}
         final_results = {}
         for pair in config.stage2_pairs:
             df_1h, df_4h = data[pair]
             try:
-                r = run_single_backtest(pair, df_1h, df_4h, entry_params, best_weights)
+                r = run_single_backtest(
+                    pair, df_1h, df_4h, entry_params, best_scoring_weights, min_score=best_min_score,
+                )
                 final_results[pair] = {
                     "total_trades": r["total_trades"],
                     "pnl": round(r["final_balance"] - 10000.0, 2),
@@ -377,15 +395,21 @@ def _optuna_optimize(
     import optuna
 
     def objective(trial: optuna.Trial) -> float:
-        weights = {}
+        all_params = {}
         for wp in WEIGHT_SEARCH_SPACE:
-            weights[wp.name] = trial.suggest_float(wp.name, wp.low, wp.high)
+            all_params[wp.name] = trial.suggest_float(wp.name, wp.low, wp.high)
+
+        # Separate engine-level min_score from scoring weights
+        min_score = all_params.get("min_score", 0.0)
+        scoring_weights = {k: v for k, v in all_params.items() if k != "min_score"}
 
         pair_results = {}
         for pair in config.stage2_pairs:
             df_1h, df_4h = data[pair]
             try:
-                r = run_single_backtest(pair, df_1h, df_4h, entry_params, weights)
+                r = run_single_backtest(
+                    pair, df_1h, df_4h, entry_params, scoring_weights, min_score=min_score,
+                )
                 pair_results[pair] = r
             except Exception:
                 return float("-inf")
@@ -416,15 +440,20 @@ def _random_optimize(
         if (trial + 1) % 30 == 0:
             log.info("  Random search: %d/%d...", trial + 1, config.stage2_trials)
 
-        weights = {}
+        all_params = {}
         for wp in WEIGHT_SEARCH_SPACE:
-            weights[wp.name] = round(rng.uniform(wp.low, wp.high), 4)
+            all_params[wp.name] = round(rng.uniform(wp.low, wp.high), 4)
+
+        min_score = all_params.get("min_score", 0.0)
+        scoring_weights = {k: v for k, v in all_params.items() if k != "min_score"}
 
         pair_results = {}
         for pair in config.stage2_pairs:
             df_1h, df_4h = data[pair]
             try:
-                r = run_single_backtest(pair, df_1h, df_4h, entry_params, weights)
+                r = run_single_backtest(
+                    pair, df_1h, df_4h, entry_params, scoring_weights, min_score=min_score,
+                )
                 pair_results[pair] = r
             except Exception:
                 break
@@ -482,6 +511,7 @@ def run_walk_forward(
             )
 
             # In-sample
+            wf_scoring, wf_min_score = _split_weights(cfg.best_weights)
             is_results = {}
             for pair in config.stage2_pairs:
                 if pair not in fold_data_train:
@@ -489,7 +519,8 @@ def run_walk_forward(
                 df_1h, df_4h = fold_data_train[pair]
                 try:
                     r = run_single_backtest(
-                        pair, df_1h, df_4h, cfg.entry_params, cfg.best_weights,
+                        pair, df_1h, df_4h, cfg.entry_params,
+                        wf_scoring, min_score=wf_min_score,
                     )
                     is_results[pair] = r
                 except Exception:
@@ -503,7 +534,8 @@ def run_walk_forward(
                 df_1h, df_4h = fold_data_test[pair]
                 try:
                     r = run_single_backtest(
-                        pair, df_1h, df_4h, cfg.entry_params, cfg.best_weights,
+                        pair, df_1h, df_4h, cfg.entry_params,
+                        wf_scoring, min_score=wf_min_score,
                     )
                     oos_results[pair] = r
                 except Exception:
@@ -616,11 +648,12 @@ def check_stability(
     Returns dict of {param_name: {"minus": obj, "center": obj, "plus": obj, "cliff": bool}}.
     """
     # Baseline
+    base_scoring, base_min_score = _split_weights(weights)
     baseline_results = {}
     for pair in pairs:
         df_1h, df_4h = data[pair]
         try:
-            r = run_single_backtest(pair, df_1h, df_4h, entry_params, weights)
+            r = run_single_backtest(pair, df_1h, df_4h, entry_params, base_scoring, min_score=base_min_score)
             baseline_results[pair] = r
         except Exception:
             pass
@@ -636,11 +669,12 @@ def check_stability(
         # Minus step
         w_minus = weights.copy()
         w_minus[wp.name] = max(wp.low, weights.get(wp.name, wp.default) - step)
+        sw_minus, ms_minus = _split_weights(w_minus)
 
         for pair in pairs:
             df_1h, df_4h = data[pair]
             try:
-                r = run_single_backtest(pair, df_1h, df_4h, entry_params, w_minus)
+                r = run_single_backtest(pair, df_1h, df_4h, entry_params, sw_minus, min_score=ms_minus)
                 results_minus[pair] = r
             except Exception:
                 pass
@@ -648,11 +682,12 @@ def check_stability(
         # Plus step
         w_plus = weights.copy()
         w_plus[wp.name] = min(wp.high, weights.get(wp.name, wp.default) + step)
+        sw_plus, ms_plus = _split_weights(w_plus)
 
         for pair in pairs:
             df_1h, df_4h = data[pair]
             try:
-                r = run_single_backtest(pair, df_1h, df_4h, entry_params, w_plus)
+                r = run_single_backtest(pair, df_1h, df_4h, entry_params, sw_plus, min_score=ms_plus)
                 results_plus[pair] = r
             except Exception:
                 pass

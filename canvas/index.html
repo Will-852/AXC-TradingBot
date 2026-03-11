@@ -2563,7 +2563,10 @@ function renderNewsCard(D) {
       var src = typeof n === 'object' && n.src ? n.src : '';
       var sc = typeof n === 'object' && n.s ? n.s : '';
       var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
-      out += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
+      var truncated = txt.length > 80;
+      var display = truncated ? txt.slice(0, 78) + '…' : txt;
+      var safeTitle = truncated ? ' title="' + esc(txt).replace(/"/g, '&quot;') + '"' : '';
+      out += '<li class="' + cls + '"' + safeTitle + '>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(display) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
     return out;
   }
@@ -2753,14 +2756,21 @@ function exchangeConnect() {
   } else {
     payload = {api_key: key, api_secret: secret};
   }
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
+  function _showErr(msg) {
+    body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px"><div style="color:#dc2626;font-size:.82rem">' + esc(msg) + '</div></div>' + _exchangeForm();
+  }
   fetch('/api/' + _currentExchange + '/connect', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload), signal: ctrl.signal
   }).then(function(r){return r.json()}).then(function(d) {
+    clearTimeout(timer);
     if (d.ok) { openExchangeModal(_currentExchange); }
-    else {
-      body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px"><div style="color:#dc2626;font-size:.82rem">' + esc(d.error||'Failed') + '</div></div>' + _exchangeForm();
-    }
+    else { _showErr(d.error || 'Failed'); }
+  }).catch(function(e) {
+    clearTimeout(timer);
+    _showErr(e.name === 'AbortError' ? '連接超時，請檢查網絡或交易所狀態' : '網絡錯誤：' + e.message);
   });
 }
 
