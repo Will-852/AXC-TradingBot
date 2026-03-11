@@ -2099,6 +2099,29 @@ def handle_place_order(body):
     except Exception as e:
         return 500, {"error": f"交易所未連接: {e}"}
 
+    # Pre-validate qty against exchange precision rules (A1: use client methods)
+    try:
+        precision = client.validate_symbol_precision(symbol)
+        step = precision.get("qty_precision", 0.001)
+        min_qty_ex = precision.get("min_qty", 0.001)
+        rounded_qty = client._round_to_precision(qty, step)
+
+        if rounded_qty <= 0:
+            return 400, {
+                "error": f"數量太小：{qty:.8f} 經精度調整後為 0。"
+                         f"最小下單量 {min_qty_ex}，請增加 USDT 金額"
+            }
+        if rounded_qty < min_qty_ex:
+            return 400, {
+                "error": f"數量 {rounded_qty} 低於最小下單量 {min_qty_ex}，"
+                         f"請增加 USDT 金額"
+            }
+    except Exception as prec_err:
+        # A2: only skip for network/timeout — symbol-not-found should fail early
+        if "not found" in str(prec_err).lower():
+            return 400, {"error": f"交易所不支援 {symbol}: {prec_err}"}
+        logging.warning("Pre-validation skipped (non-fatal): %s", prec_err)
+
     try:
         # ① Margin mode
         try:
@@ -2189,6 +2212,44 @@ def handle_exchange_balance():
             except Exception:
                 pass  # exchange not connected
     return result
+
+
+def handle_symbol_info(qs):
+    """GET /api/exchange/symbol-info?symbol=BTCUSDT&platform=aster
+    Returns precision rules + trading constraints for the trade modal UI."""
+    symbol = (qs.get("symbol", [""])[0] or "").upper().strip()
+    platform = (qs.get("platform", [""])[0] or "").lower().strip()
+
+    if not symbol or not platform:
+        return 400, {"error": "symbol and platform required"}
+
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+    if platform not in client_fns:
+        return 400, {"error": f"Unknown platform: {platform}"}
+
+    try:
+        client = client_fns[platform]()
+        precision = client.validate_symbol_precision(symbol)
+        step = precision.get("qty_precision", 0.001)
+        min_qty = precision.get("min_qty", 0.001)
+        min_notional = precision.get("min_notional", 5.0)
+        tick_size = precision.get("price_precision", 0.01)
+
+        return 200, {
+            "symbol": symbol,
+            "platform": platform,
+            "step_size": step,
+            "min_qty": min_qty,
+            "min_notional": min_notional,
+            "tick_size": tick_size,
+            "order_types": ["MARKET"],
+        }
+    except Exception as e:
+        return 500, {"error": str(e)}
 
 
 def handle_api_scan_log():
@@ -3897,6 +3958,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif path == "/api/exchange/balance":
             self._json_response(200, handle_exchange_balance())
+        elif path == "/api/exchange/symbol-info":
+            code, data = handle_symbol_info(qs)
+            self._json_response(code, data)
         elif path == "/api/file":
             rel = qs.get("path", [""])[0]
             code, content = handle_file_read(rel)
@@ -4014,7 +4078,7 @@ class Handler(BaseHTTPRequestHandler):
                     data = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
-                self.send_header("Cache-Control", "public, max-age=300")
+                self.send_header("Cache-Control", "no-cache, must-revalidate")
                 self.end_headers()
                 self.wfile.write(data)
             else:
@@ -4026,6 +4090,7 @@ class Handler(BaseHTTPRequestHandler):
                     html = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
                 self.wfile.write(html)
             except FileNotFoundError:

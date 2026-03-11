@@ -10,6 +10,8 @@ var _tmState = {
   balance: {},         // { aster: 1000, binance: 500 }
   balanceLoaded: false,
   requestId: 0,        // guards against stale fetch callbacks
+  symbolInfo: {},      // current active info { step_size, min_qty, ... }
+  symbolInfoCache: {}, // keyed by "platform:SYMBOL"
 };
 
 function openTradeModal(planData) {
@@ -42,8 +44,11 @@ function openTradeModal(planData) {
   // Set direction to LONG → internally calls _updateSltpFromPlan → _updatePreview
   _setDirection('LONG');
 
-  // Clear error
+  // Clear error + hide confirmation overlay + unfreeze form
   _tmHideError();
+  document.getElementById('tm-confirm-overlay').classList.remove('show');
+  _tmUnfreezeForm();
+  _tmPendingPayload = null;
 
   // Reset submit button
   var btn = document.getElementById('tm-submit-btn');
@@ -51,8 +56,13 @@ function openTradeModal(planData) {
   btn.classList.remove('loading');
   btn.innerHTML = '<i class="fas fa-check mr-1"></i>確認下單';
 
-  // Fetch balances
+  // Fetch balances + symbol info
   _fetchBalances();
+  _fetchSymbolInfo();
+
+  // Clear constraints display
+  var rulesEl = document.getElementById('tm-rules');
+  if (rulesEl) rulesEl.innerHTML = '<span style="color:#94a3b8;font-size:.68rem">載入交易規則…</span>';
 
   $('#trade-modal').modal('show');
 }
@@ -84,6 +94,9 @@ function _populateExchanges() {
     btn.onclick = function() {
       row.querySelectorAll('.tm-exch-btn').forEach(function(x) { x.classList.remove('active'); });
       btn.classList.add('active');
+      // Clear old info so preview uses no stale rules while fetching
+      _tmState.symbolInfo = {};
+      _fetchSymbolInfo();
       _updatePreview();
     };
     row.appendChild(btn);
@@ -140,6 +153,64 @@ function _fetchBalances() {
     });
 }
 
+function _fetchSymbolInfo() {
+  var platform = _getSelectedPlatform();
+  if (!platform || !_tmState.symbol) return;
+  // Multi-key cache: reuse if already fetched for this platform+symbol
+  var cacheKey = platform + ':' + _tmState.symbol;
+  if (_tmState.symbolInfoCache[cacheKey]) {
+    _tmState.symbolInfo = _tmState.symbolInfoCache[cacheKey];
+    _renderRules();
+    _updatePreview();
+    return;
+  }
+  var reqId = _tmState.requestId;
+  fetch('/api/exchange/symbol-info?symbol=' + encodeURIComponent(_tmState.symbol) + '&platform=' + encodeURIComponent(platform))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (reqId !== _tmState.requestId) return;
+      if (data.error) {
+        _renderRulesError(data.error);
+        return;
+      }
+      _tmState.symbolInfoCache[cacheKey] = data;
+      _tmState.symbolInfo = data;
+      _renderRules();
+      _updatePreview();
+    })
+    .catch(function() {
+      if (reqId !== _tmState.requestId) return;
+      _renderRulesError('無法載入交易規則');
+    });
+}
+
+function _renderRules() {
+  var el = document.getElementById('tm-rules');
+  if (!el) return;
+  var info = _tmState.symbolInfo;
+  if (!info || !info.min_qty) { el.innerHTML = ''; return; }
+
+  var displayName = _tmState.symbol.replace('USDT', '');
+  var safeDN = typeof esc === 'function' ? esc(displayName) : displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  var minUsdt = info.min_qty * _tmState.price;
+  var items = [];
+  items.push('最低數量 <b>' + info.min_qty + ' ' + safeDN + '</b> (~$' + minUsdt.toFixed(2) + ')');
+  if (info.min_notional) items.push('最低名義值 <b>$' + info.min_notional + '</b>');
+  items.push('步長 <b>' + info.step_size + ' ' + safeDN + '</b>');
+  items.push('市價單 ✓');
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:flex-start;gap:6px">' +
+      '<i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0"></i>' +
+      '<span>' + items.join(' · ') + '</span>' +
+    '</div>';
+}
+
+function _renderRulesError(msg) {
+  var el = document.getElementById('tm-rules');
+  if (el) el.innerHTML = '<span style="color:#f59e0b"><i class="fas fa-exclamation-triangle mr-1"></i>' + msg + '</span>';
+}
+
 function _tmQuickFill(pct) {
   var platform = _getSelectedPlatform();
   var bal = _tmState.balance[platform];
@@ -160,11 +231,29 @@ function _updatePreview() {
   var slPrice = parseFloat(document.getElementById('tm-sl-price').value) || 0;
   var tpPrice = parseFloat(document.getElementById('tm-tp-price').value) || 0;
 
-  // Estimated qty
+  // Estimated qty with min_qty warning
   var qty = price > 0 ? usdtInput * leverage / price : 0;
   var estEl = document.getElementById('tm-est-pos');
   var displayName = _tmState.symbol.replace('USDT', '');
-  estEl.textContent = qty > 0 ? '預計倉位: ' + qty.toFixed(6) + ' ' + displayName : '';
+  var info = _tmState.symbolInfo;
+  if (qty > 0) {
+    var estText = '預計倉位: ' + qty.toFixed(6) + ' ' + displayName;
+    // Warn if below minimum after rounding
+    if (info && info.step_size) {
+      var step = info.step_size;
+      var roundedQty = step > 0 ? Math.round(Math.round(qty / step) * step * 1e8) / 1e8 : qty;
+      if (roundedQty <= 0 || (info.min_qty && roundedQty < info.min_qty)) {
+        estText += '  ⚠️ 低於最低';
+        estEl.style.color = '#e11d48';
+      } else {
+        estEl.style.color = '';
+      }
+    }
+    estEl.textContent = estText;
+  } else {
+    estEl.textContent = '';
+    estEl.style.color = '';
+  }
 
   // SL/TP pct hints
   var slPctEl = document.getElementById('tm-sl-pct');
@@ -220,6 +309,9 @@ function _tmShowError(msg) {
   el.classList.add('show');
 }
 
+// ── Staged payload for confirmation overlay ──
+var _tmPendingPayload = null;
+
 function submitTradeOrder() {
   _tmHideError();
 
@@ -247,40 +339,111 @@ function submitTradeOrder() {
   var qty = usdtInput * leverage / price;
   if (qty <= 0) { _tmShowError('計算數量錯誤'); return; }
 
+  // Frontend pre-validation using exchange symbol info
+  var info = _tmState.symbolInfo;
+  if (!info || !info.step_size) {
+    _tmShowError('交易規則載入中，請稍候再試');
+    _fetchSymbolInfo();
+    return;
+  }
+  var step = info.step_size;
+  var roundedQty = step > 0 ? Math.round(Math.round(qty / step) * step * 1e8) / 1e8 : qty;
+  if (roundedQty <= 0) {
+    var minUsdt = (info.min_qty || step) * price / leverage;
+    _tmShowError('數量太小：' + qty.toFixed(8) + ' 經精度調整後為 0。最低需 ~$' + minUsdt.toFixed(2) + ' USDT');
+    return;
+  }
+  if (info.min_qty && roundedQty < info.min_qty) {
+    var minUsdt2 = info.min_qty * price / leverage;
+    _tmShowError('數量 ' + roundedQty + ' 低於最低 ' + info.min_qty + '。最低需 ~$' + minUsdt2.toFixed(2) + ' USDT');
+    return;
+  }
+  if (info.min_notional && usdtInput * leverage < info.min_notional) {
+    _tmShowError('名義值 $' + (usdtInput * leverage).toFixed(2) + ' 低於最低 $' + info.min_notional);
+    return;
+  }
+  // Use the rounded qty for the payload
+  qty = roundedQty;
+
   var side = _tmState.direction === 'LONG' ? 'BUY' : 'SELL';
   var displayName = _tmState.symbol.replace('USDT', '');
+  // R4 fix: escape for innerHTML safety
+  var safeName = typeof esc === 'function' ? esc(displayName) : displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  var platNames = { aster: 'Aster', binance: 'Binance', hyperliquid: 'HyperLiquid' };
 
-  // Build confirmation summary
-  var confirmLines = [
-    '確認下單？\n',
-    '交易所: ' + platform.toUpperCase(),
-    '幣種: ' + displayName,
-    '方向: ' + _tmState.direction + ' (' + side + ')',
-    '類型: 市價',
-    '數量: ' + qty.toFixed(6) + ' ' + displayName + ' (~$' + (usdtInput * leverage).toFixed(2) + ')',
-    '保證金: $' + usdtInput.toFixed(2),
-    '槓桿: ' + leverage + 'x',
-  ];
-  if (slPrice > 0) confirmLines.push('止損: $' + slPrice);
-  if (tpPrice > 0) confirmLines.push('止盈: $' + tpPrice);
-
-  if (!confirm(confirmLines.join('\n'))) return;
-
-  var payload = {
+  // Stage payload (qty already rounded by pre-validation above)
+  _tmPendingPayload = {
     symbol: _tmState.symbol,
     platform: platform,
     side: side,
-    qty: parseFloat(qty.toFixed(6)),
+    qty: parseFloat(qty.toFixed(8)),
     leverage: leverage,
     sl_price: slPrice > 0 ? slPrice : null,
     tp_price: tpPrice > 0 ? tpPrice : null,
   };
 
-  // Loading state
-  var btn = document.getElementById('tm-submit-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>下單中…';
+  // Build confirmation overlay content
+  var row = function(label, val) {
+    return '<div class="tm-confirm-row"><span class="tm-confirm-label">' + label + '</span><span class="tm-confirm-val">' + val + '</span></div>';
+  };
+  var isLong = _tmState.direction === 'LONG';
+  var dirTag = isLong
+    ? '<span style="background:#0d9488;color:#fff;padding:2px 10px;border-radius:4px;font-size:.78rem;font-weight:600">LONG</span>'
+    : '<span style="background:#e11d48;color:#fff;padding:2px 10px;border-radius:4px;font-size:.78rem;font-weight:600">SHORT</span>';
+
+  var html =
+    row('交易所', platNames[platform] || platform) +
+    row('幣種', '<span style="font-size:.9rem">' + safeName + '</span>') +
+    row('方向', dirTag) +
+    row('類型', '市價') +
+    row('數量', qty.toFixed(6) + ' ' + safeName + ' <span style="color:#64748b;font-size:.72rem">(~$' + (usdtInput * leverage).toFixed(2) + ')</span>') +
+    row('保證金', '$' + usdtInput.toFixed(2)) +
+    row('槓桿', leverage + 'x');
+  if (slPrice > 0) html += row('止損', '$' + fmtPrice(slPrice));
+  if (tpPrice > 0) html += row('止盈', '$' + fmtPrice(tpPrice));
+  html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>市價單，實際成交價可能因滑點而與現價有偏差</div>';
+
+  document.getElementById('tm-confirm-body').innerHTML = html;
+
+  // Style confirm button by direction
+  var goBtn = document.getElementById('tm-confirm-go');
+  goBtn.className = 'tm-confirm-go ' + (isLong ? 'long-bg' : 'short-bg');
+  goBtn.innerHTML = '<i class="fas fa-check mr-1"></i>確定 ' + _tmState.direction;
+  goBtn.disabled = false;
+
+  // R1 fix: freeze form beneath overlay
+  var modalBody = document.querySelector('.trade-modal-body');
+  var modalFooter = document.querySelector('.tm-footer');
+  if (modalBody) modalBody.classList.add('frozen');
+  if (modalFooter) modalFooter.classList.add('frozen');
+
+  // Show overlay
+  document.getElementById('tm-confirm-overlay').classList.add('show');
+}
+
+function _tmUnfreezeForm() {
+  var modalBody = document.querySelector('.trade-modal-body');
+  var modalFooter = document.querySelector('.tm-footer');
+  if (modalBody) modalBody.classList.remove('frozen');
+  if (modalFooter) modalFooter.classList.remove('frozen');
+}
+
+function _tmConfirmCancel() {
+  document.getElementById('tm-confirm-overlay').classList.remove('show');
+  _tmUnfreezeForm();
+  _tmPendingPayload = null;
+}
+
+function _tmConfirmExecute() {
+  if (!_tmPendingPayload) return;
+  var payload = _tmPendingPayload;
+  // R3 fix: null payload immediately to prevent double-click
+  _tmPendingPayload = null;
+
+  // Loading state on confirm button
+  var goBtn = document.getElementById('tm-confirm-go');
+  goBtn.disabled = true;
+  goBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>下單中…';
 
   var thisReqId = _tmState.requestId;
 
@@ -291,11 +454,16 @@ function submitTradeOrder() {
   })
   .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
   .then(function(res) {
-    if (thisReqId !== _tmState.requestId) return;  // stale callback
-    btn.classList.remove('loading');
+    if (thisReqId !== _tmState.requestId) return;
     if (res.data.ok) {
-      btn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！';
-      btn.style.background = '#0d9488';
+      // R2 fix: hide overlay immediately so warning is visible
+      document.getElementById('tm-confirm-overlay').classList.remove('show');
+      _tmUnfreezeForm();
+      // Show success on submit button instead
+      var submitBtn = document.getElementById('tm-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！';
+      submitBtn.style.background = '#0d9488';
       var warnings = res.data.warnings;
       if (warnings && warnings.length) {
         _tmShowError(warnings.join('; '));
@@ -304,20 +472,27 @@ function submitTradeOrder() {
       }
       setTimeout(function() {
         $('#trade-modal').modal('hide');
-        btn.style.background = '';
+        submitBtn.style.background = '';
         if (typeof fetchData === 'function') fetchData();
-      }, 1500);
+      }, 1200);
     } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-check mr-1"></i>確認下單';
+      goBtn.disabled = false;
+      goBtn.innerHTML = '<i class="fas fa-check mr-1"></i>確定下單';
+      // Restore payload so user can retry
+      _tmPendingPayload = payload;
+      // Show error in main modal, hide overlay so user sees it
+      document.getElementById('tm-confirm-overlay').classList.remove('show');
+      _tmUnfreezeForm();
       _tmShowError(res.data.error || '下單失敗');
     }
   })
   .catch(function(err) {
-    if (thisReqId !== _tmState.requestId) return;  // stale callback
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.innerHTML = '<i class="fas fa-check mr-1"></i>確認下單';
+    if (thisReqId !== _tmState.requestId) return;
+    goBtn.disabled = false;
+    goBtn.innerHTML = '<i class="fas fa-check mr-1"></i>確定下單';
+    _tmPendingPayload = payload;
+    document.getElementById('tm-confirm-overlay').classList.remove('show');
+    _tmUnfreezeForm();
     _tmShowError('網絡錯誤: ' + err.message);
   });
 }

@@ -8,6 +8,7 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  position: relative;
 }
 #trade-modal .modal-dialog { max-width: 440px; }
 
@@ -259,6 +260,117 @@
   color: var(--text-3, #64748b);
   margin-top: 2px;
   margin-bottom: 8px;
+}
+
+/* ── Confirmation overlay (replaces browser confirm) ── */
+.tm-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tm-confirm-overlay.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* Freeze form beneath overlay */
+.trade-modal-body.frozen,
+.tm-footer.frozen {
+  pointer-events: none;
+  opacity: .3;
+  filter: blur(1px);
+  transition: opacity .2s, filter .2s;
+}
+.tm-confirm-header {
+  padding: 14px 20px;
+  background: #1a1a2e;
+  color: #fff;
+  font-weight: 600;
+  font-size: .88rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tm-confirm-body {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+.tm-confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: .82rem;
+}
+.tm-confirm-row:last-child { border-bottom: none; }
+.tm-confirm-label { color: #64748b; }
+.tm-confirm-val { font-weight: 600; color: #1e293b; font-variant-numeric: tabular-nums; }
+.tm-confirm-warn {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-radius: 6px;
+  font-size: .72rem;
+  color: #92400e;
+  line-height: 1.4;
+}
+.tm-confirm-footer {
+  padding: 12px 20px;
+  display: flex;
+  gap: 8px;
+}
+.tm-confirm-cancel {
+  flex: 1;
+  padding: 9px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 500;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: background .12s;
+}
+.tm-confirm-cancel:hover { background: #f8fafc; }
+.tm-confirm-go {
+  flex: 2;
+  padding: 9px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  transition: opacity .12s;
+}
+.tm-confirm-go:hover { opacity: .9; }
+.tm-confirm-go.long-bg { background: #0d9488; }
+.tm-confirm-go.short-bg { background: #e11d48; }
+
+/* Exchange rules / constraints */
+.tm-rules {
+  font-size: .68rem;
+  color: #64748b;
+  line-height: 1.5;
+  padding: 0 2px;
+  margin-bottom: 4px;
+  min-height: 18px;
+}
+.tm-rules b {
+  color: #475569;
+  font-weight: 600;
 }
 
 /* 操作 column links */
