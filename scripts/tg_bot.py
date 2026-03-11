@@ -105,11 +105,23 @@ PENDING_FILE = BASE_DIR / "shared/pending_orders.json"
 # ── Order Wizard (interactive /order flow) ──
 _order_wizard: dict[int, dict] = {}   # {chat_id: wizard state}
 _WIZARD_TIMEOUT = 60                   # seconds
-_ORDER_SYMBOLS = {
-    "aster": ["BTC", "ETH", "XRP", "XAG", "XAU"],
-    "binance": ["BTC", "ETH", "SOL", "POL"],
-    "hyperliquid": ["BTC", "ETH", "SOL"],
-}
+
+# 動態讀 params.py 幣種，去 USDT 後綴顯示
+def _load_order_symbols() -> dict[str, list[str]]:
+    """從 config.params 讀各交易所幣種，DEX 額外加自定義選項。"""
+    try:
+        from config.params import ASTER_SYMBOLS, BINANCE_SYMBOLS, HL_SYMBOLS
+        return {
+            "aster": [s.replace("USDT", "") for s in ASTER_SYMBOLS if s.endswith("USDT")],
+            "binance": [s.replace("USDT", "") for s in BINANCE_SYMBOLS if s.endswith("USDT")],
+            "hyperliquid": [s.replace("USDT", "") for s in HL_SYMBOLS if s.endswith("USDT")],
+        }
+    except ImportError:
+        log.warning("config.params import failed, using fallback symbols")
+        return {"aster": ["BTC"], "binance": ["BTC"], "hyperliquid": ["BTC"]}
+
+# DEX 交易所支援自定義幣種
+_DEX_EXCHANGES = {"aster", "hyperliquid"}
 
 # ── Short-term conversation memory (last 5 exchanges) ──
 # 每個 chat_id 保留最近 5 組對話，10 分鐘無活動自動清除
@@ -1283,16 +1295,31 @@ async def _order_wizard_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         wiz["step"] = "symbol"
         wiz["ts"] = time.time()
 
-        symbols = _ORDER_SYMBOLS.get(exchange, ["BTC"])
+        symbols = _load_order_symbols().get(exchange, ["BTC"])
         display = EXCHANGE_DISPLAY.get(exchange, exchange)
         btns = [InlineKeyboardButton(s, callback_data=f"ow_sym_{s}")
                 for s in symbols]
         rows = [btns[i:i+3] for i in range(0, len(btns), 3)]
+        # DEX 加自定義按鈕（支援 params 以外嘅幣種）
+        if exchange in _DEX_EXCHANGES:
+            rows.append([InlineKeyboardButton("✏️ 自定義", callback_data="ow_sym_CUSTOM")])
         rows.append([InlineKeyboardButton("❌ 取消", callback_data="ow_cancel")])
 
         await query.edit_message_text(
             f"📋 <b>落單精靈</b> ({display})\n\nStep 2/4：揀幣種",
             reply_markup=InlineKeyboardMarkup(rows),
+            parse_mode="HTML",
+        )
+        return
+
+    # Step 2 → custom symbol input
+    if data == "ow_sym_CUSTOM":
+        wiz["step"] = "custom_symbol"
+        wiz["ts"] = time.time()
+        display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+        await query.edit_message_text(
+            f"📋 <b>落單精靈</b> ({display})\n\n"
+            "Step 2/4：輸入幣種（例如 BTC、DOGE、PEPE）",
             parse_mode="HTML",
         )
         return
@@ -1611,6 +1638,26 @@ async def handle_free_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id in _order_wizard:
         wiz = _order_wizard[chat_id]
+        if wiz.get("step") == "custom_symbol":
+            # 自定義幣種輸入
+            sym = text.upper().replace("USDT", "").replace("/", "").strip()
+            if not sym or not sym.isalpha():
+                await update.message.reply_text("❌ 幣種格式唔啱，請輸入英文（例如 BTC、DOGE）")
+                return
+            wiz["symbol"] = sym + "USDT"
+            wiz["step"] = "side"
+            wiz["ts"] = time.time()
+            display = EXCHANGE_DISPLAY.get(wiz["exchange"], wiz["exchange"])
+            await update.message.reply_text(
+                f"📋 <b>落單精靈</b> ({display} {sym})\n\nStep 3/4：揀方向",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🟢 LONG", callback_data="ow_side_LONG"),
+                    InlineKeyboardButton("🔴 SHORT", callback_data="ow_side_SHORT"),
+                    InlineKeyboardButton("❌ 取消", callback_data="ow_cancel"),
+                ]]),
+                parse_mode="HTML",
+            )
+            return
         if wiz.get("step") == "input":
             await _order_wizard_text(update, ctx)
             return
