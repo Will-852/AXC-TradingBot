@@ -674,10 +674,12 @@ def execute_order(order: dict) -> dict:
         balance  = client.get_usdt_balance()
         amount   = min(order.get("amount", 50), balance * 0.95)
         prec     = client.validate_symbol_precision(symbol)
-        # Fetch current price for qty calc
-        prices   = slash_cmd.get_prices()
-        pair_data = prices.get(symbol, {})
-        price    = pair_data.get("price", 0)
+        # Fetch current price — route to correct exchange
+        price = slash_cmd.get_price_single(symbol, exchange)
+        if price <= 0:
+            # Fallback: try get_prices() cache
+            pair_data = slash_cmd.get_prices().get(symbol, {})
+            price = pair_data.get("price", 0)
         if price <= 0:
             return {"ok": False, "error": f"無法取得 {symbol} 價格"}
 
@@ -1415,7 +1417,7 @@ async def _order_wizard_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "symbol": wiz["symbol"],
         "side": wiz["side"],
         "amount": round(amount, 2),
-        "leverage": max(1, int(leverage)),
+        "leverage": max(1, round(leverage)),
         "exchange": wiz["exchange"],
     }
 
@@ -1723,10 +1725,11 @@ async def _request_order_confirmation(update: Update, order: dict):
     DEFAULT_SL_PCT = 0.025
     DEFAULT_TP_PCT = 0.04
 
-    # Get current price for SL/TP preview
+    # Get current price for SL/TP preview — route to correct exchange
     try:
-        prices = slash_cmd.get_prices()
-        price = prices.get(symbol, {}).get("price", 0)
+        price = slash_cmd.get_price_single(symbol, exchange)
+        if price <= 0:
+            price = slash_cmd.get_prices().get(symbol, {}).get("price", 0)
     except Exception:
         price = 0
 

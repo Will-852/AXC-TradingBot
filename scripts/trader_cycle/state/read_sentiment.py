@@ -59,16 +59,18 @@ class ReadSentimentStep:
         ctx.news_sentiment = data
 
         if ctx.verbose:
-            sentiment = data.get("overall_sentiment", "?")
-            confidence = data.get("confidence", 0)
-            impact = data.get("overall_impact", "?")
-            articles = data.get("articles_analyzed", 0)
-            print(f"    [SENTIMENT] {sentiment} (conf: {confidence:.0%}, impact: {impact}, {articles} articles)")
+            try:
+                sentiment = data.get("overall_sentiment", "?")
+                confidence = data.get("confidence", 0)
+                impact = data.get("overall_impact", "?")
+                articles = data.get("articles_analyzed", 0)
+                print(f"    [SENTIMENT] {sentiment} (conf: {confidence:.0%}, impact: {impact}, {articles} articles)")
 
-            risk_events = data.get("risk_events", [])
-            if risk_events:
-                # risk_events can be dicts (with "text" key) or plain strings
-                labels = [r.get("text", str(r)) if isinstance(r, dict) else str(r) for r in risk_events[:3]]
-                print(f"    [SENTIMENT] Risk events: {', '.join(labels)}")
+                risk_events = data.get("risk_events", [])
+                if risk_events:
+                    labels = [r.get("text", str(r)) if isinstance(r, dict) else str(r) for r in risk_events[:3]]
+                    print(f"    [SENTIMENT] Risk events: {', '.join(labels)}")
+            except Exception as e:
+                logger.warning(f"Sentiment verbose print failed: {e}")
 
         return ctx

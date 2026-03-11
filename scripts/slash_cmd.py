@@ -28,6 +28,7 @@ TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 ASTER_FAPI = "https://fapi.asterdex.com"
+BINANCE_FAPI = "https://fapi.binance.com"
 SIGNAL_PATH = os.path.join(os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")), "shared", "SIGNAL.md")
 
 
@@ -97,16 +98,38 @@ def fetch_json(url, timeout=5):
 
 
 def get_prices():
-    """Fetch current prices from Aster DEX."""
+    """Fetch current prices from all configured exchanges."""
+    # 動態讀 params.py 幣種 + 路由到正確交易所
+    try:
+        sys.path.insert(0, os.path.dirname(SCRIPTS_DIR))
+        from config.params import ASTER_SYMBOLS, BINANCE_SYMBOLS
+        aster_set = set(ASTER_SYMBOLS)
+    except ImportError:
+        aster_set = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"}
+        BINANCE_SYMBOLS = ["SOLUSDT", "POLUSDT"]
+
+    # 合併去重，保留順序
+    all_symbols = list(dict.fromkeys(list(aster_set) + list(BINANCE_SYMBOLS)))
+
     prices = {}
-    for pair in ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"]:
-        data = fetch_json(f"{ASTER_FAPI}/fapi/v1/ticker/24hr?symbol={pair}")
+    for pair in all_symbols:
+        base = ASTER_FAPI if pair in aster_set else BINANCE_FAPI
+        data = fetch_json(f"{base}/fapi/v1/ticker/24hr?symbol={pair}")
         if data:
             prices[pair] = {
                 "price": float(data.get("lastPrice", 0)),
                 "change": float(data.get("priceChangePercent", 0)),
             }
     return prices
+
+
+def get_price_single(symbol: str, exchange: str = "aster") -> float:
+    """Fetch single symbol price from specified exchange. Returns 0 on failure."""
+    base = BINANCE_FAPI if exchange == "binance" else ASTER_FAPI
+    data = fetch_json(f"{base}/fapi/v1/ticker/24hr?symbol={symbol}")
+    if data:
+        return float(data.get("lastPrice", 0))
+    return 0.0
 
 
 def get_balance():
