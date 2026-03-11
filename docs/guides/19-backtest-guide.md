@@ -1,6 +1,13 @@
+<!--
+title: 回測頁面完整指南
+section: 操作指南
+order: 19
+audience: human,claude,github
+-->
+
 # Backtest 回測頁面指南
 > 對象：用戶（包括新用戶）
-> 更新：2026-03-11
+> 更新：2026-03-12
 
 ## 呢個頁面做咩？
 
@@ -18,7 +25,7 @@ http://127.0.0.1:5555/backtest
 
 ### 1. 設定條件
 頂部控制列有以下選項：
-- **Symbol** — 揀要測嘅幣對（BTCUSDT、ETHUSDT 等）
+- **Symbol** — 揀要測嘅幣對（BTCUSDT、ETHUSDT、SOLUSDT、BNBUSDT、XRPUSDT、POLUSDT、XAGUSDT、XAUUSDT）。其中 XAG/XAU 走 Aster DEX。
 - **Days** — 用幾多日嘅歷史數據（7d 到 180d）
 - **Balance** — 模擬起始資金（預設 $10,000）
 
@@ -73,13 +80,17 @@ http://127.0.0.1:5555/backtest
 - **RSI / MACD / Stoch** — 子圖指標（只喺 1H 顯示）
 - **Mode** — 模式轉換標記（RANGE ↔ TREND）
 
-### Order Flow 功能（新）
+### Order Flow 功能
+工具列有 **Order Flow** 群組（所有 interval 都可用，唔限 1H）：
+
 - **Whale** — 大額成交標記（$100K+ 嘅 trades，綠=買/紅=賣）
 - **Delta** — Delta Volume 柱狀圖（買 - 賣 嘅淨量）
-- **VP** — Volume Profile（右側橫條圖，顯示邊個價位成交最多）
+- **VP** — Volume Profile（右側橫條圖，顯示邊個價位成交最多，黃色標記 POC + Value Area 70%）
 - **FP** — Footprint Heatmap（蠟燭背景色塊，顯示每根 candle 嘅成交分佈）
 
-首次開啟會從 Binance 拉取 aggTrades 數據（需時 1-8 分鐘視乎日數）。之後有 cache。
+首次開啟會從 Binance 拉取 aggTrades 數據（需時 1-8 分鐘視乎日數）。載入時會顯示 amber 閃爍提示，期間你可以繼續撳其他 toggle。完成後有 cache，下次秒開。
+
+> 注意：XAG/XAU 係 Aster DEX 幣種，冇公開 aggTrades API，所以 Order Flow 唔適用。
 
 ### 時間週期
 支持 1m / 5m / 15m / 1H / 4H / 1D。但指標同回測結果只喺 **1H** 顯示（策略引擎用 1H timeframe）。其他週期只顯示 K 線 + trade markers。
@@ -225,7 +236,13 @@ python3 backtest/run_backtest.py --symbol BTCUSDT --days 30
 策略引擎只喺 1H timeframe 產生指標數據。其他週期只顯示 K 線。
 
 **Q: Whale/Delta/VP/FP 第一次開好慢？**
-因為要從 Binance 拉取逐筆成交數據（aggTrades）。完成後會 cache 到本地，下次秒開。
+因為要從 Binance 拉取逐筆成交數據（aggTrades）。載入期間 toggle 照撳得，完成後會 cache 到本地，下次秒開。
+
+**Q: VP 上面嘅黃色標記係咩？**
+POC（Point of Control）= 成交量最多嘅價位。黃色帶 = Value Area（70% 成交集中嘅範圍）。
+
+**Q: XAG/XAU 點解冇 Order Flow？**
+呢兩隻走 Aster DEX，冇公開嘅逐筆成交數據 API。
 
 **Q: 想改策略邏輯點算？**
 策略邏輯喺 `backtest/engine.py`。呢個頁面只調參數，唔改策略本身。改策略需要寫 code。

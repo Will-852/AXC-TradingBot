@@ -9,16 +9,25 @@ audience: human,claude,github
 
 打開 `http://localhost:5555` 可以見到儀表板。
 
-## 區域一覽
+## 頁面一覽
+
+| 路徑 | 頁面 | 功能 |
+|------|------|------|
+| `/` | 主控台 | 持倉、盈虧、行動部署、系統活動 |
+| `/backtest` | 回測 | K 線圖 + 回測模擬 + Order Flow + Live WS |
+| `/details` | 系統說明 | 你而家睇緊嘅文件（全部指南） |
+| `/share` | 分享 | macOS / Windows 安裝同步指南 |
+
+## 主控台區域
 
 | 區域 | 顯示咩 |
 |------|--------|
 | 行動部署 | 每隻幣嘅觸發狀態 + SL/TP 預覽 |
 | 累積盈虧 | 今日 + 總計盈虧曲線 |
-| 交易記錄 | 每筆交易入場價、出場價、盈虧 |
+| 持倉明細 | 當前持倉 11 欄完整信息（入場價、SL、TP、PnL 等） |
+| 交易記錄 | 每筆交易入場價、出場價、盈虧（來自交易所真實數據） |
 | 系統活動 | 心跳、模式切換、入場出場事件 |
 | 掃描記錄 | 掃描器最近信號同結果 |
-| 系統說明 | `/details` 頁面 — 你而家睇緊嘅文件 |
 
 ## 行動部署狀態燈
 
@@ -90,6 +99,35 @@ audience: human,claude,github
 
 | 縮寫 | 全名 |
 |------|------|
-| Aster | Aster DEX（去中心化交易所） |
+| Aster | Aster DEX（去中心化交易所）— XAG/XAU |
 | HL | HyperLiquid |
-| Binance | Binance Futures |
+| Binance | Binance Futures — BTC/ETH/SOL/BNB/XRP/POL |
+
+## 回測頁面速查
+
+回測頁面（`/backtest`）功能摘要：
+
+| 功能 | 說明 |
+|------|------|
+| 執行回測 | 用歷史數據模擬 AXC 策略，30-60 秒出結果 |
+| K 線圖 | 蠟燭圖 + 入場/出場 markers + 連接線 |
+| 指標 Overlay | BB、EMA、MA、RSI、MACD、Stoch（只喺 1H 顯示） |
+| Order Flow | Whale 大額成交、Delta Volume、VP 成交分佈、FP 熱力圖（所有 interval 可用） |
+| Live | 即時 K 線（Binance WebSocket，<1s 延遲） |
+| Live Pos | 即時持倉線（入場/SL/TP，需要 API key） |
+| A/B 對比 | 兩組參數結果並排比較 |
+| 匯入/匯出 | JSON 格式報告，支持外部策略結果 |
+| 畫圖工具 | 水平線、趨勢線、Fibonacci |
+
+詳見 → **回測頁面完整指南**（sidebar 搵「回測」）
+
+## 鍵盤快捷鍵
+
+| 按鍵 | 功能 | 頁面 |
+|------|------|------|
+| `Cmd+Enter` | 執行回測 | 回測 |
+| `[` / `]` | 上/下一筆交易 | 回測 |
+| `F` | 展開/縮小圖表 | 回測 |
+| `P` | 開/關參數面板 | 回測 |
+| `I` | 開/關指標列 | 回測 |
+| `/` | 搜尋指南 | 系統說明 |
