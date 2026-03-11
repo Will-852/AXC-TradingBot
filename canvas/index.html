@@ -459,7 +459,7 @@
     .ns-list li:last-child { border-bottom: none; }
     .ns-list li.ns-bull { border-left-color: #22c55e; }
     .ns-list li.ns-bear { border-left-color: #ef4444; }
-    .ns-time { display: inline-block; font-size: .68rem; color: var(--text-3); font-weight: 500; min-width: 38px; font-variant-numeric: tabular-nums; }
+    .ns-time { display: inline-block; font-size: .68rem; color: var(--text-3); font-weight: 500; min-width: 46px; font-variant-numeric: tabular-nums; }
     .ns-src { font-size: .6rem; color: var(--text-3); opacity: .6; margin-left: 4px; }
     .ns-summary {
       font-size: .78rem; color: var(--text-2); margin-top: 10px;
@@ -2530,36 +2530,52 @@ function renderNewsCard(D) {
     html += '</div>';
   }
 
-  // Narratives + Risk events — full width, stacked
-  var narratives = ns.key_narratives || [];
-  var risks = ns.risk_events || [];
+  // Sort by added_at descending (newest first), then render
+  var narratives = (ns.key_narratives || []).slice().sort(function(a,b) {
+    var ta = (typeof a === 'object' && a.added_at) || ''; var tb = (typeof b === 'object' && b.added_at) || '';
+    return ta > tb ? -1 : ta < tb ? 1 : 0;
+  });
+  var risks = (ns.risk_events || []).slice().sort(function(a,b) {
+    var ta = (typeof a === 'object' && a.added_at) || ''; var tb = (typeof b === 'object' && b.added_at) || '';
+    return ta > tb ? -1 : ta < tb ? 1 : 0;
+  });
 
-  if (narratives.length) {
-    html += '<div class="ns-section-title"><i class="fas fa-bullhorn mr-1"></i>主要敘事</div>';
-    html += '<ul class="ns-list">';
-    narratives.slice(0, 10).forEach(function(n) {
+  // Time label: today → "17:03", yesterday → "昨23:01", no added_at → just time field
+  var _todayStr = new Date().toISOString().slice(0, 10);
+  function _newsTime(n) {
+    if (typeof n !== 'object') return '';
+    var aa = n.added_at || '';
+    var t = n.time || '';
+    if (aa) {
+      var day = aa.slice(0, 10);
+      // Convert added_at to HKT for display if time field missing
+      if (!t) { try { var d = new Date(aa); t = d.toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Hong_Kong'}); } catch(e){} }
+      if (day < _todayStr) return '昨' + t;
+    }
+    return t;
+  }
+
+  function _renderNewsList(items, limit) {
+    var out = '';
+    items.slice(0, limit).forEach(function(n) {
       var txt = typeof n === 'string' ? n : (n.text || '');
-      var t = typeof n === 'object' && n.time ? n.time : '';
+      var t = _newsTime(n);
       var src = typeof n === 'object' && n.src ? n.src : '';
       var sc = typeof n === 'object' && n.s ? n.s : '';
       var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
-      html += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
+      out += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
-    html += '</ul>';
+    return out;
+  }
+
+  if (narratives.length) {
+    html += '<div class="ns-section-title"><i class="fas fa-bullhorn mr-1"></i>主要敘事</div>';
+    html += '<ul class="ns-list">' + _renderNewsList(narratives, 10) + '</ul>';
   }
 
   if (risks.length) {
     html += '<div class="ns-section-title" style="margin-top:10px"><i class="fas fa-exclamation-triangle mr-1"></i>風險事件</div>';
-    html += '<ul class="ns-list">';
-    risks.slice(0, 10).forEach(function(n) {
-      var txt = typeof n === 'string' ? n : (n.text || '');
-      var t = typeof n === 'object' && n.time ? n.time : '';
-      var src = typeof n === 'object' && n.src ? n.src : '';
-      var sc = typeof n === 'object' && n.s ? n.s : '';
-      var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
-      html += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
-    });
-    html += '</ul>';
+    html += '<ul class="ns-list">' + _renderNewsList(risks, 10) + '</ul>';
   }
 
   if (ns.summary) {
