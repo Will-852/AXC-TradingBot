@@ -2512,7 +2512,10 @@ function renderNewsCard(D) {
   // Per-symbol pills
   var syms = ns.sentiment_by_symbol || {};
   var symKeys = Object.keys(syms);
-  var watchedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'XAGUSDT', 'XAUUSDT', 'POLUSDT'];
+  // 動態讀 params.py 幣種（去重合併三個交易所）
+  var _p = (D && D.params) || {};
+  var watchedSymbols = [].concat(_p.ASTER_SYMBOLS||[], _p.BINANCE_SYMBOLS||[], _p.HL_SYMBOLS||[])
+      .filter(function(v,i,a){ return a.indexOf(v)===i; });
   var allSyms = watchedSymbols.slice();
   symKeys.forEach(function(s) { if (allSyms.indexOf(s) === -1) allSyms.push(s); });
 

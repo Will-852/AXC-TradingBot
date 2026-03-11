@@ -46,7 +46,7 @@ audience: human,claude,github
 
 | Section | 關鍵參數 | 當前值 |
 |---------|----------|--------|
-| 掃描 | SCAN_INTERVAL_SEC | 180 秒 |
+| 掃描 | SCAN_INTERVAL_SEC | 20 秒/交易所（9 交易所輪轉 = 180 秒/輪） |
 | 掃描 | SCHEDULED_CYCLE_HOURS | [0,3,6,9,12,15,18,21] |
 | BB | BB_TOUCH_TOL_DEFAULT / XRP | 0.005 / 0.008 |
 | 倉位 | MAX_POSITION_SIZE_USDT | $50 |
