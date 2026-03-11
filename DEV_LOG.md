@@ -103,3 +103,38 @@
 - .env 用 PROXY_API_KEY（正確）
 - 唔係 ANTHROPIC_API_KEY
 - tg_bot.py 正確，系統正常
+
+## 2026-03-11 | Backtest Validation Tools + 流程文檔
+
+### 新增 backtest/validate.py（~690 行）
+6 個驗證工具，CLI subcommand 選擇：
+- **must-use**: monte-carlo（DD 分佈）、walk-forward（WFE）、heatmap（cliff-edge）
+- **optional**: noise（價格噪聲）、delay（entry 延遲）、dsr（Deflated Sharpe）
+- 共用 `--min-score` flag 支持 score-based signal filtering
+
+### 修改 backtest/engine.py
+- `_PendingSignal` 加 `remaining_delay` + `score` field
+- `__init__` 加 `signal_delay`、`min_score`、`scorer` 參數
+- `_run_loop` delay countdown 邏輯
+- `_try_signal` score filtering + `_execute_pending` confidence sizing
+
+### 新增 docs/guides/BACKTEST.md
+- 完整工作流指引（6 步）
+- Model 路由規則（數據分析用 Sonnet subagent）
+- Pass/Fail 標準表
+- WF fixed-params limitation 記錄
+- Backtest→Live 折扣估算（×0.5~0.7）
+
+### 更新 ai/CONTEXT.md + ai/RULES.md
+- CONTEXT.md: backtest section 加 6 步流程摘要 + model 路由提示
+- RULES.md: 加 model 路由規則（Sonnet for data, Opus for decisions）
+
+### Smoke test 結果
+- monte-carlo ✅ PASS | walk-forward ✅ FAIL（60d 數據少，合理）
+- delay ✅ PASS | noise ✅ FAIL（base return 負數，合理）
+- heatmap/dsr ⏭️ 需要 grid search JSON
+
+### 評估並拒絕嘅方案
+- RL PPO Trading Agent（stable-baselines3）→ 違反架構、訓練量太少
+- MCPT bar_permute.py → rule-based strategy 幾乎必 PASS，冇信息量
+- OHLC bar decomposition 概念記住備用，唔入 codebase
