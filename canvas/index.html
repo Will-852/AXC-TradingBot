@@ -1719,12 +1719,34 @@ function buildNotifications(D) {
         hbParts.push('Scanner ' + (ageMin <= 10 ? '✓' : '⚠️') + ' ' + scanAge);
       } else { hbParts.push('Scanner ⚠️ ?'); }
     } else { hbParts.push('Scanner ⚠️ ?'); }
-    // News
+    // News — with staleness alerts
     var ns = D.news_sentiment;
-    if (ns && !ns.stale) {
-      var sentMap = {bullish:'睇好', bearish:'睇淡', neutral:'中性', mixed:'混合'};
+    var newsAgeMin = -1;
+    if (ns && ns.updated_at) {
+      var newsDate = new Date(ns.updated_at);
+      if (!isNaN(newsDate)) newsAgeMin = Math.round((now - newsDate.getTime()) / 60000);
+    }
+    var sentMap = {bullish:'睇好', bearish:'睇淡', neutral:'中性', mixed:'混合'};
+    if (ns && newsAgeMin >= 0 && newsAgeMin <= 30) {
+      // Healthy
       hbParts.push('News ' + (sentMap[ns.overall_sentiment] || '?') + ' ' + Math.round((ns.confidence || 0) * 100) + '%');
-    } else { hbParts.push('News ⚠️ 過期'); }
+      _newsStaleWarned = false;
+      _newsStaleCritical = false;
+    } else {
+      // Stale — show age in heartbeat
+      var newsAgeStr = newsAgeMin > 0 ? (newsAgeMin < 60 ? newsAgeMin + 'm' : Math.round(newsAgeMin / 60) + 'h') : '?';
+      hbParts.push('News ⚠️ 過期 ' + newsAgeStr);
+      // 30min warning — fire once
+      if (newsAgeMin > 30 && !_newsStaleWarned) {
+        _newsStaleWarned = true;
+        pushNotif('news', '新聞數據過期', '已 ' + newsAgeStr + ' 未更新，可能 API 異常');
+      }
+      // 2h critical — fire once
+      if (newsAgeMin > 120 && !_newsStaleCritical) {
+        _newsStaleCritical = true;
+        pushNotif('risk', '新聞掃描停擺', '超過 ' + newsAgeStr + ' 無更新！檢查 news_sentiment.log');
+      }
+    }
     // Exchanges
     var exchKeys = D.exchanges ? Object.keys(D.exchanges) : [];
     hbParts.push('Exch ' + exchKeys.length);
@@ -2741,6 +2763,8 @@ var _NEWS_COOLDOWN_MS = 3600000; // 1 hour
 var _lastNewsScanTime = null;
 var _lastHeartbeatTime = Date.now();
 var _HEARTBEAT_INTERVAL = 60000;
+var _newsStaleWarned = false;   // 30min warning fired
+var _newsStaleCritical = false;  // 2h critical fired
 
 function renderNewsCard(D) {
   var el = byId('news-sentiment-card');
@@ -2931,6 +2955,12 @@ function renderNewsCard(D) {
   if (_lastNewsScanTime !== null && scanTime && scanTime !== _lastNewsScanTime) {
     var sentLabel = _sentMap[sent] || sent;
     var coinCount = ns.sentiment_by_symbol ? Object.keys(ns.sentiment_by_symbol).length : 0;
+    // Reset staleness flags — news is alive again
+    if (_newsStaleWarned || _newsStaleCritical) {
+      pushNotif('news', '新聞掃描恢復', sentLabel + ' · ' + coinCount + ' 幣種');
+    }
+    _newsStaleWarned = false;
+    _newsStaleCritical = false;
     if (_lastNewsSentiment !== null && _lastNewsSentiment !== sent && conf >= 60) {
       var prevLabel = _sentMap[_lastNewsSentiment] || _lastNewsSentiment;
       pushNotif('news', '情緒轉變 ' + prevLabel + ' → ' + sentLabel, conf + '% 信心 · ' + coinCount + ' 幣種');

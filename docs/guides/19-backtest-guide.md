@@ -178,14 +178,20 @@ python3 backtest/run_backtest.py --symbol BTCUSDT --days 30
 ### Live（即時 K 線）
 撳 **Live** 按鈕開啟，按鈕會變成 **Live ON**。
 
-**做啲咩：** 每 60 秒自動刷新最新蠟燭。你可以一邊睇回測結果，一邊觀察當前市場嘅 K 線走勢。
+**做啲咩：**
+1. 先載入歷史 K 線（日數 = dropdown 選擇），畫出完整圖表
+2. 透過 Binance Futures WebSocket（`wss://fstream.binance.com`）即時推送更新
+3. 圖表最右邊嘅蠟燭每秒級更新（延遲 <1s）
+
+唔需要交易所 API key — 用嘅係 Binance 公開 WebSocket endpoint。
 
 **典型用法：**
-1. 跑完回測 → 圖表顯示歷史交易 markers
-2. 開 Live → 圖表右邊開始出現即時 K 線
-3. 對比歷史同現在嘅市場狀態
+1. 揀 symbol + 日數 → 撳 Live → 歷史 + 即時一次過載入
+2. 可以加 BB / EMA / RSI 做即時技術分析
+3. 切 symbol / interval → WS 自動斷開 + 重連新 stream
+4. 斷網 → 自動 reconnect（1s → 2s → 4s ... 最多 30s backoff）
 
-再撳一次 Live ON → 關閉。唔需要交易所 API，因為用嘅係 Binance 公開 kline 數據。
+再撳一次 Live ON → 關閉。
 
 ### Live Pos（即時持倉顯示）
 撳 **Live Pos** 按鈕開啟，按鈕會變成 **Pos ON**。
@@ -223,3 +229,24 @@ python3 backtest/run_backtest.py --symbol BTCUSDT --days 30
 
 **Q: 想改策略邏輯點算？**
 策略邏輯喺 `backtest/engine.py`。呢個頁面只調參數，唔改策略本身。改策略需要寫 code。
+
+## 文件位置一覽
+
+所有 backtest 數據都喺 `~/projects/axc-trading/backtest/data/`：
+
+| 文件 | 格式 | 說明 |
+|------|------|------|
+| `bt_{SYMBOL}_{days}d_trades.jsonl` | JSONL | 交易記錄，每行一筆 JSON |
+| `bt_{SYMBOL}_{days}d_meta.json` | JSON | 參數快照 + 統計數據 |
+| `bt_{SYMBOL}_{days}d_equity.png` | PNG | 權益曲線圖（CLI 產出） |
+| `bt_{SYMBOL}_{days}d_v2_trades.jsonl` | JSONL | 匯入版本（自動加 v{N} 避免覆蓋） |
+| `exports/{SYMBOL}_{days}d_{timestamp}.json` | JSON | 匯出副本 / 匯入原始文件 |
+| `{SYMBOL}_1h_{start}_{end}.csv` | CSV | Binance 歷史價格 cache（自動產生） |
+
+### 手動新增舊結果
+
+三種方法：
+
+1. **Dashboard 匯入** — 撳「匯入」按鈕，選 `.json` 文件（格式見上方）
+2. **手動放 JSONL** — 將 JSONL 文件放入 `backtest/data/`，命名為 `bt_BTCUSDT_60d_trades.jsonl`，然後撳「載入舊結果」
+3. **CLI 跑完自動存** — `python3 backtest/run_backtest.py --symbol BTCUSDT --days 60` 會自動產生 JSONL + meta + equity PNG

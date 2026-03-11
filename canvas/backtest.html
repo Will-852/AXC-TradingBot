@@ -468,7 +468,7 @@
   <!-- Control bar -->
   <div class="control-bar">
     <label>Symbol</label>
-    <select id="sel-symbol" onchange="if(liveWs){closeLiveWs();var s=this.value,d=parseInt(document.getElementById('sel-days').value)||3;loadKlines(s,d,function(){connectLiveWs(true);});}">
+    <select id="sel-symbol" onchange="onSymbolChange()">
       <option>BTCUSDT</option>
       <option>ETHUSDT</option>
       <option>XRPUSDT</option>
@@ -1405,7 +1405,7 @@ function clearModeOverlays() {
 // ══════════════════════════════════════════════════
 //  Load klines
 // ══════════════════════════════════════════════════
-function loadKlines(symbol, days, cb, interval) {
+function loadKlines(symbol, days, cb, interval, errCb) {
   interval = interval || currentInterval;
   setState('LOADING', {symbol: symbol, days: days, interval: interval});
   api('/api/backtest/klines?symbol=' + symbol + '&days=' + days + '&interval=' + interval)
@@ -1433,6 +1433,7 @@ function loadKlines(symbol, days, cb, interval) {
     .catch(function(e) {
       console.error('klines error:', e);
       setState('ERROR');
+      if (errCb) errCb(e);
     });
 }
 
@@ -2344,6 +2345,19 @@ function pollJob(jobId, ctx) {
     });
 }
 
+// ── Symbol change handler (reload history + reconnect WS if live) ──
+function onSymbolChange() {
+  if (!liveWs) return;
+  closeLiveWs();
+  var symbol = document.getElementById('sel-symbol').value;
+  var days = parseInt(document.getElementById('sel-days').value) || 3;
+  loadKlines(symbol, days, function() {
+    connectLiveWs(true);
+  }, currentInterval, function() {
+    connectLiveWs(true);
+  });
+}
+
 // ── Live K-line toggle (Binance Futures WebSocket) ──
 // Flow: toggleLive() → loadKlines(history) → connectLiveWs() → WS stream
 // - Browser 直連 wss://fstream.binance.com (public, no auth)
@@ -2368,22 +2382,12 @@ function toggleLive() {
   // Load recent history first, then attach WS for live updates
   var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value) || 3;
-  var interval = currentInterval;
-  initChart();
-  api('/api/backtest/klines?symbol=' + symbol + '&days=' + days + '&interval=' + interval)
-    .then(function(resp) {
-      var candles = resp.candles || resp;
-      mainChart.applyNewData(candles.map(function(c) {
-        return { timestamp: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
-      }));
-      setState('LOADED', {symbol: symbol, interval: interval});
-      gateIndicators(interval);
-      connectLiveWs();
-    })
-    .catch(function(e) {
-      console.warn('Live history load failed, connecting WS anyway:', e);
-      connectLiveWs();
-    });
+  loadKlines(symbol, days, function() {
+    connectLiveWs();
+  }, currentInterval, function() {
+    // History failed — still connect WS so user gets live candles
+    connectLiveWs();
+  });
 }
 
 function connectLiveWs(silent) {
