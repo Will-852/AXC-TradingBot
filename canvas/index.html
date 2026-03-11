@@ -455,8 +455,10 @@
       border-bottom: 1px solid var(--border); color: var(--text-3);
     }
     .ns-list { margin: 0; padding-left: 0; list-style: none; font-size: .78rem; color: var(--text-2); line-height: 1.7; }
-    .ns-list li { padding: 2px 0; border-bottom: 1px solid rgba(148,163,184,.06); }
+    .ns-list li { padding: 3px 0 3px 8px; border-bottom: 1px solid rgba(148,163,184,.06); border-left: 2px solid transparent; }
     .ns-list li:last-child { border-bottom: none; }
+    .ns-list li.ns-bull { border-left-color: #22c55e; }
+    .ns-list li.ns-bear { border-left-color: #ef4444; }
     .ns-time { display: inline-block; font-size: .68rem; color: var(--text-3); font-weight: 500; min-width: 38px; font-variant-numeric: tabular-nums; }
     .ns-src { font-size: .6rem; color: var(--text-3); opacity: .6; margin-left: 4px; }
     .ns-summary {
@@ -2539,7 +2541,9 @@ function renderNewsCard(D) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
       var src = typeof n === 'object' && n.src ? n.src : '';
-      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
+      var sc = typeof n === 'object' && n.s ? n.s : '';
+      var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
+      html += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
     html += '</ul>';
   }
@@ -2551,7 +2555,9 @@ function renderNewsCard(D) {
       var txt = typeof n === 'string' ? n : (n.text || '');
       var t = typeof n === 'object' && n.time ? n.time : '';
       var src = typeof n === 'object' && n.src ? n.src : '';
-      html += '<li>' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
+      var sc = typeof n === 'object' && n.s ? n.s : '';
+      var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
+      html += '<li class="' + cls + '">' + (t ? '<span class="ns-time">' + esc(t) + '</span> ' : '') + esc(txt) + (src ? ' <span class="ns-src">' + esc(src) + '</span>' : '') + '</li>';
     });
     html += '</ul>';
   }

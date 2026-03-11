@@ -178,15 +178,16 @@ Respond in JSON format ONLY (no markdown, no explanation):
     "BTCUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}},
     "ETHUSDT": {{"sentiment": "bullish|bearish|neutral", "impact": 0-100}}
   }},
-  "key_narratives": [{{"text": "narrative1", "time": "HH:MM", "src": "CoinDesk"}}, {{"text": "narrative2", "time": "HH:MM", "src": "Reuters"}}],
-  "risk_events": [{{"text": "event1", "time": "HH:MM", "src": "CoinTelegraph"}}],
+  "key_narratives": [{{"text": "narrative1", "time": "HH:MM", "src": "CoinDesk", "s": "bullish"}}, {{"text": "narrative2", "time": "HH:MM", "src": "Reuters", "s": "bearish"}}],
+  "risk_events": [{{"text": "event1", "time": "HH:MM", "src": "CoinTelegraph", "s": "bearish"}}],
   "summary": "One sentence overall market sentiment summary"
 }}
 
 IMPORTANT: All text values MUST be in Traditional Chinese (香港繁體中文).
 overall_impact: 0=noise, 50=moderate, 100=extreme.
 Only include symbols mentioned in articles. time: HH:MM in UTC+8.
-src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bloomberg). Use the [source] tag from each article."""
+src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bloomberg). Use the [source] tag from each article.
+s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative and risk_event MUST have "s"."""
 
     url = f"{PROXY_BASE_URL}/messages"
     payload = json.dumps({
