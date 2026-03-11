@@ -281,15 +281,18 @@
       font-size: .65rem;
       font-weight: 600;
       color: var(--text-3);
-      letter-spacing: .05em;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 6px 10px;
     }
-    #action-table td { padding: 8px 8px; vertical-align: middle; min-height: 56px; }
-    #action-table td:nth-child(1) { width: 72px; }
-    #action-table td:nth-child(2) { width: 15%; }
-    #action-table td:nth-child(3) { width: 12%; }
-    #action-table td:nth-child(4) { width: 18%; }
-    #action-table td:nth-child(5) { width: 26%; }
-    #action-table td:nth-child(6) { width: 72px; text-align: center; }
+    #action-table { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+    #action-table td { padding: 8px 10px; vertical-align: middle; min-height: 56px; }
+    #action-table td:nth-child(1) { width: 80px; }
+    #action-table td:nth-child(2) { width: 16%; }
+    #action-table td:nth-child(3) { width: 13%; }
+    #action-table td:nth-child(4) { width: 20%; }
+    #action-table td:nth-child(5) { width: 24%; }
+    #action-table td:nth-child(6) { width: 64px; text-align: center; }
     #action-table tbody tr { transition: background .1s; }
     #action-table tbody tr:hover { background: #f1f5f9 !important; }
     .ap-chg-ok { font-weight: 600; }
@@ -328,6 +331,12 @@
     .ap-range-labels { display: flex; justify-content: space-between; font-size: .62rem; color: var(--text-3, #64748b); font-variant-numeric: tabular-nums; margin-top: 4px; line-height: 1; }
     /* LONG/SHORT column tints */
     /* ap-col-long/short removed — merged into single SL/TP column */
+    .ap-trade-btn {
+      border: 1px solid #635bff; background: rgba(99,91,255,.06); color: #635bff;
+      font-size: .7rem; font-weight: 600; padding: 3px 10px; border-radius: 4px;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .ap-trade-btn:hover { background: #635bff; color: #fff; }
     /* Zebra stripe */
     #action-table tbody tr:nth-child(even) { background: #fafbfc; }
     #action-table tbody tr:nth-child(odd) { background: #fff; }
@@ -1001,28 +1010,10 @@
 
         </div><!-- /row 3 -->
 
-        <!-- ── ROW 3.5：交易統計 + 資金費率 ──────── -->
+        <!-- ── ROW 3.5：資金費率 + 交易統計 ──────── -->
         <div class="row row-eq">
-          <!-- 交易統計 -->
-          <div class="col-lg-4 col-12" data-aos="fade-up">
-            <div class="card card-outline card-secondary">
-              <div class="card-header bg-openclaw">
-                <h3 class="card-title">
-                  <i class="fas fa-chart-bar mr-2"></i>交易統計
-                </h3>
-                <div class="card-tools">
-                  <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="card-body p-3" id="stats-overview">
-                <div class="text-muted text-center" style="font-size:.8rem">載入中…</div>
-              </div>
-            </div>
-          </div>
           <!-- 資金費率 -->
-          <div class="col-lg-8 col-12" data-aos="fade-up" data-aos-delay="100">
+          <div class="col-lg-8 col-12" data-aos="fade-up">
             <div class="card card-outline card-secondary">
               <div class="card-header bg-openclaw">
                 <h3 class="card-title">
@@ -1036,6 +1027,24 @@
                 </div>
               </div>
               <div class="card-body p-3" id="funding-rates">
+                <div class="text-muted text-center" style="font-size:.8rem">載入中…</div>
+              </div>
+            </div>
+          </div>
+          <!-- 交易統計 -->
+          <div class="col-lg-4 col-12" data-aos="fade-up" data-aos-delay="100">
+            <div class="card card-outline card-secondary">
+              <div class="card-header bg-openclaw">
+                <h3 class="card-title">
+                  <i class="fas fa-chart-bar mr-2"></i>交易統計
+                </h3>
+                <div class="card-tools">
+                  <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-minus"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-3" id="stats-overview">
                 <div class="text-muted text-center" style="font-size:.8rem">載入中…</div>
               </div>
             </div>
@@ -1728,10 +1737,8 @@ function buildNotifications(D) {
     }
     var sentMap = {bullish:'睇好', bearish:'睇淡', neutral:'中性', mixed:'混合'};
     if (ns && newsAgeMin >= 0 && newsAgeMin <= 30) {
-      // Healthy
+      // Healthy — flag reset handled by news pipeline in renderNewsCard
       hbParts.push('News ' + (sentMap[ns.overall_sentiment] || '?') + ' ' + Math.round((ns.confidence || 0) * 100) + '%');
-      _newsStaleWarned = false;
-      _newsStaleCritical = false;
     } else {
       // Stale — show age in heartbeat
       var newsAgeStr = newsAgeMin > 0 ? (newsAgeMin < 60 ? newsAgeMin + 'm' : Math.round(newsAgeMin / 60) + 'h') : '?';
@@ -1744,7 +1751,7 @@ function buildNotifications(D) {
       // 2h critical — fire once
       if (newsAgeMin > 120 && !_newsStaleCritical) {
         _newsStaleCritical = true;
-        pushNotif('risk', '新聞掃描停擺', '超過 ' + newsAgeStr + ' 無更新！檢查 news_sentiment.log');
+        pushNotif('news', '⚠ 新聞掃描停擺', '超過 ' + newsAgeStr + ' 無更新！檢查 news_sentiment.log');
       }
     }
     // Exchanges
@@ -2148,15 +2155,14 @@ function renderActionPlan(D) {
       '</div>';
     }
 
-    // 操作 column: 詳情 + 交易 (use global index for clean onclick)
+    // 操作 column: 交易 button per coin
     var planIdx = window._actionPlans.indexOf(p);
     var actionHtml;
     if (!isTradeable || planIdx < 0) {
       actionHtml = '<span style="color:#cbd5e1;font-size:.75rem">–</span>';
     } else {
-      actionHtml = '<span class="ap-action-link" onclick="showActionDetail(window._actionPlans[' + planIdx + '])">詳情</span>' +
-        '<span style="color:#cbd5e1;margin:0 2px">|</span>' +
-        '<span class="ap-action-link" onclick="openTradeModal(window._actionPlans[' + planIdx + '])">交易</span>';
+      actionHtml = '<button class="ap-trade-btn" onclick="openTradeModal(window._actionPlans[' + planIdx + '])">' +
+        '<i class="fas fa-exchange-alt" style="font-size:.6rem;margin-right:3px"></i>交易</button>';
     }
 
     var icon = symbolIcon(p.symbol);
@@ -2758,8 +2764,6 @@ function renderFundingRates(D) {
 
 // ── News Sentiment Card ──────────
 var _lastNewsSentiment = null;
-var _newsNotifCooldown = 0;
-var _NEWS_COOLDOWN_MS = 3600000; // 1 hour
 var _lastNewsScanTime = null;
 var _lastHeartbeatTime = Date.now();
 var _HEARTBEAT_INTERVAL = 60000;
@@ -2896,14 +2900,14 @@ function renderNewsCard(D) {
   }
 
   function _renderNewsList(items, limit) {
-    // Sort by time descending (newest first)
+    // Sort strictly by added_at descending (newest first, no fallback mixing)
     var sorted = items.slice().sort(function(a, b) {
-      var ta = typeof a === 'object' && a.added_at ? a.added_at : '';
-      var tb = typeof b === 'object' && b.added_at ? b.added_at : '';
-      // Fallback to time field if no added_at
-      if (!ta && typeof a === 'object' && a.time) ta = a.time;
-      if (!tb && typeof b === 'object' && b.time) tb = b.time;
-      return ta > tb ? -1 : ta < tb ? 1 : 0;
+      var ta = (typeof a === 'object' && a.added_at) || '';
+      var tb = (typeof b === 'object' && b.added_at) || '';
+      if (ta && tb) return ta > tb ? -1 : ta < tb ? 1 : 0;
+      if (ta) return -1;
+      if (tb) return 1;
+      return 0;
     });
     var out = '';
     sorted.slice(0, limit).forEach(function(n) {
@@ -2912,8 +2916,8 @@ function renderNewsCard(D) {
       var src = typeof n === 'object' && n.src ? n.src : '';
       var sc = typeof n === 'object' && n.s ? n.s : '';
       var cls = sc === 'bullish' ? ' ns-bull' : sc === 'bearish' ? ' ns-bear' : '';
-      var truncated = txt.length > 80;
-      var display = truncated ? txt.slice(0, 78) + '…' : txt;
+      var truncated = txt.length > 160;
+      var display = truncated ? txt.slice(0, 158) + '…' : txt;
       var safeTitle = truncated ? ' title="' + esc(txt).replace(/"/g, '&quot;') + '"' : '';
       var verdict = _verdictMap[sc] || _verdictMap.neutral;
       var verdictHtml = '<span class="ns-verdict ' + verdict.cls + '">' + verdict.label + '</span>';
@@ -2935,12 +2939,12 @@ function renderNewsCard(D) {
 
   if (narratives.length) {
     html += '<div class="ns-section-title"><i class="fas fa-bullhorn mr-1"></i>主要敘事</div>';
-    html += '<ul class="ns-list">' + _renderNewsList(narratives, 10) + '</ul>';
+    html += '<ul class="ns-list">' + _renderNewsList(narratives, 15) + '</ul>';
   }
 
   if (risks.length) {
     html += '<div class="ns-section-title" style="margin-top:10px"><i class="fas fa-exclamation-triangle mr-1"></i>風險事件</div>';
-    html += '<ul class="ns-list">' + _renderNewsList(risks, 10) + '</ul>';
+    html += '<ul class="ns-list">' + _renderNewsList(risks, 15) + '</ul>';
   }
 
   if (ns.summary) {

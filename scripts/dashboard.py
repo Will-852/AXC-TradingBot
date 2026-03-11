@@ -53,8 +53,8 @@ _profiles_cache = {"ts": 0, "data": {}, "active": ""}
 # ── AI Chat (Dashboard) ──────────────────────────────────────────────
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
-_CHAT_MODEL_HAIKU = "claude-haiku-4-5-20251001"
-_CHAT_MODEL_SONNET = "claude-sonnet-4-6"
+_CHAT_MODEL_CHAIN_FAST = ["claude-haiku-4-5-20251001", "gpt-5-mini"]
+_CHAT_MODEL_CHAIN_DEEP = ["claude-sonnet-4-6", "gpt-5-mini"]
 _CHAT_ANALYSIS_KW = {"分析", "點解", "策略", "比較", "評估", "建議"}
 _CHAT_SONNET_DAILY_CAP = 15
 _SONNET_USAGE_PATH = os.path.join(HOME, "shared", "sonnet_usage.json")
@@ -2910,7 +2910,8 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
                    strategy_params: dict | None = None,
                    param_overrides: dict | None = None,
                    allowed_modes: list | None = None,
-                   mode_confirmation: int | None = None) -> dict:
+                   mode_confirmation: int | None = None,
+                   platform: str = "binance") -> dict:
     """Module-level worker for ProcessPoolExecutor (must be picklable)."""
     import sys as _sys
     _home = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
@@ -2933,8 +2934,8 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
 
     s1, e1 = _calc_range(days, "1h")
     s4, e4 = _calc_range(days, "4h")
-    df_1h = fetch_klines_range(symbol, "1h", s1, e1)
-    df_4h = fetch_klines_range(symbol, "4h", s4, e4)
+    df_1h = fetch_klines_range(symbol, "1h", s1, e1, platform)
+    df_4h = fetch_klines_range(symbol, "4h", s4, e4, platform)
 
     # Monkey-patch strategy constants if overrides provided
     sp = strategy_params or {}
@@ -3129,7 +3130,8 @@ def handle_bt_klines(qs: dict):
         wh = WARMUP_CANDLES if interval == "1h" else 0
         start_ms = int((now - timedelta(hours=days * 24 + wh)).timestamp() * 1000)
 
-        df = fetch_klines_range(symbol, interval, start_ms, end_ms)
+        plat = "aster" if symbol in _BT_ASTER_SYMBOLS else "binance"
+        df = fetch_klines_range(symbol, interval, start_ms, end_ms, plat)
     except Exception as e:
         return 500, {"error": f"Failed to fetch klines: {e}"}
     # KLineChart format
@@ -3232,7 +3234,8 @@ def _save_bt_metadata(symbol: str, days: int, balance: float,
         logging.warning("Failed to save backtest metadata: %s", e)
 
 
-_BT_ALLOWED_SYMBOLS = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "BNBUSDT"}
+_BT_ALLOWED_SYMBOLS = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "BNBUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT"}
+_BT_ASTER_SYMBOLS = {"XAGUSDT", "XAUUSDT"}  # use Aster DEX for klines
 _BT_MAX_DAYS = 365
 _BT_JOB_TIMEOUT = 600  # 10 minutes
 _BT_INTERVAL_MAX_DAYS = {
@@ -3405,12 +3408,14 @@ def handle_bt_run(body: str):
                           mode_confirmation=mode_confirmation,
                           stats=stats)
 
+    plat = "aster" if symbol in _BT_ASTER_SYMBOLS else "binance"
     fut = _get_bt_pool().submit(
         _run_bt_worker, symbol, days, balance,
         strategy_params=strategy_params,
         param_overrides=param_overrides,
         allowed_modes=allowed_modes,
         mode_confirmation=mode_confirmation,
+        platform=plat,
     )
     fut.add_done_callback(_on_done)
     return 200, {"job_id": job_id, "status": "running"}
@@ -3733,38 +3738,50 @@ def _build_chat_context() -> str:
     return "\n".join(parts)
 
 
-def _call_dashboard_claude(user_msg: str, context: str,
-                           history: list[dict] | None = None,
-                           model: str | None = None) -> str:
-    """Call Claude via proxy. Same pattern as tg_bot.py call_claude()."""
-    use_model = model or _CHAT_MODEL_HAIKU
-    url = f"{PROXY_BASE_URL}/messages"
+def _call_dashboard_llm(user_msg: str, context: str,
+                        history: list[dict] | None = None,
+                        model_chain: list[str] | None = None) -> str:
+    """Call LLM via proxy with model fallback chain."""
+    chain = model_chain or _CHAT_MODEL_CHAIN_FAST
 
-    messages = []
+    msgs = [{"role": "system", "content": _CHAT_SYSTEM_PROMPT}]
     if history:
         for m in history:
-            messages.append({"role": m["role"], "content": m["content"]})
-    messages.append({
-        "role": "user",
-        "content": f"{context}\n\n---\n\n用戶：{user_msg}",
-    })
+            msgs.append({"role": m["role"], "content": m["content"]})
+    msgs.append({"role": "user",
+                 "content": f"{context}\n\n---\n\n用戶：{user_msg}"})
 
-    body = json.dumps({
-        "model": use_model,
-        "max_tokens": 1200,
-        "system": _CHAT_SYSTEM_PROMPT,
-        "messages": messages,
-    }).encode()
+    for model in chain:
+        is_anthropic = model.startswith("claude-")
+        endpoint = "messages" if is_anthropic else "chat/completions"
+        url = f"{PROXY_BASE_URL}/{endpoint}"
 
-    req = urllib.request.Request(url, body, headers={
-        "Content-Type":      "application/json",
-        "Authorization":     f"Bearer {PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
-    })
+        if is_anthropic:
+            body_dict = {"model": model, "max_tokens": 1200,
+                         "system": _CHAT_SYSTEM_PROMPT,
+                         "messages": msgs[1:]}  # exclude system msg
+            headers = {"Content-Type": "application/json",
+                       "Authorization": f"Bearer {PROXY_API_KEY}",
+                       "anthropic-version": "2023-06-01"}
+        else:
+            body_dict = {"model": model, "max_tokens": 1200,
+                         "messages": msgs}
+            headers = {"Content-Type": "application/json",
+                       "Authorization": f"Bearer {PROXY_API_KEY}"}
 
-    resp = urllib.request.urlopen(req, timeout=30)
-    data = json.loads(resp.read())
-    return data["content"][0]["text"]
+        req = urllib.request.Request(url, json.dumps(body_dict).encode(),
+                                     method="POST", headers=headers)
+        try:
+            resp = urllib.request.urlopen(req, timeout=30)
+            data = json.loads(resp.read())
+            if is_anthropic:
+                return data["content"][0]["text"]
+            else:
+                return data["choices"][0]["message"]["content"]
+        except Exception:
+            continue
+
+    raise RuntimeError("All models in chain failed")
 
 
 def handle_chat(body: str):
@@ -3785,7 +3802,7 @@ def handle_chat(body: str):
     use_sonnet = any(kw in msg for kw in _CHAT_ANALYSIS_KW)
     if use_sonnet and not _sonnet_usage_ok():
         use_sonnet = False
-    model = _CHAT_MODEL_SONNET if use_sonnet else _CHAT_MODEL_HAIKU
+    chain = _CHAT_MODEL_CHAIN_DEEP if use_sonnet else _CHAT_MODEL_CHAIN_FAST
 
     # Build context
     context = _build_chat_context()
@@ -3801,7 +3818,7 @@ def handle_chat(body: str):
         history_for_api = [{"role": m["role"], "content": m["content"]} for m in _chat_history]
 
     try:
-        reply = _call_dashboard_claude(msg, context, history_for_api, model)
+        reply = _call_dashboard_llm(msg, context, history_for_api, chain)
     except urllib.error.URLError as e:
         logging.error(f"Chat API error: {e}")
         return 502, {"error": "AI 暫時冇回應，稍後再試"}

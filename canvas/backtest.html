@@ -474,6 +474,9 @@
       <option>XRPUSDT</option>
       <option>SOLUSDT</option>
       <option>BNBUSDT</option>
+      <option>POLUSDT</option>
+      <option>XAGUSDT</option>
+      <option>XAUUSDT</option>
     </select>
 
     <label>Days</label>
@@ -823,6 +826,27 @@ function initChart() {
   if (mainChart) return;
   var container = document.getElementById('chart-container');
   mainChart = klinecharts.init(container, {
+    locale: 'en-US',
+    timezone: 'Asia/Hong_Kong',
+    customApi: {
+      formatDate: function(dateTimeFormat, timestamp, format, type) {
+        var d = new Date(timestamp);
+        var HH = ('0' + d.getHours()).slice(-2);
+        var mm = ('0' + d.getMinutes()).slice(-2);
+        var DD = ('0' + d.getDate()).slice(-2);
+        var MM = ('0' + (d.getMonth() + 1)).slice(-2);
+        var YYYY = d.getFullYear();
+        // type 0 = xAxis label, type 1 = crosshair, type 2 = tooltip
+        if (type === 0) {
+          // xAxis: show date + time for clarity
+          if (currentInterval === '1d' || currentInterval === '1D') return MM + '-' + DD;
+          if (currentInterval === '4h') return MM + '-' + DD + ' ' + HH + ':00';
+          return MM + '-' + DD + ' ' + HH + ':' + mm;
+        }
+        // crosshair + tooltip: full datetime
+        return YYYY + '-' + MM + '-' + DD + ' ' + HH + ':' + mm;
+      }
+    },
     styles: {
       grid: {
         show: true,
@@ -848,7 +872,7 @@ function initChart() {
       xAxis: {
         axisLine: { color: '#2a2e39' },
         tickLine: { color: '#2a2e39' },
-        tickText: { color: '#787b86' }
+        tickText: { color: '#d1d4dc', size: 11 }
       },
       yAxis: {
         axisLine: { color: '#2a2e39' },
@@ -1186,15 +1210,19 @@ function registerBackendIndicators() {
       vp.forEach(function(v) { if (v.total_vol > maxVol) maxVol = v.total_vol; });
       if (maxVol === 0) return false;
 
-      var maxBarWidth = bounding.width * 0.15;
+      var maxBarWidth = bounding.width * 0.22;
       var bucketSize = vp.length > 1 ? vp[1].price - vp[0].price : 50;
 
-      vp.forEach(function(v) {
+      // Find POC (Point of Control = highest volume level)
+      var pocIdx = 0;
+      vp.forEach(function(v, i) { if (v.total_vol > vp[pocIdx].total_vol) pocIdx = i; });
+
+      vp.forEach(function(v, i) {
         var y1 = yAxis.convertToPixel(v.price + bucketSize);
         var y2 = yAxis.convertToPixel(v.price);
         if (y1 === undefined || y2 === undefined) return;
         var barH = Math.abs(y2 - y1);
-        if (barH < 1) barH = 1;
+        if (barH < 1) barH = 2;
         var yTop = Math.min(y1, y2);
         var ratio = v.total_vol / maxVol;
 
@@ -1203,19 +1231,43 @@ function registerBackendIndicators() {
         var sellW = (v.sell_vol / maxVol) * maxBarWidth;
         var x = bounding.left + bounding.width - buyW - sellW;
 
-        ctx.fillStyle = 'rgba(38,166,154,0.25)';
+        ctx.fillStyle = 'rgba(38,166,154,0.40)';
         ctx.fillRect(x + sellW, yTop, buyW, barH);
 
         // Sell bar (red, stacked left of buy)
-        ctx.fillStyle = 'rgba(239,83,80,0.25)';
+        ctx.fillStyle = 'rgba(239,83,80,0.40)';
         ctx.fillRect(x, yTop, sellW, barH);
 
         // POC highlight (highest volume level)
-        if (ratio > 0.8) {
-          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        if (i === pocIdx) {
+          ctx.fillStyle = 'rgba(255,193,7,0.15)';
           ctx.fillRect(x, yTop, buyW + sellW, barH);
+          // POC label
+          ctx.fillStyle = 'rgba(255,193,7,0.7)';
+          ctx.font = '10px sans-serif';
+          ctx.fillText('POC', x - 28, yTop + barH / 2 + 3);
         }
       });
+
+      // Value Area (70% of total volume) — subtle background band
+      var totalVol = 0;
+      vp.forEach(function(v) { totalVol += v.total_vol; });
+      var vaTarget = totalVol * 0.7;
+      var vaAccum = vp[pocIdx].total_vol;
+      var vaHigh = pocIdx, vaLow = pocIdx;
+      while (vaAccum < vaTarget && (vaLow > 0 || vaHigh < vp.length - 1)) {
+        var addLow = vaLow > 0 ? vp[vaLow - 1].total_vol : 0;
+        var addHigh = vaHigh < vp.length - 1 ? vp[vaHigh + 1].total_vol : 0;
+        if (addLow >= addHigh && vaLow > 0) { vaLow--; vaAccum += addLow; }
+        else if (vaHigh < vp.length - 1) { vaHigh++; vaAccum += addHigh; }
+        else { vaLow--; vaAccum += addLow; }
+      }
+      var vaTopY = yAxis.convertToPixel(vp[vaHigh].price + bucketSize);
+      var vaBotY = yAxis.convertToPixel(vp[vaLow].price);
+      if (vaTopY !== undefined && vaBotY !== undefined) {
+        ctx.fillStyle = 'rgba(255,193,7,0.04)';
+        ctx.fillRect(bounding.left, Math.min(vaTopY, vaBotY), bounding.width, Math.abs(vaBotY - vaTopY));
+      }
 
       return false;  // don't suppress candles
     }
@@ -2390,10 +2442,18 @@ function toggleLive() {
   });
 }
 
+var _ASTER_SYMBOLS = ['XAGUSDT', 'XAUUSDT'];  // no Binance WS for these
+
 function connectLiveWs(silent) {
   if (liveWs) return;
-  var symbol = document.getElementById('sel-symbol').value.toLowerCase();
-  var url = 'wss://fstream.binance.com/ws/' + symbol + '@kline_' + currentInterval;
+  var symbol = document.getElementById('sel-symbol').value;
+  // Aster symbols have no public WS — history-only mode
+  if (_ASTER_SYMBOLS.indexOf(symbol) !== -1) {
+    if (!silent) showToast(symbol + ' 冇即時 WS（Aster DEX）— 用歷史數據', 'info');
+    return;
+  }
+  var symLower = symbol.toLowerCase();
+  var url = 'wss://fstream.binance.com/ws/' + symLower + '@kline_' + currentInterval;
   var ws = new WebSocket(url);
 
   ws.onopen = function() {

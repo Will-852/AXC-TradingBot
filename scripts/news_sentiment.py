@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 news_sentiment.py — 新聞情緒分析
-讀 shared/news_feed.json → Claude Haiku 情緒分類 → 原子寫入 shared/news_sentiment.json
+讀 shared/news_feed.json → LLM 情緒分類（fallback chain: Haiku → gpt-5-mini） → 原子寫入 shared/news_sentiment.json
 
 只分析最近 1 小時嘅文章（避免分析過期舊聞影響決策）。
 已分析文章 URL hash 記錄在 sentiment 輸出，下次跳過。
@@ -28,7 +28,7 @@ NEWS_MANUAL_FILE = SHARED_DIR / "news_manual.json"
 
 # Only analyze articles from last 1 hour (fresh news only)
 ANALYSIS_WINDOW_HOURS = 1
-# Only send articles with influence >= threshold to Haiku (save API cost)
+# Only send articles with influence >= threshold to LLM (save API cost)
 INFLUENCE_THRESHOLD = 5
 
 # ── Load .env ──
@@ -42,7 +42,7 @@ if ENV_PATH.exists():
 
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
-CLAUDE_MODEL = "claude-haiku-4-5-20251001"  # tier2
+MODEL_CHAIN = ["claude-haiku-4-5-20251001", "gpt-5-mini"]  # try in order
 
 logging.basicConfig(
     level=logging.INFO,
@@ -114,10 +114,10 @@ def _parse_pub_time_hkt(raw: str) -> str:
     return ""
 
 
-def call_haiku(articles: list[dict], manual_entries: list[dict] | None = None) -> dict:
-    """Call Claude Haiku for sentiment classification.
+def call_llm(articles: list[dict], manual_entries: list[dict] | None = None) -> dict:
+    """Call LLM for sentiment classification, with model fallback chain.
 
-    Returns structured sentiment data. Manual entries are marked [USER SUBMITTED].
+    Tries MODEL_CHAIN in order. Returns structured sentiment data.
     """
     if not PROXY_API_KEY:
         raise ValueError("PROXY_API_KEY not set")
@@ -188,31 +188,48 @@ overall_impact: 0=noise, 50=moderate, 100=extreme.
 Only include symbols mentioned in articles. time: HH:MM in UTC+8.
 src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bloomberg). Use the [source] tag from each article.
 s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative and risk_event MUST have "s".
-CRITICAL: Each narrative/risk_event "text" MUST be ≤50 characters (Chinese). Be concise — headline style, no filler words."""
+Each narrative/risk_event "text" should be 30-80 characters (Chinese). Include key detail — e.g. numbers, asset names, direction. More informative than a bare headline, but still concise."""
 
-    url = f"{PROXY_BASE_URL}/messages"
-    payload = json.dumps({
-        "model": CLAUDE_MODEL,
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode("utf-8")
-
-    req = urllib.request.Request(url, data=payload, method="POST", headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
-    })
-
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode())
-
-    # Extract text
-    content = data.get("content", [])
+    # Try each model in chain until one succeeds
     text = ""
-    for block in content:
-        if block.get("type") == "text":
-            text = block.get("text", "")
-            break
+    for model in MODEL_CHAIN:
+        is_anthropic = model.startswith("claude-")
+        endpoint = "messages" if is_anthropic else "chat/completions"
+        url = f"{PROXY_BASE_URL}/{endpoint}"
+
+        if is_anthropic:
+            body = {"model": model, "max_tokens": 4096,
+                    "messages": [{"role": "user", "content": prompt}]}
+            headers = {"Content-Type": "application/json",
+                       "Authorization": f"Bearer {PROXY_API_KEY}",
+                       "anthropic-version": "2023-06-01"}
+        else:
+            body = {"model": model, "max_tokens": 4096,
+                    "messages": [{"role": "user", "content": prompt}]}
+            headers = {"Content-Type": "application/json",
+                       "Authorization": f"Bearer {PROXY_API_KEY}"}
+
+        req = urllib.request.Request(url, json.dumps(body).encode("utf-8"),
+                                     method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode())
+            if is_anthropic:
+                text = next((b["text"] for b in data.get("content", [])
+                             if b.get("type") == "text"), "")
+            else:
+                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if text:
+                log.info("Model %s succeeded", model)
+                break
+            else:
+                log.warning("Model %s returned empty content", model)
+        except Exception as e:
+            log.warning("Model %s failed: %s", model, e)
+            continue
+
+    if not text:
+        raise RuntimeError("All models in chain failed")
 
     # Parse JSON from response
     text = text.strip()
@@ -296,7 +313,7 @@ def main():
         if a.get("url_hash") not in analyzed_hashes
     ]
 
-    # Pre-filter: only high-influence articles go to Haiku (save API cost)
+    # Pre-filter: only high-influence articles go to LLM (save API cost)
     # Low-influence = noise (partnerships, airdrops, generic) → skip
     high_influence = [
         a for a in fresh_articles
@@ -330,17 +347,17 @@ def main():
                 pass
         return
 
-    # Call Haiku for sentiment (only high-influence + manual entries)
+    # Call LLM for sentiment (only high-influence + manual entries)
     try:
-        sentiment = call_haiku(high_influence, manual_entries=manual_entries or None)
+        sentiment = call_llm(high_influence, manual_entries=manual_entries or None)
     except json.JSONDecodeError as e:
-        log.error(f"Failed to parse Haiku response: {e}")
+        log.error(f"Failed to parse LLM response: {e}")
         return
     except Exception as e:
-        log.error(f"Haiku API call failed: {e}")
+        log.error(f"LLM call failed: {e}")
         return
 
-    # Haiku 收到真實 [HH:MM] 時間，應該 echo 返。冇嘅先用 run_time fallback
+    # LLM 收到真實 [HH:MM] 時間，應該 echo 返。冇嘅先用 run_time fallback
     run_time = datetime.now(_HKT).strftime("%H:%M")
     for n in sentiment.get("key_narratives", []):
         if isinstance(n, dict) and not n.get("time"):
