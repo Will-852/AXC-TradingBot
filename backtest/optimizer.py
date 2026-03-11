@@ -399,6 +399,10 @@ def _optuna_optimize(
         for wp in WEIGHT_SEARCH_SPACE:
             all_params[wp.name] = trial.suggest_float(wp.name, wp.low, wp.high)
 
+        # Constraint: ramp low must be < ramp high (otherwise linear ramp degenerates)
+        if all_params.get("confidence_threshold_low", 3.0) >= all_params.get("confidence_threshold_high", 4.5):
+            return float("-inf")
+
         # Separate engine-level min_score from scoring weights
         min_score = all_params.get("min_score", 0.0)
         scoring_weights = {k: v for k, v in all_params.items() if k != "min_score"}
@@ -444,6 +448,10 @@ def _random_optimize(
         for wp in WEIGHT_SEARCH_SPACE:
             all_params[wp.name] = round(rng.uniform(wp.low, wp.high), 4)
 
+        # Constraint: ramp low must be < ramp high
+        if all_params.get("confidence_threshold_low", 3.0) >= all_params.get("confidence_threshold_high", 4.5):
+            continue
+
         min_score = all_params.get("min_score", 0.0)
         scoring_weights = {k: v for k, v in all_params.items() if k != "min_score"}
 
@@ -461,7 +469,7 @@ def _random_optimize(
             obj = compute_objective(pair_results)
             if obj > best_obj:
                 best_obj = obj
-                best_weights = weights.copy()
+                best_weights = all_params.copy()
 
     return best_weights, best_obj, config.stage2_trials
 
@@ -719,17 +727,29 @@ def check_stability(
 # Shrinkage (Anti-Overfit)
 # ═══════════════════════════════════════════════════════
 
+# Params where shrinkage would be counterproductive
+# (min_score default=0 → shrinkage always pulls to 0, negating the optimization)
+_SHRINKAGE_SKIP = {"min_score"}
+
+
 def apply_shrinkage(
     optimized_weights: dict,
     shrinkage_factor: float = 0.70,
 ) -> dict:
-    """Blend optimized weights with defaults: shrinkage% optimized + (1-shrinkage)% default."""
+    """Blend optimized weights with defaults: shrinkage% optimized + (1-shrinkage)% default.
+
+    Skips shrinkage for params in _SHRINKAGE_SKIP where blending toward default
+    would negate the optimization (e.g. min_score default=0).
+    """
     blended = {}
     for wp in WEIGHT_SEARCH_SPACE:
         opt_val = optimized_weights.get(wp.name, wp.default)
-        blended[wp.name] = round(
-            shrinkage_factor * opt_val + (1 - shrinkage_factor) * wp.default, 4
-        )
+        if wp.name in _SHRINKAGE_SKIP:
+            blended[wp.name] = round(opt_val, 4)
+        else:
+            blended[wp.name] = round(
+                shrinkage_factor * opt_val + (1 - shrinkage_factor) * wp.default, 4
+            )
     return blended
 
 

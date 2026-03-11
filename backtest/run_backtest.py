@@ -9,8 +9,10 @@ run_backtest.py — Backtest CLI 入口 + Equity Curve
 """
 
 import argparse
+import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone, timedelta
 
 AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
@@ -76,12 +78,45 @@ def _print_results(result: dict, args):
 
 
 def _save_trades(result: dict, symbol: str, days: int) -> str:
-    """Save trades to JSONL file. Returns file path."""
+    """Save trades to JSONL file using to_dict() for complete 11-field records.
+    to_jsonl() only has 7 fields — missing entry_time, exit_time, exit_reason,
+    strategy, tp_price — making export/import lossy.
+    Uses atomic write (tempfile + os.replace) to avoid truncated files on Ctrl+C."""
     os.makedirs(DATA_DIR, exist_ok=True)
     path = os.path.join(DATA_DIR, f"bt_{symbol}_{days}d_trades.jsonl")
-    with open(path, "w", encoding="utf-8") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         for trade in result["trades"]:
-            f.write(trade.to_jsonl() + "\n")
+            f.write(json.dumps(trade.to_dict(), ensure_ascii=False) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
+def _save_meta(result: dict, symbol: str, days: int, balance: float) -> str:
+    """Save backtest metadata as JSON sidecar for dashboard export/import."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    path = os.path.join(DATA_DIR, f"bt_{symbol}_{days}d_meta.json")
+    meta = {
+        "symbol": symbol,
+        "days": days,
+        "balance": balance,
+        "strategy_params": {},
+        "param_overrides": {},
+        "stats": {
+            k: result.get(k)
+            for k in ("return_pct", "win_rate", "profit_factor",
+                       "max_drawdown_pct", "total_trades", "sharpe_ratio",
+                       "expectancy")
+            if result.get(k) is not None
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', dir=os.path.dirname(path),
+        delete=False, suffix='.tmp')
+    json.dump(meta, tmp, ensure_ascii=False)
+    tmp.close()
+    os.replace(tmp.name, path)
     return path
 
 
@@ -185,9 +220,13 @@ def main():
 
     _print_results(result, args)
 
-    # Save trades JSONL
+    # Save trades JSONL (complete 11-field records)
     trades_path = _save_trades(result, symbol, args.days)
     print(f"\n  Trades → {trades_path}")
+
+    # Save metadata sidecar (stats + config for dashboard export)
+    meta_path = _save_meta(result, symbol, args.days, args.balance)
+    print(f"  Meta   → {meta_path}")
 
     # Save equity curve
     chart_path = _save_equity_chart(result, symbol, args.days, args.balance)

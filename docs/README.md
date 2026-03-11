@@ -85,6 +85,8 @@ Proxy API（AI 功能需要）     ← 任何 Claude/OpenAI 兼容 endpoint
 | [guides/SYMBOLS.md](guides/SYMBOLS.md) | 加幣種操作 |
 | [guides/08-terminal-commands.md](guides/08-terminal-commands.md) | Terminal 指令 |
 | [guides/13-launchagents.md](guides/13-launchagents.md) | LaunchAgent 管理 |
+| [guides/BACKTEST.md](guides/BACKTEST.md) | 回測系統（Claude Code 專用） |
+| [guides/OPTIMIZER_EXPLAINED.md](guides/OPTIMIZER_EXPLAINED.md) | 參數優化完整解說 |
 
 ### 架構
 | 文件 | 用途 |

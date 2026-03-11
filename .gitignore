@@ -29,6 +29,10 @@ update-check.json
 # Backtest cached data (regenerable via fetch_historical.py)
 backtest/data/*.csv
 backtest/data/*.png
+backtest/data/*.jsonl
+backtest/data/*_meta.json
+backtest/data/exports/
+backtest/data/aggtrades/
 
 # Large model files (local LLM — rejected in architecture)
 mlx_model/

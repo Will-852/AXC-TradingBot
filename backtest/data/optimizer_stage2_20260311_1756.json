@@ -1,0 +1,192 @@
+{
+  "stage2": [
+    {
+      "entry_params": {
+        "bb_width_min": 0.0738,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0295,
+        "adx_range_max": 27.4441,
+        "entry_volume_min": 0.9715,
+        "mode_confirmation": 2,
+        "rsi_long_low": 34.9953,
+        "rsi_long_high": 69.1257,
+        "bb_touch_tol": 0.0072,
+        "rsi_short_low": 37.5995,
+        "rsi_short_high": 68.0315
+      },
+      "best_weights": {
+        "w_vol": 0.18727005942368125,
+        "w_obv": 0.9507143064099162,
+        "w_stoch": 1.0979909127171077,
+        "base_score_strong": 4.197316968394073,
+        "base_score_weak": 2.312037280884873,
+        "confidence_threshold_high": 3.8119890406724055,
+        "confidence_risk_high_mult": 1.0580836121681996
+      },
+      "shrunk_weights": {
+        "w_vol": 0.2211,
+        "w_obv": 0.8155,
+        "w_stoch": 1.0686,
+        "base_score_strong": 4.1381,
+        "base_score_weak": 2.5184,
+        "confidence_threshold_high": 4.0184,
+        "confidence_risk_high_mult": 1.1157
+      },
+      "best_objective": 21.5703,
+      "n_trials": 30,
+      "results_by_pair": {
+        "BTCUSDT": {
+          "total_trades": 95,
+          "pnl": 5311.0,
+          "win_rate": 35.8,
+          "max_drawdown_pct": 33.9,
+          "profit_factor": 1.26
+        },
+        "ETHUSDT": {
+          "total_trades": 65,
+          "pnl": 201.75,
+          "win_rate": 29.2,
+          "max_drawdown_pct": 38.8,
+          "profit_factor": 1.02
+        },
+        "XRPUSDT": {
+          "total_trades": 72,
+          "pnl": 105.54,
+          "win_rate": 29.2,
+          "max_drawdown_pct": 28.7,
+          "profit_factor": 1.01
+        },
+        "SOLUSDT": {
+          "total_trades": 56,
+          "pnl": 2695.31,
+          "win_rate": 33.9,
+          "max_drawdown_pct": 33.1,
+          "profit_factor": 1.31
+        }
+      }
+    },
+    {
+      "entry_params": {
+        "bb_width_min": 0.099,
+        "trend_min_keys": 3,
+        "pullback_tolerance": 0.0371,
+        "adx_range_max": 29.1644,
+        "entry_volume_min": 0.9132,
+        "mode_confirmation": 1,
+        "rsi_long_low": 44.5477,
+        "rsi_long_high": 62.7394,
+        "bb_touch_tol": 0.0116,
+        "rsi_short_low": 46.8247,
+        "rsi_short_high": 65.323
+      },
+      "best_weights": {
+        "w_vol": 0.18727005942368125,
+        "w_obv": 0.9507143064099162,
+        "w_stoch": 1.0979909127171077,
+        "base_score_strong": 4.197316968394073,
+        "base_score_weak": 2.312037280884873,
+        "confidence_threshold_high": 3.8119890406724055,
+        "confidence_risk_high_mult": 1.0580836121681996
+      },
+      "shrunk_weights": {
+        "w_vol": 0.2211,
+        "w_obv": 0.8155,
+        "w_stoch": 1.0686,
+        "base_score_strong": 4.1381,
+        "base_score_weak": 2.5184,
+        "confidence_threshold_high": 4.0184,
+        "confidence_risk_high_mult": 1.1157
+      },
+      "best_objective": 20.6372,
+      "n_trials": 30,
+      "results_by_pair": {
+        "BTCUSDT": {
+          "total_trades": 98,
+          "pnl": 4268.5,
+          "win_rate": 34.7,
+          "max_drawdown_pct": 38.3,
+          "profit_factor": 1.2
+        },
+        "ETHUSDT": {
+          "total_trades": 63,
+          "pnl": -139.84,
+          "win_rate": 28.6,
+          "max_drawdown_pct": 37.8,
+          "profit_factor": 0.99
+        },
+        "XRPUSDT": {
+          "total_trades": 65,
+          "pnl": 492.52,
+          "win_rate": 30.8,
+          "max_drawdown_pct": 24.5,
+          "profit_factor": 1.05
+        },
+        "SOLUSDT": {
+          "total_trades": 33,
+          "pnl": -1644.83,
+          "win_rate": 21.2,
+          "max_drawdown_pct": 34.7,
+          "profit_factor": 0.67
+        }
+      }
+    }
+  ],
+  "stability": {
+    "w_vol": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "w_obv": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "w_stoch": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "base_score_strong": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "base_score_weak": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "confidence_threshold_high": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    },
+    "confidence_risk_high_mult": {
+      "minus": 21.5703,
+      "center": 21.5703,
+      "plus": 21.5703,
+      "cliff": false,
+      "delta_minus_pct": 0.0,
+      "delta_plus_pct": 0.0
+    }
+  }
+}

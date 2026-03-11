@@ -140,11 +140,12 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 如果你想改交易參數但唔影響 git pull 更新：
 
 ```bash
-# 建立你自己嘅設定文件（唔會被 git 覆蓋）
-cp ~/projects/axc-trading/config/params.py ~/projects/axc-trading/config/user_params.py
+# 從 example 複製，取消註釋你想改嘅值
+cp ~/projects/axc-trading/config/user_params.py.example ~/projects/axc-trading/config/user_params.py
+nano ~/projects/axc-trading/config/user_params.py
 ```
 
-然後只改 `user_params.py` 入面你想改嘅變數。詳見「想改咩？改邊度？」指南（16）。
+只寫你想 override 嘅變數，其餘自動用 `params.py` 預設值。詳見「想改咩？改邊度？」指南（16）。
 
 ---
 

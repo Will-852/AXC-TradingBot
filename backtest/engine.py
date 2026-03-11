@@ -46,6 +46,7 @@ WARMUP_CANDLES = 200
 COMMISSION_RATE = 0.0005   # 0.05% per side
 SL_SLIPPAGE_PCT = 0.0002   # 0.02% adverse slippage on SL (market order)
 CLUSTER_GAP_HOURS = 4      # trades < N hours apart = same cluster
+MAX_RISK_PCT = 0.05        # hard cap: never risk >5% per trade (防止 optimizer 「全部加大注碼」)
 
 
 @dataclass
@@ -74,6 +75,22 @@ class BTTrade:
     exit_time: str
     exit_reason: str    # "SL", "TP", or "END"
     strategy: str
+
+    def to_dict(self) -> dict:
+        """Serialize all 11 fields for dashboard API."""
+        return {
+            "symbol": self.symbol,
+            "side": self.side,
+            "entry": round(self.entry, 6),
+            "exit": round(self.exit, 6),
+            "pnl": round(self.pnl, 2),
+            "sl_price": round(self.sl_price, 6),
+            "tp_price": round(self.tp_price, 6),
+            "entry_time": self.entry_time,
+            "exit_time": self.exit_time,
+            "exit_reason": self.exit_reason,
+            "strategy": self.strategy,
+        }
 
     def to_jsonl(self) -> str:
         """Format matching metrics.py _load_trades() schema."""
@@ -158,6 +175,7 @@ class BacktestEngine:
         self.positions: list[BTPosition] = []
         self.trades: list[BTTrade] = []
         self.equity_curve: list[dict] = []
+        self.indicator_series: list[dict] = []
         self._pending_signal: _PendingSignal | None = None
 
         # Mode tracking
@@ -277,6 +295,28 @@ class BacktestEngine:
                 ind_1h["volume_ratio"] = cur_vol / avg_vol if avg_vol > 0 else 1.0
             else:
                 ind_1h["volume_ratio"] = 1.0
+
+            # ── Collect indicator snapshot for frontend ──
+            self.indicator_series.append({
+                "time": candle_time,
+                "bb_upper": ind_1h.get("bb_upper"),
+                "bb_lower": ind_1h.get("bb_lower"),
+                "bb_basis": ind_1h.get("bb_basis"),
+                "rsi": ind_1h.get("rsi"),
+                "adx": ind_1h.get("adx"),
+                "atr": ind_1h.get("atr"),
+                "ema_fast": ind_1h.get("ema_fast"),
+                "ema_slow": ind_1h.get("ema_slow"),
+                "ma50": ind_1h.get("ma50"),
+                "ma200": ind_1h.get("ma200"),
+                "macd_line": ind_1h.get("macd_line"),
+                "macd_signal": ind_1h.get("macd_signal"),
+                "macd_hist": ind_1h.get("macd_hist"),
+                "stoch_k": ind_1h.get("stoch_k"),
+                "stoch_d": ind_1h.get("stoch_d"),
+                "volume_ratio": ind_1h.get("volume_ratio"),
+                "mode": self.current_mode,
+            })
 
             # ── Step 5-6: Strategy evaluation → pending signal ──
             mode_allowed = (
@@ -466,6 +506,7 @@ class BacktestEngine:
         risk_pct = params.risk_pct
         if self._scorer is not None:
             risk_pct *= self._scorer.risk_multiplier(sig.score)
+        risk_pct = min(risk_pct, MAX_RISK_PCT)
 
         risk_amount = self.balance * risk_pct
         notional = risk_amount / sl_dist_pct
@@ -514,8 +555,12 @@ class BacktestEngine:
             "max_drawdown_pct": 0.0,
             "avg_win": 0.0, "avg_loss": 0.0,
             "trades": [], "equity_curve": self.equity_curve,
+            "indicator_series": self.indicator_series,
             "clusters": 0, "independent_decisions": 0,
             "cluster_adj_wr": 0.0,
+            "sharpe_ratio": 0.0,
+            "max_win_streak": 0, "max_loss_streak": 0,
+            "by_strategy": {},
         }
 
         if not self.trades:
@@ -562,6 +607,43 @@ class BacktestEngine:
                 adj_losses += 1
         adj_wr = adj_wins / independent * 100 if independent > 0 else 0.0
 
+        # Sharpe ratio (annualized from 1H equity returns — sqrt(8760) for hourly)
+        sharpe = 0.0
+        if len(self.equity_curve) > 1:
+            eqs = [pt["equity"] for pt in self.equity_curve]
+            returns = [(eqs[j] - eqs[j-1]) / eqs[j-1]
+                       for j in range(1, len(eqs)) if eqs[j-1] > 0]
+            if returns:
+                r_mean = sum(returns) / len(returns)
+                r_std = (sum((r - r_mean) ** 2 for r in returns) / len(returns)) ** 0.5
+                if r_std > 0:
+                    sharpe = round((r_mean / r_std) * (8760 ** 0.5), 2)
+
+        # Win/loss streaks
+        max_win_streak = max_loss_streak = cur_win = cur_loss = 0
+        for t in self.trades:
+            if t.pnl > 0:
+                cur_win += 1
+                cur_loss = 0
+            else:
+                cur_loss += 1
+                cur_win = 0
+            max_win_streak = max(max_win_streak, cur_win)
+            max_loss_streak = max(max_loss_streak, cur_loss)
+
+        # Strategy breakdown
+        by_strategy = {}
+        for strat in ("range", "trend"):
+            strat_trades = [t for t in self.trades if t.strategy == strat]
+            if strat_trades:
+                strat_wins = sum(1 for t in strat_trades if t.pnl > 0)
+                by_strategy[strat] = {
+                    "count": len(strat_trades),
+                    "wins": strat_wins,
+                    "win_rate": round(strat_wins / len(strat_trades) * 100, 1),
+                    "avg_pnl": round(sum(t.pnl for t in strat_trades) / len(strat_trades), 2),
+                }
+
         base.update({
             "total_trades": len(self.trades),
             "winners": len(wins),
@@ -577,6 +659,10 @@ class BacktestEngine:
             "max_drawdown_pct": round(max_dd * 100, 1),
             "avg_win": round(gross_profit / len(wins), 2) if wins else 0.0,
             "avg_loss": round(-gross_loss / len(losses), 2) if losses else 0.0,
+            "sharpe_ratio": sharpe,
+            "max_win_streak": max_win_streak,
+            "max_loss_streak": max_loss_streak,
+            "by_strategy": by_strategy,
             "trades": self.trades,
             "clusters": n_clusters,
             "independent_decisions": independent,

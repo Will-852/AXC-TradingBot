@@ -67,9 +67,10 @@ MAX_HOLD_HOURS ──────────▶ 72 小時 → 強制平
 改 `config/params.py` 嘅 `ACTIVE_PROFILE`：
 
 ```python
-ACTIVE_PROFILE = "AGGRESSIVE"   # 攻：2.5% risk, 寬 SL, R:R 較低
-ACTIVE_PROFILE = "BALANCED"     # 平：2.0% risk（預設）
-ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL, R:R 較高
+# 揀其中一個，取消註釋：
+ACTIVE_PROFILE = "AGGRESSIVE"   # 攻：2.5% risk, 寬 SL, R:R 較低（目前啟用）
+# ACTIVE_PROFILE = "BALANCED"   # 平：2.0% risk
+# ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL, R:R 較高
 ```
 
 ### 方法 2：用 user_params.py（推薦新用戶）
@@ -77,14 +78,14 @@ ACTIVE_PROFILE = "CONSERVATIVE" # 穩：1.5% risk, 嚴 SL, R:R 較高
 唔想改原始 `params.py`（怕 git pull 衝突）：
 
 ```bash
-# 1. 複製一份做你自己嘅設定
-cp ~/projects/axc-trading/config/params.py ~/projects/axc-trading/config/user_params.py
+# 1. 從 example 複製（只包含常用設定，唔使整份 params.py）
+cp ~/projects/axc-trading/config/user_params.py.example ~/projects/axc-trading/config/user_params.py
 
-# 2. 編輯你嘅版本
+# 2. 取消你想改嘅變數嘅註釋，改值
 nano ~/projects/axc-trading/config/user_params.py
 ```
 
-`user_params.py` 係 gitignored 嘅 — git pull 永遠唔會覆蓋你嘅設定。你只需要保留你想改嘅變數，其餘刪晒都得。
+`user_params.py` 係 gitignored 嘅 — git pull 永遠唔會覆蓋你嘅設定。只寫你想 override 嘅變數，其餘自動用 `params.py` 預設值。
 
 ### 方法 3：寫自己嘅外部 .py（進階）
 
@@ -254,7 +255,7 @@ scripts/trader_cycle/config/settings.py（引擎預設值）
 ```
 
 - **新用戶**：改 `params.py` 嘅 `ACTIVE_PROFILE` 就夠
-- **進階用戶**：用 `user_params.py` 或者自己寫 `my_strategy.py`
+- **進階用戶**：複製 `config/user_params.py.example` → `config/user_params.py`，改裡面嘅值（gitignored，唔會衝突）
 - **引擎層**：改 `settings.py`（例如 Yunis Collection、風控閾值）
 
 ## 改完之後點做？

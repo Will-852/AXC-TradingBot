@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AXC Backtest</title>
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- Bootstrap 4 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+
+  <!-- AdminLTE 3.2 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+
+  <style>
+    :root {
+      --bg:     #f6f8fa;
+      --card:   #ffffff;
+      --border: #e2e8f0;
+      --text-1: #1e293b;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+      --accent: #635bff;
+      --pos:    #0d9488;
+      --neg:    #e11d48;
+      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --radius: 8px;
+    }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-2);
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+    .topbar {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: .875rem;
+    }
+    .topbar a { color: #94a3b8; text-decoration: none; }
+    .topbar a:hover { color: #f1f5f9; }
+    .topbar .brand { font-weight: 700; color: #f1f5f9; font-size: 1rem; }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      padding: 16px 24px;
+      height: calc(100vh - 50px);
+    }
+    .control-bar {
+      grid-column: 1 / -1;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .control-bar label {
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin: 0 4px 0 0;
+    }
+    .control-bar select, .control-bar input {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: .85rem;
+      background: #fff;
+    }
+    .control-bar select { min-width: 120px; }
+    .control-bar input[type=number] { width: 100px; }
+    .btn-run {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 18px;
+      font-weight: 600;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn-run:hover { background: #4f46e5; }
+    .btn-run:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-load {
+      background: #e2e8f0;
+      color: var(--text-2);
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-weight: 500;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+    .btn-load:hover { background: #cbd5e1; }
+
+    .status-pill {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+      margin-left: auto;
+    }
+    .status-idle    { background: #e2e8f0; color: #64748b; }
+    .status-loading { background: #dbeafe; color: #2563eb; }
+    .status-loaded  { background: #d1fae5; color: #059669; }
+    .status-running { background: #fef3c7; color: #d97706; }
+    .status-error   { background: #fee2e2; color: #dc2626; }
+
+    .chart-panel {
+      background: #131722;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #chart-container {
+      flex: 1;
+      min-height: 400px;
+    }
+
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .card-section {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .card-section h6 {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text-3);
+      margin-bottom: 12px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .stat-item {
+      padding: 5px 8px;
+      background: #f8fafc;
+      border-radius: 6px;
+    }
+    .stat-label {
+      font-size: .62rem;
+      color: var(--text-3);
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .stat-value {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text-1);
+      line-height: 1.3;
+    }
+    .stat-value.pos { color: var(--pos); }
+    .stat-value.neg { color: var(--neg); }
+
+    .trade-log {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .trade-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: .8rem;
+      gap: 6px;
+      transition: background .15s;
+    }
+    .trade-row:hover { background: #f1f5f9; }
+    .trade-row .side {
+      font-weight: 700;
+      font-size: .7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .side-long  { background: #d1fae5; color: #065f46; }
+    .side-short { background: #fee2e2; color: #991b1b; }
+    .trade-row .pnl { margin-left: auto; font-weight: 600; }
+    .trade-row .reason {
+      font-size: .65rem;
+      color: var(--text-3);
+      width: 24px;
+      text-align: center;
+    }
+
+    /* Equity sub-chart */
+    #equity-container {
+      height: 120px;
+      border-top: 1px solid #2a2e39;
+      display: none;
+    }
+    #equity-container.has-data { display: block; }
+    .equity-label {
+      font-size: .6rem; font-weight: 600; color: #545862;
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 2px 12px 0; background: #1e222d;
+    }
+
+    /* Expand button */
+    .btn-expand {
+      position: absolute; top: 6px; right: 6px; z-index: 10;
+      width: 28px; height: 28px; border: none; border-radius: 4px;
+      background: rgba(30,34,45,.85); cursor: pointer; font-size: .8rem;
+      color: #787b86; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-expand:hover { background: #2a2e39; color: #d1d4dc; }
+    /* Fullscreen chart mode */
+    .chart-panel.expanded {
+      position: fixed; inset: 0; z-index: 9998;
+      border-radius: 0; margin: 0;
+      grid-column: unset; grid-row: unset;
+    }
+    .chart-panel.expanded #chart-container { min-height: calc(100vh - 160px); }
+
+    /* Param panel */
+    .param-panel {
+      grid-column: 1 / -1;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .param-toggle {
+      padding: 8px 20px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--text-3);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .param-toggle:hover { color: var(--text-2); }
+    .param-toggle .arrow { transition: transform .2s; }
+    .param-toggle.open .arrow { transform: rotate(90deg); }
+    .param-body {
+      display: none;
+      padding: 4px 20px 14px;
+    }
+    .param-body.show { display: block; }
+    .param-group-title {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text-3);
+      margin: 10px 0 6px;
+    }
+    .param-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .param-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .param-item label {
+      font-size: .68rem;
+      color: var(--text-3);
+      font-weight: 500;
+      margin: 0;
+    }
+    .param-item input {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: .8rem;
+      width: 80px;
+      background: #fff;
+    }
+    .param-item input::placeholder { color: #cbd5e1; }
+    .mode-checks { display: flex; gap: 12px; align-items: center; }
+    .mode-checks label {
+      font-size: .8rem;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    /* Live toggle */
+    .btn-live {
+      background: #e2e8f0;
+      color: var(--text-2);
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-weight: 500;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+    .btn-live:hover { background: #cbd5e1; }
+    .btn-live.active {
+      background: #059669;
+      color: #fff;
+    }
+
+    .spinner-sm {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #cbd5e1;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Chart header bar (TradingView-style) ── */
+    .chart-header {
+      display: flex; align-items: center; gap: 0;
+      padding: 4px 12px; background: #1e222d;
+      border-bottom: 1px solid #2a2e39;
+      font-size: .78rem; flex-wrap: wrap;
+    }
+    .interval-tabs {
+      display: flex; gap: 0; margin-right: 12px;
+    }
+    .itab {
+      background: none; border: none; padding: 4px 10px;
+      font-size: .82rem; font-weight: 500; color: #787b86;
+      cursor: pointer; border-radius: 4px; transition: all .15s;
+    }
+    .itab:hover { color: #d1d4dc; }
+    .itab.active { color: #2962ff; background: rgba(41,98,255,.12); }
+    .chart-header .sep { color: #363a45; margin: 0 4px; }
+
+    /* ── Chart header = interval tabs + indicator toggles ── */
+    .chart-header label {
+      display: flex; align-items: center; gap: 3px;
+      cursor: pointer; font-weight: 500; color: #787b86; margin: 0;
+      user-select: none; font-size: .72rem;
+    }
+    .chart-header label input { margin: 0; }
+
+    /* ── Drawing toolbar (Phase 3) ── */
+    .draw-toolbar {
+      position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 4px; z-index: 10;
+      background: #1e222d; border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 4px;
+    }
+    .draw-btn {
+      width: 32px; height: 32px; border: none; border-radius: 4px;
+      background: transparent; cursor: pointer; font-size: .9rem;
+      display: flex; align-items: center; justify-content: center;
+      color: #787b86; transition: background .15s;
+    }
+    .draw-btn:hover { background: #2a2e39; color: #d1d4dc; }
+    .draw-btn.active { background: #2962ff; color: #fff; }
+
+    /* ── Toast notification (Phase 5) ── */
+    .toast-container {
+      position: fixed; top: 16px; right: 16px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      padding: 10px 16px; border-radius: 8px; font-size: .82rem;
+      font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      min-width: 220px; opacity: 0; transform: translateY(-8px);
+      transition: opacity .4s ease, transform .4s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.fade-out { opacity: 0; transform: translateY(-8px); }
+    .toast-success { background: rgba(5,150,105,.88); color: #fff; }
+    .toast-error   { background: rgba(220,38,38,.88); color: #fff; }
+    .toast-info    { background: rgba(37,99,235,.88); color: #fff; }
+
+    /* ── Trade detail panel (Phase 4) ── */
+    .trade-detail {
+      background: #f8fafc; border-radius: 6px; padding: 10px;
+      font-size: .75rem; display: none; margin-bottom: 8px;
+    }
+    .trade-detail.show { display: block; }
+    .trade-detail .td-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
+    }
+    .trade-detail .td-label { color: var(--text-3); font-weight: 500; }
+    .trade-detail .td-val { color: var(--text-1); font-weight: 600; }
+
+    /* ── A/B Compare (Phase 4) ── */
+    .compare-row {
+      display: flex; justify-content: space-between; font-size: .72rem;
+      padding: 2px 0;
+    }
+    .compare-delta { font-weight: 600; }
+
+    /* ── Run Config card (Phase A5) ── */
+    .config-row {
+      display: flex; justify-content: space-between;
+      font-size: .72rem; padding: 2px 0;
+    }
+    .config-key { color: var(--text-3); font-weight: 500; }
+    .config-val { color: var(--text-1); font-weight: 600; }
+
+    /* ── Live Pos toggle ── */
+    .btn-livepos {
+      background: #e2e8f0; color: var(--text-2); border: none;
+      border-radius: 6px; padding: 7px 14px; font-weight: 500;
+      font-size: .85rem; cursor: pointer;
+    }
+    .btn-livepos:hover { background: #cbd5e1; }
+    .btn-livepos.active { background: #2563eb; color: #fff; }
+
+    /* ── Responsive (Phase 5) ── */
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      .right-panel { max-height: 50vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<div class="topbar">
+  <span class="brand">AXC</span>
+  <a href="/">主控台</a>
+  <span style="color:#334155">|</span>
+  <span style="color:#f1f5f9;font-weight:600">回測</span>
+</div>
+
+<!-- ── Main grid ── -->
+<div class="main-grid">
+
+  <!-- Control bar -->
+  <div class="control-bar">
+    <label>Symbol</label>
+    <select id="sel-symbol" onchange="if(liveWs){closeLiveWs();var s=this.value,d=parseInt(document.getElementById('sel-days').value)||3;loadKlines(s,d,function(){connectLiveWs(true);});}">
+      <option>BTCUSDT</option>
+      <option>ETHUSDT</option>
+      <option>XRPUSDT</option>
+      <option>SOLUSDT</option>
+      <option>BNBUSDT</option>
+    </select>
+
+    <label>Days</label>
+    <select id="sel-days">
+      <option value="7">7d</option>
+      <option value="14">14d</option>
+      <option value="30">30d</option>
+      <option value="60" selected>60d</option>
+      <option value="90">90d</option>
+      <option value="180">180d</option>
+    </select>
+
+    <label>Balance</label>
+    <input type="number" id="inp-balance" value="10000" min="100" step="1000">
+
+    <button class="btn-load" onclick="loadExisting()" title="Load saved JSONL results">
+      <i class="fas fa-folder-open"></i> 載入舊結果
+    </button>
+
+    <button class="btn-load" onclick="exportReport()" id="btn-export-report" disabled style="opacity:.4" title="匯出完整報告 JSON（跑完回測後可用）">
+      <i class="fas fa-download"></i> 匯出
+    </button>
+
+    <button class="btn-load" onclick="document.getElementById('import-file').click()" title="匯入外部回測報告 JSON">
+      <i class="fas fa-upload"></i> 匯入
+    </button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importReport(this)">
+
+    <button class="btn-load" onclick="document.getElementById('file-help').style.display=document.getElementById('file-help').style.display==='none'?'block':'none'" title="文件位置說明" style="padding:7px 8px;min-width:0">
+      <i class="fas fa-question-circle"></i>
+    </button>
+
+    <button class="btn-run" id="btn-run" onclick="runBacktest()">
+      <i class="fas fa-play"></i> 執行回測
+    </button>
+
+    <button class="btn-live" id="btn-live" onclick="toggleLive()">
+      <i class="fas fa-broadcast-tower"></i> Live
+    </button>
+
+    <button class="btn-livepos" id="btn-livepos" onclick="toggleLivePos()" title="喺圖上顯示你真實嘅交易所持倉（入場價、止損、止盈線）">
+      <i class="fas fa-crosshairs"></i> Live Pos
+    </button>
+
+    <span id="status-pill" class="status-pill status-idle">IDLE</span>
+  </div>
+
+  <!-- File location help panel -->
+  <div id="file-help" style="display:none;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:14px 18px;margin:8px 0;font-size:.78rem;color:#d1d4dc;line-height:1.7">
+    <div style="font-weight:600;margin-bottom:8px;color:#fff"><i class="fas fa-folder"></i> 文件位置同格式說明</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.75rem">
+      <tr style="border-bottom:1px solid #2a2e39">
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">回測結果</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">~/projects/axc-trading/backtest/data/</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #2a2e39">
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">交易記錄</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">bt_{SYMBOL}_{days}d_trades.jsonl</code> — 每行一筆 JSON trade</td>
+      </tr>
+      <tr style="border-bottom:1px solid #2a2e39">
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">參數快照</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">bt_{SYMBOL}_{days}d_meta.json</code> — 統計 + 設定</td>
+      </tr>
+      <tr style="border-bottom:1px solid #2a2e39">
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">匯入版本</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">bt_{SYMBOL}_{days}d_v2_trades.jsonl</code> — 自動加 v{N} 避免覆蓋</td>
+      </tr>
+      <tr style="border-bottom:1px solid #2a2e39">
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">匯出副本</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">backtest/data/exports/{SYMBOL}_{days}d_{timestamp}.json</code></td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;color:#787b86;white-space:nowrap">價格快取</td>
+        <td style="padding:4px 8px"><code style="background:#2a2e39;padding:2px 6px;border-radius:3px">{SYMBOL}_1h_{start}_{end}.csv</code> — Binance 歷史數據自動快取</td>
+      </tr>
+    </table>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #2a2e39">
+      <div style="font-weight:600;color:#fff;margin-bottom:4px"><i class="fas fa-upload"></i> 點樣匯入舊結果？</div>
+      <div>1. 撳上面「匯入」按鈕，選 <code style="background:#2a2e39;padding:2px 6px;border-radius:3px">.json</code> 文件</div>
+      <div>2. 或者手動放 JSONL 文件到 <code style="background:#2a2e39;padding:2px 6px;border-radius:3px">backtest/data/</code>，命名為 <code style="background:#2a2e39;padding:2px 6px;border-radius:3px">bt_BTCUSDT_60d_trades.jsonl</code></div>
+      <div>3. 「載入舊結果」就會自動列出</div>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #2a2e39">
+      <div style="font-weight:600;color:#fff;margin-bottom:4px"><i class="fas fa-file-code"></i> 匯入 JSON 格式</div>
+      <div style="background:#131722;padding:8px 10px;border-radius:4px;font-family:monospace;font-size:.7rem;margin-top:4px;white-space:pre;overflow-x:auto;color:#a0a4b0">{
+  "config": { "symbol": "BTCUSDT", "days": 60, "balance": 10000 },
+  "trades": [
+    { "side": "LONG", "entry": 84500, "exit": 85200,
+      "entry_time": "2026-01-15T08:00:00",
+      "exit_time": "2026-01-15T14:00:00",
+      "pnl": 700, "exit_reason": "TP" }
+  ]
+}</div>
+      <div style="margin-top:4px;color:#787b86">必填：<code style="background:#2a2e39;padding:1px 4px;border-radius:3px">config.symbol</code> + 每筆 trade 嘅 <code style="background:#2a2e39;padding:1px 4px;border-radius:3px">side, entry, exit</code>。pnl 可省略（自動計算）。</div>
+    </div>
+  </div>
+
+  <!-- Parameter overrides panel -->
+  <div class="param-panel">
+    <div class="param-toggle" id="param-toggle" onclick="toggleParams()">
+      <i class="fas fa-caret-right arrow"></i> PARAMETERS (leave blank = production default)
+    </div>
+    <div class="param-body" id="param-body">
+      <div class="param-group-title">Position Sizing 倉位大小</div>
+      <div class="param-row">
+        <div class="param-item" title="Range 策略止損距離 = ATR × 呢個數。越大止損越遠">
+          <label>Range SL (ATR×)</label>
+          <input type="number" id="p-range-sl" step="0.1" placeholder="1.2">
+        </div>
+        <div class="param-item" title="Range 策略最低風險回報比。例如 2.3 = 賺嘅目標係蝕嘅 2.3 倍">
+          <label>Range RR 回報比</label>
+          <input type="number" id="p-range-rr" step="0.1" placeholder="2.3">
+        </div>
+        <div class="param-item" title="Trend 策略止損距離 = ATR × 呢個數">
+          <label>Trend SL (ATR×)</label>
+          <input type="number" id="p-trend-sl" step="0.1" placeholder="1.5">
+        </div>
+        <div class="param-item" title="Trend 策略最低風險回報比">
+          <label>Trend RR 回報比</label>
+          <input type="number" id="p-trend-rr" step="0.1" placeholder="3.0">
+        </div>
+        <div class="param-item" title="每次交易最多冒幾多%嘅本金風險。例如 2 = 最多蝕 2%">
+          <label>Risk % 風險</label>
+          <input type="number" id="p-risk-pct" step="0.5" placeholder="2">
+        </div>
+        <div class="param-item" title="Range 策略最大槓桿倍數">
+          <label>Range Lev 槓桿</label>
+          <input type="number" id="p-range-lev" step="1" placeholder="8">
+        </div>
+        <div class="param-item" title="Trend 策略最大槓桿倍數">
+          <label>Trend Lev 槓桿</label>
+          <input type="number" id="p-trend-lev" step="1" placeholder="7">
+        </div>
+      </div>
+
+      <div class="param-group-title">Indicator Overrides 指標覆蓋</div>
+      <div class="param-row">
+        <div class="param-item" title="BB 觸及容差 — 價格接近 BB 邊幾多%算觸及。越大越容易觸發">
+          <label>BB Touch Tol 容差</label>
+          <input type="number" id="p-bb-tol" step="0.001" placeholder="0.005">
+        </div>
+        <div class="param-item" title="ADX 低於呢個值才算 Range 市場。越高代表越容易判定為 Range">
+          <label>ADX Range Max</label>
+          <input type="number" id="p-adx-max" step="1" placeholder="20">
+        </div>
+        <div class="param-item" title="模式確認需要幾次連續相同判定。越多越穩但越慢">
+          <label>Mode Confirm 確認</label>
+          <input type="number" id="p-mode-conf" step="1" min="1" max="5" placeholder="2">
+        </div>
+      </div>
+
+      <div class="param-group-title">Mode Filter</div>
+      <div class="mode-checks">
+        <label><input type="checkbox" id="p-mode-range" checked> RANGE</label>
+        <label><input type="checkbox" id="p-mode-trend" checked> TREND</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart panel (left) -->
+  <div class="chart-panel">
+    <!-- TradingView-style chart header -->
+    <div class="chart-header" id="ind-toolbar">
+      <div class="interval-tabs" id="interval-tabs">
+        <button class="itab" data-val="1m" onclick="setInterval_(this)">1m</button>
+        <button class="itab" data-val="5m" onclick="setInterval_(this)">5m</button>
+        <button class="itab" data-val="15m" onclick="setInterval_(this)">15m</button>
+        <button class="itab active" data-val="1h" onclick="setInterval_(this)">1H</button>
+        <button class="itab" data-val="4h" onclick="setInterval_(this)">4H</button>
+        <button class="itab" data-val="1d" onclick="setInterval_(this)">1D</button>
+      </div>
+      <span class="sep">|</span>
+      <label title="Bollinger Bands"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> BB</label>
+      <label title="EMA 快/慢線"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label title="MA 50/200"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <span class="sep">|</span>
+      <label title="RSI"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label title="MACD"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+      <label title="Stochastic"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+      <span class="sep">|</span>
+      <label title="Mode"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> Mode</label>
+      <span class="sep">|</span>
+      <label title="大額成交" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('large')"> Whale</label>
+      <label title="Delta Volume" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('delta')"> Delta</label>
+      <label title="Volume Profile" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('profile')"> VP</label>
+      <label title="Footprint Heatmap" class="fp-toggle"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
+    </div>
+    <div style="position:relative">
+      <!-- Drawing toolbar (Phase 3) -->
+      <div class="draw-toolbar" id="draw-toolbar">
+        <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線 — 標記支撐/阻力位">&#x2194;</button>
+        <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線 — 兩點畫一條線">&#x2571;</button>
+        <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci — 黃金比例回撤">Fib</button>
+        <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線">&#x1F5D1;</button>
+      </div>
+      <button class="btn-expand" onclick="toggleExpand()" id="btn-expand" title="展開/縮小圖表">&#x26F6;</button>
+      <div id="chart-container"></div>
+    </div>
+    <div class="equity-label" id="equity-label" style="display:none">淨值曲線 Equity Curve</div>
+    <div id="equity-container"></div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <!-- Run Config (Phase A5) -->
+    <div class="card-section" id="run-config-card" style="display:none">
+      <h6 style="cursor:pointer;user-select:none" onclick="var b=document.getElementById('run-config-body');b.style.display=b.style.display==='none'?'block':'none'">
+        Run Config
+      </h6>
+      <div id="run-config-body">
+        <div id="run-config-content" style="font-size:.72rem;color:var(--text-3)"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card-section">
+      <h6>Performance</h6>
+      <div class="stat-grid" id="stats-grid">
+        <div class="stat-item" title="總回報率"><div class="stat-label">回報 Return</div><div class="stat-value" id="st-return">--</div></div>
+        <div class="stat-item" title="勝率"><div class="stat-label">勝率 WR</div><div class="stat-value" id="st-wr">--</div></div>
+        <div class="stat-item" title="盈虧比 >1 代表賺多過蝕"><div class="stat-label">盈虧比 PF</div><div class="stat-value" id="st-pf">--</div></div>
+        <div class="stat-item" title="最大回撤"><div class="stat-label">回撤 DD</div><div class="stat-value" id="st-dd">--</div></div>
+        <div class="stat-item" title="交易次數"><div class="stat-label">次數</div><div class="stat-value" id="st-trades">--</div></div>
+        <div class="stat-item" title="平均每次交易賺/蝕幾多"><div class="stat-label">期望值</div><div class="stat-value" id="st-exp">--</div></div>
+        <div class="stat-item" title="夏普比率 >1 算好"><div class="stat-label">夏普</div><div class="stat-value" id="st-sharpe">--</div></div>
+        <div class="stat-item" title="最長連贏/連輸"><div class="stat-label">連贏/輸</div><div class="stat-value" id="st-streaks">--</div></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-load" style="padding:3px 10px;font-size:.65rem;flex:1" onclick="toggleCompare()" id="btn-compare" title="撳一次存 Run A，改參數再跑顯示對比">A/B 對比</button>
+        <button class="btn-load" style="padding:3px 10px;font-size:.65rem;flex:1;opacity:.4" onclick="exportCSV()" id="btn-export" disabled title="匯出交易記錄為 CSV（跑完回測後可用）">CSV 匯出</button>
+      </div>
+      <!-- Strategy breakdown -->
+      <div id="strategy-breakdown" style="margin-top:8px;font-size:.72rem;color:var(--text-3);display:none">
+        <div style="font-weight:600;margin-bottom:4px">STRATEGY SPLIT</div>
+        <div id="strat-range"></div>
+        <div id="strat-trend"></div>
+      </div>
+      <!-- A/B Compare panel -->
+      <div id="compare-panel" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px">A/B COMPARE</div>
+        <div id="compare-body"></div>
+      </div>
+    </div>
+
+    <!-- Trade detail (Phase 4) -->
+    <div class="card-section trade-detail" id="trade-detail">
+      <h6>Trade Detail</h6>
+      <div class="td-grid" id="td-grid"></div>
+    </div>
+
+    <!-- Trade log -->
+    <div class="card-section" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <h6>Trade Log <span id="trade-count" style="color:var(--text-3);font-weight:400"></span></h6>
+      <div class="trade-log" id="trade-log">
+        <div style="color:var(--text-3);font-size:.8rem;text-align:center;padding:20px">
+          載入數據後顯示交易記錄
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast container (Phase 5) -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- KLineChart v10 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════
+//  State machine: IDLE → CHECKING → LOADING → LOADED → RUNNING → ERROR
+// ══════════════════════════════════════════════════
+var STATE = 'IDLE';
+var mainChart = null;
+var equityChart = null;
+var currentTrades = [];
+var currentEquity = [];
+var currentResult = null;     // full backtest result
+var currentFile = '';         // JSONL filename for export (e.g. bt_BTCUSDT_30d_v2_trades.jsonl)
+var tradeOverlays = [];
+var slTpOverlays = [];        // Phase 3: SL/TP line overlays
+var indicatorData = {};       // Phase 2: timestamp → indicator values
+var indicatorPaneIds = {};    // Phase 2: indicator name → pane ID
+var activeIndicators = { AXC_BB: true, AXC_EMA: true, AXC_MA: false, AXC_RSI: false, AXC_MACD: false, AXC_STOCH: false, AXC_MODE: true };
+var modeOverlays = [];        // Phase 2: mode transition overlays
+var compareRunA = null;       // Phase 4: stored Run A result
+var selectedTradeIdx = -1;    // Phase 4: currently selected trade
+var drawingMode = null;       // Phase 3: active drawing mode
+var currentInterval = '1h';   // Phase B: chart interval
+var currentRunConfig = null;  // Phase A5: run config display
+var livePositionOverlays = []; // Phase C: live position overlays
+var livePosInterval = null;   // Phase C: refresh timer
+var livePosActive = false;    // Phase C: toggle state
+// Phase B: max days per interval
+var INTERVAL_MAX_DAYS = {'1m':7,'5m':30,'15m':60,'1h':365,'4h':365,'1d':365};
+
+// ══════════════════════════════════════════════════
+//  Toast notification system (Phase 5)
+// ══════════════════════════════════════════════════
+function showToast(msg, type) {
+  type = type || 'info';
+  var container = document.getElementById('toast-container');
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  container.appendChild(el);
+  // Smooth fade-in (next frame so transition triggers)
+  requestAnimationFrame(function() { el.classList.add('show'); });
+  // Smooth fade-out then remove
+  setTimeout(function() {
+    el.classList.remove('show');
+    el.classList.add('fade-out');
+    setTimeout(function() { el.remove(); }, 400);
+  }, 5000);
+}
+
+function setState(s, ctx) {
+  STATE = s;
+  var pill = document.getElementById('status-pill');
+  var label = s;
+  if (ctx) {
+    var sym = ctx.symbol || document.getElementById('sel-symbol').value;
+    var intv = ctx.interval || currentInterval;
+    var d = ctx.days || document.getElementById('sel-days').value;
+    if (s === 'LOADING') label = 'LOADING \u2014 ' + sym + ' ' + intv + ' ' + d + 'd';
+    else if (s === 'RUNNING') label = 'RUNNING \u2014 ' + sym + ' ' + d + 'd';
+    else if (s === 'LOADED') label = 'LOADED \u2014 ' + sym + ' ' + intv;
+  }
+  pill.textContent = label;
+  pill.className = 'status-pill status-' + s.toLowerCase();
+  document.getElementById('btn-run').disabled = (s === 'RUNNING' || s === 'LOADING');
+}
+
+// ── API helpers ──
+function api(url, opts) {
+  return fetch(url, opts).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  Chart init
+// ══════════════════════════════════════════════════
+function initChart() {
+  if (mainChart) return;
+  var container = document.getElementById('chart-container');
+  mainChart = klinecharts.init(container, {
+    styles: {
+      grid: {
+        show: true,
+        horizontal: { color: '#1e222d' },
+        vertical: { color: '#1e222d' }
+      },
+      candle: {
+        bar: {
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          upBorderColor: '#26a69a',
+          downBorderColor: '#ef5350',
+          upWickColor: '#26a69a',
+          downWickColor: '#ef5350'
+        },
+        priceMark: {
+          last: { show: true, upColor: '#26a69a', downColor: '#ef5350' }
+        }
+      },
+      indicator: {
+        tooltip: { text: { color: '#d1d4dc' } }
+      },
+      xAxis: {
+        axisLine: { color: '#2a2e39' },
+        tickLine: { color: '#2a2e39' },
+        tickText: { color: '#787b86' }
+      },
+      yAxis: {
+        axisLine: { color: '#2a2e39' },
+        tickLine: { color: '#2a2e39' },
+        tickText: { color: '#787b86' }
+      },
+      separator: { color: '#2a2e39' },
+      crosshair: {
+        horizontal: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } },
+        vertical: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } }
+      }
+    }
+  });
+}
+
+function initEquityChart() {
+  if (equityChart) return;
+  var container = document.getElementById('equity-container');
+  equityChart = klinecharts.init(container, {
+    styles: {
+      grid: {
+        show: true,
+        horizontal: { color: '#1e222d' },
+        vertical: { color: '#1e222d' }
+      },
+      candle: {
+        type: 'area',
+        area: {
+          lineSize: 1.5,
+          lineColor: '#2962ff',
+          smooth: true,
+          value: 'close',
+          backgroundColor: [{offset: 0, color: 'rgba(41,98,255,.18)'}, {offset: 1, color: 'rgba(41,98,255,.01)'}]
+        }
+      },
+      xAxis: {
+        axisLine: { color: '#2a2e39' },
+        tickText: { color: '#787b86', size: 10 }
+      },
+      yAxis: {
+        axisLine: { color: '#2a2e39' },
+        tickText: { color: '#787b86', size: 10 }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  Footprint / Order Flow state + functions
+// ══════════════════════════════════════════════════
+var footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {} };
+var largeTradeOverlays = [];
+var fpLoading = false;
+var fpFetched = false;
+var fpActive = { large: false, delta: false, profile: false, heatmap: false };
+
+function toggleFootprint(feature) {
+  fpActive[feature] = !fpActive[feature];
+
+  // First time any feature toggled on → fetch all data
+  if (!fpFetched && !fpLoading && (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap)) {
+    fetchFootprintData();
+    return;
+  }
+
+  applyFootprintFeature(feature);
+}
+
+var _fpFetchSymbol = '';  // track which symbol the in-flight fetch is for
+
+function fetchFootprintData() {
+  var symbol = document.getElementById('sel-symbol').value;
+  var days = parseInt(document.getElementById('sel-days').value);
+  if (days > 14) days = 14;
+
+  fpLoading = true;
+  _fpFetchSymbol = symbol;
+  showToast('正在拉取 aggTrades（' + days + '日）...', 'info');
+  // Disable footprint checkboxes while loading
+  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = true; });
+
+  api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap')
+    .then(function(data) {
+      // Stale response guard: discard if symbol changed during fetch
+      var currentSymbol = document.getElementById('sel-symbol').value;
+      if (_fpFetchSymbol !== currentSymbol) {
+        fpLoading = false;
+        document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = false; });
+        return;
+      }
+      footprintData.delta_volume = data.delta_volume || {};
+      footprintData.large_trades = data.large_trades || [];
+      footprintData.volume_profile = data.volume_profile || [];
+      footprintData.heatmap = data.heatmap || {};
+      fpFetched = true;
+      fpLoading = false;
+      document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.disabled = false; });
+      showToast('AggTrades 載入完成 (' + (footprintData.large_trades.length) + ' whale trades)', 'success');
+
+      // Apply all active features
+      Object.keys(fpActive).forEach(function(f) {
+        if (fpActive[f]) applyFootprintFeature(f);
+      });
+    })
+    .catch(function(e) {
+      fpLoading = false;
+      fpActive = { large: false, delta: false, profile: false, heatmap: false };
+      document.querySelectorAll('.fp-toggle input').forEach(function(el) {
+        el.disabled = false;
+        el.checked = false;
+      });
+      showToast('AggTrades 載入失敗: ' + e.message, 'error');
+    });
+}
+
+function applyFootprintFeature(feature) {
+  if (feature === 'large') {
+    if (fpActive.large) drawLargeTradeMarkers();
+    else clearLargeTradeMarkers();
+  } else if (feature === 'delta') {
+    if (fpActive.delta) addIndicatorToChart('AXC_DELTA');
+    else removeIndicatorFromChart('AXC_DELTA');
+  } else if (feature === 'profile') {
+    if (fpActive.profile) addIndicatorToChart('AXC_VP');
+    else removeIndicatorFromChart('AXC_VP');
+  } else if (feature === 'heatmap') {
+    if (fpActive.heatmap) addIndicatorToChart('AXC_HEATMAP');
+    else removeIndicatorFromChart('AXC_HEATMAP');
+  }
+}
+
+function drawLargeTradeMarkers() {
+  clearLargeTradeMarkers();
+  if (!mainChart || !footprintData.large_trades.length) return;
+
+  footprintData.large_trades.forEach(function(t) {
+    var color = t.side === 'BUY' ? '#26a69a' : '#ef5350';
+    var sz = Math.min(14, Math.max(6, Math.sqrt(t.usd_value / 100000) * 6));
+    var label = t.side + ' $' + (t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1)+'M' : Math.round(t.usd_value/1000)+'K') + ' @ ' + t.price;
+    try {
+      var id = mainChart.createOverlay({
+        name: 'simpleAnnotation',
+        extendData: label,
+        points: [{ timestamp: t.timestamp, value: t.price }],
+        styles: {
+          symbol: { type: 'circle', size: sz, color: color, activeSize: sz + 2, activeColor: color }
+        }
+      });
+      if (id) largeTradeOverlays.push(id);
+    } catch(e) {}
+  });
+}
+
+function clearLargeTradeMarkers() {
+  largeTradeOverlays.forEach(function(id) {
+    try { mainChart.removeOverlay(id); } catch(e) {}
+  });
+  largeTradeOverlays = [];
+}
+
+function resetFootprintData() {
+  fpLoading = false;
+  clearLargeTradeMarkers();
+  ['AXC_DELTA','AXC_VP','AXC_HEATMAP'].forEach(function(name) {
+    if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
+  });
+  footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {} };
+  fpFetched = false;
+  fpActive = { large: false, delta: false, profile: false, heatmap: false };
+  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 2: Indicator Registration + Rendering
+// ══════════════════════════════════════════════════
+function registerBackendIndicators() {
+  if (!klinecharts || !klinecharts.registerIndicator) return;
+
+  // BB Bands — 3 lines on main pane
+  klinecharts.registerIndicator({
+    name: 'AXC_BB',
+    figures: [
+      { key: 'upper', title: 'BB Upper', type: 'line' },
+      { key: 'basis', title: 'BB Basis', type: 'line' },
+      { key: 'lower', title: 'BB Lower', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { upper: ind.bb_upper, basis: ind.bb_basis, lower: ind.bb_lower } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: 'rgba(225,29,72,0.4)', size: 1 },
+        { color: '#94a3b8', size: 1, dashedValue: [4,3] },
+        { color: 'rgba(13,148,136,0.4)', size: 1 }
+      ]
+    }
+  });
+
+  // EMA — 2 lines
+  klinecharts.registerIndicator({
+    name: 'AXC_EMA',
+    figures: [
+      { key: 'fast', title: 'EMA Fast', type: 'line' },
+      { key: 'slow', title: 'EMA Slow', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { fast: ind.ema_fast, slow: ind.ema_slow } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#f59e0b', size: 1.2 },
+        { color: '#8b5cf6', size: 1.2 }
+      ]
+    }
+  });
+
+  // MA — 2 lines
+  klinecharts.registerIndicator({
+    name: 'AXC_MA',
+    figures: [
+      { key: 'ma50', title: 'MA50', type: 'line' },
+      { key: 'ma200', title: 'MA200', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { ma50: ind.ma50, ma200: ind.ma200 } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#3b82f6', size: 1 },
+        { color: '#ef4444', size: 1 }
+      ]
+    }
+  });
+
+  // RSI — sub-pane
+  klinecharts.registerIndicator({
+    name: 'AXC_RSI',
+    figures: [
+      { key: 'rsi', title: 'RSI', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { rsi: ind.rsi } : {};
+      });
+    },
+    styles: {
+      lines: [{ color: '#8b5cf6', size: 1.5 }]
+    }
+  });
+
+  // MACD — sub-pane
+  klinecharts.registerIndicator({
+    name: 'AXC_MACD',
+    figures: [
+      { key: 'macd', title: 'MACD', type: 'line' },
+      { key: 'signal', title: 'Signal', type: 'line' },
+      { key: 'hist', title: 'Hist', type: 'bar' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { macd: ind.macd_line, signal: ind.macd_signal, hist: ind.macd_hist } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#3b82f6', size: 1 },
+        { color: '#f59e0b', size: 1 }
+      ],
+      bars: [{ upColor: '#0d9488', downColor: '#e11d48', noChangeColor: '#94a3b8' }]
+    }
+  });
+
+  // Stochastic — sub-pane
+  klinecharts.registerIndicator({
+    name: 'AXC_STOCH',
+    figures: [
+      { key: 'k', title: '%K', type: 'line' },
+      { key: 'd', title: '%D', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { k: ind.stoch_k, d: ind.stoch_d } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#3b82f6', size: 1 },
+        { color: '#f59e0b', size: 1 }
+      ]
+    }
+  });
+
+  // ── Delta Volume bar (sub-pane) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_DELTA',
+    figures: [
+      { key: 'delta', title: 'Delta $', type: 'bar' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var dv = footprintData.delta_volume[String(d.timestamp)];
+        return dv ? { delta: dv.delta_usd } : {};
+      });
+    },
+    styles: {
+      bars: [{ upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#787b86' }]
+    }
+  });
+
+  // ── Volume Profile (right-side bars on candle_pane) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_VP',
+    figures: [],
+    calc: function(dataList) { return dataList.map(function() { return {}; }); },
+    draw: function(params) {
+      var ctx = params.ctx;
+      var bounding = params.bounding;
+      var yAxis = params.yAxis;
+      var vp = footprintData.volume_profile;
+      if (!vp || !vp.length) return false;
+
+      var maxVol = 0;
+      vp.forEach(function(v) { if (v.total_vol > maxVol) maxVol = v.total_vol; });
+      if (maxVol === 0) return false;
+
+      var maxBarWidth = bounding.width * 0.15;
+      var bucketSize = vp.length > 1 ? vp[1].price - vp[0].price : 50;
+
+      vp.forEach(function(v) {
+        var y1 = yAxis.convertToPixel(v.price + bucketSize);
+        var y2 = yAxis.convertToPixel(v.price);
+        if (y1 === undefined || y2 === undefined) return;
+        var barH = Math.abs(y2 - y1);
+        if (barH < 1) barH = 1;
+        var yTop = Math.min(y1, y2);
+        var ratio = v.total_vol / maxVol;
+
+        // Buy bar (green, from right)
+        var buyW = (v.buy_vol / maxVol) * maxBarWidth;
+        var sellW = (v.sell_vol / maxVol) * maxBarWidth;
+        var x = bounding.left + bounding.width - buyW - sellW;
+
+        ctx.fillStyle = 'rgba(38,166,154,0.25)';
+        ctx.fillRect(x + sellW, yTop, buyW, barH);
+
+        // Sell bar (red, stacked left of buy)
+        ctx.fillStyle = 'rgba(239,83,80,0.25)';
+        ctx.fillRect(x, yTop, sellW, barH);
+
+        // POC highlight (highest volume level)
+        if (ratio > 0.8) {
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(x, yTop, buyW + sellW, barH);
+        }
+      });
+
+      return false;  // don't suppress candles
+    }
+  });
+
+  // ── Footprint Heatmap (colored blocks behind candles) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_HEATMAP',
+    figures: [],
+    calc: function(dataList) { return dataList.map(function() { return {}; }); },
+    draw: function(params) {
+      var ctx = params.ctx;
+      var bounding = params.bounding;
+      var xAxis = params.xAxis;
+      var yAxis = params.yAxis;
+      var visibleRange = params.visibleRange;
+      var dataList = params.dataList;
+      var hm = footprintData.heatmap;
+      if (!hm || !Object.keys(hm).length) return false;
+      if (!visibleRange) return false;
+
+      var from = visibleRange.from || 0;
+      var to = visibleRange.to || dataList.length;
+
+      // Find max volume across all visible candles for color scaling
+      var globalMax = 0;
+      for (var i = from; i < to; i++) {
+        var d = dataList[i];
+        if (!d) continue;
+        var levels = hm[String(d.timestamp)];
+        if (!levels) continue;
+        levels.forEach(function(lv) { if (lv.total_vol > globalMax) globalMax = lv.total_vol; });
+      }
+      if (globalMax === 0) return false;
+
+      // Estimate candle width from adjacent timestamps
+      var candleW = 8;
+      if (from + 1 < dataList.length && dataList[from] && dataList[from+1]) {
+        var x1 = xAxis.convertToPixel(from);
+        var x2 = xAxis.convertToPixel(from + 1);
+        if (x1 !== undefined && x2 !== undefined) {
+          candleW = Math.max(4, Math.abs(x2 - x1) * 0.8);
+        }
+      }
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+
+      for (var j = from; j < to; j++) {
+        var dd = dataList[j];
+        if (!dd) continue;
+        var lvls = hm[String(dd.timestamp)];
+        if (!lvls) continue;
+
+        var cx = xAxis.convertToPixel(j);
+        if (cx === undefined) continue;
+
+        var bucketPx = 0;
+        if (lvls.length > 1) {
+          var py1 = yAxis.convertToPixel(lvls[0].price);
+          var py2 = yAxis.convertToPixel(lvls[1].price);
+          if (py1 !== undefined && py2 !== undefined) bucketPx = Math.abs(py2 - py1);
+        }
+        if (bucketPx < 2) bucketPx = 4;
+
+        lvls.forEach(function(lv) {
+          var py = yAxis.convertToPixel(lv.price);
+          if (py === undefined) return;
+          var intensity = lv.total_vol / globalMax;
+          var alpha = 0.1 + intensity * 0.5;
+
+          // Green = net buy dominant, Red = net sell dominant
+          if (lv.buy_vol >= lv.sell_vol) {
+            ctx.fillStyle = 'rgba(38,166,154,' + alpha.toFixed(2) + ')';
+          } else {
+            ctx.fillStyle = 'rgba(239,83,80,' + alpha.toFixed(2) + ')';
+          }
+          ctx.fillRect(cx - candleW/2, py - bucketPx/2, candleW, bucketPx);
+        });
+      }
+
+      ctx.restore();
+      return false;  // overlay mode
+    }
+  });
+}
+
+function applyIndicatorData(series) {
+  if (!series || !series.length) return;
+  indicatorData = {};
+  series.forEach(function(s) {
+    var ts = parseTradeTime(s.time);
+    if (ts) indicatorData[ts] = s;
+  });
+
+  // Apply active indicators
+  var names = ['AXC_BB', 'AXC_EMA', 'AXC_MA', 'AXC_RSI', 'AXC_MACD', 'AXC_STOCH'];
+  names.forEach(function(name) {
+    if (activeIndicators[name]) {
+      addIndicatorToChart(name);
+    }
+  });
+
+  // Mode transitions
+  if (activeIndicators.AXC_MODE) {
+    drawModeTransitions(series);
+  }
+}
+
+function addIndicatorToChart(name) {
+  if (!mainChart) return;
+  var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA');
+  try {
+    if (isSubPane) {
+      var paneId = mainChart.createIndicator(name, true);
+      if (paneId) indicatorPaneIds[name] = paneId;
+    } else {
+      mainChart.createIndicator(name, false);
+      indicatorPaneIds[name] = 'main';
+    }
+  } catch(e) { console.warn('indicator add failed:', name, e); }
+}
+
+function removeIndicatorFromChart(name) {
+  if (!mainChart) return;
+  try {
+    var paneId = indicatorPaneIds[name];
+    if (paneId && paneId !== 'main') {
+      mainChart.removeIndicator(paneId, name);
+      delete indicatorPaneIds[name];
+    } else {
+      mainChart.removeIndicator('candle_pane', name);
+      delete indicatorPaneIds[name];
+    }
+  } catch(e) { console.warn('indicator remove failed:', name, e); }
+}
+
+function toggleIndicator(name) {
+  activeIndicators[name] = !activeIndicators[name];
+  if (name === 'AXC_MODE') {
+    if (activeIndicators[name] && currentResult && currentResult.indicator_series) {
+      drawModeTransitions(currentResult.indicator_series);
+    } else {
+      clearModeOverlays();
+    }
+    return;
+  }
+  if (activeIndicators[name]) {
+    addIndicatorToChart(name);
+  } else {
+    removeIndicatorFromChart(name);
+  }
+}
+
+// ── Mode transition markers (Phase 2) ──
+function drawModeTransitions(series) {
+  clearModeOverlays();
+  if (!mainChart || !series || series.length < 2) return;
+  for (var i = 1; i < series.length; i++) {
+    if (series[i].mode !== series[i-1].mode && series[i].mode !== 'UNKNOWN') {
+      var ts = parseTradeTime(series[i].time);
+      if (!ts) continue;
+      try {
+        var id = mainChart.createOverlay({
+          name: 'simpleAnnotation',
+          extendData: '\u2192 ' + series[i].mode,
+          points: [{ timestamp: ts }],
+          styles: {
+            line: { color: '#94a3b8', size: 1, dashedValue: [3,3] },
+            symbol: { type: 'none' },
+            text: { color: '#64748b', size: 10 }
+          }
+        });
+        if (id) modeOverlays.push(id);
+      } catch(e) {}
+    }
+  }
+}
+
+function clearModeOverlays() {
+  modeOverlays.forEach(function(id) {
+    try { mainChart.removeOverlay(id); } catch(e) {}
+  });
+  modeOverlays = [];
+}
+
+// ══════════════════════════════════════════════════
+//  Load klines
+// ══════════════════════════════════════════════════
+function loadKlines(symbol, days, cb, interval) {
+  interval = interval || currentInterval;
+  setState('LOADING', {symbol: symbol, days: days, interval: interval});
+  api('/api/backtest/klines?symbol=' + symbol + '&days=' + days + '&interval=' + interval)
+    .then(function(resp) {
+      var candles = resp.candles || resp;  // backward compat
+      initChart();
+      mainChart.applyNewData(candles.map(function(c) {
+        return {
+          timestamp: c.timestamp,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume
+        };
+      }));
+      currentInterval = interval;
+      setState('LOADED', {symbol: symbol, interval: interval});
+      // Reset footprint data on chart reload (symbol/interval/days changed)
+      resetFootprintData();
+      // Gate indicators for non-1h intervals
+      gateIndicators(interval);
+      if (cb) cb(candles);
+    })
+    .catch(function(e) {
+      console.error('klines error:', e);
+      setState('ERROR');
+    });
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 3: Trade markers with SL/TP lines
+// ══════════════════════════════════════════════════
+function drawTradeMarkers(trades) {
+  if (!mainChart) return;
+  // Remove old overlays
+  tradeOverlays.forEach(function(id) {
+    try { mainChart.removeOverlay(id); } catch(e) {}
+  });
+  tradeOverlays = [];
+
+  trades.forEach(function(t) {
+    var entryTs = parseTradeTime(t.entry_time || t.ts);
+    var exitTs = parseTradeTime(t.exit_time);
+    if (!entryTs) return;
+
+    // Entry marker
+    var entryColor = t.side === 'LONG' ? '#0d9488' : '#e11d48';
+    var entryShape = t.side === 'LONG' ? 'circle' : 'rect';
+    try {
+      var id = mainChart.createOverlay({
+        name: 'simpleAnnotation',
+        extendData: t.side === 'LONG' ? '\u25B2' : '\u25BC',
+        points: [{ timestamp: entryTs, value: t.entry }],
+        styles: {
+          symbol: {
+            type: entryShape,
+            size: 8,
+            color: entryColor,
+            activeSize: 10,
+            activeColor: entryColor
+          }
+        }
+      });
+      if (id) tradeOverlays.push(id);
+    } catch(e) {}
+
+    // Exit marker
+    if (exitTs) {
+      var exitColor = (t.pnl || 0) > 0 ? '#0d9488' : '#e11d48';
+      try {
+        var id2 = mainChart.createOverlay({
+          name: 'simpleAnnotation',
+          extendData: t.exit_reason || 'X',
+          points: [{ timestamp: exitTs, value: t.exit }],
+          styles: {
+            symbol: {
+              type: 'diamond',
+              size: 6,
+              color: exitColor,
+              activeSize: 8,
+              activeColor: exitColor
+            }
+          }
+        });
+        if (id2) tradeOverlays.push(id2);
+      } catch(e) {}
+
+      // Entry → exit connector line
+      try {
+        var id3 = mainChart.createOverlay({
+          name: 'segment',
+          points: [
+            { timestamp: entryTs, value: t.entry },
+            { timestamp: exitTs, value: t.exit }
+          ],
+          styles: {
+            line: { color: '#cbd5e1', size: 0.8, dashedValue: [4, 3] }
+          }
+        });
+        if (id3) tradeOverlays.push(id3);
+      } catch(e) {}
+    }
+  });
+}
+
+// ── Show SL/TP for a specific trade (Phase 3) ──
+function showSlTp(tradeIdx) {
+  clearSlTp();
+  if (!mainChart || tradeIdx < 0 || tradeIdx >= currentTrades.length) return;
+  var t = currentTrades[tradeIdx];
+  var entryTs = parseTradeTime(t.entry_time || t.ts);
+  var exitTs = parseTradeTime(t.exit_time) || entryTs + 86400000;
+  if (!entryTs || !t.sl_price || !t.tp_price) return;
+
+  // SL line (red dashed)
+  try {
+    var slId = mainChart.createOverlay({
+      name: 'segment',
+      points: [
+        { timestamp: entryTs, value: t.sl_price },
+        { timestamp: exitTs, value: t.sl_price }
+      ],
+      styles: { line: { color: 'rgba(225,29,72,0.6)', size: 1, dashedValue: [6,3] } }
+    });
+    if (slId) slTpOverlays.push(slId);
+  } catch(e) {}
+
+  // TP line (green dashed)
+  try {
+    var tpId = mainChart.createOverlay({
+      name: 'segment',
+      points: [
+        { timestamp: entryTs, value: t.tp_price },
+        { timestamp: exitTs, value: t.tp_price }
+      ],
+      styles: { line: { color: 'rgba(13,148,136,0.6)', size: 1, dashedValue: [6,3] } }
+    });
+    if (tpId) slTpOverlays.push(tpId);
+  } catch(e) {}
+}
+
+function clearSlTp() {
+  slTpOverlays.forEach(function(id) {
+    try { mainChart.removeOverlay(id); } catch(e) {}
+  });
+  slTpOverlays = [];
+}
+
+function parseTradeTime(ts) {
+  if (!ts) return null;
+  if (typeof ts === 'number') return ts;
+  var d = new Date(ts.replace(' ', 'T') + 'Z');
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 3: Drawing tools
+// ══════════════════════════════════════════════════
+function setDrawingMode(mode, btn) {
+  if (!mainChart) return;
+  drawingMode = mode;
+  // Highlight active button
+  var btns = document.querySelectorAll('.draw-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  try {
+    mainChart.createOverlay({ name: mode });
+  } catch(e) { console.warn('drawing mode error:', e); }
+}
+
+function clearDrawings() {
+  if (!mainChart) return;
+  try { mainChart.removeOverlay(); } catch(e) {}
+  // Re-draw trade markers and indicators
+  if (currentTrades.length) drawTradeMarkers(currentTrades);
+  if (currentResult && currentResult.indicator_series) {
+    applyIndicatorData(currentResult.indicator_series);
+  }
+  showToast('Drawings cleared', 'info');
+}
+
+// ── Draw equity curve ──
+function drawEquityCurve(equityCurve) {
+  var container = document.getElementById('equity-container');
+  var label = document.getElementById('equity-label');
+  if (!equityCurve || equityCurve.length === 0) {
+    container.classList.remove('has-data');
+    if (label) label.style.display = 'none';
+    return;
+  }
+  container.classList.add('has-data');
+  if (label) label.style.display = 'block';
+  initEquityChart();
+  var data = equityCurve.map(function(e) {
+    var ts = parseTradeTime(e.time);
+    return {
+      timestamp: ts || 0,
+      open: e.equity,
+      high: e.equity,
+      low: e.equity,
+      close: e.equity,
+      volume: 0
+    };
+  });
+  equityChart.applyNewData(data);
+}
+
+// ── Expand/collapse chart ──
+function toggleExpand() {
+  var panel = document.querySelector('.chart-panel');
+  var btn = document.getElementById('btn-expand');
+  panel.classList.toggle('expanded');
+  if (panel.classList.contains('expanded')) {
+    btn.innerHTML = '&#x2716;'; // ✖ close
+    btn.title = '縮小圖表';
+  } else {
+    btn.innerHTML = '&#x26F6;'; // ⛶ expand
+    btn.title = '展開圖表';
+  }
+  // resize chart after transition
+  setTimeout(function() {
+    if (mainChart) mainChart.resize();
+    if (equityChart) equityChart.resize();
+  }, 50);
+}
+
+// ══════════════════════════════════════════════════
+//  Update stats panel (Phase 4: enhanced)
+// ══════════════════════════════════════════════════
+function updateStats(result) {
+  var byId = function(id) { return document.getElementById(id); };
+  var retPct = result.return_pct || 0;
+  var retEl = byId('st-return');
+  retEl.textContent = (retPct >= 0 ? '+' : '') + retPct.toFixed(2) + '%';
+  retEl.className = 'stat-value ' + (retPct >= 0 ? 'pos' : 'neg');
+
+  byId('st-wr').textContent = (result.win_rate || 0).toFixed(1) + '%';
+  var pf = result.profit_factor;
+  byId('st-pf').textContent = pf === 'inf' ? 'Inf' : (typeof pf === 'number' ? pf.toFixed(2) : '--');
+  byId('st-dd').textContent = (result.max_drawdown_pct || 0).toFixed(1) + '%';
+  byId('st-trades').textContent = result.total_trades || 0;
+
+  var exp = result.expectancy || 0;
+  var expEl = byId('st-exp');
+  expEl.textContent = '$' + (exp >= 0 ? '+' : '') + exp.toFixed(2);
+  expEl.className = 'stat-value ' + (exp >= 0 ? 'pos' : 'neg');
+
+  // Phase 1B: Sharpe + Streaks
+  var sharpe = result.sharpe_ratio || 0;
+  byId('st-sharpe').textContent = sharpe.toFixed(2);
+  byId('st-streaks').textContent = (result.max_win_streak || 0) + ' / ' + (result.max_loss_streak || 0);
+
+  // Phase 4B: Strategy breakdown
+  var bs = result.by_strategy || {};
+  var breakdown = byId('strategy-breakdown');
+  if (Object.keys(bs).length) {
+    breakdown.style.display = 'block';
+    byId('strat-range').textContent = bs.range
+      ? 'Range: ' + bs.range.count + ' trades, WR ' + bs.range.win_rate + '%, avg $' + bs.range.avg_pnl
+      : 'Range: --';
+    byId('strat-trend').textContent = bs.trend
+      ? 'Trend: ' + bs.trend.count + ' trades, WR ' + bs.trend.win_rate + '%, avg $' + bs.trend.avg_pnl
+      : 'Trend: --';
+  } else {
+    breakdown.style.display = 'none';
+  }
+
+  // Update compare if Run A exists
+  if (compareRunA) updateCompare(result);
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 4A: Trade detail panel
+// ══════════════════════════════════════════════════
+function showTradeDetail(idx) {
+  var panel = document.getElementById('trade-detail');
+  var grid = document.getElementById('td-grid');
+  if (idx < 0 || idx >= currentTrades.length) {
+    panel.classList.remove('show');
+    return;
+  }
+  var t = currentTrades[idx];
+  selectedTradeIdx = idx;
+
+  // Duration calc
+  var dur = '--';
+  if (t.entry_time && t.exit_time) {
+    var ms = parseTradeTime(t.exit_time) - parseTradeTime(t.entry_time);
+    if (ms > 0) {
+      var hrs = Math.round(ms / 3600000);
+      dur = hrs >= 24 ? (hrs / 24).toFixed(1) + 'd' : hrs + 'h';
+    }
+  }
+
+  // Actual R:R
+  var actualRR = '--';
+  if (t.sl_price && t.entry) {
+    var riskDist = Math.abs(t.entry - t.sl_price);
+    if (riskDist > 0) {
+      var rewardDist = Math.abs((t.exit || t.entry) - t.entry);
+      actualRR = (rewardDist / riskDist).toFixed(2);
+    }
+  }
+
+  var plannedRR = '--';
+  if (t.sl_price && t.tp_price && t.entry) {
+    var pRisk = Math.abs(t.entry - t.sl_price);
+    if (pRisk > 0) plannedRR = (Math.abs(t.tp_price - t.entry) / pRisk).toFixed(2);
+  }
+
+  var pnlPct = t.entry ? ((t.exit - t.entry) / t.entry * 100 * (t.side === 'SHORT' ? -1 : 1)).toFixed(2) : '--';
+
+  var rows = [
+    ['Side', t.side], ['Strategy', t.strategy || '--'],
+    ['Entry', (t.entry || 0).toFixed(2)], ['Exit', (t.exit || 0).toFixed(2)],
+    ['SL', (t.sl_price || 0).toFixed(2)], ['TP', (t.tp_price || 0).toFixed(2)],
+    ['PnL', '$' + (t.pnl >= 0 ? '+' : '') + (t.pnl || 0).toFixed(2)],
+    ['PnL %', pnlPct + '%'],
+    ['Duration', dur], ['Exit Reason', t.exit_reason || '--'],
+    ['Actual R:R', actualRR], ['Planned R:R', plannedRR],
+  ];
+
+  grid.innerHTML = rows.map(function(r) {
+    return '<span class="td-label">' + r[0] + '</span><span class="td-val">' + r[1] + '</span>';
+  }).join('');
+
+  panel.classList.add('show');
+
+  // Show SL/TP lines on chart
+  showSlTp(idx);
+}
+
+// ── Update trade log ──
+function updateTradeLog(trades) {
+  currentTrades = trades;
+  var container = document.getElementById('trade-log');
+  document.getElementById('trade-count').textContent = '(' + trades.length + ')';
+  // Enable/disable export button
+  var expBtn = document.getElementById('btn-export');
+  if (expBtn) { expBtn.disabled = !trades.length; expBtn.style.opacity = trades.length ? '1' : '.4'; }
+  if (!trades.length) {
+    container.innerHTML = '<div style="color:var(--text-3);font-size:.8rem;text-align:center;padding:20px">No trades</div>';
+    return;
+  }
+  var html = '';
+  trades.forEach(function(t, i) {
+    var pnl = t.pnl || 0;
+    var sideClass = t.side === 'LONG' ? 'side-long' : 'side-short';
+    var strategy = t.strategy || '';
+    var reason = t.exit_reason || '';
+    var timeStr = (t.entry_time || t.ts || '').substring(5, 16);
+    html += '<div class="trade-row" onclick="selectTrade(' + i + ')" title="' +
+      t.side + ' ' + (t.entry||0).toFixed(2) + ' \u2192 ' + (t.exit||0).toFixed(2) + '">' +
+      '<span class="side ' + sideClass + '">' + t.side + '</span>' +
+      '<span style="font-size:.72rem;color:var(--text-3)">' + timeStr + '</span>' +
+      '<span style="font-size:.72rem;color:var(--text-3)">' + strategy + '</span>' +
+      '<span class="reason">' + reason + '</span>' +
+      '<span class="pnl" style="color:var(--' + (pnl >= 0 ? 'pos' : 'neg') + ')">$' +
+      (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '</span>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+}
+
+// ── Select trade → zoom + detail + SL/TP (Phase 3+4) ──
+function selectTrade(idx) {
+  if (!mainChart || !currentTrades[idx]) return;
+  selectedTradeIdx = idx;
+  var t = currentTrades[idx];
+  var ts = parseTradeTime(t.entry_time || t.ts);
+  if (ts) mainChart.scrollToTimestamp(ts);
+  showTradeDetail(idx);
+
+  // Highlight selected row
+  var rows = document.querySelectorAll('.trade-row');
+  rows.forEach(function(r, i) {
+    r.style.background = i === idx ? '#e0e7ff' : '';
+  });
+}
+
+function zoomToTrade(idx) { selectTrade(idx); }
+
+// ══════════════════════════════════════════════════
+//  Phase 4C: A/B Compare
+// ══════════════════════════════════════════════════
+function toggleCompare() {
+  var panel = document.getElementById('compare-panel');
+  if (!currentResult) { showToast('Run a backtest first', 'error'); return; }
+
+  if (!compareRunA) {
+    // Save current as Run A
+    compareRunA = JSON.parse(JSON.stringify(currentResult));
+    document.getElementById('btn-compare').textContent = 'Run B...';
+    document.getElementById('btn-compare').style.background = '#dbeafe';
+    showToast('Run A saved. Change params and run again for Run B.', 'info');
+  } else {
+    // Show comparison
+    updateCompare(currentResult);
+    panel.style.display = 'block';
+    // Reset
+    compareRunA = null;
+    document.getElementById('btn-compare').textContent = 'Compare';
+    document.getElementById('btn-compare').style.background = '';
+  }
+}
+
+function updateCompare(runB) {
+  if (!compareRunA) return;
+  var body = document.getElementById('compare-body');
+  var metrics = [
+    ['Return %', 'return_pct'], ['Win Rate %', 'win_rate'],
+    ['Profit Factor', 'profit_factor'], ['Max DD %', 'max_drawdown_pct'],
+    ['Sharpe', 'sharpe_ratio'], ['Expectancy', 'expectancy']
+  ];
+  var html = '';
+  metrics.forEach(function(m) {
+    var a = typeof compareRunA[m[1]] === 'number' ? compareRunA[m[1]] : 0;
+    var b = typeof runB[m[1]] === 'number' ? runB[m[1]] : 0;
+    var delta = b - a;
+    // For max_drawdown_pct, lower is better
+    var better = m[1] === 'max_drawdown_pct' ? delta < 0 : delta > 0;
+    var color = delta === 0 ? 'var(--text-3)' : (better ? 'var(--pos)' : 'var(--neg)');
+    html += '<div class="compare-row">' +
+      '<span>' + m[0] + '</span>' +
+      '<span>' + a.toFixed(2) + ' \u2192 ' + b.toFixed(2) + '</span>' +
+      '<span class="compare-delta" style="color:' + color + '">' +
+      (delta >= 0 ? '+' : '') + delta.toFixed(2) + '</span></div>';
+  });
+  body.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 4D: Export CSV
+// ══════════════════════════════════════════════════
+function exportCSV() {
+  if (!currentTrades.length) { showToast('No trades to export', 'error'); return; }
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  var headers = ['Symbol','Side','Entry','Exit','PnL','SL','TP','EntryTime','ExitTime','Reason','Strategy'];
+  var rows = [headers.join(',')];
+  currentTrades.forEach(function(t) {
+    rows.push([
+      csvCell(t.symbol), csvCell(t.side), t.entry || '', t.exit || '',
+      t.pnl || 0, t.sl_price || '', t.tp_price || '',
+      csvCell(t.entry_time || t.ts || ''), csvCell(t.exit_time || ''),
+      csvCell(t.exit_reason), csvCell(t.strategy)
+    ].join(','));
+  });
+  var blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'backtest_trades.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported ' + currentTrades.length + ' trades', 'success');
+}
+
+// ══════════════════════════════════════════════════
+//  Load existing results
+// ══════════════════════════════════════════════════
+function loadExisting() {
+  setState('CHECKING');
+  api('/api/backtest/list')
+    .then(function(results) {
+      if (!results.length) {
+        showToast('No saved backtest results found.', 'info');
+        setState('IDLE');
+        return;
+      }
+      var msg = 'Available results:\n\n';
+      results.forEach(function(r, i) {
+        var line = (i+1) + '. ' + r.symbol + ' ' + r.days + 'd';
+        // Stats summary
+        if (r.stats && r.stats.return_pct !== undefined) {
+          var est = r.stats.estimated ? '~' : '';
+          var ret = r.stats.return_pct;
+          var retStr = est + (ret >= 0 ? '+' : '') + ret.toFixed(1) + '%';
+          line += '  ' + retStr;
+          if (r.stats.win_rate !== undefined) line += '  WR:' + r.stats.win_rate.toFixed(0) + '%';
+          if (r.stats.max_drawdown_pct !== undefined) line += '  DD:' + est + r.stats.max_drawdown_pct.toFixed(1) + '%';
+        }
+        line += '  (' + r.trade_count + ' trades)';
+        if (r.is_imported) line += ' [imported]';
+        msg += line + '\n';
+      });
+      var pick = prompt(msg + '\nEnter number to load:', '1');
+      if (!pick) { setState('IDLE'); return; }
+      var idx = parseInt(pick) - 1;
+      if (idx < 0 || idx >= results.length) { setState('IDLE'); return; }
+
+      var chosen = results[idx];
+      document.getElementById('sel-symbol').value = chosen.symbol;
+
+      // Fill back param panel from metadata
+      if (chosen.balance) document.getElementById('inp-balance').value = chosen.balance;
+      if (chosen.strategy_params) fillParamPanel(chosen.strategy_params);
+      if (chosen.allowed_modes) {
+        document.getElementById('p-mode-range').checked = chosen.allowed_modes.indexOf('RANGE') >= 0;
+        document.getElementById('p-mode-trend').checked = chosen.allowed_modes.indexOf('TREND') >= 0;
+      }
+      if (chosen.mode_confirmation) document.getElementById('p-mode-conf').value = chosen.mode_confirmation;
+      if (chosen.param_overrides) fillOverridePanel(chosen.param_overrides);
+
+      // Show run config card
+      updateRunConfig({
+        balance: chosen.balance, strategy_params: chosen.strategy_params,
+        param_overrides: chosen.param_overrides, stats: chosen.stats,
+        symbol: chosen.symbol, days: chosen.days
+      });
+
+      api('/api/backtest/results?file=' + encodeURIComponent(chosen.file))
+        .then(function(data) {
+          var trades = data.trades || [];
+          loadKlines(chosen.symbol, chosen.days, function() {
+            currentTrades = trades;
+            currentFile = chosen.file || '';
+            updateTradeLog(trades);
+            drawTradeMarkers(trades);
+            // Enable export button for loaded results
+            var expBtn = document.getElementById('btn-export-report');
+            if (expBtn) { expBtn.disabled = false; expBtn.style.opacity = '1'; }
+            // Restore stats from meta if available, otherwise compute from trades
+            if (chosen.stats && chosen.stats.return_pct !== undefined) {
+              updateStats(chosen.stats);
+            } else if (trades.length) {
+              var wins = 0, totalPnl = 0, maxDD = 0, equity = 0, peak = 0;
+              trades.forEach(function(t) {
+                var pnl = t.pnl || 0;
+                if (pnl > 0) wins++;
+                totalPnl += pnl;
+                equity += pnl;
+                if (equity > peak) peak = equity;
+                var dd = peak - equity;
+                if (dd > maxDD) maxDD = dd;
+              });
+              var bal = parseFloat(document.getElementById('inp-balance').value) || 10000;
+              updateStats({
+                return_pct: (totalPnl / bal) * 100,
+                win_rate: trades.length ? (wins / trades.length * 100) : 0,
+                profit_factor: '--',
+                max_drawdown_pct: bal > 0 ? (maxDD / bal * 100) : 0,
+                total_trades: trades.length,
+                expectancy: trades.length ? (totalPnl / trades.length) : 0,
+                sharpe_ratio: 0,
+                max_win_streak: 0, max_loss_streak: 0
+              });
+            }
+          });
+        })
+        .catch(function(e) {
+          console.error('results error:', e);
+          setState('ERROR');
+        });
+    })
+    .catch(function(e) {
+      console.error('list error:', e);
+      setState('ERROR');
+    });
+}
+
+// Fill param panel inputs from saved strategy_params
+function fillParamPanel(sp) {
+  var map = {
+    'range_sl':'p-range-sl', 'range_rr':'p-range-rr',
+    'trend_sl':'p-trend-sl', 'trend_rr':'p-trend-rr',
+    'risk_pct':'p-risk-pct', 'range_leverage':'p-range-lev',
+    'trend_leverage':'p-trend-lev'
+  };
+  for (var k in map) {
+    var el = document.getElementById(map[k]);
+    if (el && sp[k] !== undefined) {
+      el.value = k === 'risk_pct' ? (sp[k] * 100) : sp[k];
+    }
+  }
+}
+
+function fillOverridePanel(po) {
+  var map = {'bb_touch_tol':'p-bb-tol', 'adx_range_max':'p-adx-max'};
+  for (var k in map) {
+    var el = document.getElementById(map[k]);
+    if (el && po[k] !== undefined) el.value = po[k];
+  }
+}
+
+// Update Run Config card display
+function updateRunConfig(cfg) {
+  currentRunConfig = cfg;
+  var card = document.getElementById('run-config-card');
+  var body = document.getElementById('run-config-content');
+  if (!cfg) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  var html = '';
+  if (cfg.symbol) html += '<div class="config-row"><span class="config-key">Symbol</span><span class="config-val">' + cfg.symbol + '</span></div>';
+  if (cfg.days) html += '<div class="config-row"><span class="config-key">Days</span><span class="config-val">' + cfg.days + 'd</span></div>';
+  if (cfg.balance) html += '<div class="config-row"><span class="config-key">Balance</span><span class="config-val">$' + cfg.balance.toLocaleString() + '</span></div>';
+  if (cfg.strategy_params && Object.keys(cfg.strategy_params).length) {
+    for (var k in cfg.strategy_params) {
+      html += '<div class="config-row"><span class="config-key">' + k + '</span><span class="config-val">' + cfg.strategy_params[k] + '</span></div>';
+    }
+  }
+  if (cfg.param_overrides && Object.keys(cfg.param_overrides).length) {
+    for (var k in cfg.param_overrides) {
+      html += '<div class="config-row"><span class="config-key">' + k + '</span><span class="config-val">' + cfg.param_overrides[k] + '</span></div>';
+    }
+  }
+  if (cfg.stats && cfg.stats.return_pct !== undefined) {
+    var ret = cfg.stats.return_pct;
+    html += '<div class="config-row"><span class="config-key">Return</span><span class="config-val" style="color:var(--' + (ret >= 0 ? 'pos' : 'neg') + ')">' + (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%</span></div>';
+  }
+  if (cfg.stats && cfg.stats.win_rate !== undefined) {
+    html += '<div class="config-row"><span class="config-key">Win Rate</span><span class="config-val">' + cfg.stats.win_rate.toFixed(1) + '%</span></div>';
+  }
+  body.innerHTML = html || '\u2014';
+}
+
+// ══════════════════════════════════════════════════
+//  Phase B: Interval change handler + indicator gating
+// ══════════════════════════════════════════════════
+function setInterval_(btn) {
+  document.querySelectorAll('#interval-tabs .itab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  currentInterval = btn.getAttribute('data-val');
+  onIntervalChange();
+}
+
+function onIntervalChange() {
+  var interval = currentInterval;
+  var daysEl = document.getElementById('sel-days');
+  var maxDays = INTERVAL_MAX_DAYS[interval] || 365;
+
+  // Adjust days dropdown: disable options exceeding max
+  for (var i = 0; i < daysEl.options.length; i++) {
+    var opt = daysEl.options[i];
+    opt.disabled = parseInt(opt.value) > maxDays;
+  }
+  // If current selection exceeds max, pick closest valid
+  if (parseInt(daysEl.value) > maxDays) {
+    for (var i = daysEl.options.length - 1; i >= 0; i--) {
+      if (parseInt(daysEl.options[i].value) <= maxDays) {
+        daysEl.value = daysEl.options[i].value;
+        break;
+      }
+    }
+  }
+
+  // Reload chart if we already have data loaded
+  if (STATE === 'LOADED' || STATE === 'IDLE') {
+    var symbol = document.getElementById('sel-symbol').value;
+    var days = parseInt(daysEl.value);
+    loadKlines(symbol, days, function() {
+      if (currentTrades.length) drawTradeMarkers(currentTrades);
+      // Reconnect live WS after chart reloaded with new interval
+      if (liveWs) { closeLiveWs(); connectLiveWs(true); }
+    }, interval);
+  } else if (liveWs) {
+    // No chart data but live active — reload history then reconnect WS
+    var sym2 = document.getElementById('sel-symbol').value;
+    var days2 = parseInt(daysEl.value) || 3;
+    closeLiveWs();
+    loadKlines(sym2, days2, function() { connectLiveWs(true); }, interval);
+  }
+}
+
+var _lastGatedInterval = '1h';
+function gateIndicators(interval) {
+  // Only hide indicator labels + seps, keep interval tabs visible
+  var labels = document.querySelectorAll('#ind-toolbar label, #ind-toolbar .sep');
+  if (interval !== '1h') {
+    labels.forEach(function(el) { el.style.display = 'none'; });
+    ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH'].forEach(function(name) {
+      if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
+    });
+    clearModeOverlays();
+    if (_lastGatedInterval === '1h') showToast('指標只喺 1h 顯示', 'info');
+  } else {
+    labels.forEach(function(el) { el.style.display = 'flex'; });
+    if (currentResult && currentResult.indicator_series) {
+      applyIndicatorData(currentResult.indicator_series);
+    }
+  }
+  _lastGatedInterval = interval;
+}
+
+// ── Param panel toggle ──
+function toggleParams() {
+  var toggle = document.getElementById('param-toggle');
+  var body = document.getElementById('param-body');
+  toggle.classList.toggle('open');
+  body.classList.toggle('show');
+}
+
+// ── Collect param overrides from panel ──
+function collectParamOverrides() {
+  var result = {strategy_params: {}, param_overrides: {}, allowed_modes: null, mode_confirmation: null};
+
+  var fields = [
+    ['p-range-sl', 'range_sl'], ['p-range-rr', 'range_rr'],
+    ['p-trend-sl', 'trend_sl'], ['p-trend-rr', 'trend_rr'],
+    ['p-risk-pct', 'risk_pct'],
+    ['p-range-lev', 'range_leverage'], ['p-trend-lev', 'trend_leverage']
+  ];
+  fields.forEach(function(f) {
+    var v = document.getElementById(f[0]).value;
+    if (v !== '') result.strategy_params[f[1]] = parseFloat(v);
+  });
+  if (result.strategy_params.risk_pct) {
+    result.strategy_params.risk_pct = result.strategy_params.risk_pct / 100;
+  }
+
+  var indFields = [['p-bb-tol', 'bb_touch_tol'], ['p-adx-max', 'adx_range_max']];
+  indFields.forEach(function(f) {
+    var v = document.getElementById(f[0]).value;
+    if (v !== '') result.param_overrides[f[1]] = parseFloat(v);
+  });
+
+  var mc = document.getElementById('p-mode-conf').value;
+  if (mc !== '') result.mode_confirmation = parseInt(mc);
+
+  var rangeOn = document.getElementById('p-mode-range').checked;
+  var trendOn = document.getElementById('p-mode-trend').checked;
+  if (!rangeOn || !trendOn) {
+    var modes = [];
+    if (rangeOn) modes.push('RANGE');
+    if (trendOn) modes.push('TREND');
+    result.allowed_modes = modes;
+  }
+
+  return result;
+}
+
+// ══════════════════════════════════════════════════
+//  Run backtest
+// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
+//  Export / Import backtest reports
+// ══════════════════════════════════════════════════
+function exportReport() {
+  if (!currentResult && !currentTrades.length) {
+    showToast('冇結果可以匯出 — 先跑回測或載入舊結果', 'info');
+    return;
+  }
+  var symbol = document.getElementById('sel-symbol').value;
+  var days = parseInt(document.getElementById('sel-days').value);
+  // Use exact file param when available (handles _v{N} imported files)
+  var exportUrl = currentFile
+    ? '/api/backtest/export?file=' + encodeURIComponent(currentFile)
+    : '/api/backtest/export?symbol=' + symbol + '&days=' + days;
+
+  api(exportUrl)
+    .then(function(report) {
+      var blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'axc_backtest_' + symbol + '_' + days + 'd.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('報告已匯出', 'success');
+    })
+    .catch(function(e) {
+      showToast('匯出失敗: ' + e.message, 'error');
+    });
+}
+
+function importReport(input) {
+  var file = input.files[0];
+  if (!file) return;
+  input.value = '';  // reset for re-import
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    var report;
+    try {
+      report = JSON.parse(text);
+    } catch(err) {
+      showToast('JSON 格式錯誤: ' + err.message, 'error');
+      return;
+    }
+
+    // Basic validation
+    if (!report.trades || !report.trades.length) {
+      showToast('JSON 入面搵唔到 trades 陣列', 'error');
+      return;
+    }
+    if (!report.config || !report.config.symbol) {
+      showToast('JSON 缺少 config.symbol', 'error');
+      return;
+    }
+
+    showToast('正在匯入 ' + report.trades.length + ' 筆交易...', 'info');
+
+    fetch('/api/backtest/import', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: text
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (resp.error) {
+        showToast('匯入失敗: ' + resp.error, 'error');
+        return;
+      }
+      showToast('已匯入 ' + resp.trades + ' 筆交易 (' + resp.symbol + ')', 'success');
+      // Auto-load the imported result
+      var sym = report.config.symbol;
+      document.getElementById('sel-symbol').value = sym;
+      var trades = report.trades;
+      var importedDays = resp.days || parseInt(report.config.days) || 60;
+      loadKlines(sym, importedDays, function() {
+        currentTrades = trades;
+        currentFile = resp.file || '';
+        updateTradeLog(trades);
+        drawTradeMarkers(trades);
+        // Enable export button for imported results
+        var expBtn = document.getElementById('btn-export-report');
+        if (expBtn) { expBtn.disabled = false; expBtn.style.opacity = '1'; }
+        // Apply stats if available
+        if (report.stats && report.stats.return_pct !== undefined) {
+          updateStats(report.stats);
+        } else {
+          // Compute basic stats from trades
+          var wins = 0, totalPnl = 0, maxDD = 0, equity = 0, peak = 0;
+          trades.forEach(function(t) {
+            var pnl = t.pnl || 0;
+            if (pnl > 0) wins++;
+            totalPnl += pnl;
+            equity += pnl;
+            if (equity > peak) peak = equity;
+            var dd = peak - equity;
+            if (dd > maxDD) maxDD = dd;
+          });
+          var bal = parseFloat(report.config.balance) || 10000;
+          updateStats({
+            return_pct: (totalPnl / bal) * 100,
+            win_rate: trades.length ? (wins / trades.length * 100) : 0,
+            profit_factor: '--',
+            max_drawdown_pct: bal > 0 ? (maxDD / bal * 100) : 0,
+            total_trades: trades.length,
+            expectancy: trades.length ? (totalPnl / trades.length) : 0,
+            sharpe_ratio: 0, max_win_streak: 0, max_loss_streak: 0
+          });
+        }
+      });
+    })
+    .catch(function(e) {
+      showToast('匯入失敗: ' + e.message, 'error');
+    });
+  };
+  reader.readAsText(file);
+}
+
+function runBacktest() {
+  var symbol = document.getElementById('sel-symbol').value;
+  var days = parseInt(document.getElementById('sel-days').value);
+  var balance = parseFloat(document.getElementById('inp-balance').value) || 10000;
+  var interval = currentInterval;
+  var overrides = collectParamOverrides();
+
+  // Update run config card
+  updateRunConfig({
+    symbol: symbol, days: days, balance: balance,
+    strategy_params: overrides.strategy_params,
+    param_overrides: overrides.param_overrides
+  });
+
+  loadKlines(symbol, days, function() {
+    setState('RUNNING', {symbol: symbol, days: days, interval: interval});
+    var payload = {symbol: symbol, days: days, balance: balance};
+    if (Object.keys(overrides.strategy_params).length) payload.strategy_params = overrides.strategy_params;
+    if (Object.keys(overrides.param_overrides).length) payload.param_overrides = overrides.param_overrides;
+    if (overrides.allowed_modes) payload.allowed_modes = overrides.allowed_modes;
+    if (overrides.mode_confirmation) payload.mode_confirmation = overrides.mode_confirmation;
+
+    api('/api/backtest/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(resp) {
+      if (!resp.job_id) throw new Error('no job_id');
+      pollJob(resp.job_id, {symbol: symbol, days: days, interval: interval});
+    })
+    .catch(function(e) {
+      console.error('run error:', e);
+      setState('ERROR');
+      showToast('Backtest failed: ' + e.message, 'error');
+    });
+  }, interval);
+}
+
+// ── Poll job status ──
+function pollJob(jobId, ctx) {
+  api('/api/backtest/status?job_id=' + jobId)
+    .then(function(resp) {
+      if (resp.status === 'done') {
+        setState('LOADED', ctx);
+        var result = resp.result;
+        currentResult = result;
+        updateStats(result);
+        updateTradeLog(result.trades || []);
+        drawTradeMarkers(result.trades || []);
+        drawEquityCurve(result.equity_curve || []);
+        // Phase 2: Apply indicators (only for 1h)
+        if (result.indicator_series && currentInterval === '1h') {
+          applyIndicatorData(result.indicator_series);
+        }
+        // Update run config with stats
+        if (currentRunConfig) {
+          currentRunConfig.stats = {
+            return_pct: result.return_pct, win_rate: result.win_rate,
+            profit_factor: result.profit_factor, total_trades: result.total_trades
+          };
+          updateRunConfig(currentRunConfig);
+        }
+        showToast('Backtest complete: ' + (result.total_trades || 0) + ' trades', 'success');
+        // Standard filename for fresh backtest
+        currentFile = 'bt_' + ctx.symbol + '_' + ctx.days + 'd_trades.jsonl';
+        // Enable export button
+        var expBtn = document.getElementById('btn-export-report');
+        if (expBtn) { expBtn.disabled = false; expBtn.style.opacity = '1'; }
+      } else if (resp.status === 'error') {
+        setState('ERROR');
+        showToast('Backtest error: ' + (resp.error || 'unknown'), 'error');
+      } else {
+        setTimeout(function() { pollJob(jobId, ctx); }, 2000);
+      }
+    })
+    .catch(function(e) {
+      console.error('poll error:', e);
+      setState('ERROR');
+    });
+}
+
+// ── Live K-line toggle (Binance Futures WebSocket) ──
+// Flow: toggleLive() → loadKlines(history) → connectLiveWs() → WS stream
+// - Browser 直連 wss://fstream.binance.com (public, no auth)
+// - 先載入 sel-days 歷史做技術分析底圖，再接 WS 即時更新最右 candle
+// - 切 symbol / interval → closeLiveWs + reconnect (silent)
+// - 斷線 → exponential backoff 1s→30s cap, silent reconnect
+// - toggleLive OFF → closeLiveWs() (null-first 防 onclose reconnect)
+var liveWs = null;
+var _liveReconnectTimer = null;
+var _liveReconnectDelay = 1000;
+
+function toggleLive() {
+  var btn = document.getElementById('btn-live');
+  if (liveWs) {
+    closeLiveWs();
+    btn.classList.remove('active');
+    btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live';
+    return;
+  }
+  btn.classList.add('active');
+  btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live ON';
+  // Load recent history first, then attach WS for live updates
+  var symbol = document.getElementById('sel-symbol').value;
+  var days = parseInt(document.getElementById('sel-days').value) || 3;
+  var interval = currentInterval;
+  initChart();
+  api('/api/backtest/klines?symbol=' + symbol + '&days=' + days + '&interval=' + interval)
+    .then(function(resp) {
+      var candles = resp.candles || resp;
+      mainChart.applyNewData(candles.map(function(c) {
+        return { timestamp: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+      }));
+      setState('LOADED', {symbol: symbol, interval: interval});
+      gateIndicators(interval);
+      connectLiveWs();
+    })
+    .catch(function(e) {
+      console.warn('Live history load failed, connecting WS anyway:', e);
+      connectLiveWs();
+    });
+}
+
+function connectLiveWs(silent) {
+  if (liveWs) return;
+  var symbol = document.getElementById('sel-symbol').value.toLowerCase();
+  var url = 'wss://fstream.binance.com/ws/' + symbol + '@kline_' + currentInterval;
+  var ws = new WebSocket(url);
+
+  ws.onopen = function() {
+    _liveReconnectDelay = 1000;
+    if (!silent) showToast('Live 已連接 — ' + symbol.toUpperCase() + ' ' + currentInterval, 'success');
+  };
+
+  ws.onmessage = function(evt) {
+    if (!mainChart) return;
+    var msg = JSON.parse(evt.data);
+    if (!msg.k) return;
+    var k = msg.k;
+    mainChart.updateData({
+      timestamp: k.t,
+      open: parseFloat(k.o),
+      high: parseFloat(k.h),
+      low: parseFloat(k.l),
+      close: parseFloat(k.c),
+      volume: parseFloat(k.v)
+    });
+  };
+
+  ws.onclose = function() {
+    if (liveWs === ws) scheduleLiveReconnect();
+  };
+
+  ws.onerror = function() { ws.close(); };
+
+  liveWs = ws;
+}
+
+function closeLiveWs() {
+  if (_liveReconnectTimer) { clearTimeout(_liveReconnectTimer); _liveReconnectTimer = null; }
+  var ws = liveWs;
+  liveWs = null;
+  if (ws) ws.close();
+  _liveReconnectDelay = 1000;
+}
+
+function scheduleLiveReconnect() {
+  _liveReconnectTimer = setTimeout(function() {
+    _liveReconnectTimer = null;
+    if (liveWs === null) return;
+    liveWs = null;
+    connectLiveWs(true);
+  }, _liveReconnectDelay);
+  _liveReconnectDelay = Math.min(_liveReconnectDelay * 2, 30000);
+}
+
+// ══════════════════════════════════════════════════
+//  Phase C: Live Position Overlay
+// ══════════════════════════════════════════════════
+var _livePosFirstFetch = true;  // only toast on first fetch
+
+function toggleLivePos() {
+  var btn = document.getElementById('btn-livepos');
+  if (livePosActive) {
+    livePosActive = false;
+    clearLivePositions();
+    if (livePosInterval) { clearInterval(livePosInterval); livePosInterval = null; }
+    btn.classList.remove('active');
+    btn.innerHTML = '<i class="fas fa-crosshairs"></i> Live Pos';
+    return;
+  }
+  livePosActive = true;
+  _livePosFirstFetch = true;
+  btn.classList.add('active');
+  btn.innerHTML = '<i class="fas fa-crosshairs"></i> Pos ON';
+  showToast('搵緊交易所持倉... 會喺圖上畫入場/止損/止盈線', 'info');
+  initChart();
+  fetchLivePositions();
+  livePosInterval = setInterval(fetchLivePositions, 30000);
+}
+
+function fetchLivePositions() {
+  if (!livePosActive || !mainChart) return;
+  api('/api/data')
+    .then(function(data) {
+      var positions = data.live_positions || [];
+      var symbol = document.getElementById('sel-symbol').value;
+      var matched = positions.filter(function(p) { return p.pair === symbol; });
+      // Draw new overlays first, then remove old ones (prevents flicker)
+      var oldOverlays = livePositionOverlays.slice();
+      livePositionOverlays = [];
+      matched.forEach(function(pos) { drawLivePosition(pos); });
+      oldOverlays.forEach(function(id) {
+        try { mainChart.removeOverlay(id); } catch(e) {}
+      });
+      if (!matched.length && _livePosFirstFetch) {
+        showToast(symbol + ' 冇持倉', 'info');
+      }
+      _livePosFirstFetch = false;
+    })
+    .catch(function(e) {
+      console.warn('Live position fetch failed:', e);
+      if (_livePosFirstFetch) {
+        showToast('Live Pos 連接失敗（可能未設交易所 credentials）', 'info');
+      }
+      _livePosFirstFetch = false;
+    });
+}
+
+function drawLivePosition(pos) {
+  if (!mainChart) return;
+  // Use extreme timestamps for full-width lines
+  var farLeft = Date.now() - 365 * 86400000;
+  var farRight = Date.now() + 86400000;
+  var label = pos.direction + ' Entry $' + pos.entry_price.toLocaleString();
+
+  // Entry line (blue solid)
+  try {
+    var id1 = mainChart.createOverlay({
+      name: 'segment',
+      points: [{timestamp: farLeft, value: pos.entry_price}, {timestamp: farRight, value: pos.entry_price}],
+      styles: { line: { color: '#3b82f6', size: 1.5, dashedValue: [0] } }
+    });
+    if (id1) livePositionOverlays.push(id1);
+  } catch(e) {}
+
+  // SL line (red dashed)
+  if (pos.sl_price && pos.sl_price > 0) {
+    try {
+      var id2 = mainChart.createOverlay({
+        name: 'segment',
+        points: [{timestamp: farLeft, value: pos.sl_price}, {timestamp: farRight, value: pos.sl_price}],
+        styles: { line: { color: '#e11d48', size: 1, dashedValue: [6,4] } }
+      });
+      if (id2) livePositionOverlays.push(id2);
+    } catch(e) {}
+  }
+
+  // TP line (green dashed)
+  if (pos.tp_price && pos.tp_price > 0) {
+    try {
+      var id3 = mainChart.createOverlay({
+        name: 'segment',
+        points: [{timestamp: farLeft, value: pos.tp_price}, {timestamp: farRight, value: pos.tp_price}],
+        styles: { line: { color: '#0d9488', size: 1, dashedValue: [6,4] } }
+      });
+      if (id3) livePositionOverlays.push(id3);
+    } catch(e) {}
+  }
+}
+
+function clearLivePositions() {
+  livePositionOverlays.forEach(function(id) {
+    try { mainChart.removeOverlay(id); } catch(e) {}
+  });
+  livePositionOverlays = [];
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 4E: Keyboard shortcuts
+// ══════════════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  // Don't trigger in input/select fields
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runBacktest();
+  } else if (e.key === '[') {
+    e.preventDefault();
+    if (selectedTradeIdx > 0) selectTrade(selectedTradeIdx - 1);
+  } else if (e.key === ']') {
+    e.preventDefault();
+    if (selectedTradeIdx < currentTrades.length - 1) selectTrade(selectedTradeIdx + 1);
+  } else if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    toggleExpand();
+  } else if (e.key === 'Escape') {
+    // Close expanded chart first, then cancel drawing mode
+    if (document.querySelector('.chart-panel.expanded')) {
+      toggleExpand();
+    } else {
+      drawingMode = null;
+      var btns = document.querySelectorAll('.draw-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+    }
+  } else if (e.key === 'p' || e.key === 'P') {
+    e.preventDefault();
+    toggleParams();
+  } else if (e.key === 'i' || e.key === 'I') {
+    e.preventDefault();
+    var tb = document.getElementById('ind-toolbar');
+    tb.style.display = tb.style.display === 'none' ? 'flex' : 'none';
+  }
+});
+
+// ── Init on load ──
+window.addEventListener('DOMContentLoaded', function() {
+  registerBackendIndicators();
+  initChart();
+});
+
+// ── Resize handling ──
+window.addEventListener('resize', function() {
+  if (mainChart) mainChart.resize();
+  if (equityChart) equityChart.resize();
+});
+</script>
+
+</body>
+</html>

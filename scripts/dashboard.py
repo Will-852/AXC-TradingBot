@@ -8,6 +8,7 @@ Usage:
   python3 dashboard.py --port 8080
 """
 
+import fcntl
 import io
 import json
 import logging
@@ -15,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -22,7 +24,7 @@ import urllib.error
 import urllib.parse
 import zipfile
 import math
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -47,6 +49,19 @@ PNL_HISTORY_PATH = os.path.join(HOME, "shared", "pnl_history.json")
 BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 _profiles_cache = {"ts": 0, "data": {}, "active": ""}
+
+# ── AI Chat (Dashboard) ──────────────────────────────────────────────
+PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
+PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
+_CHAT_MODEL_HAIKU = "claude-haiku-4-5-20251001"
+_CHAT_MODEL_SONNET = "claude-sonnet-4-6"
+_CHAT_ANALYSIS_KW = {"分析", "點解", "策略", "比較", "評估", "建議"}
+_CHAT_SONNET_DAILY_CAP = 15
+_SONNET_USAGE_PATH = os.path.join(HOME, "shared", "sonnet_usage.json")
+_chat_history = []  # list of {role, content, ts}
+_chat_lock = threading.Lock()
+_CHAT_MAX_PAIRS = 5
+_CHAT_EXPIRY_SEC = 600  # 10 min
 
 # Whitelist: profile-aware params with Chinese labels
 # Keys starting with _ are resolved from active profile (config/profiles/)
@@ -1367,7 +1382,6 @@ def get_balance_baseline(current_balance, fee_breakdown=None):
         dirty = True
 
     if dirty:
-        import tempfile
         tmp = tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(BALANCE_BASELINE_PATH),
                                           delete=False, suffix='.tmp')
         json.dump(data, tmp)
@@ -1628,6 +1642,9 @@ def get_action_plan(scan_config, trade_state):
 
         is_tradeable = sym in trader_pairs
 
+        high_24h = float(data.get("high", 0))
+        low_24h = float(data.get("low", 0))
+
         plans.append({
             "symbol": sym, "price": price,
             "change_pct": round(change, 2),
@@ -1645,6 +1662,8 @@ def get_action_plan(scan_config, trade_state):
             "tp_pct": round(tp_dist / price * 100, 2) if tp_dist else None,
             "changes": interval_changes.get(sym, {}),
             "tradeable": is_tradeable,
+            "high_24h": high_24h,
+            "low_24h": low_24h,
         })
     _action_cache["data"] = plans
     _action_cache["ts"] = now
@@ -2028,6 +2047,148 @@ def handle_modify_sltp(body):
     except Exception as e:
         logging.error("Dashboard modify-sltp failed: %s %s → %s", platform, symbol, e)
         return 500, {"error": str(e)}
+
+
+def handle_place_order(body):
+    """POST /api/place-order — open a new position from dashboard trade modal.
+    Execution sequence mirrors execute_trade.py:
+      ① set_margin_mode ISOLATED
+      ② set_leverage
+      ③ market entry
+      ④ SL (critical — failure triggers emergency close)
+      ⑤ TP (best-effort)
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return 400, {"error": "Invalid JSON"}
+
+    symbol = (data.get("symbol") or "").upper().strip()
+    platform = (data.get("platform") or "").lower().strip()
+    side = (data.get("side") or "").upper().strip()       # BUY or SELL
+    sl_price = data.get("sl_price")
+    tp_price = data.get("tp_price")
+
+    try:
+        qty = float(data.get("qty", 0))
+        leverage = int(data.get("leverage", 5))
+    except (ValueError, TypeError):
+        return 400, {"error": "qty/leverage 必須為數字"}
+
+    # Validation
+    if not symbol or not symbol.endswith("USDT"):
+        return 400, {"error": f"Invalid symbol: {symbol}"}
+    if platform not in ("aster", "binance", "hyperliquid"):
+        return 400, {"error": f"Invalid platform: {platform}"}
+    if side not in ("BUY", "SELL"):
+        return 400, {"error": f"Invalid side: {side}"}
+    if qty <= 0:
+        return 400, {"error": "數量必須大於 0"}
+    if leverage < 1 or leverage > 125:
+        return 400, {"error": f"Invalid leverage: {leverage}"}
+
+    exit_side = "SELL" if side == "BUY" else "BUY"
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+
+    try:
+        client = client_fns[platform]()
+    except Exception as e:
+        return 500, {"error": f"交易所未連接: {e}"}
+
+    try:
+        # ① Margin mode
+        try:
+            client.set_margin_mode(symbol, "ISOLATED")
+        except Exception:
+            pass  # may already be set
+
+        # ② Leverage
+        client.set_leverage(symbol, leverage)
+
+        # ③ Market entry
+        entry_result = client.create_market_order(symbol, side, qty)
+
+        fill_qty = float(entry_result.get("executedQty", 0)) or qty
+        fill_price = float(entry_result.get("avgPrice", 0))
+        resp = {
+            "ok": True,
+            "entry": {
+                "orderId": str(entry_result.get("orderId", "")),
+                "avgPrice": fill_price,
+                "executedQty": fill_qty,
+            },
+        }
+        logging.info(
+            "Dashboard place-order: %s %s %s qty=%s lev=%sx → %s",
+            platform, symbol, side, qty, leverage, entry_result
+        )
+
+        # ④ SL (critical)
+        if sl_price and float(sl_price) > 0:
+            try:
+                sl_result = client.create_stop_market(
+                    symbol, exit_side, fill_qty, float(sl_price)
+                )
+                resp["sl"] = {"orderId": str(sl_result.get("orderId", ""))}
+            except Exception as sl_err:
+                logging.error("Dashboard SL failed, emergency close: %s %s → %s", platform, symbol, sl_err)
+                try:
+                    client.close_position_market(symbol)
+                    return 500, {"error": f"SL 落單失敗，已緊急平倉: {sl_err}"}
+                except Exception as close_err:
+                    logging.error("Emergency close also failed: %s", close_err)
+                    return 500, {"error": f"SL 落單失敗，緊急平倉也失敗！倉位仍開放，請手動處理: {sl_err}"}
+
+        # ⑤ TP (best-effort)
+        if tp_price and float(tp_price) > 0:
+            try:
+                tp_result = client.create_take_profit_market(
+                    symbol, exit_side, fill_qty, float(tp_price)
+                )
+                resp["tp"] = {"orderId": str(tp_result.get("orderId", ""))}
+            except Exception as tp_err:
+                logging.warning("Dashboard TP failed (SL active): %s %s → %s", platform, symbol, tp_err)
+                resp["warnings"] = [f"TP 設置失敗 (SL 保護中): {tp_err}"]
+
+        return 200, resp
+
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "insufficient" in err_msg or "balance" in err_msg:
+            return 400, {"error": f"餘額不足: {e}"}
+        logging.error("Dashboard place-order failed: %s %s → %s", platform, symbol, e)
+        return 500, {"error": str(e)}
+
+
+def handle_exchange_balance():
+    """GET /api/exchange/balance — balances for all connected exchanges (parallel)."""
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+
+    def _query_balance(name, cfn):
+        client = cfn()
+        return name, client.get_usdt_balance()
+
+    result = {}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(_query_balance, name, cfn): name
+            for name, cfn in client_fns.items()
+        }
+        for fut in as_completed(futures):
+            try:
+                name, bal = fut.result(timeout=CONNECT_TIMEOUT_SEC)
+                result[name] = {"balance": bal}
+            except Exception:
+                pass  # exchange not connected
+    return result
 
 
 def handle_api_scan_log():
@@ -2717,10 +2878,944 @@ def serve_doc(filename: str):
     return 200, content, "text/plain; charset=utf-8"
 
 
+# ── Backtest infrastructure ─────────────────────────────────
+BT_DATA_DIR = os.path.join(HOME, "backtest", "data")
+_bt_pool: ProcessPoolExecutor | None = None  # lazy init to avoid child re-spawn
+_bt_lock = threading.Lock()
+_bt_jobs: dict = {}   # job_id → {"status", "result", "error", "symbol", "days"}
+_BT_MAX_JOBS = 10     # evict oldest completed jobs beyond this
+
+
+def _get_bt_pool() -> ProcessPoolExecutor:
+    """Lazy-init ProcessPool to prevent child process re-creating it on import."""
+    global _bt_pool
+    if _bt_pool is None:
+        _bt_pool = ProcessPoolExecutor(max_workers=2)
+    return _bt_pool
+
+
+def _evict_old_jobs():
+    """Remove oldest completed/error jobs when over _BT_MAX_JOBS. Must hold _bt_lock."""
+    finished = [(k, v) for k, v in _bt_jobs.items()
+                if v["status"] in ("done", "error")]
+    if len(finished) <= _BT_MAX_JOBS:
+        return
+    # job_id contains timestamp — sort by key (oldest first)
+    finished.sort(key=lambda x: x[0])
+    for k, _ in finished[:len(finished) - _BT_MAX_JOBS]:
+        del _bt_jobs[k]
+
+
+def _run_bt_worker(symbol: str, days: int, balance: float,
+                   strategy_params: dict | None = None,
+                   param_overrides: dict | None = None,
+                   allowed_modes: list | None = None,
+                   mode_confirmation: int | None = None) -> dict:
+    """Module-level worker for ProcessPoolExecutor (must be picklable)."""
+    import sys as _sys
+    _home = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+    if _home not in _sys.path:
+        _sys.path.insert(0, _home)
+    _scripts = os.path.join(_home, "scripts")
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+
+    from backtest.fetch_historical import fetch_klines_range
+    from backtest.engine import BacktestEngine, WARMUP_CANDLES
+    from datetime import datetime, timezone, timedelta
+
+    def _calc_range(d, interval):
+        now = datetime.now(timezone.utc)
+        end_ms = int(now.timestamp() * 1000)
+        wh = WARMUP_CANDLES * (4 if interval == "4h" else 1)
+        start_ms = int((now - timedelta(hours=d * 24 + wh)).timestamp() * 1000)
+        return start_ms, end_ms
+
+    s1, e1 = _calc_range(days, "1h")
+    s4, e4 = _calc_range(days, "4h")
+    df_1h = fetch_klines_range(symbol, "1h", s1, e1)
+    df_4h = fetch_klines_range(symbol, "4h", s4, e4)
+
+    # Monkey-patch strategy constants if overrides provided
+    sp = strategy_params or {}
+    _originals = {}
+    _patched_modules = []
+    if sp:
+        import trader_cycle.strategies.range_strategy as _rs
+        import trader_cycle.strategies.trend_strategy as _ts
+        _STRATEGY_MAP = {
+            "range_sl":       [(_rs, "RANGE_SL_ATR_MULT"), (_ts, None)],
+            "range_rr":       [(_rs, "RANGE_MIN_RR"), (_ts, None)],
+            "trend_sl":       [(_rs, None), (_ts, "TREND_SL_ATR_MULT")],
+            "trend_rr":       [(_rs, None), (_ts, "TREND_MIN_RR")],
+            "risk_pct":       [(_rs, "RANGE_RISK_PCT"), (_ts, "TREND_RISK_PCT")],
+            "range_leverage": [(_rs, "RANGE_LEVERAGE"), (_ts, None)],
+            "trend_leverage": [(_rs, None), (_ts, "TREND_LEVERAGE")],
+        }
+        for key, val in sp.items():
+            targets = _STRATEGY_MAP.get(key, [])
+            for mod, attr in targets:
+                if attr and hasattr(mod, attr):
+                    _originals[(mod, attr)] = getattr(mod, attr)
+                    setattr(mod, attr, val)
+                    _patched_modules.append((mod, attr))
+
+    try:
+        engine = BacktestEngine(
+            symbol=symbol, df_1h=df_1h, df_4h=df_4h,
+            initial_balance=balance, quiet=True,
+            param_overrides=param_overrides or {},
+            allowed_modes=allowed_modes,
+            mode_confirmation=mode_confirmation,
+        )
+        result = engine.run()
+    finally:
+        # Restore monkey-patched constants
+        for (mod, attr), orig_val in _originals.items():
+            setattr(mod, attr, orig_val)
+
+    # Serialize trades
+    result["trades"] = [t.to_dict() for t in result["trades"]]
+    return result
+
+
+def _compute_stats_from_trades(trades: list, balance: float = 10000) -> dict:
+    """Compute basic stats from trade dicts (for legacy JSONL without meta)."""
+    if not trades:
+        return {}
+    wins = sum(1 for t in trades if (t.get("pnl") or 0) > 0)
+    total_pnl = sum(t.get("pnl") or 0 for t in trades)
+    n = len(trades)
+    equity, peak, max_dd = 0.0, 0.0, 0.0
+    for t in trades:
+        equity += t.get("pnl") or 0
+        if equity > peak:
+            peak = equity
+        dd = peak - equity
+        if dd > max_dd:
+            max_dd = dd
+    return {
+        "return_pct": round(total_pnl / balance * 100, 2) if balance else 0,
+        "win_rate": round(wins / n * 100, 1) if n else 0,
+        "total_trades": n,
+        "max_drawdown_pct": round(max_dd / balance * 100, 2) if balance else 0,
+        "expectancy": round(total_pnl / n, 2) if n else 0,
+        "estimated": True,  # balance was assumed, not from original run
+    }
+
+
+def handle_bt_list():
+    """Return metadata of existing backtest JSONL files.
+    Fast path: if meta sidecar exists with stats, only count JSONL lines (no parse).
+    Slow path (one-time): parse trades, compute stats, persist meta for next call."""
+    results = []
+    if not os.path.isdir(BT_DATA_DIR):
+        return results
+    for fname in sorted(os.listdir(BT_DATA_DIR)):
+        if not fname.endswith("_trades.jsonl"):
+            continue
+        # Formats: bt_BTCUSDT_60d_trades.jsonl or bt_BTCUSDT_60d_v2_trades.jsonl
+        stem = fname.replace("bt_", "", 1).replace("_trades.jsonl", "")
+        stem_clean = re.sub(r'_v\d+$', '', stem)
+        parts = stem_clean.rsplit("_", 1)
+        if len(parts) != 2:
+            continue
+        symbol, days_str = parts
+        try:
+            days = int(days_str.replace("d", ""))
+        except ValueError:
+            continue
+        fpath = os.path.join(BT_DATA_DIR, fname)
+        is_imported = bool(re.search(r'_v\d+_trades\.jsonl$', fname))
+
+        # Check meta sidecar first
+        meta_fname = fname.replace("_trades.jsonl", "_meta.json")
+        meta_path = os.path.join(BT_DATA_DIR, meta_fname)
+        has_meta = False
+        entry = {
+            "symbol": symbol, "days": days,
+            "file": fname, "is_imported": is_imported,
+        }
+
+        if os.path.isfile(meta_path):
+            try:
+                with open(meta_path, encoding="utf-8") as mf:
+                    meta = json.load(mf)
+                entry["balance"] = meta.get("balance")
+                entry["strategy_params"] = meta.get("strategy_params", {})
+                entry["param_overrides"] = meta.get("param_overrides", {})
+                entry["allowed_modes"] = meta.get("allowed_modes")
+                entry["mode_confirmation"] = meta.get("mode_confirmation")
+                entry["stats"] = meta.get("stats", {})
+                entry["created_at"] = meta.get("created_at", "")
+                has_meta = bool(entry["stats"])
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if has_meta:
+            # Fast path: only count lines, skip JSON parsing
+            try:
+                with open(fpath, encoding="utf-8") as f:
+                    entry["trade_count"] = sum(1 for line in f if line.strip())
+            except OSError:
+                entry["trade_count"] = 0
+        else:
+            # Slow path (one-time): parse trades → compute stats → persist meta
+            trades = []
+            try:
+                with open(fpath, encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            trades.append(json.loads(line))
+            except (OSError, json.JSONDecodeError):
+                pass
+            entry["trade_count"] = len(trades)
+
+            if trades:
+                stats = _compute_stats_from_trades(trades)
+                entry["stats"] = stats
+                entry["balance"] = 10000
+                try:
+                    backfill_meta = {
+                        "symbol": symbol, "days": days, "balance": 10000,
+                        "strategy_params": {}, "param_overrides": {},
+                        "stats": stats,
+                        "created_at": datetime.now(HKT).isoformat(),
+                        "backfilled": True,
+                    }
+                    tmp_m = tempfile.NamedTemporaryFile(
+                        mode='w', dir=BT_DATA_DIR, delete=False, suffix='.tmp')
+                    json.dump(backfill_meta, tmp_m, ensure_ascii=False)
+                    tmp_m.close()
+                    os.replace(tmp_m.name, meta_path)
+                    logging.info("Backfilled meta for %s", fname)
+                except OSError:
+                    pass
+
+        results.append(entry)
+    return results
+
+
+def handle_bt_klines(qs: dict):
+    """Return klines for chart display. Supports multiple intervals."""
+    symbol = qs.get("symbol", [""])[0].upper()
+    days_str = qs.get("days", ["60"])[0]
+    interval = qs.get("interval", ["1h"])[0].lower()
+    if not symbol:
+        return 400, {"error": "symbol required"}
+    try:
+        days = int(days_str)
+    except ValueError:
+        return 400, {"error": "invalid days"}
+    if interval not in _BT_VALID_INTERVALS:
+        return 400, {"error": f"invalid interval: {interval}. Valid: {sorted(_BT_VALID_INTERVALS)}"}
+
+    # Enforce max days per interval
+    max_days = _BT_INTERVAL_MAX_DAYS[interval]
+    if days > max_days:
+        days = max_days
+
+    if HOME not in sys.path:
+        sys.path.insert(0, HOME)
+    if SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, SCRIPTS_DIR)
+    from backtest.fetch_historical import fetch_klines_range
+    from backtest.engine import WARMUP_CANDLES
+
+    try:
+        now = datetime.now(timezone.utc)
+        end_ms = int(now.timestamp() * 1000)
+        # Warmup buffer only meaningful for 1h (backtest engine timeframe)
+        wh = WARMUP_CANDLES if interval == "1h" else 0
+        start_ms = int((now - timedelta(hours=days * 24 + wh)).timestamp() * 1000)
+
+        df = fetch_klines_range(symbol, interval, start_ms, end_ms)
+    except Exception as e:
+        return 500, {"error": f"Failed to fetch klines: {e}"}
+    # KLineChart format
+    candles = []
+    for _, row in df.iterrows():
+        candles.append({
+            "timestamp": int(row["open_time"]),
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": float(row["close"]),
+            "volume": float(row["volume"]),
+        })
+    return 200, {"candles": candles, "interval": interval, "days": days}
+
+
+def handle_bt_results(qs: dict):
+    """Return trades for a specific backtest result file.
+    Accepts either ?file=bt_BTCUSDT_30d_v2_trades.jsonl (exact)
+    or ?symbol=BTCUSDT&days=30 (legacy, finds first match)."""
+    # Prefer exact file parameter (used by loadExisting for _v{N} files)
+    file_param = qs.get("file", [""])[0]
+    if file_param:
+        # Sanitize: only allow expected filename patterns
+        if not file_param.endswith("_trades.jsonl") or "/" in file_param:
+            return 400, {"error": "invalid file parameter"}
+        fpath = os.path.join(BT_DATA_DIR, file_param)
+        if not os.path.isfile(fpath):
+            return 404, {"error": "file not found"}
+        trades = []
+        with open(fpath, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    trades.append(json.loads(line))
+        return 200, {"file": file_param, "trades": trades}
+
+    # Legacy: symbol + days lookup
+    symbol = qs.get("symbol", [""])[0].upper()
+    days_str = qs.get("days", [""])[0]
+    if not symbol or not days_str:
+        return 400, {"error": "symbol and days (or file) required"}
+    try:
+        days = int(days_str)
+    except ValueError:
+        return 400, {"error": "invalid days"}
+    fname = f"bt_{symbol}_{days}d_trades.jsonl"
+    fpath = os.path.join(BT_DATA_DIR, fname)
+    if not os.path.isfile(fpath):
+        return 404, {"error": "file not found"}
+    trades = []
+    with open(fpath, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                trades.append(json.loads(line))
+    return 200, {"symbol": symbol, "days": days, "trades": trades}
+
+
+def _save_bt_result(symbol: str, days: int, trades: list):
+    """Auto-save backtest trades to JSONL so 'Load old results' can find them."""
+    try:
+        os.makedirs(BT_DATA_DIR, exist_ok=True)
+        fname = f"bt_{symbol}_{days}d_trades.jsonl"
+        fpath = os.path.join(BT_DATA_DIR, fname)
+        tmp = fpath + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for t in trades:
+                f.write(json.dumps(t, ensure_ascii=False) + "\n")
+        os.replace(tmp, fpath)
+    except OSError as e:
+        logging.warning("Failed to save backtest result: %s", e)
+
+
+def _save_bt_metadata(symbol: str, days: int, balance: float,
+                      strategy_params: dict | None = None,
+                      param_overrides: dict | None = None,
+                      allowed_modes: list | None = None,
+                      mode_confirmation: int | None = None,
+                      stats: dict | None = None):
+    """Save backtest run metadata as JSON sidecar for later reference."""
+    try:
+        os.makedirs(BT_DATA_DIR, exist_ok=True)
+        fname = f"bt_{symbol}_{days}d_meta.json"
+        fpath = os.path.join(BT_DATA_DIR, fname)
+        meta = {
+            "symbol": symbol, "days": days, "balance": balance,
+            "strategy_params": strategy_params or {},
+            "param_overrides": param_overrides or {},
+            "allowed_modes": allowed_modes,
+            "mode_confirmation": mode_confirmation,
+            "stats": stats or {},
+            "created_at": datetime.now(HKT).isoformat(),
+        }
+        tmp = tempfile.NamedTemporaryFile(
+            mode='w', dir=os.path.dirname(fpath),
+            delete=False, suffix='.tmp')
+        json.dump(meta, tmp, ensure_ascii=False)
+        tmp.close()
+        os.replace(tmp.name, fpath)
+    except OSError as e:
+        logging.warning("Failed to save backtest metadata: %s", e)
+
+
+_BT_ALLOWED_SYMBOLS = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "BNBUSDT"}
+_BT_MAX_DAYS = 365
+_BT_JOB_TIMEOUT = 600  # 10 minutes
+_BT_INTERVAL_MAX_DAYS = {
+    "1m": 7, "5m": 30, "15m": 60,
+    "1h": 365, "4h": 365, "1d": 365,
+}
+_BT_VALID_INTERVALS = set(_BT_INTERVAL_MAX_DAYS.keys())
+
+_INTERVAL_MS = {
+    "1m": 60_000, "5m": 300_000, "15m": 900_000,
+    "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000,
+}
+
+_aggtrades_lock = threading.Lock()
+
+
+def handle_bt_aggtrades(qs: dict):
+    """Return aggregated aggTrade data for footprint/delta/VP/large-trade features."""
+    if not _aggtrades_lock.acquire(blocking=False):
+        return 429, {"error": "aggTrades fetch already in progress, please wait"}
+    try:
+        return _handle_bt_aggtrades_inner(qs)
+    finally:
+        _aggtrades_lock.release()
+
+
+def _handle_bt_aggtrades_inner(qs: dict):
+    symbol = qs.get("symbol", [""])[0].upper()
+    if not symbol:
+        return 400, {"error": "symbol required"}
+    if symbol not in _BT_ALLOWED_SYMBOLS:
+        return 400, {"error": f"symbol not allowed: {symbol}. Valid: {sorted(_BT_ALLOWED_SYMBOLS)}"}
+
+    try:
+        days = min(int(qs.get("days", ["7"])[0]), 14)
+    except ValueError:
+        return 400, {"error": "invalid days"}
+    if days < 1:
+        return 400, {"error": "days must be >= 1"}
+
+    interval = qs.get("interval", ["1h"])[0].lower()
+    if interval not in _INTERVAL_MS:
+        return 400, {"error": f"invalid interval: {interval}"}
+
+    features_str = qs.get("features", ["delta,large,profile,heatmap"])[0]
+    features = set(f.strip() for f in features_str.split(","))
+
+    # Heatmap/delta on small intervals creates too many entries (20K+ at 1m)
+    # Force minimum 15m for time-bucketed features
+    _MIN_BUCKET_INTERVAL = 900_000  # 15m
+    if _INTERVAL_MS[interval] < _MIN_BUCKET_INTERVAL:
+        if "delta" in features or "heatmap" in features:
+            interval = "15m"
+
+    try:
+        threshold = float(qs.get("threshold", ["100000"])[0])
+    except ValueError:
+        threshold = 100_000
+
+    from backtest.fetch_agg_trades import (
+        fetch_agg_trades_range,
+        aggregate_delta_volume,
+        aggregate_large_trades,
+        aggregate_volume_profile,
+        aggregate_footprint_heatmap,
+        AGG_BUCKET_DEFAULTS,
+    )
+
+    try:
+        bucket_str = qs.get("bucket_size", [""])[0]
+        bucket_size = float(bucket_str) if bucket_str else AGG_BUCKET_DEFAULTS.get(symbol, 50)
+    except ValueError:
+        bucket_size = AGG_BUCKET_DEFAULTS.get(symbol, 50)
+
+    now = datetime.now(timezone.utc)
+    end_ms = int(now.timestamp() * 1000)
+    start_ms = int((now - timedelta(days=days)).timestamp() * 1000)
+    interval_ms = _INTERVAL_MS[interval]
+
+    # Align start_ms to interval boundary so candle timestamps match Binance klines
+    start_ms = (start_ms // interval_ms) * interval_ms
+
+    try:
+        trades_df = fetch_agg_trades_range(symbol, start_ms, end_ms)
+    except Exception as e:
+        return 500, {"error": f"Failed to fetch aggTrades: {e}"}
+
+    # Build candle timestamps aligned to interval boundaries
+    candle_ts = list(range(start_ms, end_ms, interval_ms))
+
+    result = {"symbol": symbol, "days": days, "interval": interval}
+
+    if "delta" in features:
+        result["delta_volume"] = aggregate_delta_volume(trades_df, candle_ts, interval_ms)
+    if "large" in features:
+        result["large_trades"] = aggregate_large_trades(trades_df, threshold)
+    if "profile" in features:
+        result["volume_profile"] = aggregate_volume_profile(trades_df, bucket_size)
+    if "heatmap" in features:
+        result["heatmap"] = aggregate_footprint_heatmap(
+            trades_df, candle_ts, interval_ms, bucket_size
+        )
+
+    return 200, result
+
+
+def handle_bt_run(body: str):
+    """Start a backtest run in ProcessPool."""
+    try:
+        req = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid JSON"}
+    symbol = req.get("symbol", "BTCUSDT").upper()
+    try:
+        days = int(req.get("days", 60))
+        balance = float(req.get("balance", 10000))
+    except (ValueError, TypeError):
+        return 400, {"error": "invalid days or balance"}
+
+    # Phase 5C: Input validation
+    if symbol not in _BT_ALLOWED_SYMBOLS:
+        return 400, {"error": f"symbol not allowed: {symbol}. Valid: {sorted(_BT_ALLOWED_SYMBOLS)}"}
+    if days < 1 or days > _BT_MAX_DAYS:
+        return 400, {"error": f"days must be 1-{_BT_MAX_DAYS}"}
+    if balance < 100 or balance > 10_000_000:
+        return 400, {"error": "balance must be 100-10000000"}
+
+    # Validate param_overrides numeric ranges
+    param_overrides_raw = req.get("param_overrides") or {}
+    if isinstance(param_overrides_raw, dict):
+        for k, v in param_overrides_raw.items():
+            if not isinstance(v, (int, float)):
+                return 400, {"error": f"param_overrides.{k} must be numeric"}
+
+    # Optional overrides from param panel
+    strategy_params = req.get("strategy_params") or None
+    param_overrides = req.get("param_overrides") or None
+    allowed_modes = req.get("allowed_modes") or None
+    mode_confirmation = req.get("mode_confirmation") or None
+    if mode_confirmation is not None:
+        mode_confirmation = int(mode_confirmation)
+
+    job_id = f"{symbol}_{days}d_{int(time.time())}"
+    with _bt_lock:
+        _evict_old_jobs()
+        _bt_jobs[job_id] = {"status": "running", "symbol": symbol, "days": days,
+                            "result": None, "error": None}
+
+    def _on_done(fut):
+        with _bt_lock:
+            try:
+                result = fut.result()
+                _bt_jobs[job_id]["result"] = result
+                _bt_jobs[job_id]["status"] = "done"
+                # Auto-save trades to JSONL for later loading
+                _save_bt_result(symbol, days, result.get("trades", []))
+            except Exception as e:
+                _bt_jobs[job_id]["error"] = str(e)
+                _bt_jobs[job_id]["status"] = "error"
+                return
+        # Save metadata sidecar outside lock (I/O bound)
+        stats = {k: result.get(k) for k in (
+            "return_pct", "win_rate", "profit_factor",
+            "max_drawdown_pct", "total_trades", "sharpe_ratio",
+            "expectancy") if result.get(k) is not None}
+        _save_bt_metadata(symbol, days, balance,
+                          strategy_params=strategy_params,
+                          param_overrides=param_overrides,
+                          allowed_modes=allowed_modes,
+                          mode_confirmation=mode_confirmation,
+                          stats=stats)
+
+    fut = _get_bt_pool().submit(
+        _run_bt_worker, symbol, days, balance,
+        strategy_params=strategy_params,
+        param_overrides=param_overrides,
+        allowed_modes=allowed_modes,
+        mode_confirmation=mode_confirmation,
+    )
+    fut.add_done_callback(_on_done)
+    return 200, {"job_id": job_id, "status": "running"}
+
+
+def handle_bt_status(qs: dict):
+    """Check backtest job status."""
+    job_id = qs.get("job_id", [""])[0]
+    if not job_id:
+        with _bt_lock:
+            return 200, {k: {"status": v["status"], "symbol": v["symbol"],
+                              "days": v["days"]}
+                         for k, v in _bt_jobs.items()}
+    with _bt_lock:
+        job = _bt_jobs.get(job_id)
+    if not job:
+        return 404, {"error": "job not found"}
+    resp = {"job_id": job_id, "status": job["status"],
+            "symbol": job["symbol"], "days": job["days"]}
+    if job["status"] == "done":
+        resp["result"] = job["result"]
+    elif job["status"] == "error":
+        resp["error"] = job["error"]
+    return 200, resp
+
+
+_REPORT_FORMAT_VERSION = "1.0"
+
+
+def handle_bt_export(qs: dict):
+    """Export a complete backtest report as a single JSON file.
+    Accepts ?file=exact_filename or ?symbol=X&days=N (legacy)."""
+    file_param = qs.get("file", [""])[0]
+    if file_param:
+        if not file_param.endswith("_trades.jsonl") or "/" in file_param:
+            return 400, {"error": "invalid file parameter"}
+        fname = file_param
+        # Extract symbol/days from filename for report metadata
+        m = re.match(r'bt_([A-Z]+)_(\d+)d(?:_v\d+)?_trades\.jsonl', fname)
+        if not m:
+            return 400, {"error": "cannot parse filename"}
+        symbol, days = m.group(1), int(m.group(2))
+    else:
+        symbol = qs.get("symbol", [""])[0].upper()
+        days_str = qs.get("days", [""])[0]
+        if not symbol or not days_str:
+            return 400, {"error": "symbol and days (or file) required"}
+        try:
+            days = int(days_str)
+        except ValueError:
+            return 400, {"error": "invalid days"}
+        fname = f"bt_{symbol}_{days}d_trades.jsonl"
+
+    # Read trades from JSONL
+    fpath = os.path.join(BT_DATA_DIR, fname)
+    if not os.path.isfile(fpath):
+        return 404, {"error": f"No saved result for {fname}"}
+    trades = []
+    with open(fpath, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                trades.append(json.loads(line))
+
+    # Read meta sidecar if available (matches trades filename base)
+    meta_path = os.path.join(BT_DATA_DIR, fname.replace("_trades.jsonl", "_meta.json"))
+    meta = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    report = {
+        "format_version": _REPORT_FORMAT_VERSION,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "source": "AXC BacktestEngine",
+        "config": {
+            "symbol": symbol,
+            "days": days,
+            "balance": meta.get("balance", 10000),
+            "interval": "1h",
+            "strategy_params": meta.get("strategy_params", {}),
+            "param_overrides": meta.get("param_overrides", {}),
+        },
+        "stats": meta.get("stats", {}),
+        "trades": trades,
+    }
+
+    # Also save a copy to exports folder for local reference
+    export_dir = os.path.join(BT_DATA_DIR, "exports")
+    os.makedirs(export_dir, exist_ok=True)
+    ts = datetime.now(HKT).strftime("%Y%m%d_%H%M%S")
+    export_path = os.path.join(export_dir, f"{symbol}_{days}d_{ts}.json")
+    try:
+        tmp = tempfile.NamedTemporaryFile(
+            mode='w', dir=export_dir, delete=False, suffix='.tmp')
+        json.dump(report, tmp, ensure_ascii=False)
+        tmp.close()
+        os.replace(tmp.name, export_path)
+        logging.info("Exported report → %s", export_path)
+    except OSError as e:
+        logging.warning("Failed to save export copy: %s", e)
+
+    return 200, report
+
+
+def handle_bt_import(body: str):
+    """Import a backtest report JSON and save as JSONL + meta for dashboard viewing."""
+    try:
+        report = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid JSON"}
+
+    # Validate minimum required fields
+    trades = report.get("trades")
+    if not trades or not isinstance(trades, list):
+        return 400, {"error": "trades array is required and must not be empty"}
+
+    config = report.get("config", {})
+    symbol = config.get("symbol", "").upper()
+    if not symbol:
+        return 400, {"error": "config.symbol is required"}
+
+    # Validate each trade has minimum fields
+    required_trade_fields = {"side", "entry", "exit"}
+    for i, t in enumerate(trades):
+        missing = required_trade_fields - set(t.keys())
+        if missing:
+            return 400, {"error": f"trade[{i}] missing fields: {missing}"}
+
+    # Normalize trades: ensure pnl exists.
+    # NOTE: fallback PnL = price diff only (ignores qty/position size).
+    # External engines should include their own pnl field for accuracy.
+    for t in trades:
+        if "pnl" not in t:
+            entry = float(t["entry"])
+            exit_p = float(t["exit"])
+            mult = -1 if t["side"].upper() == "SHORT" else 1
+            t["pnl"] = round((exit_p - entry) * mult, 2)
+        # Normalize time field
+        if "entry_time" not in t and "ts" in t:
+            t["entry_time"] = t["ts"]
+
+    # Determine days from config or trade time range
+    days = config.get("days", 0)
+    if not days and len(trades) >= 2:
+        first_ts = trades[0].get("entry_time") or trades[0].get("ts", "")
+        last_ts = trades[-1].get("entry_time") or trades[-1].get("ts", "")
+        if first_ts and last_ts:
+            try:
+                # stdlib fromisoformat handles "2026-03-01T08:00:00" and "2026-03-01 08:00:00"
+                d0 = datetime.fromisoformat(first_ts)
+                d1 = datetime.fromisoformat(last_ts)
+                days = max(1, (d1 - d0).days)
+            except (ValueError, TypeError) as e:
+                logging.warning("Could not parse trade timestamps for days estimate: %s", e)
+                days = len(trades)
+    if not days:
+        days = len(trades)
+
+    # Use standard {days}d naming so loadExisting + export can find it.
+    # To avoid overwriting native results, check if file exists and append
+    # a numeric suffix: bt_BTCUSDT_30d_trades.jsonl → bt_BTCUSDT_30d_v2_trades.jsonl
+    base = f"bt_{symbol}_{days}d"
+    fname = f"{base}_trades.jsonl"
+    fpath = os.path.join(BT_DATA_DIR, fname)
+    suffix = 1
+    while os.path.isfile(fpath) and suffix < 100:
+        suffix += 1
+        fname = f"{base}_v{suffix}_trades.jsonl"
+        fpath = os.path.join(BT_DATA_DIR, fname)
+    if suffix >= 100:
+        return 400, {"error": f"Too many imports for {symbol} {days}d (max 100)"}
+
+    os.makedirs(BT_DATA_DIR, exist_ok=True)
+    tmp = fpath + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for t in trades:
+            f.write(json.dumps(t, ensure_ascii=False) + "\n")
+    os.replace(tmp, fpath)
+
+    # Save meta sidecar (same base name)
+    stats = report.get("stats", {})
+    meta = {
+        "symbol": symbol,
+        "days": days,
+        "balance": config.get("balance", 10000),
+        "strategy_params": config.get("strategy_params", {}),
+        "param_overrides": config.get("param_overrides", {}),
+        "stats": stats,
+        "source": report.get("source", "external"),
+        "created_at": datetime.now(HKT).isoformat(),
+    }
+    meta_fname = fname.replace("_trades.jsonl", "_meta.json")
+    meta_path = os.path.join(BT_DATA_DIR, meta_fname)
+    tmp_m = tempfile.NamedTemporaryFile(
+        mode='w', dir=BT_DATA_DIR, delete=False, suffix='.tmp')
+    json.dump(meta, tmp_m, ensure_ascii=False)
+    tmp_m.close()
+    os.replace(tmp_m.name, meta_path)
+
+    # Save original imported JSON to exports folder
+    export_dir = os.path.join(BT_DATA_DIR, "exports")
+    os.makedirs(export_dir, exist_ok=True)
+    ts_tag = datetime.now(HKT).strftime("%Y%m%d_%H%M%S")
+    import_copy = os.path.join(export_dir, f"imported_{symbol}_{days}d_{ts_tag}.json")
+    try:
+        with open(import_copy, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False)
+        logging.info("Imported report saved → %s", import_copy)
+    except OSError as e:
+        logging.warning("Failed to save import copy: %s", e)
+
+    return 200, {
+        "status": "imported",
+        "file": fname,
+        "days": days,
+        "trades": len(trades),
+        "symbol": symbol,
+    }
+
+
 _ALLOWED_ORIGINS = {
     f"http://127.0.0.1:{PORT}",
     f"http://localhost:{PORT}",
 }
+
+
+# ── AI Chat handlers ─────────────────────────────────────────────────
+
+_CHAT_SYSTEM_PROMPT = """你係 AXC Dashboard 嘅 AI 交易搭檔。
+格式：Markdown OK（dashboard 支援 bold、list、code）。回覆上限 15 行。
+語氣：香港交易員廣東話口語，直接有態度。
+收到數據問數據答，有觀點要講。唔好客套。"""
+
+
+def _sonnet_usage_ok() -> bool:
+    """Check + increment shared Sonnet daily cap. Thread-safe via file lock."""
+    today = datetime.now(HKT).strftime("%Y-%m-%d")
+    try:
+        os.makedirs(os.path.dirname(_SONNET_USAGE_PATH), exist_ok=True)
+        with open(_SONNET_USAGE_PATH, "a+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.seek(0)
+            raw = f.read().strip()
+            data = json.loads(raw) if raw else {"date": today, "count": 0}
+            if data.get("date") != today:
+                data = {"date": today, "count": 0}
+            if data["count"] >= _CHAT_SONNET_DAILY_CAP:
+                fcntl.flock(f, fcntl.LOCK_UN)
+                return False
+            data["count"] += 1
+            f.seek(0)
+            f.truncate()
+            f.write(json.dumps(data))
+            fcntl.flock(f, fcntl.LOCK_UN)
+        return True
+    except Exception:
+        return False
+
+
+def _build_chat_context() -> str:
+    """Build compact context from collect_data() for AI chat (~1500 chars)."""
+    try:
+        d = collect_data()
+    except Exception as e:
+        return f"(context error: {e})"
+    parts = []
+
+    # Mode + risk
+    parts.append(f"模式: {d.get('mode', '?')} | 連虧: {d.get('consecutive_losses', 0)}")
+    risk = d.get("risk_status", {})
+    if risk:
+        parts.append(f"風險: DD {risk.get('current_dd_pct', 0)}% | 日限 {risk.get('daily_limit_pct', 0)}% used")
+
+    # Balance + PnL
+    parts.append(f"餘額: ${d.get('balance', 0):.2f} | 今日: {d.get('today_pnl', 0):+.2f} | 總計: {d.get('total_pnl', 0):+.2f}")
+
+    # Positions
+    positions = d.get("live_positions", [])
+    if positions:
+        pos_lines = []
+        for p in positions[:5]:
+            pos_lines.append(
+                f"  {p.get('pair','?')} {p.get('direction','?')} "
+                f"entry={p.get('entry_price', 0)} "
+                f"SL={p.get('sl', '-')} TP={p.get('tp', '-')} "
+                f"uPnL={p.get('unrealized_pnl', 0):+.2f}"
+            )
+        parts.append("持倉:\n" + "\n".join(pos_lines))
+    else:
+        parts.append("持倉: 無")
+
+    # Prices + changes
+    ap = d.get("action_plan", [])
+    if ap:
+        price_parts = []
+        for a in ap:
+            chg = a.get("change_24h", "")
+            price_parts.append(f"{a.get('symbol','?')} {a.get('price', '?')} ({chg})")
+        parts.append("價格: " + " | ".join(price_parts))
+
+    # Funding rates
+    fr = d.get("funding_rates", {})
+    if fr:
+        fr_parts = []
+        for sym, data in fr.items():
+            if isinstance(data, dict):
+                rate = data.get("rate", "?")
+                fr_parts.append(f"{sym}={rate}")
+        if fr_parts:
+            parts.append("資金費率: " + " | ".join(fr_parts))
+
+    # Latest signal
+    sig = d.get("signal_active", "NO")
+    if sig == "YES":
+        parts.append(f"信號: {d.get('signal_pair', '?')} ACTIVE")
+
+    return "\n".join(parts)
+
+
+def _call_dashboard_claude(user_msg: str, context: str,
+                           history: list[dict] | None = None,
+                           model: str | None = None) -> str:
+    """Call Claude via proxy. Same pattern as tg_bot.py call_claude()."""
+    use_model = model or _CHAT_MODEL_HAIKU
+    url = f"{PROXY_BASE_URL}/messages"
+
+    messages = []
+    if history:
+        for m in history:
+            messages.append({"role": m["role"], "content": m["content"]})
+    messages.append({
+        "role": "user",
+        "content": f"{context}\n\n---\n\n用戶：{user_msg}",
+    })
+
+    body = json.dumps({
+        "model": use_model,
+        "max_tokens": 1200,
+        "system": _CHAT_SYSTEM_PROMPT,
+        "messages": messages,
+    }).encode()
+
+    req = urllib.request.Request(url, body, headers={
+        "Content-Type":      "application/json",
+        "Authorization":     f"Bearer {PROXY_API_KEY}",
+        "anthropic-version": "2023-06-01",
+    })
+
+    resp = urllib.request.urlopen(req, timeout=30)
+    data = json.loads(resp.read())
+    return data["content"][0]["text"]
+
+
+def handle_chat(body: str):
+    """POST /api/chat — AI chat from dashboard."""
+    if not PROXY_API_KEY:
+        return 500, {"error": "API key not configured"}
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        return 400, {"error": "Invalid JSON"}
+
+    msg = (payload.get("message") or "").strip()
+    if not msg:
+        return 400, {"error": "Empty message"}
+
+    # Model routing: analysis keywords → Sonnet
+    use_sonnet = any(kw in msg for kw in _CHAT_ANALYSIS_KW)
+    if use_sonnet and not _sonnet_usage_ok():
+        use_sonnet = False
+    model = _CHAT_MODEL_SONNET if use_sonnet else _CHAT_MODEL_HAIKU
+
+    # Build context
+    context = _build_chat_context()
+
+    # Manage history (thread-safe)
+    now = time.time()
+    with _chat_lock:
+        # Expire old entries
+        _chat_history[:] = [m for m in _chat_history if now - m.get("ts", 0) < _CHAT_EXPIRY_SEC]
+        # Trim to max pairs
+        while len(_chat_history) > _CHAT_MAX_PAIRS * 2:
+            _chat_history.pop(0)
+        history_for_api = [{"role": m["role"], "content": m["content"]} for m in _chat_history]
+
+    try:
+        reply = _call_dashboard_claude(msg, context, history_for_api, model)
+    except urllib.error.URLError as e:
+        logging.error(f"Chat API error: {e}")
+        return 502, {"error": "AI 暫時冇回應，稍後再試"}
+    except Exception as e:
+        logging.error(f"Chat error: {e}")
+        return 500, {"error": str(e)}
+
+    # Update history
+    with _chat_lock:
+        _chat_history.append({"role": "user", "content": msg, "ts": now})
+        _chat_history.append({"role": "assistant", "content": reply, "ts": now})
+
+    model_label = "sonnet" if use_sonnet else "haiku"
+    return 200, {"reply": reply, "model": model_label}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2783,6 +3878,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/hl/status":
             code, data = handle_hl_status()
             self._json_response(code, data)
+        elif path == "/api/exchange/balance":
+            self._json_response(200, handle_exchange_balance())
         elif path == "/api/file":
             rel = qs.get("path", [""])[0]
             code, content = handle_file_read(rel)
@@ -2798,6 +3895,37 @@ class Handler(BaseHTTPRequestHandler):
             rel = qs.get("path", [""])[0]
             code, data = handle_open_folder(rel)
             self._json_response(code, data)
+        # ── Backtest API ──
+        elif path == "/api/backtest/list":
+            self._json_response(200, handle_bt_list())
+        elif path == "/api/backtest/klines":
+            code, data = handle_bt_klines(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/results":
+            code, data = handle_bt_results(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/status":
+            code, data = handle_bt_status(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/aggtrades":
+            code, data = handle_bt_aggtrades(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/export":
+            code, data = handle_bt_export(qs)
+            self._json_response(code, data)
+        elif path == "/backtest":
+            bt_path = os.path.join(HOME, "canvas/backtest.html")
+            try:
+                with open(bt_path, "rb") as f:
+                    html = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html)
+            except FileNotFoundError:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"canvas/backtest.html not found")
         elif path == "/details":
             details_path = os.path.join(HOME, "canvas/details.html")
             try:
@@ -2856,9 +3984,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(err)))
                 self.end_headers()
                 self.wfile.write(err)
-        elif path.startswith("/svg/"):
+        elif path.startswith("/svg/") or path.endswith((".css", ".js")):
             _mime = {".svg": "image/svg+xml", ".png": "image/png",
-                     ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+                     ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                     ".css": "text/css; charset=utf-8",
+                     ".js": "application/javascript; charset=utf-8"}
             ext = os.path.splitext(path)[1].lower()
             ctype = _mime.get(ext)
             img_path = os.path.join(HOME, "canvas", path.lstrip("/"))
@@ -2867,7 +3997,7 @@ class Handler(BaseHTTPRequestHandler):
                     data = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
-                self.send_header("Cache-Control", "public, max-age=86400")
+                self.send_header("Cache-Control", "public, max-age=300")
                 self.end_headers()
                 self.wfile.write(data)
             else:
@@ -2923,6 +4053,21 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/modify-sltp":
             code, data = handle_modify_sltp(body)
+            self._json_response(code, data)
+        elif self.path == "/api/place-order":
+            code, data = handle_place_order(body)
+            self._json_response(code, data)
+        elif self.path == "/api/backtest/run":
+            code, data = handle_bt_run(body)
+            self._json_response(code, data)
+        elif self.path == "/api/backtest/import":
+            if len(body) > 50 * 1024 * 1024:  # 50 MB limit
+                self._json_response(413, {"error": "File too large (max 50 MB)"})
+            else:
+                code, data = handle_bt_import(body)
+                self._json_response(code, data)
+        elif self.path == "/api/chat":
+            code, data = handle_chat(body)
             self._json_response(code, data)
         else:
             self._json_response(404, {"error": "Not found"})

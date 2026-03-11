@@ -15,7 +15,7 @@ scoring.py — WeightedScorer: 可配置評分公式
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 
 @dataclass
@@ -28,8 +28,9 @@ class ScoringWeights:
     base_score_weak: float = 3.0        # range WEAK base
     base_score_trend_full: float = 5.0  # trend 4/4 base
     base_score_trend_bias: float = 3.5  # trend 3/4 bias base
-    confidence_threshold_high: float = 4.5   # score >= this → large position
-    confidence_risk_high_mult: float = 1.25  # high-confidence risk multiplier
+    confidence_threshold_low: float = 3.0    # score <= this → 1.0x risk (ramp starts here)
+    confidence_threshold_high: float = 4.5   # score >= this → max risk multiplier (ramp ends here)
+    confidence_risk_high_mult: float = 1.25  # max risk multiplier at ramp top
     reentry_boost: float = 0.0          # fixed boost for re-entry signals
 
     def to_dict(self) -> dict:
@@ -37,7 +38,7 @@ class ScoringWeights:
 
     @classmethod
     def from_dict(cls, d: dict) -> ScoringWeights:
-        valid = {f.name for f in cls.__dataclass_fields__.values()}
+        valid = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in valid})
 
 
@@ -108,7 +109,23 @@ class WeightedScorer:
         return score >= self.w.confidence_threshold_high
 
     def risk_multiplier(self, score: float) -> float:
-        """Risk multiplier based on score confidence."""
-        if self.is_high_confidence(score):
-            return self.w.confidence_risk_high_mult
-        return 1.0
+        """Linear ramp risk multiplier based on score confidence.
+
+        Below confidence_threshold_low → 1.0x (no boost).
+        Above confidence_threshold_high → confidence_risk_high_mult (max boost).
+        Between → linear interpolation (no cliff edge).
+        """
+        low = self.w.confidence_threshold_low
+        high = self.w.confidence_threshold_high
+        max_mult = self.w.confidence_risk_high_mult
+
+        if high <= low:
+            # Degenerate: collapse to step at low
+            return max_mult if score >= low else 1.0
+        if score <= low:
+            return 1.0
+        if score >= high:
+            return max_mult
+        # Linear ramp
+        t = (score - low) / (high - low)
+        return 1.0 + t * (max_mult - 1.0)
