@@ -265,7 +265,10 @@
 /* ── Confirmation overlay (replaces browser confirm) ── */
 .tm-confirm-overlay {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* no bottom — auto height, avoids empty space below buttons */
   background: #fff;
   z-index: 10;
   display: flex;
@@ -276,6 +279,7 @@
   transition: opacity .2s, transform .2s;
   pointer-events: none;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,.10);
 }
 .tm-confirm-overlay.show {
   opacity: 1;
@@ -301,7 +305,6 @@
   gap: 8px;
 }
 .tm-confirm-body {
-  flex: 1;
   padding: 16px 20px;
   overflow-y: auto;
 }

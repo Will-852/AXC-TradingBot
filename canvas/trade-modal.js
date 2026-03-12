@@ -51,8 +51,16 @@ function openTradeModal(planData) {
   // Clear error + hide confirmation overlay + unfreeze form
   _tmHideError();
   document.getElementById('tm-confirm-overlay').classList.remove('show');
+  // Restore overlay to confirmation mode (receipt mode may have changed these)
+  var _hdr = document.querySelector('#tm-confirm-overlay .tm-confirm-header');
+  if (_hdr) _hdr.innerHTML = '<i class="fas fa-shield-alt"></i> <span>確認下單</span>';
+  var _cancelBtn = document.querySelector('#tm-confirm-overlay .tm-confirm-cancel');
+  if (_cancelBtn) _cancelBtn.style.display = '';
+  var _goBtn = document.getElementById('tm-confirm-go');
+  if (_goBtn) { _goBtn.style.background = ''; _goBtn.onclick = function() { _tmConfirmExecute(); }; }
   _tmUnfreezeForm();
   _tmPendingPayload = null;
+  if (_tmReceiptTimer) { clearTimeout(_tmReceiptTimer); _tmReceiptTimer = null; }
 
   // Reset submit button
   var btn = document.getElementById('tm-submit-btn');
@@ -302,9 +310,9 @@ function _updatePreview() {
   var margin = leverage > 0 ? usdtInput : 0;
   var feeEst = usdtInput * leverage * 0.0004;  // 0.04% taker fee
   var rr = 0;
-  if (slPrice > 0 && tpPrice > 0 && price > 0) {
-    var risk = Math.abs(price - slPrice);
-    var reward = Math.abs(tpPrice - price);
+  if (slPrice > 0 && tpPrice > 0 && effectivePrice > 0) {
+    var risk = Math.abs(effectivePrice - slPrice);
+    var reward = Math.abs(tpPrice - effectivePrice);
     rr = risk > 0 ? reward / risk : 0;
   }
 
@@ -338,6 +346,7 @@ function _tmShowError(msg) {
 
 // ── Staged payload for confirmation overlay ──
 var _tmPendingPayload = null;
+var _tmReceiptTimer = null;
 
 function submitTradeOrder() {
   _tmHideError();
@@ -501,9 +510,7 @@ function _tmConfirmExecute() {
   .then(function(res) {
     if (thisReqId !== _tmState.requestId) return;
     if (res.data.ok) {
-      // Hide overlay immediately
-      document.getElementById('tm-confirm-overlay').classList.remove('show');
-      _tmUnfreezeForm();
+      // Keep overlay visible — will reuse it as receipt view
       // Show success + execution timing
       var submitBtn = document.getElementById('tm-submit-btn');
       submitBtn.disabled = true;
@@ -513,50 +520,111 @@ function _tmConfirmExecute() {
       var dn = payload.symbol.replace('USDT', '');
       var timeStr = timing ? ' (' + timing.fill_ms + 'ms 成交 / ' + timing.total_ms + 'ms 總計)' : '';
 
+      // Build receipt in confirm overlay (reuse overlay as receipt view)
+      var receiptHtml = '';
+      var platNames = { aster: 'Aster', binance: 'Binance', hyperliquid: 'HyperLiquid' };
+      var rRow = function(l, v) {
+        return '<div class="tm-confirm-row"><span class="tm-confirm-label">' + l + '</span><span class="tm-confirm-val">' + v + '</span></div>';
+      };
+      var isLong = payload.side === 'BUY';
+      var dirTag = isLong
+        ? '<span style="background:#0d9488;color:#fff;padding:2px 10px;border-radius:4px;font-size:.78rem;font-weight:600">LONG</span>'
+        : '<span style="background:#e11d48;color:#fff;padding:2px 10px;border-radius:4px;font-size:.78rem;font-weight:600">SHORT</span>';
+
       if (isPending) {
-        // Limit order — pending
         var sltpQueued = res.data.sltp_queued;
-        submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>掛單成功！' + timeStr;
+        receiptHtml =
+          '<div style="text-align:center;margin-bottom:10px"><i class="fas fa-check-circle" style="color:#635bff;font-size:1.6rem"></i>' +
+          '<div style="font-weight:600;margin-top:4px">掛單成功' + timeStr + '</div></div>' +
+          rRow('交易所', platNames[payload.platform] || payload.platform) +
+          rRow('方向', dirTag) +
+          rRow('限價', '$' + fmtPrice(payload.limit_price)) +
+          rRow('數量', payload.qty.toFixed(6) + ' ' + dn) +
+          rRow('槓桿', payload.leverage + 'x') +
+          rRow('保證金', '$' + (payload.limit_price * payload.qty / payload.leverage).toFixed(2));
+        if (payload.sl_price) receiptHtml += rRow('止損', '$' + fmtPrice(payload.sl_price) + (sltpQueued ? ' <span style="color:#64748b;font-size:.72rem">(成交後自動設)</span>' : ''));
+        if (payload.tp_price) receiptHtml += rRow('止盈', '$' + fmtPrice(payload.tp_price) + (sltpQueued ? ' <span style="color:#64748b;font-size:.72rem">(成交後自動設)</span>' : ''));
         submitBtn.style.background = '#635bff';
-        var pendingDetail = '限價 $' + fmtPrice(payload.limit_price) + ' × ' + payload.qty.toFixed(6);
-        if (sltpQueued) pendingDetail += ' | SL/TP 成交後自動設定';
-        submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">' + pendingDetail + '</span>';
       } else {
-        // Market order — filled
-        submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！' + timeStr;
+        var avgP = entry && entry.avgPrice > 0 ? parseFloat(entry.avgPrice) : 0;
+        var execQ = entry && entry.executedQty ? parseFloat(entry.executedQty) : payload.qty;
+        receiptHtml =
+          '<div style="text-align:center;margin-bottom:10px"><i class="fas fa-check-circle" style="color:#0d9488;font-size:1.6rem"></i>' +
+          '<div style="font-weight:600;margin-top:4px">下單成功' + timeStr + '</div></div>' +
+          rRow('交易所', platNames[payload.platform] || payload.platform) +
+          rRow('方向', dirTag) +
+          rRow('成交價', '$' + (avgP > 0 ? avgP.toFixed(4) : '—')) +
+          rRow('數量', execQ.toFixed(6) + ' ' + dn) +
+          rRow('槓桿', payload.leverage + 'x') +
+          rRow('保證金', '$' + (execQ * (avgP > 0 ? avgP : 1) / payload.leverage).toFixed(2));
+        if (payload.sl_price) receiptHtml += rRow('止損', '$' + fmtPrice(payload.sl_price));
+        if (payload.tp_price) receiptHtml += rRow('止盈', '$' + fmtPrice(payload.tp_price));
         submitBtn.style.background = '#0d9488';
-        if (entry && entry.avgPrice > 0) {
-          submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">成交價 $' + parseFloat(entry.avgPrice).toFixed(4) + ' × ' + parseFloat(entry.executedQty).toFixed(6) + '</span>';
-        }
       }
+      submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>' + (isPending ? '掛單成功！' : '下單成功！');
+
+      // Show receipt in confirm overlay — hide cancel button, update header
+      document.getElementById('tm-confirm-body').innerHTML = receiptHtml;
+      var confirmHeader = document.querySelector('#tm-confirm-overlay .tm-confirm-header');
+      if (confirmHeader) confirmHeader.innerHTML = '<i class="fas fa-receipt"></i> <span>交易收據</span>';
+      var cancelBtn = document.querySelector('#tm-confirm-overlay .tm-confirm-cancel');
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      var receiptGoBtn = document.getElementById('tm-confirm-go');
+      receiptGoBtn.className = 'tm-confirm-go';
+      receiptGoBtn.style.background = '#64748b';
+      receiptGoBtn.disabled = false;
+      receiptGoBtn.innerHTML = '<i class="fas fa-times mr-1"></i>關閉';
+      receiptGoBtn.onclick = function() {
+        if (_tmReceiptTimer) { clearTimeout(_tmReceiptTimer); _tmReceiptTimer = null; }
+        document.getElementById('tm-confirm-overlay').classList.remove('show');
+        _tmUnfreezeForm();
+        $('#trade-modal').modal('hide');
+        submitBtn.style.background = '';
+        receiptGoBtn.style.background = '';
+        receiptGoBtn.onclick = null;
+        if (typeof fetchData === 'function') fetchData();
+      };
+
       var warnings = res.data.warnings;
       if (warnings && warnings.length) {
         _tmShowError(warnings.join('; '));
         document.getElementById('tm-error').style.background = '#fffbeb';
         document.getElementById('tm-error').style.color = '#92400e';
       }
-      // Push notification with execution timing
+      // Push notification as persistent receipt (viewable in notification panel)
       if (typeof pushNotif === 'function') {
+        var platLabel = { aster: 'Aster', binance: 'Binance', hyperliquid: 'HL' }[payload.platform] || payload.platform;
+        var slTpStr = '';
+        if (payload.sl_price) slTpStr += ' SL $' + fmtPrice(payload.sl_price);
+        if (payload.tp_price) slTpStr += ' TP $' + fmtPrice(payload.tp_price);
         if (isPending) {
           pushNotif('trade',
             '掛單 ' + dn + ' ' + payload.side + ' @ $' + fmtPrice(payload.limit_price) + (timing ? ' (' + timing.total_ms + 'ms)' : ''),
-            payload.qty.toFixed(6) + ' ' + dn + ' | 保證金 $' + (payload.limit_price * payload.qty / payload.leverage).toFixed(2)
+            platLabel + ' ' + payload.leverage + 'x | ' + payload.qty.toFixed(6) + ' ' + dn +
+            ' | 保證金 $' + (payload.limit_price * payload.qty / payload.leverage).toFixed(2) +
+            slTpStr + (sltpQueued ? ' (成交後自動設)' : '')
           );
         } else {
+          var avgP = entry && entry.avgPrice > 0 ? parseFloat(entry.avgPrice) : 0;
+          var execQ = entry && entry.executedQty ? parseFloat(entry.executedQty) : payload.qty;
           pushNotif('trade',
             '成交 ' + dn + ' ' + payload.side + (timing ? ' (' + timing.fill_ms + 'ms)' : ''),
-            (entry && entry.avgPrice > 0 ? '$' + parseFloat(entry.avgPrice).toFixed(2) + ' × ' + parseFloat(entry.executedQty).toFixed(6) : '') +
-            ' | 保證金 $' + (payload.qty * (entry && entry.avgPrice > 0 ? parseFloat(entry.avgPrice) : 1) / payload.leverage).toFixed(2)
+            platLabel + ' ' + payload.leverage + 'x | $' + (avgP > 0 ? avgP.toFixed(2) : '?') + ' × ' + execQ.toFixed(6) +
+            ' | 保證金 $' + (execQ * (avgP > 0 ? avgP : 1) / payload.leverage).toFixed(2) +
+            slTpStr
           );
         }
       }
       // Refresh dashboard immediately (backend cache already invalidated)
       if (typeof fetchData === 'function') fetchData();
-      setTimeout(function() {
+      _tmReceiptTimer = setTimeout(function() {
+        _tmReceiptTimer = null;
+        document.getElementById('tm-confirm-overlay').classList.remove('show');
+        _tmUnfreezeForm();
         $('#trade-modal').modal('hide');
         submitBtn.style.background = '';
         if (typeof fetchData === 'function') fetchData();
-      }, 2000);
+      }, 8000);
     } else {
       goBtn.disabled = false;
       goBtn.innerHTML = '<i class="fas fa-check mr-1"></i>確定下單';

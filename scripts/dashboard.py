@@ -206,12 +206,37 @@ def _run_with_timeout(fn, timeout=CONNECT_TIMEOUT_SEC):
     return result[0]
 
 
+_aster_client_singleton = None
+_aster_client_ts = 0
+_ASTER_RESYNC_INTERVAL = 300  # re-sync time offset every 5 min
+
+
 def _get_aster_client():
-    """Lazy-load AsterClient for live exchange queries."""
+    """Singleton AsterClient with periodic time re-sync."""
+    global _aster_client_singleton, _aster_client_ts
     if SCRIPTS_DIR not in sys.path:
         sys.path.insert(0, SCRIPTS_DIR)
     from trader_cycle.exchange.aster_client import AsterClient
-    return AsterClient()
+
+    now = time.time()
+    if _aster_client_singleton is None:
+        _aster_client_singleton = AsterClient()
+        _aster_client_ts = now
+    elif now - _aster_client_ts >= _ASTER_RESYNC_INTERVAL:
+        # Periodic re-sync to fix drifted time_offset
+        try:
+            _aster_client_singleton._sync_time()
+        except Exception:
+            pass  # keep using old offset — next cycle will retry
+        _aster_client_ts = now
+    return _aster_client_singleton
+
+
+def _reset_aster_client():
+    """Force rebuild on auth/connection failure."""
+    global _aster_client_singleton, _aster_client_ts
+    _aster_client_singleton = None
+    _aster_client_ts = 0
 
 
 def _get_hl_client():
@@ -309,11 +334,24 @@ def _query_single_exchange(name, client_fn, cred_check):
         }
     except Exception as e:
         logging.warning("exchange query %s error: %s", name, e)
+        # Reset singleton on auth/connection failure so next cycle rebuilds
+        if name == "aster":
+            _reset_aster_client()
         return None
 
 
+_exchange_cache = {"data": {}, "ts": 0}
+_EXCHANGE_CACHE_TTL = 10  # 10s — positions update every 10s, not every 4s
+
+
 def get_all_exchange_data():
-    """Query all connected exchanges in parallel → per-exchange balance + positions."""
+    """Query all connected exchanges in parallel → per-exchange balance + positions.
+    10s cache to avoid 429 rate limit (~18 calls/min instead of ~60)."""
+    global _exchange_cache
+    now = time.time()
+    if _exchange_cache["data"] and now - _exchange_cache["ts"] < _EXCHANGE_CACHE_TTL:
+        return _exchange_cache["data"]
+
     exchanges = [
         ("aster", _get_aster_client, _get_aster_credentials),
         ("binance", _get_binance_client, _get_binance_credentials),
@@ -334,6 +372,11 @@ def get_all_exchange_data():
             except Exception as e:
                 logging.warning("exchange query %s timeout/error: %s", name, e)
 
+    if result:
+        _exchange_cache["data"] = result
+        _exchange_cache["ts"] = now
+    elif _exchange_cache["data"]:
+        return _exchange_cache["data"]  # keep stale data on total failure
     return result
 
 
@@ -1960,6 +2003,77 @@ def _check_pending_sltp(exchange_data):
                      resolved_count, len(re_queue), len(_pending_sltp))
 
 
+def _extract_open_orders(exchange_data):
+    """Extract pending limit orders from exchange data for dashboard display.
+
+    Filters out SL/TP trigger orders — only shows entry orders (LIMIT type).
+    Annotates with pending SL/TP status from _pending_sltp.
+    """
+    result = []
+    # Order types that are SL/TP triggers (not entry orders)
+    _TRIGGER_TYPES = {"STOP_MARKET", "TAKE_PROFIT_MARKET", "STOP", "TAKE_PROFIT",
+                      "TRAILING_STOP_MARKET"}
+    for platform, pdata in exchange_data.items():
+        if not pdata:
+            continue
+        for o in pdata.get("orders", []):
+            otype = o.get("type", "")
+            # HL format: orderType field instead of type
+            hl_type = o.get("orderType", "").lower()
+            # Skip SL/TP triggers
+            if otype in _TRIGGER_TYPES:
+                continue
+            if hl_type and ("stop" in hl_type or "take profit" in hl_type):
+                continue
+
+            # Extract fields (Binance/Aster format vs HL format)
+            oid = str(o.get("orderId", o.get("oid", "")))
+            symbol = o.get("symbol", "")
+            if not symbol and o.get("coin"):
+                symbol = o["coin"] + "USDT"
+            side = o.get("side", "").upper()
+            if not side:
+                # HL: side from order
+                side = o.get("side", "Buy").upper()
+                if side == "B":
+                    side = "BUY"
+                elif side == "A":
+                    side = "SELL"
+            price = float(o.get("price", o.get("limitPx", 0)) or 0)
+            qty = float(o.get("origQty", o.get("sz", 0)) or 0)
+            filled = float(o.get("executedQty", 0) or 0)
+            order_time = o.get("time", o.get("timestamp", 0))
+
+            if not symbol or price <= 0:
+                continue
+
+            # Check if SL/TP is queued for this order
+            sltp_queued = False
+            queued_sl = 0
+            queued_tp = 0
+            with _pending_sltp_lock:
+                pentry = _pending_sltp.get(oid)
+                if pentry:
+                    sltp_queued = True
+                    queued_sl = pentry.get("sl_price", 0)
+                    queued_tp = pentry.get("tp_price", 0)
+
+            result.append({
+                "orderId": oid,
+                "symbol": symbol.upper(),
+                "side": side,
+                "price": price,
+                "qty": qty,
+                "filled": filled,
+                "platform": platform,
+                "time": order_time,
+                "sltp_queued": sltp_queued,
+                "queued_sl": queued_sl,
+                "queued_tp": queued_tp,
+            })
+    return result
+
+
 def collect_data():
     global _collect_cache
     now = time.time()
@@ -1982,6 +2096,9 @@ def collect_data():
     # Check pending SL/TP for filled limit orders (zero extra API calls)
     if _pending_sltp:
         _check_pending_sltp(exchange_data)
+
+    # Extract open orders (limit orders only, not SL/TP triggers) for dashboard display
+    open_orders = _extract_open_orders(exchange_data)
 
     # Extract Aster data from exchange_data (avoid double API call)
     _aster_data = exchange_data.get("aster", {})
@@ -2064,6 +2181,7 @@ def collect_data():
         "direction": direction_str,
         "in_position": has_position,
         "live_positions": live_positions,
+        "open_orders": open_orders,
         "consecutive_losses": int(trade["consecutive_losses"]),
         "agents": agents,
         "params": params,
@@ -2329,6 +2447,48 @@ def handle_modify_sltp(body):
         return 500, {"error": str(e)}
 
 
+def handle_cancel_order(body):
+    """POST /api/cancel-order — cancel a pending order + clean up queued SL/TP."""
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return 400, {"error": "Invalid JSON"}
+
+    symbol = (data.get("symbol") or "").upper().strip()
+    platform = (data.get("platform") or "").lower().strip()
+    order_id = str(data.get("orderId") or "")
+
+    if not symbol or not platform or not order_id:
+        return 400, {"error": "symbol, platform, orderId required"}
+    if platform not in ("aster", "binance", "hyperliquid"):
+        return 400, {"error": f"Invalid platform: {platform}"}
+
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+    try:
+        client = client_fns[platform]()
+        client.cancel_order(symbol, order_id)
+        logging.info("Dashboard cancel-order: %s %s orderId=%s", platform, symbol, order_id)
+
+        # Clean up pending SL/TP if queued
+        with _pending_sltp_lock:
+            removed = _pending_sltp.pop(order_id, None)
+        if removed:
+            _save_pending_sltp()
+            logging.info("Pending SLTP removed for cancelled order: %s", order_id)
+
+        _action_cache["ts"] = 0  # invalidate cache
+        _collect_cache["ts"] = 0
+        return 200, {"ok": True}
+
+    except Exception as e:
+        logging.error("Dashboard cancel-order failed: %s %s %s → %s", platform, symbol, order_id, e)
+        return 500, {"error": str(e)}
+
+
 def handle_place_order(body):
     """POST /api/place-order — open a new position from dashboard trade modal.
     Execution sequence:
@@ -2504,8 +2664,9 @@ def handle_place_order(body):
             "fill_ms": round((t_fill - t_entry) * 1000),
         }
 
-        # Invalidate caches so next fetchData() shows updated positions
+        # Invalidate caches so next fetchData() shows updated positions + orders
         _action_cache["ts"] = 0
+        _collect_cache["ts"] = 0
 
         return 200, resp
 
@@ -4469,6 +4630,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/place-order":
             code, data = handle_place_order(body)
+            self._json_response(code, data)
+        elif self.path == "/api/cancel-order":
+            code, data = handle_cancel_order(body)
             self._json_response(code, data)
         elif self.path == "/api/backtest/run":
             code, data = handle_bt_run(body)

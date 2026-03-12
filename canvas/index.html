@@ -684,9 +684,10 @@
           </div>
           <div class="notif-tabs" id="notif-tabs">
             <button class="notif-tab active" data-filter="all" onclick="setNotifTab(this)">全部</button>
-            <button class="notif-tab" data-filter="trade,trigger,position" onclick="setNotifTab(this)">交易</button>
+            <button class="notif-tab" data-filter="trade,position" onclick="setNotifTab(this)">交易</button>
             <button class="notif-tab" data-filter="news" onclick="setNotifTab(this)">新聞</button>
-            <button class="notif-tab" data-filter="mode,system" onclick="setNotifTab(this)">系統</button>
+            <button class="notif-tab" data-filter="whale" onclick="setNotifTab(this)">鏈上</button>
+            <button class="notif-tab" data-filter="trigger,mode,system,risk" onclick="setNotifTab(this)">系統</button>
           </div>
           <div class="notif-list" id="notif-list"></div>
         </div>
@@ -945,6 +946,25 @@
             </div>
           </div>
         </div><!-- /row positions -->
+
+        <!-- ── ROW 2.6：掛單中 ───────────────── -->
+        <div class="row" id="pending-orders-card" style="display:none">
+          <div class="col-12" data-aos="fade-up">
+            <div class="card card-outline card-info">
+              <div class="card-header bg-openclaw">
+                <h3 class="card-title">
+                  <i class="fas fa-clock mr-2"></i>掛單中 <span id="pending-orders-count" class="badge badge-light ml-1">0</span>
+                </h3>
+                <div class="card-tools">
+                  <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-minus"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0" id="pending-orders-body"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- ── ROW 3：行動部署 + 盈虧曲線 ──────── -->
         <div class="row row-eq">
@@ -1545,6 +1565,7 @@ function render(D) {
   renderFeeBreakdown(D);
   renderTriggerSummary(D);
   renderPositionDetail(D);
+  renderPendingOrders(D);
   renderTrades(D);
   renderActivityTimeline(D);
   renderScanLog(D, todayScans);
@@ -1669,6 +1690,12 @@ function _loadNotifs() {
     _notifs = arr.filter(function(n) { return n.ts > cutoff; });
     var savedRead = localStorage.getItem(_NOTIF_READ_KEY);
     if (savedRead) _notifRead = parseInt(savedRead, 10) || 0;
+    // Rebuild dedup set from persisted notifications so refresh won't re-push
+    _notifs.forEach(function(n) {
+      if (n.type === 'whale' || (n.type === 'news' && n.detail && n.detail.indexOf('重大') === 0)) {
+        _pushedNewsTexts[n.msg.slice(0, 40)] = true;
+      }
+    });
     return _notifs.length > 0;
   } catch (e) { return false; }
 }
@@ -1716,6 +1743,7 @@ var _NOTIF_META = {
   position: { icon: 'fa-layer-group',   bg: '#3b82f6', bar: '#3b82f6' },
   mode:     { icon: 'fa-sliders-h',     bg: '#8b5cf6', bar: '#8b5cf6' },
   news:     { icon: 'fa-newspaper',     bg: '#0ea5e9', bar: '#0ea5e9' },
+  whale:    { icon: 'fa-water',         bg: '#6366f1', bar: '#6366f1' },
   system:   { icon: 'fa-cog',           bg: '#94a3b8', bar: '#cbd5e1' }
 };
 
@@ -1728,6 +1756,8 @@ function pushNotif(type, msg, detail) {
     ts: Date.now()
   });
   if (_notifs.length > _MAX_NOTIFS) _notifs.length = _MAX_NOTIFS;
+  _saveNotifs();
+  renderNotifDropdown();
 }
 
 function buildNotifications(D) {
@@ -2844,6 +2874,82 @@ function renderPositionDetail(D) {
   body.innerHTML = html;
 }
 
+function renderPendingOrders(D) {
+  var orders = D.open_orders || [];
+  var card = byId('pending-orders-card');
+  var body = byId('pending-orders-body');
+  var countEl = byId('pending-orders-count');
+  if (!body || !card) return;
+
+  if (countEl) countEl.textContent = orders.length;
+
+  if (!orders.length) {
+    card.style.display = 'none';
+    body.innerHTML = '';
+    return;
+  }
+  card.style.display = '';
+
+  var platNames = { aster: 'Aster', binance: 'Binance', hyperliquid: 'HL' };
+  var html = '<table class="table table-sm table-hover mb-0">' +
+    '<thead><tr style="background:#f8f9fa">' +
+    '<th>幣種</th><th>方向</th><th>限價</th><th>數量</th>' +
+    '<th>交易所</th><th>SL/TP</th><th style="text-align:center">操作</th>' +
+    '</tr></thead><tbody>';
+
+  orders.forEach(function(o) {
+    var dn = (o.symbol || '').replace('USDT', '');
+    var isLong = o.side === 'BUY';
+    var dirBadge = isLong
+      ? '<span class="badge badge-success">LONG</span>'
+      : '<span class="badge badge-danger">SHORT</span>';
+    var sltpHtml = '';
+    if (o.sltp_queued) {
+      var parts = [];
+      if (o.queued_sl > 0) parts.push('SL $' + fmtPrice(o.queued_sl));
+      if (o.queued_tp > 0) parts.push('TP $' + fmtPrice(o.queued_tp));
+      sltpHtml = '<span style="color:#635bff;font-size:.78rem">' + parts.join(' / ') + '</span>';
+    } else {
+      sltpHtml = '<span class="text-muted" style="font-size:.78rem">—</span>';
+    }
+
+    html += '<tr>' +
+      '<td style="font-weight:600;white-space:nowrap">' + symbolIcon(o.symbol) + dn + '</td>' +
+      '<td>' + dirBadge + '</td>' +
+      '<td style="font-family:monospace;font-size:.85rem">$' + fmtPrice(o.price) + '</td>' +
+      '<td style="font-family:monospace;font-size:.85rem">' + o.qty + '</td>' +
+      '<td>' + (platNames[o.platform] || o.platform) + '</td>' +
+      '<td>' + sltpHtml + '</td>' +
+      '<td style="text-align:center">' +
+        '<button class="btn btn-sm btn-outline-danger" style="font-size:.72rem;padding:2px 10px" ' +
+        'onclick="cancelPendingOrder(\'' + esc(o.symbol) + '\',\'' + esc(o.platform) + '\',\'' + esc(o.orderId) + '\')">' +
+        '<i class="fas fa-times mr-1"></i>取消</button></td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function cancelPendingOrder(symbol, platform, orderId) {
+  if (!confirm('確定取消 ' + symbol.replace('USDT', '') + ' 掛單？')) return;
+  fetch('/api/cancel-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol: symbol, platform: platform, orderId: orderId }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      if (typeof pushNotif === 'function') pushNotif('trade', '已取消掛單 ' + symbol.replace('USDT', ''), platform);
+      if (typeof fetchData === 'function') fetchData();
+    } else {
+      alert('取消失敗: ' + (data.error || '未知錯誤'));
+    }
+  })
+  .catch(function(err) { alert('取消失敗: ' + err.message); });
+}
+
 function renderTrades(D) {
   var trades = (D.exchange_trades || D.trade_history || []).slice(0, 30);
   var body = byId('trade-body');
@@ -3045,6 +3151,8 @@ var _lastHeartbeatTime = Date.now();
 var _HEARTBEAT_INTERVAL = 60000;
 var _newsStaleWarned = false;   // 30min warning fired
 var _newsStaleCritical = false;  // 2h critical fired
+var _pushedNewsTexts = {};       // dedup: first 40 chars → true
+var _WHALE_RE = /whale|鯨魚|large transfer|大額轉|liquidat|清算|flash crash|閃崩|dumped|accumulated/i;
 
 function renderNewsCard(D) {
   var el = byId('news-sentiment-card');
@@ -3283,6 +3391,25 @@ function renderNewsCard(D) {
       pushNotif('news', '情緒轉變 ' + prevLabel + ' → ' + sentLabel, conf + '% 信心 · ' + coinCount + ' 幣種');
     } else {
       pushNotif('news', '新聞掃描完成', sentLabel + ' · ' + conf + '% 信心 · ' + coinCount + ' 幣種');
+    }
+    // High-impact article notifications — whale vs news classification
+    var importance = (impact != null ? impact : 0) * (conf / 100);
+    if (importance >= 50) {
+      var allArticles = (ns.key_narratives || []).concat(ns.risk_events || []);
+      allArticles.forEach(function(n) {
+        if (typeof n !== 'object') return;
+        var txt = n.text || '';
+        if (!txt) return;
+        var dedupKey = txt.slice(0, 40);
+        if (_pushedNewsTexts[dedupKey]) return;
+        _pushedNewsTexts[dedupKey] = true;
+        var src = n.src ? ' (' + n.src + ')' : '';
+        if (_WHALE_RE.test(txt)) {
+          pushNotif('whale', txt.slice(0, 80), src);
+        } else {
+          pushNotif('news', txt.slice(0, 80), '重大' + src);
+        }
+      });
     }
   }
   _lastNewsScanTime = scanTime;
