@@ -656,10 +656,11 @@
         </div>
       </li>
 
-      <!-- 刷新按鈕 -->
+      <!-- 刷新按鈕 + 數據時間 -->
       <li class="nav-item">
-        <a class="nav-link" href="#" id="reload-btn" title="重新載入數據 (R)">
+        <a class="nav-link d-flex align-items-center" href="#" id="reload-btn" title="重新載入數據 (R)" style="gap:5px">
           <i class="fas fa-sync-alt" id="reload-icon"></i>
+          <span id="data-freshness" style="font-size:.68rem;color:var(--text-3);font-variant-numeric:tabular-nums">–</span>
         </a>
       </li>
 
@@ -1187,7 +1188,6 @@
       今日 <span id="footer-api-calls">–</span> 次 API
       <span style="margin-left:12px;border-left:1px solid #e2e8f0;padding-left:12px">* 真實數據但樣本有限，隨時間累積會更準確</span>
     </span>
-    <span class="ml-3" id="data-freshness">數據：等待中…</span>
     <div class="float-right d-none d-sm-inline-block">
       <a href="/details" class="text-muted mr-2">說明</a>
       <a href="/share" class="text-muted mr-2">分享 (macOS)</a>
@@ -3331,11 +3331,11 @@ function renderFooter(D) {
     var now = new Date();
     var timeStr = now.toLocaleTimeString('zh-HK', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
     window._lastFreshTime = timeStr;
-    fresh.textContent = '最後更新 ' + timeStr;
-    fresh.classList.remove('stale');
+    fresh.textContent = timeStr;
+    fresh.style.color = 'var(--text-3)';
     clearTimeout(window._staleTimer);
     window._staleTimer = setTimeout(function() {
-      if (fresh) { fresh.classList.add('stale'); fresh.textContent = '最後更新 ' + (window._lastFreshTime || '') + ' (逾時)'; }
+      if (fresh) { fresh.style.color = 'var(--neg)'; }
     }, 15000);
   }
 }
