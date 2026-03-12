@@ -48,8 +48,8 @@ class FileLock:
             except Exception:
                 pass
             self._fd = None
-            # Clean up lock file (best effort)
-            try:
-                os.unlink(self._lock_path)
-            except FileNotFoundError:
-                pass
+            # NOTE: Do NOT os.unlink() the lock file.
+            # Unlinking creates a race condition where another process
+            # could acquire a lock on the now-deleted path while a third
+            # process creates a new file at the same path — resulting in
+            # two processes both thinking they hold the lock.

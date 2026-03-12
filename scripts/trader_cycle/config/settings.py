@@ -12,6 +12,9 @@ WORKSPACE = AXC_HOME  # alias for memory_keeper.py
 _SHARED = os.path.join(AXC_HOME, "shared")
 SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
 TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
+# Pipeline mutex: FileLock appends ".lock" to this path
+# → actual lock file = $AXC_HOME/shared/.pipeline.lock
+PIPELINE_LOCK_PATH = os.path.join(_SHARED, ".pipeline")
 TRADE_LOG_PATH   = os.path.join(_SHARED, "TRADE_LOG.md")
 SCAN_LOG_PATH    = os.path.join(_SHARED, "SCAN_LOG.md")
 HMM_STATE_PATH   = os.path.join(_SHARED, "hmm_state.json")

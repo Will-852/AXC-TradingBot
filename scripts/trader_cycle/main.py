@@ -34,7 +34,9 @@ from trader_cycle.config.settings import (
     LOG_DIR, PAIRS, PAIR_PREFIX,
     PRIMARY_TIMEFRAME, SILENT_MODE_THRESHOLD_CYCLES,
     PAPER_GATE_HOURS, PAPER_GATE_FILE, CYCLE_LOG_DIR,
+    PIPELINE_LOCK_PATH,
 )
+from trader_cycle.state.file_lock import FileLock
 from trader_cycle.core.context import CycleContext
 from trader_cycle.core.pipeline import Pipeline, CriticalError
 from trader_cycle.core.registry import StrategyRegistry
@@ -364,6 +366,18 @@ def main():
 
     now = datetime.now(HKT)
     ts_str = now.strftime("%Y-%m-%d %H:%M")
+
+    # ─── Pipeline Mutex ───
+    # Prevent overlapping cycles (launchd may fire before prev finishes).
+    # Uses flock — if another cycle holds the lock, exit(0) silently.
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        _pipeline_lock = FileLock(PIPELINE_LOCK_PATH, timeout=0.1)
+        _pipeline_lock.__enter__()
+    except TimeoutError:
+        _log.info("Pipeline mutex held by another cycle — exiting cleanly")
+        sys.exit(0)
 
     if args.verbose:
         mode_str = "LIVE" if args.live else "DRY_RUN"

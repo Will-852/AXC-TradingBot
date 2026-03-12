@@ -11,12 +11,22 @@ import sys
 import urllib.request
 import urllib.error
 
+import logging
+import time as _time
+
 from ..config.settings import (
     ASTER_FAPI, BINANCE_FAPI, API_TIMEOUT, PAIRS, PAIR_PREFIX, KLINE_LIMIT,
     PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME, ASTER_SYMBOLS,
 )
 from ..core.context import CycleContext, MarketSnapshot
 from ..core.pipeline import RecoverableError
+
+logger = logging.getLogger(__name__)
+
+# ─── Data Freshness Constants ───
+TICKER_MAX_AGE_SEC = 120   # ticker data older than 2min = stale
+TICKER_MIN_PRICE = 0.0     # price must be > 0
+TICKER_MIN_VOLUME = 0.0    # volume must be >= 0 (0 = allow, we check ratio elsewhere)
 
 # Import from indicator_calc.py
 _scripts_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,6 +60,33 @@ def _platform(symbol: str) -> str:
     return "binance"
 
 
+def validate_ticker(symbol: str, ticker: dict) -> tuple[bool, str]:
+    """
+    Validate ticker data freshness and sanity.
+    Returns (is_valid, reason_if_invalid).
+
+    Checks:
+      - price > 0
+      - closeTime exists and is within TICKER_MAX_AGE_SEC
+      - No error in response
+    """
+    if "error" in ticker:
+        return False, f"API error: {ticker['error']}"
+
+    price = float(ticker.get("lastPrice", 0))
+    if price <= TICKER_MIN_PRICE:
+        return False, f"price={price} (must be > 0)"
+
+    # Check data age via closeTime (ms epoch from exchange)
+    close_time_ms = ticker.get("closeTime", 0)
+    if close_time_ms:
+        age_sec = (_time.time() * 1000 - float(close_time_ms)) / 1000
+        if age_sec > TICKER_MAX_AGE_SEC:
+            return False, f"stale data: {age_sec:.0f}s old (max {TICKER_MAX_AGE_SEC}s)"
+
+    return True, ""
+
+
 class FetchMarketDataStep:
     """Step 4: Fetch live market data for all pairs."""
     name = "fetch_market_data"
@@ -63,8 +100,12 @@ class FetchMarketDataStep:
 
             # Ticker
             ticker = _fetch_json(f"{base}/ticker/24hr?symbol={symbol}")
-            if "error" in ticker:
-                ctx.warnings.append(f"{symbol} ticker failed: {ticker['error']}")
+
+            # Data freshness validation (pair-level)
+            valid, reason = validate_ticker(symbol, ticker)
+            if not valid:
+                ctx.warnings.append(f"{symbol} skipped: {reason}")
+                logger.warning(f"[{symbol}] data freshness: {reason}")
                 continue
 
             # Funding
