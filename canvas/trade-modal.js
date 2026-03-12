@@ -136,13 +136,8 @@ function _setOrderType(type) {
     var lpInput = document.getElementById('tm-limit-price');
     if (lpInput && !lpInput.value) lpInput.value = _tmState.price || '';
   }
-  // Disable SL/TP for limit orders (not set until filled)
-  var slInput = document.getElementById('tm-sl-price');
-  var tpInput = document.getElementById('tm-tp-price');
-  if (slInput) { slInput.disabled = type === 'LIMIT'; if (type === 'LIMIT') slInput.value = ''; }
-  if (tpInput) { tpInput.disabled = type === 'LIMIT'; if (type === 'LIMIT') tpInput.value = ''; }
-  // Restore SL/TP from plan when switching back to market
-  if (type === 'MARKET') _updateSltpFromPlan();
+  // SL/TP always enabled — for limit orders, backend queues and applies after fill
+  _updateSltpFromPlan();
   _updatePreview();
 }
 
@@ -287,17 +282,17 @@ function _updatePreview() {
     estEl.style.color = '';
   }
 
-  // SL/TP pct hints
+  // SL/TP pct hints (use effectivePrice so limit orders show correct %)
   var slPctEl = document.getElementById('tm-sl-pct');
   var tpPctEl = document.getElementById('tm-tp-pct');
-  if (slPrice > 0 && price > 0) {
-    var slPct = Math.abs(slPrice - price) / price * 100;
+  if (slPrice > 0 && effectivePrice > 0) {
+    var slPct = Math.abs(slPrice - effectivePrice) / effectivePrice * 100;
     slPctEl.textContent = '-' + slPct.toFixed(2) + '%';
   } else {
     slPctEl.textContent = '';
   }
-  if (tpPrice > 0 && price > 0) {
-    var tpPct = Math.abs(tpPrice - price) / price * 100;
+  if (tpPrice > 0 && effectivePrice > 0) {
+    var tpPct = Math.abs(tpPrice - effectivePrice) / effectivePrice * 100;
     tpPctEl.textContent = '+' + tpPct.toFixed(2) + '%';
   } else {
     tpPctEl.textContent = '';
@@ -367,14 +362,15 @@ function submitTradeOrder() {
   var calcPrice = isLimit ? limitPrice : price;
   if (calcPrice <= 0) { _tmShowError('無法取得價格'); return; }
 
-  // SL/TP direction sanity check (skip for limit orders — SL/TP not set until filled)
-  if (!isLimit) {
+  // SL/TP direction sanity check — use limitPrice as reference for limit orders
+  var refPrice = isLimit ? limitPrice : price;
+  if (slPrice > 0 || tpPrice > 0) {
     if (_tmState.direction === 'LONG') {
-      if (slPrice > 0 && slPrice >= price) { _tmShowError('LONG 止損應低於入場價 (' + fmtPrice(price) + ')'); return; }
-      if (tpPrice > 0 && tpPrice <= price) { _tmShowError('LONG 止盈應高於入場價 (' + fmtPrice(price) + ')'); return; }
+      if (slPrice > 0 && slPrice >= refPrice) { _tmShowError('LONG 止損應低於入場價 (' + fmtPrice(refPrice) + ')'); return; }
+      if (tpPrice > 0 && tpPrice <= refPrice) { _tmShowError('LONG 止盈應高於入場價 (' + fmtPrice(refPrice) + ')'); return; }
     } else {
-      if (slPrice > 0 && slPrice <= price) { _tmShowError('SHORT 止損應高於入場價 (' + fmtPrice(price) + ')'); return; }
-      if (tpPrice > 0 && tpPrice >= price) { _tmShowError('SHORT 止盈應低於入場價 (' + fmtPrice(price) + ')'); return; }
+      if (slPrice > 0 && slPrice <= refPrice) { _tmShowError('SHORT 止損應高於入場價 (' + fmtPrice(refPrice) + ')'); return; }
+      if (tpPrice > 0 && tpPrice >= refPrice) { _tmShowError('SHORT 止盈應低於入場價 (' + fmtPrice(refPrice) + ')'); return; }
     }
   }
 
@@ -443,10 +439,11 @@ function submitTradeOrder() {
     row('數量', qty.toFixed(6) + ' ' + safeName + ' <span style="color:#64748b;font-size:.72rem">(~$' + (usdtInput * leverage).toFixed(2) + ')</span>') +
     row('保證金', '$' + usdtInput.toFixed(2)) +
     row('槓桿', leverage + 'x');
-  if (!isLimit && slPrice > 0) html += row('止損', '$' + fmtPrice(slPrice));
-  if (!isLimit && tpPrice > 0) html += row('止盈', '$' + fmtPrice(tpPrice));
+  if (slPrice > 0) html += row('止損', '$' + fmtPrice(slPrice) + (isLimit ? ' <span style="color:#64748b;font-size:.72rem">(成交後自動設)</span>' : ''));
+  if (tpPrice > 0) html += row('止盈', '$' + fmtPrice(tpPrice) + (isLimit ? ' <span style="color:#64748b;font-size:.72rem">(成交後自動設)</span>' : ''));
   if (isLimit) {
-    html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>限價單掛單後未成交，SL/TP 需成交後手動設定</div>';
+    html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>' +
+      (slPrice > 0 || tpPrice > 0 ? 'SL/TP 將於成交後自動設定' : '限價單掛單後未成交') + '</div>';
   } else {
     html += '<div class="tm-confirm-warn"><i class="fas fa-info-circle mr-1"></i>市價單，實際成交價可能因滑點而與現價有偏差</div>';
   }
@@ -518,9 +515,12 @@ function _tmConfirmExecute() {
 
       if (isPending) {
         // Limit order — pending
+        var sltpQueued = res.data.sltp_queued;
         submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>掛單成功！' + timeStr;
         submitBtn.style.background = '#635bff';
-        submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">限價 $' + fmtPrice(payload.limit_price) + ' × ' + payload.qty.toFixed(6) + '</span>';
+        var pendingDetail = '限價 $' + fmtPrice(payload.limit_price) + ' × ' + payload.qty.toFixed(6);
+        if (sltpQueued) pendingDetail += ' | SL/TP 成交後自動設定';
+        submitBtn.innerHTML += '<br><span style="font-size:.7rem;font-weight:400">' + pendingDetail + '</span>';
       } else {
         // Market order — filled
         submitBtn.innerHTML = '<i class="fas fa-check mr-1"></i>下單成功！' + timeStr;

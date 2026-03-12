@@ -305,6 +305,7 @@ def _query_single_exchange(name, client_fn, cred_check):
         return {
             "balance": client.get_usdt_balance(),
             "positions": _normalize_positions(client.get_positions(), orders, name),
+            "orders": orders,
         }
     except Exception as e:
         logging.warning("exchange query %s error: %s", name, e)
@@ -1786,6 +1787,178 @@ def _enrich_trades(trades, prices, trade_state):
 _collect_cache = {"data": None, "ts": 0}
 _COLLECT_CACHE_TTL = 4  # seconds — frontend polls every 5s
 
+# ── Pending SL/TP for limit orders (auto-set after fill) ────────────
+_pending_sltp = {}  # {orderId: {symbol, platform, sl_price, tp_price, exit_side, created_at}}
+_PENDING_SLTP_FILE = os.path.join(HOME, "shared", "pending_sltp.json")
+_pending_sltp_lock = threading.Lock()
+_PENDING_SLTP_EXPIRY_SEC = 86400  # 24h
+
+
+def _save_pending_sltp():
+    """Atomic write pending SLTP state to JSON for crash recovery."""
+    with _pending_sltp_lock:
+        data = _pending_sltp.copy()
+    try:
+        fd, tmp = tempfile.mkstemp(dir=os.path.join(HOME, "shared"), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, _PENDING_SLTP_FILE)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    except Exception as e:
+        logging.error("Failed to save pending SLTP: %s", e)
+
+
+def _load_pending_sltp():
+    """Load pending SLTP from JSON on startup, prune entries older than 24h."""
+    global _pending_sltp
+    if not os.path.exists(_PENDING_SLTP_FILE):
+        return
+    try:
+        with open(_PENDING_SLTP_FILE, "r") as f:
+            data = json.load(f)
+        now = time.time()
+        pruned = {
+            oid: entry for oid, entry in data.items()
+            if now - entry.get("created_at", 0) < _PENDING_SLTP_EXPIRY_SEC
+        }
+        with _pending_sltp_lock:
+            _pending_sltp = pruned
+        if len(pruned) < len(data):
+            logging.info("Pending SLTP: pruned %d expired entries, %d remaining", len(data) - len(pruned), len(pruned))
+            _save_pending_sltp()
+        if pruned:
+            logging.info("Pending SLTP: loaded %d entries from disk", len(pruned))
+    except Exception as e:
+        logging.warning("Failed to load pending SLTP: %s", e)
+
+
+def _check_pending_sltp(exchange_data):
+    """Check if pending limit orders have filled; auto-set SL/TP if so.
+
+    Uses orders already fetched by get_all_exchange_data() — zero extra API calls
+    for the detection phase. Only creates new API calls when placing SL/TP.
+    """
+    with _pending_sltp_lock:
+        pending_copy = dict(_pending_sltp)
+    if not pending_copy:
+        return
+
+    client_fns = {
+        "aster": _get_aster_client,
+        "binance": _get_binance_client,
+        "hyperliquid": _get_hl_client,
+    }
+    # Classify each pending entry: still_pending, to_process, or to_remove
+    to_process = {}   # order_id → (entry, pos_qty)
+    to_remove = []    # order_ids to discard (cancelled / no position)
+
+    for order_id, entry in pending_copy.items():
+        platform = entry["platform"]
+        symbol = entry["symbol"]
+        plat_data = exchange_data.get(platform)
+        if plat_data is None:
+            continue  # exchange not connected this cycle
+
+        # Check if orderId still in open orders
+        open_order_ids = set()
+        for o in plat_data.get("orders", []):
+            oid = str(o.get("orderId", o.get("oid", "")))
+            if oid:
+                open_order_ids.add(oid)
+
+        if order_id in open_order_ids:
+            continue  # still pending — wait
+
+        # Order disappeared from open orders → filled or cancelled
+        has_position = False
+        pos_qty = 0
+        for pos in plat_data.get("positions", []):
+            if pos.get("pair", "").upper() == symbol.upper():
+                has_position = True
+                pos_qty = abs(float(pos.get("size", 0)))
+                break
+
+        if not has_position or pos_qty <= 0:
+            logging.info(
+                "Pending SLTP: orderId=%s no position found for %s %s — removing (likely cancelled)",
+                order_id, platform, symbol,
+            )
+            to_remove.append(order_id)
+        else:
+            to_process[order_id] = (entry, pos_qty)
+
+    # Pop entries BEFORE processing to prevent concurrent duplicate placement
+    if to_process or to_remove:
+        with _pending_sltp_lock:
+            for oid in to_remove:
+                _pending_sltp.pop(oid, None)
+            for oid in to_process:
+                _pending_sltp.pop(oid, None)
+        _save_pending_sltp()
+
+    # Now place SL/TP (no lock held — safe for slow API calls)
+    re_queue = []  # entries to put back on failure
+    for order_id, (entry, pos_qty) in to_process.items():
+        platform = entry["platform"]
+        symbol = entry["symbol"]
+        exit_side = entry["exit_side"]
+        sl_price = entry.get("sl_price", 0)
+        tp_price = entry.get("tp_price", 0)
+
+        logging.info(
+            "Pending SLTP: orderId=%s filled! Setting SL/TP for %s %s (qty=%s)",
+            order_id, platform, symbol, pos_qty,
+        )
+
+        try:
+            client = client_fns[platform]()
+        except Exception as e:
+            logging.error("Pending SLTP: cannot connect to %s: %s", platform, e)
+            re_queue.append((order_id, entry))
+            continue
+
+        sl_ok = True
+
+        # Place SL (important but not emergency-close worthy — position already existed)
+        if sl_price > 0:
+            try:
+                client.create_stop_market(symbol, exit_side, pos_qty, sl_price)
+                logging.info("Pending SLTP: SL set %s %s @ %s", platform, symbol, sl_price)
+            except Exception as e:
+                sl_ok = False
+                logging.error("Pending SLTP: SL failed %s %s @ %s → %s", platform, symbol, sl_price, e)
+
+        # Place TP (best-effort)
+        if tp_price > 0:
+            try:
+                client.create_take_profit_market(symbol, exit_side, pos_qty, tp_price)
+                logging.info("Pending SLTP: TP set %s %s @ %s", platform, symbol, tp_price)
+            except Exception as e:
+                logging.warning("Pending SLTP: TP failed %s %s @ %s → %s", platform, symbol, tp_price, e)
+
+        if not sl_ok:
+            # SL failed — re-queue for retry next cycle
+            logging.warning("Pending SLTP: SL failed, will retry next cycle for %s %s", platform, symbol)
+            re_queue.append((order_id, entry))
+
+    # Re-queue failed entries
+    if re_queue:
+        with _pending_sltp_lock:
+            for oid, entry in re_queue:
+                _pending_sltp[oid] = entry
+        _save_pending_sltp()
+
+    resolved_count = len(to_remove) + len(to_process) - len(re_queue)
+    if resolved_count > 0 or to_remove:
+        logging.info("Pending SLTP: resolved %d, re-queued %d, remaining %d",
+                     resolved_count, len(re_queue), len(_pending_sltp))
+
 
 def collect_data():
     global _collect_cache
@@ -1805,6 +1978,10 @@ def collect_data():
 
     # Multi-exchange breakdown — single pass, reuse for balance/positions
     exchange_data = get_all_exchange_data()
+
+    # Check pending SL/TP for filled limit orders (zero extra API calls)
+    if _pending_sltp:
+        _check_pending_sltp(exchange_data)
 
     # Extract Aster data from exchange_data (avoid double API call)
     _aster_data = exchange_data.get("aster", {})
@@ -2271,7 +2448,29 @@ def handle_place_order(body):
             f" @{limit_price}" if is_limit else "", entry_result
         )
 
-        # ④ SL (critical) — skip for pending limit orders (not yet filled)
+        # ④a Queue SL/TP for pending limit orders — auto-set after fill
+        if actually_pending and (sl_price or tp_price):
+            order_id = str(entry_result.get("orderId", entry_result.get("oid", "")))
+            if order_id:
+                pending_entry = {
+                    "symbol": symbol,
+                    "platform": platform,
+                    "sl_price": float(sl_price) if sl_price else 0,
+                    "tp_price": float(tp_price) if tp_price else 0,
+                    "exit_side": exit_side,
+                    "created_at": time.time(),
+                }
+                with _pending_sltp_lock:
+                    _pending_sltp[order_id] = pending_entry
+                _save_pending_sltp()
+                resp["sltp_queued"] = True
+                logging.info(
+                    "Pending SLTP queued: %s %s orderId=%s sl=%s tp=%s",
+                    platform, symbol, order_id,
+                    sl_price or "none", tp_price or "none",
+                )
+
+        # ④b SL (critical) — skip for pending limit orders (not yet filled)
         if not actually_pending and sl_price and float(sl_price) > 0:
             try:
                 sl_result = client.create_stop_market(
@@ -4305,6 +4504,10 @@ def main():
         idx = sys.argv.index("--port")
         if idx + 1 < len(sys.argv):
             port = int(sys.argv[idx + 1])
+
+    # Restore pending SL/TP state from disk (crash recovery)
+    _load_pending_sltp()
+
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
     bind = "127.0.0.1"
