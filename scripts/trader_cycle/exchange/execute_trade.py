@@ -31,6 +31,39 @@ from memory.writer import write_trade
 
 logger = logging.getLogger(__name__)
 
+# ─── Slippage alert threshold ───
+SLIPPAGE_ALERT_PCT = 0.005  # 0.5% — alert if slippage exceeds this
+
+
+def _extract_commission(order_result: dict) -> float:
+    """Extract total commission from exchange order response.
+    Binance/Aster format: fills[].commission (USDT).
+    Returns 0.0 on parse failure — fee tracking never blocks trading.
+    """
+    try:
+        fills = order_result.get("fills", [])
+        if fills:
+            return sum(float(f.get("commission", 0)) for f in fills)
+    except (TypeError, ValueError, AttributeError):
+        pass
+    return 0.0
+
+
+def _calc_slippage(signal_price: float, fill_price: float,
+                   direction: str) -> float:
+    """Calculate direction-aware slippage percentage.
+    Positive = unfavourable (paid more for LONG, received less for SHORT).
+    Negative = favourable (got better price than expected).
+    """
+    if signal_price <= 0:
+        return 0.0
+    if direction == "LONG":
+        # LONG: buying — higher fill = worse
+        return (fill_price - signal_price) / signal_price
+    else:
+        # SHORT: selling — lower fill = worse
+        return (signal_price - fill_price) / signal_price
+
 
 class ExecuteTradeStep:
     """
@@ -85,6 +118,11 @@ class ExecuteTradeStep:
                 f"price={fill_price} qty={fill_qty}"
             )
 
+            # Fee extraction (Sprint 1B)
+            commission = _extract_commission(entry_result)
+            # Slippage calculation (Sprint 1B)
+            slippage = _calc_slippage(signal.entry_price, fill_price, signal.direction)
+
             ctx.entry_order_id = order_id
             ctx.order_result = OrderResult(
                 success=True,
@@ -93,7 +131,20 @@ class ExecuteTradeStep:
                 side=side,
                 price=fill_price,
                 quantity=fill_qty,
+                commission=commission,
+                signal_price=signal.entry_price,
+                slippage_pct=slippage,
             )
+
+            # Slippage alert (Sprint 1B)
+            if abs(slippage) > SLIPPAGE_ALERT_PCT:
+                slip_msg = (
+                    f"<b>Slippage Alert</b> [{pair}]\n"
+                    f"Signal: {signal.entry_price} → Fill: {fill_price}\n"
+                    f"Slippage: {slippage:+.3%}"
+                )
+                ctx.telegram_messages.append(slip_msg)
+                logger.warning(f"[{pair}] Slippage {slippage:+.3%} exceeds threshold")
 
             # ④ Verify fill
             if fill_qty <= 0:
@@ -181,15 +232,18 @@ class ExecuteTradeStep:
                 "LAST_TRADE_TIME": ctx.timestamp_str,
             })
 
-            # Trade log entry
+            # Trade log entry (with fee + slippage)
             tp_info = f"TP1={signal.tp1_price}"
             if signal.tp2_price:
                 tp_info += f" TP2={signal.tp2_price} (split {tp1_qty}/{tp2_qty})"
+            fee_info = f" fee=${commission:.4f}" if commission > 0 else ""
+            slip_info = f" slip={slippage:+.3%}" if slippage != 0 else ""
             ctx.trade_log_entries.append(
                 f"[{ctx.timestamp_str}] ENTRY {signal.direction} {pair} "
                 f"qty={fill_qty} @ {fill_price} "
                 f"SL={signal.sl_price} {tp_info} "
                 f"leverage={leverage}x margin=${signal.margin_required:.2f}"
+                f"{fee_info}{slip_info}"
             )
 
             if ctx.verbose:

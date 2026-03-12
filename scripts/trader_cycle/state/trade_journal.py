@@ -39,17 +39,25 @@ class WriteTradeJournalStep:
         # Build records
         records = []
         for cp in ctx.closed_positions:
-            records.append({
+            # Net PnL = gross PnL minus commission
+            net_pnl = cp.pnl - cp.commission if cp.commission else cp.pnl
+            record = {
                 "pair": cp.pair,
                 "direction": cp.direction,
                 "entry_price": cp.entry_price,
                 "exit_price": cp.exit_price,
                 "size": cp.size,
                 "pnl": cp.pnl,
+                "commission": cp.commission,
+                "net_pnl": net_pnl,
                 "reason": cp.reason,
                 "timestamp": cp.timestamp or ctx.timestamp_str,
                 "dry_run": ctx.dry_run,
-            })
+            }
+            # Add entry slippage if available from order_result
+            if ctx.order_result and ctx.order_result.slippage_pct != 0:
+                record["entry_slippage_pct"] = ctx.order_result.slippage_pct
+            records.append(record)
 
         try:
             os.makedirs(JOURNAL_DIR, exist_ok=True)

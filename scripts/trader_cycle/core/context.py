@@ -70,6 +70,7 @@ class ClosedPosition:
     pnl: float = 0.0
     reason: str = ""
     timestamp: str = ""
+    commission: float = 0.0        # fee paid on close
 
 
 @dataclass
@@ -82,6 +83,11 @@ class OrderResult:
     price: float = 0.0
     quantity: float = 0.0
     error: str = ""
+    # Fee & slippage tracking (Sprint 1B)
+    commission: float = 0.0        # total fee paid (USDT)
+    commission_asset: str = "USDT"
+    slippage_pct: float = 0.0      # direction-aware: positive = unfavourable
+    signal_price: float = 0.0      # intended entry price from signal
 
 
 @dataclass

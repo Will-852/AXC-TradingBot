@@ -1117,6 +1117,21 @@ async def cmd_health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# ── /status: trader_cycle diagnostics ──
+
+async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Trading system status: positions, risk, scanner, pipeline health."""
+    if not is_allowed(update):
+        return
+    try:
+        from trader_cycle.core.diagnostics import run_diagnostics, format_status_message
+        diag = run_diagnostics()
+        msg = format_status_message(diag)
+    except Exception as e:
+        msg = f"Status check failed: {e}"
+        log.warning(f"cmd_status error: {e}")
+    await update.message.reply_text(msg, parse_mode="HTML")
+
 
 # ── Enhanced /mode with inline keyboard ──
 
@@ -2209,6 +2224,7 @@ def main():
     app.add_handler(CommandHandler("scan",    cmd_scan))
     app.add_handler(CommandHandler("stats",   cmd_stats))
     app.add_handler(CommandHandler("health",  cmd_health))
+    app.add_handler(CommandHandler("status",  cmd_status))
 
     # Enhanced commands
     app.add_handler(CommandHandler("mode",    cmd_mode_handler))
