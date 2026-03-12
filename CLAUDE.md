@@ -1,11 +1,9 @@
-# OpenClaw — Claude Code 入口
+# AXC Trading — Claude Code 入口
 > ⚠️ 此文件上限200行。Claude Code 自動載入（唔可移動）。
 > 最後更新：2026-03-13
 
-## 如果你係新 Clone 嘅 Collaborator
-→ 睇 README.md「共同開發指南」section 就夠。
-→ 下面全部係 system owner 嘅操作指引，唔關你事。
-→ 改交易參數：`config/user_params.py`（唔好改 `params.py`）
+## Collaborator
+→ 睇 README.md「共同開發指南」| 改參數：`config/user_params.py`
 
 ## 新 Session 必讀（Owner only）
 1. ~/projects/axc-trading/ai/CONTEXT.md   — 系統完整上下文
@@ -17,8 +15,9 @@
 本地智能交易監控系統。9 agents + dashboard + Telegram bot。
 推理：Claude API | 向量：voyage-3 | 記憶：jsonl + npy
 
-## 搵舊記憶
-python3 ~/projects/axc-trading/memory/retriever.py "問題"
+## 搵記憶
+- AXC 交易記憶：`python3 ~/projects/axc-trading/memory/retriever.py "問題"`
+- 全局 gotchas/lessons：`python3 ~/.claude/scripts/query_knowledge.py "關鍵詞"`
 
 ## 系統健康檢查
 bash ~/projects/axc-trading/scripts/health_check.sh
@@ -31,11 +30,8 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 | Scanner | tail -20 logs/scanner.log |
 | 全部服務 | launchctl list \| grep openclaw |
 
-## 新增文件判斷樹
-→ docs/architecture/TAXONOMY.md
-
-## 完整文件索引
-→ docs/README.md
+## 文件索引
+→ 判斷樹：docs/architecture/TAXONOMY.md | 完整索引：docs/README.md
 
 ## 架構速查（按變化頻率）
 🔴 常改：config/params.py, config/modes/
