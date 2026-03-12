@@ -86,7 +86,11 @@ class ReadStateStep:
             except (ValueError, TypeError):
                 pass
 
-        # Read trade state
+        # Auto-migrate MD → JSON on first run (idempotent)
+        from trader_cycle.state.trade_state import migrate_md_to_json
+        migrate_md_to_json()
+
+        # Read trade state (JSON first, MD fallback)
         ctx.trade_state = read_trade_state()
 
         # Carry forward mode detection state
