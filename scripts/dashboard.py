@@ -8,6 +8,7 @@ Usage:
   python3 dashboard.py --port 8080
 """
 
+import copy
 import fcntl
 import io
 import json
@@ -1511,6 +1512,58 @@ _KLINE_API = {
 # Symbols only on Aster (not Binance Futures)
 _ASTER_ONLY = {"XAGUSDT", "XAUUSDT"}
 
+# ── ATR fallback: compute from 4H klines when SCAN_CONFIG lacks data ──
+_atr_fallback_cache = {}  # {symbol: {"atr": float, "ts": float}}
+_ATR_FALLBACK_TTL = 300   # 5 min cache
+
+
+def _compute_atr_from_klines(symbol):
+    """Fetch 20x 4H klines and compute ATR(14) via Wilder's RMA."""
+    base = _KLINE_API["aster"] if symbol in _ASTER_ONLY else _KLINE_API["binance"]
+    url = f"{base}/fapi/v1/klines?symbol={symbol}&interval=4h&limit=20"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+        if len(data) < 15:
+            return 0
+        trs = []
+        for i in range(1, len(data)):
+            high, low = float(data[i][2]), float(data[i][3])
+            prev_close = float(data[i - 1][4])
+            trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+        period = 14
+        if len(trs) < period:
+            return 0
+        atr = sum(trs[:period]) / period
+        for tr in trs[period:]:
+            atr = (atr * (period - 1) + tr) / period
+        return atr
+    except Exception as e:
+        print(f"[ATR fallback] {symbol} fetch failed: {e}", file=sys.stderr)
+        return 0
+
+
+def _fetch_missing_atrs(symbols):
+    """Concurrently compute ATR for symbols not in SCAN_CONFIG. Results cached 5 min."""
+    now = time.time()
+    to_fetch = [
+        s for s in symbols
+        if s not in _atr_fallback_cache
+        or now - _atr_fallback_cache[s]["ts"] >= _ATR_FALLBACK_TTL
+    ]
+    if not to_fetch:
+        return
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futs = {pool.submit(_compute_atr_from_klines, s): s for s in to_fetch}
+        for fut in as_completed(futs):
+            sym = futs[fut]
+            try:
+                val = fut.result(timeout=10)
+                _atr_fallback_cache[sym] = {"atr": val, "ts": time.time()}
+            except Exception:
+                _atr_fallback_cache[sym] = {"atr": 0, "ts": time.time()}
+
 
 def _fetch_kline_change(symbol, interval="4h"):
     """Fetch kline from appropriate exchange for a single symbol.
@@ -1621,6 +1674,18 @@ def get_action_plan(scan_config, trade_state):
     # Fetch multi-interval changes (1H + 4H) for all symbols
     interval_changes = get_multi_interval_changes(all_symbols)
 
+    # Pre-compute which symbols lack ATR in SCAN_CONFIG → fetch once
+    _atr_from_config = {}
+    missing_atr = []
+    for s in all_symbols:
+        short = s.replace("USDT", "")
+        val = float(scan_config.get(f"{short}_ATR", 0))
+        _atr_from_config[s] = val
+        if val <= 0:
+            missing_atr.append(s)
+    if missing_atr:
+        _fetch_missing_atrs(missing_atr)
+
     plans = []
     for sym in all_symbols:
         short = sym.replace("USDT", "")
@@ -1631,7 +1696,11 @@ def get_action_plan(scan_config, trade_state):
 
         # prices_cache.json stores change as percentage (e.g. 4.3 = 4.3%)
         change = abs(float(data.get("change", 0)))
-        atr = float(scan_config.get(f"{short}_ATR", 0))
+        atr = _atr_from_config.get(sym, 0)
+        if atr <= 0:
+            fb = _atr_fallback_cache.get(sym)
+            if fb:
+                atr = fb["atr"]
         support = float(scan_config.get(f"{short}_support", 0))
         resistance = float(scan_config.get(f"{short}_resistance", 0))
 
@@ -1702,7 +1771,16 @@ def _enrich_trades(trades, prices, trade_state):
     return trades
 
 
+_collect_cache = {"data": None, "ts": 0}
+_COLLECT_CACHE_TTL = 4  # seconds — frontend polls every 5s
+
+
 def collect_data():
+    global _collect_cache
+    now = time.time()
+    if _collect_cache["data"] and now - _collect_cache["ts"] < _COLLECT_CACHE_TTL:
+        return copy.copy(_collect_cache["data"])
+
     if _is_demo_mode():
         return _get_demo_data()
 
@@ -1785,7 +1863,7 @@ def collect_data():
     signal_heatmap = []  # removed — scan_log rotation causes incomplete data
     funding_rates = get_funding_rates()
 
-    return {
+    result = {
         "timestamp": ts,
         "balance": live_bal,
         "today_pnl": today_pnl,
@@ -1831,6 +1909,9 @@ def collect_data():
         "demo_mode": False,
         "exchanges": exchange_data,
     }
+    _collect_cache["data"] = result
+    _collect_cache["ts"] = time.time()
+    return result
 
 
 def handle_set_mode(body):
@@ -3802,7 +3883,8 @@ def _build_chat_context() -> str:
             pos_lines.append(
                 f"  {p.get('pair','?')} {p.get('direction','?')} "
                 f"entry={p.get('entry_price', 0)} "
-                f"SL={p.get('sl', '-')} TP={p.get('tp', '-')} "
+                f"SL={p['sl_price'] if p.get('sl_price') else '-'} "
+                f"TP={p['tp_price'] if p.get('tp_price') else '-'} "
                 f"uPnL={p.get('unrealized_pnl', 0):+.2f}"
             )
         parts.append("持倉:\n" + "\n".join(pos_lines))
