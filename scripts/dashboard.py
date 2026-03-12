@@ -299,8 +299,8 @@ def _query_single_exchange(name, client_fn, cred_check):
         orders = []
         try:
             orders = client.get_open_orders()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("get_open_orders failed (%s): %s", name, e)
         return {
             "balance": client.get_usdt_balance(),
             "positions": _normalize_positions(client.get_positions(), orders, name),
@@ -377,8 +377,18 @@ def get_live_positions():
                         sl_price = float(o.get("stopPrice", 0))
                     elif o.get("type") == "TAKE_PROFIT_MARKET":
                         tp_price = float(o.get("stopPrice", 0))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning("get_open_orders failed (%s): %s", symbol, e)
+                # API failed → fallback to TRADE_STATE.md cached values
+                ts = parse_md(os.path.join(HOME, "shared/TRADE_STATE.md"))
+                try:
+                    sl_price = float(ts.get("SL_PRICE", 0))
+                except (ValueError, TypeError):
+                    sl_price = 0
+                try:
+                    tp_price = float(ts.get("TP_PRICE", 0))
+                except (ValueError, TypeError):
+                    tp_price = 0
 
             positions.append({
                 "pair": symbol,

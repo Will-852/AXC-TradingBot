@@ -593,8 +593,11 @@ def _sync_trade_state():
                         sl_price = o.get("stopPrice", "—")
                     elif "TAKE_PROFIT" in otype:
                         tp_price = o.get("stopPrice", "—")
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("get_open_orders failed (%s): %s", active["symbol"], e)
+                # API failed (rate limit / timeout) → keep cached values
+                sl_price = _old_val("SL_PRICE", "—")
+                tp_price = _old_val("TP_PRICE", "—")
 
             pos_block = f"""```
 POSITION_OPEN: YES

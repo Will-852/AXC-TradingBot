@@ -190,8 +190,8 @@ src: the source name from the article (e.g. CoinDesk, Reuters, CoinTelegraph, Bl
 s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative and risk_event MUST have "s".
 Each narrative/risk_event "text" should be 30-80 characters (Chinese). Include key detail — e.g. numbers, asset names, direction. More informative than a bare headline, but still concise."""
 
-    # Try each model in chain until one succeeds
-    text = ""
+    # Try each model in chain until one succeeds AND parses as JSON
+    result = None
     for model in MODEL_CHAIN:
         is_anthropic = model.startswith("claude-")
         endpoint = "messages" if is_anthropic else "chat/completions"
@@ -219,27 +219,38 @@ Each narrative/risk_event "text" should be 30-80 characters (Chinese). Include k
                              if b.get("type") == "text"), "")
             else:
                 text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            if text:
-                log.info("Model %s succeeded", model)
-                break
-            else:
+            if not text:
                 log.warning("Model %s returned empty content", model)
+                continue
+            log.info("Model %s returned %d chars", model, len(text))
         except Exception as e:
             log.warning("Model %s failed: %s", model, e)
             continue
 
-    if not text:
-        raise RuntimeError("All models in chain failed")
+        # Try to parse JSON from this model's response
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
 
-    # Parse JSON from response
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
+        try:
+            result = json.loads(cleaned)
+            if not isinstance(result, dict):
+                log.warning("Model %s returned non-dict JSON: %s", model, type(result).__name__)
+                result = None
+                continue
+            log.info("Model %s JSON parsed OK", model)
+            break
+        except (json.JSONDecodeError, ValueError) as e:
+            log.warning("Model %s returned non-JSON (first 200 chars): %s",
+                        model, text[:200])
+            log.warning("Model %s parse error: %s", model, e)
+            continue
 
-    result = json.loads(text)
+    if result is None:
+        raise RuntimeError("All models in chain failed or returned non-JSON")
 
     # Normalize: ensure overall_impact exists
     result.setdefault("overall_impact", 50)
