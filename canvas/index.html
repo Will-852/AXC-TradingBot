@@ -1470,6 +1470,7 @@ function notifyChanges(D) {
 function byId(id) { return document.getElementById(id); }
 function setText(id, val) { var el = byId(id); if (el) el.textContent = val; }
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 function fmtPnl(n) {
   var v = parseFloat(n) || 0;
   return (v >= 0 ? '+' : '') + v.toFixed(2);
@@ -1610,6 +1611,36 @@ var _NOTIF_STORAGE_KEY = 'axc_notifs';
 var _NOTIF_READ_KEY = 'axc_notif_read';
 var _NOTIF_TTL = 86400000; // 24h in ms
 
+// ── Position open-time tracking (for duration calc on close) ──
+// Positive ts = real open time (tracked live). Negative ts = seeded (dashboard start).
+var _POS_TIMES_KEY = 'axc_pos_times';
+var _posOpenTimes = {};  // {pair: timestamp_ms}
+var _POS_TIMES_MAX_AGE = 30 * 86400000; // 30 days — auto-purge orphans
+try {
+  var _pt = localStorage.getItem(_POS_TIMES_KEY);
+  if (_pt) {
+    var _ptParsed = JSON.parse(_pt);
+    var _ptCutoff = Date.now() - _POS_TIMES_MAX_AGE;
+    for (var _k in _ptParsed) {
+      if (Math.abs(_ptParsed[_k]) > _ptCutoff) _posOpenTimes[_k] = _ptParsed[_k];
+    }
+  }
+} catch(e) {}
+function _savePosOpenTimes() {
+  try { localStorage.setItem(_POS_TIMES_KEY, JSON.stringify(_posOpenTimes)); } catch(e) {}
+}
+
+function _fmtDuration(ms) {
+  var s = Math.floor(ms / 1000);
+  if (s < 60) return s + '秒';
+  var m = Math.floor(s / 60);
+  if (m < 60) return m + '分鐘';
+  var h = Math.floor(m / 60); var rm = m % 60;
+  if (h < 24) return h + '小時' + (rm ? rm + '分' : '');
+  var d = Math.floor(h / 24); var rh = h % 24;
+  return d + '日' + (rh ? rh + '小時' : '');
+}
+
 function _saveNotifs() {
   try {
     var toSave = _notifs.filter(function(n) { return !n._heartbeat; });
@@ -1725,6 +1756,11 @@ function buildNotifications(D) {
         pushNotif(type, e.msg || '', '');
       });
     }
+    // Seed open-time tracker for existing positions (negative = seeded, not real open)
+    positions.forEach(function(p) {
+      if (p.pair && !_posOpenTimes[p.pair]) _posOpenTimes[p.pair] = -Date.now();
+    });
+    if (positions.length) _savePosOpenTimes();
     _prevSnap = _buildSnap(D, trades, ts, R, positions, log);
     _saveNotifs();
     return;
@@ -1732,18 +1768,93 @@ function buildNotifications(D) {
 
   var snap = _buildSnap(D, trades, ts, R, positions, log);
 
-  if (trades.length && snap.lastTradeTime !== _prevSnap.lastTradeTime) {
-    var t0 = trades[0];
-    var rpnl = parseFloat(t0.realizedPnl || t0.rpnl || t0.realized_pnl) || 0;
-    var sym = (t0.symbol || t0.pair || '?').replace('USDT', '');
-    if (rpnl !== 0) {
-      pushNotif('trade', '平倉 ' + sym + ' ' + (rpnl >= 0 ? '+' : '') + '$' + rpnl.toFixed(2), (t0.side || '') + ' @ ' + (t0.price || t0.exit_price || ''));
-    } else {
-      pushNotif('trade', '成交 ' + sym + ' ' + (t0.side || ''), '@ ' + (t0.price || '?'));
+  // ── Position changes (process FIRST so trade close can skip duplicate) ──
+  var _closedPairs = {};
+  if (snap.posCount !== _prevSnap.posCount) {
+    if (snap.posCount > _prevSnap.posCount && positions.length) {
+      // New position opened — find which one(s)
+      var prevPairMap = {};
+      (_prevSnap.positions || []).forEach(function(p) { prevPairMap[p.pair] = true; });
+      positions.forEach(function(p) {
+        if (!prevPairMap[p.pair]) {
+          _posOpenTimes[p.pair] = Date.now();
+          var det = '@ ' + fmtPrice(p.entry_price);
+          if (p.leverage) det += ' | ' + p.leverage + 'x';
+          if (p.sl_price) det += ' | SL ' + fmtPrice(p.sl_price);
+          if (p.tp_price) det += ' | TP ' + fmtPrice(p.tp_price);
+          pushNotif('position', '開倉 ' + (p.direction || '?') + ' ' + (p.pair || '?').replace('USDT', ''), det);
+        }
+      });
+      _savePosOpenTimes();
+    } else if (snap.posCount < _prevSnap.posCount) {
+      // Position(s) closed — find which one(s) and build rich notification
+      var curPairMap = {};
+      positions.forEach(function(p) { curPairMap[p.pair] = true; });
+      (_prevSnap.positions || []).forEach(function(prev) {
+        if (curPairMap[prev.pair]) return;
+        _closedPairs[prev.pair] = true;
+        var sym = (prev.pair || '?').replace('USDT', '');
+        var dir = prev.direction || '?';
+        // Find matching trade for PnL + exit price
+        var exitPrice = ''; var pnlStr = '';
+        for (var i = 0; i < trades.length; i++) {
+          var t = trades[i];
+          if ((t.symbol || t.pair || '') === prev.pair) {
+            var rpnl = parseFloat(t.realizedPnl || t.rpnl || t.realized_pnl) || 0;
+            if (rpnl !== 0) {
+              pnlStr = ' ' + (rpnl >= 0 ? '+' : '') + '$' + rpnl.toFixed(2);
+              exitPrice = t.price || t.exit_price || '';
+              break;
+            }
+          }
+        }
+        // Duration (positive = real tracked open, negative = seeded/approximate)
+        var durStr = ''; var durLabel = '';
+        if (_posOpenTimes[prev.pair]) {
+          var openTs = _posOpenTimes[prev.pair];
+          durLabel = openTs > 0 ? '用時' : '監控';
+          durStr = _fmtDuration(Date.now() - Math.abs(openTs));
+          delete _posOpenTimes[prev.pair];
+        }
+        // Build detail: entry→exit | 用時/監控 X
+        var parts = [];
+        if (prev.entry_price) {
+          parts.push(fmtPrice(prev.entry_price) + (exitPrice ? ' → ' + fmtPrice(exitPrice) : ' 入場'));
+        }
+        if (durStr) parts.push(durLabel + ' ' + durStr);
+        pushNotif('trade', '平倉 ' + dir + ' ' + sym + pnlStr, parts.join(' | '));
+      });
+      _savePosOpenTimes();
+      if (snap.posCount > 0) {
+        pushNotif('position', snap.posCount + ' 個持倉剩餘', '');
+      }
     }
   }
+  // Prune _posOpenTimes: remove pairs not in current positions
+  var _activePairs = {};
+  positions.forEach(function(p) { if (p.pair) _activePairs[p.pair] = true; });
+  var _ptChanged = false;
+  for (var _pk in _posOpenTimes) {
+    if (!_activePairs[_pk]) { delete _posOpenTimes[_pk]; _ptChanged = true; }
+  }
+  if (_ptChanged) _savePosOpenTimes();
+
+  // ── Trade detection (entries + fallback close if position didn't catch it) ──
+  if (trades.length && snap.lastTradeTime !== _prevSnap.lastTradeTime) {
+    var t0 = trades[0];
+    var t0sym = (t0.symbol || t0.pair || '?');
+    var t0rpnl = parseFloat(t0.realizedPnl || t0.rpnl || t0.realized_pnl) || 0;
+    if (t0rpnl !== 0 && !_closedPairs[t0sym]) {
+      // Close detected via trade but position didn't catch it (API timing)
+      var sym2 = t0sym.replace('USDT', '');
+      pushNotif('trade', '平倉 ' + sym2 + ' ' + (t0rpnl >= 0 ? '+' : '') + '$' + t0rpnl.toFixed(2), (t0.side || '') + ' @ ' + (t0.price || t0.exit_price || ''));
+    } else if (t0rpnl === 0) {
+      pushNotif('trade', '成交 ' + t0sym.replace('USDT', '') + ' ' + (t0.side || ''), '@ ' + (t0.price || '?'));
+    }
+  }
+
+  // ── Triggers ──
   if (snap.triggerTotal > _prevSnap.triggerTotal) {
-    // Extract latest trigger details from scan_log
     var trigScans = (D.scan_log || []).filter(function(s) { return typeof s === 'string' && s.includes('TRIGGER'); });
     var newCount = snap.triggerTotal - _prevSnap.triggerTotal;
     var latestTrigs = trigScans.slice(-newCount);
@@ -1753,7 +1864,6 @@ function buildNotifications(D) {
         var trigType = parsed.type !== '–' ? parsed.type : '';
         var trigPair = parsed.pair !== '–' ? parsed.pair.replace('USDT', '') : '';
         var summary = (trigType ? trigType + ' ' : '') + trigPair;
-        // Truncate detail for notification
         var detail = parsed.detail.length > 60 ? parsed.detail.slice(0, 58) + '…' : parsed.detail;
         pushNotif('trigger', '觸發 ' + summary, detail);
       });
@@ -1766,14 +1876,6 @@ function buildNotifications(D) {
   }
   if (snap.cooldown && !_prevSnap.cooldown) {
     pushNotif('risk', '冷靜期啟動', '暫停交易中');
-  }
-  if (snap.posCount !== _prevSnap.posCount) {
-    if (snap.posCount > _prevSnap.posCount && positions.length) {
-      var p = positions[0];
-      pushNotif('position', '開倉 ' + (p.direction || '?') + ' ' + (p.pair || '?').replace('USDT', ''), '@ ' + (p.entry_price || '?'));
-    } else if (snap.posCount < _prevSnap.posCount) {
-      pushNotif('position', '已平倉', snap.posCount === 0 ? '所有持倉已清' : snap.posCount + ' 個活躍持倉');
-    }
   }
   if (snap.profile !== _prevSnap.profile) {
     pushNotif('mode', '模式 ' + _prevSnap.profile + ' → ' + snap.profile);
@@ -1853,6 +1955,7 @@ function _buildSnap(D, trades, ts, R, positions, log) {
     consecLosses: R.consecutive_losses || 0,
     cooldown: !!R.trigger_cooldown,
     posCount: positions.length,
+    positions: positions.slice(),
     profile: D.active_profile || 'BALANCED',
     marketMode: R.market_mode || '',
     lastActivityTs: log.length ? (log[0].ts || 0) : 0,
@@ -1882,8 +1985,8 @@ function renderNotifDropdown() {
       '<div class="notif-bar" style="background:' + n.bar + '"></div>' +
       '<div class="notif-icon" style="background:' + n.bg + '"><i class="fas ' + n.icon + '"></i></div>' +
       '<div class="notif-body">' +
-        '<div class="notif-msg">' + esc(n.msg) + '</div>' +
-        (n.detail ? '<div class="notif-detail">' + esc(n.detail) + '</div>' : '') +
+        '<div class="notif-msg" title="' + escAttr(n.msg) + '">' + esc(n.msg) + '</div>' +
+        (n.detail ? '<div class="notif-detail" title="' + escAttr(n.detail) + '">' + esc(n.detail) + '</div>' : '') +
       '</div>' +
       '<div class="notif-time">' + n.time + '</div>' +
     '</div>';
