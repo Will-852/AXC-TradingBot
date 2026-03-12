@@ -20,7 +20,7 @@
 - 全局 gotchas/lessons：`python3 ~/.claude/scripts/query_knowledge.py "關鍵詞"`
 
 ## 系統健康檢查
-bash ~/projects/axc-trading/scripts/health_check.sh
+`bash ~/projects/axc-trading/scripts/health_check.sh`
 
 ## 緊急操作
 | 問題 | 指令 |
@@ -36,7 +36,7 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 ## 架構速查（按變化頻率）
 🔴 常改：config/params.py, config/modes/
 🟡 偶改：agents/*/SOUL.md, agents/main/workspace/skills/
-🟢 少改：scripts/, openclaw.json
+🟢 少改：scripts/
 ⚫ 自動：shared/, logs/
 
 ## Gotchas
@@ -46,6 +46,7 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 - fcntl.flock 防止 scanner 同 tradercycle 同時執行
 - **重啟 tg_bot 前必須先 `launchctl bootout` 停 LaunchAgent，否則多 instance 撞 409**
   - 詳見 docs/guides/OPS.md「TG Bot 重複 Instance」
+- STRATEGY.md 係自動生成（weekly_strategy_review.py），手改會被覆蓋
 
 ## 路徑
 - Env: `AXC_HOME=~/projects/axc-trading`
@@ -65,6 +66,13 @@ bash ~/projects/axc-trading/scripts/health_check.sh
 ## 額外約束
 - ai/ 只引用 docs/，唔複製內容
 - agents/*/SOUL.md 全部原位
+
+## 服務啟停
+| 動作 | 指令 |
+|------|------|
+| 啟動 | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.{服務}.plist` |
+| 停止 | `launchctl bootout gui/$(id -u)/ai.openclaw.{服務}` |
+| 服務名 | scanner, telegram, tradercycle, dashboard, newsbot, heartbeat, lightscan, report 等 |
 
 ## 維護
 - 每月1號：`bash scripts/integration_test.sh`
