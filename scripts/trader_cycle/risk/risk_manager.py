@@ -245,6 +245,9 @@ class ManagePositionsStep:
                         f"passed TP={tp_price}, forcing close"
                     )
 
+            # ─── Margin Health Alert (Sprint 2B — alert only, no auto-close) ───
+            self._check_margin_health(pos, ctx)
+
             # ─── Report or execute ───
             if exit_reasons:
                 if ctx.dry_run or (not ctx.exchange_client and not ctx.exchange_clients):
@@ -326,6 +329,36 @@ class ManagePositionsStep:
 
         except Exception as e:
             ctx.errors.append(f"FAILED to close {pos.pair}: {e}")
+
+    def _check_margin_health(self, pos, ctx: CycleContext) -> None:
+        """Sprint 2B Phase A: alert-only margin monitoring.
+
+        No auto-close — just Telegram alerts when margin is unhealthy.
+        Phase B (auto-close) deferred for threshold verification.
+        """
+        # Margin ratio: margin_balance / maint_margin — safe when > 1
+        if pos.maint_margin > 0 and pos.isolated_wallet > 0:
+            ratio = pos.isolated_wallet / pos.maint_margin
+            pos.margin_ratio = ratio  # store for diagnostics
+            if ratio < 1.5:
+                alert = (
+                    f"<b>Margin Warning</b> [{pos.pair}]\n"
+                    f"Margin ratio: {ratio:.2f} (threshold: 1.5)\n"
+                    f"Wallet: ${pos.isolated_wallet:.2f} | Maint: ${pos.maint_margin:.2f}"
+                )
+                ctx.telegram_messages.append(alert)
+                logger.warning(f"[{pos.pair}] Low margin ratio: {ratio:.2f}")
+
+        # Distance to liquidation
+        dist_pct = pos.distance_to_liquidation_pct
+        if pos.liquidation_price > 0 and dist_pct < 2.0:
+            alert = (
+                f"<b>LIQUIDATION RISK</b> [{pos.pair}]\n"
+                f"Mark: {pos.mark_price} | Liq: {pos.liquidation_price}\n"
+                f"Distance: {dist_pct:.1f}% (critical < 2%)"
+            )
+            ctx.telegram_messages.append(alert)
+            logger.error(f"[{pos.pair}] Near liquidation: {dist_pct:.1f}%")
 
 
 # ─── Helpers ───

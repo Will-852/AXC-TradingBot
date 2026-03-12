@@ -57,6 +57,18 @@ class Position:
     unrealized_pnl: float = 0.0
     funding_cost: float = 0.0
     platform: str = "aster"         # "aster", "binance", or "hyperliquid"
+    # Margin health (Sprint 2B)
+    liquidation_price: float = 0.0
+    maint_margin: float = 0.0
+    margin_ratio: float = 0.0       # margin_balance / maint_margin (>1 = safe)
+    isolated_wallet: float = 0.0
+
+    @property
+    def distance_to_liquidation_pct(self) -> float:
+        """% distance from mark price to liquidation. Positive = safe."""
+        if self.liquidation_price <= 0 or self.mark_price <= 0:
+            return 100.0  # no liquidation info → assume safe
+        return abs(self.mark_price - self.liquidation_price) / self.mark_price * 100
 
 
 @dataclass

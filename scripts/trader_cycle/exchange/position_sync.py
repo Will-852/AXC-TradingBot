@@ -120,6 +120,10 @@ class CheckPositionsStep:
                         size=abs(amt),
                         unrealized_pnl=_parse_float(p.get("unRealizedProfit", 0)),
                         platform=name,
+                        # Margin health (Sprint 2B)
+                        liquidation_price=_parse_float(p.get("liquidationPx") or p.get("liquidationPrice", 0)),
+                        maint_margin=_parse_float(p.get("maintMargin", 0)),
+                        isolated_wallet=_parse_float(p.get("isolatedWallet") or p.get("marginUsed", 0)),
                     )
 
                     # Try to get SL/TP from trade state (support both key formats)

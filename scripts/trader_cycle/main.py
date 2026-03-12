@@ -53,6 +53,7 @@ from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalSt
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
 from trader_cycle.risk.adjust_positions import AdjustPositionsStep
 from trader_cycle.risk.position_sizer import SizePositionStep
+from trader_cycle.risk.validators import ValidateOrderStep
 from trader_cycle.state.trade_log import WriteTradeLogStep
 from trader_cycle.state.trade_journal import WriteTradeJournalStep
 from trader_cycle.notify.telegram import SendReportsStep, send_telegram, format_urgent_alert
@@ -337,6 +338,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(EvaluateSignalsStep())    # 9
     pipeline.add_step(SelectSignalStep())       # 10
     pipeline.add_step(SizePositionStep())       # 11
+    pipeline.add_step(ValidateOrderStep())     # 11.5 — pre-trade validation
     pipeline.add_step(ExecuteTradeStep())       # 12
     pipeline.add_step(WriteStateStep())         # 13
     pipeline.add_step(WriteTradeLogStep())      # 14

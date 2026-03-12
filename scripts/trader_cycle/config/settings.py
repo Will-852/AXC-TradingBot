@@ -57,6 +57,9 @@ FUNDING_COST_FORCE_RATIO = 0.50  # funding > 50% unrealized → force close
 NO_TRADE_VOLUME_MIN = 0.50       # volume < 50% of 30d avg = dead market
 NO_TRADE_FUNDING_EXTREME = 0.002  # ±0.2% funding = extreme
 
+# ─── Validation Pipeline (Sprint 3) ───
+USE_VALIDATION_PIPELINE = os.environ.get("USE_VALIDATION_PIPELINE", "true").lower() == "true"
+
 # ─── Risk — Position Limits ───
 MAX_CRYPTO_POSITIONS = 2
 MAX_XAG_POSITIONS = 1
