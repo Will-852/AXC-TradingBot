@@ -18,6 +18,7 @@ from ..config.settings import (
     HMM_ENABLED, HMM_N_STATES, HMM_WINDOW,
     HMM_REFIT_INTERVAL, HMM_MIN_CONFIDENCE,
     HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
+    HMM_STATE_PATH,
 )
 from ..core.context import CycleContext
 
@@ -28,7 +29,11 @@ _hmm_instance = None
 
 
 def _get_hmm():
-    """Lazy singleton for RegimeHMM — only created when HMM_ENABLED."""
+    """Lazy singleton for RegimeHMM — only created when HMM_ENABLED.
+
+    Loads persisted feature history from disk so HMM stays warm
+    across short-lived process invocations (launchd every 30min).
+    """
     global _hmm_instance
     if _hmm_instance is None:
         from .regime_hmm import RegimeHMM
@@ -38,6 +43,7 @@ def _get_hmm():
             refit_interval=HMM_REFIT_INTERVAL,
             min_samples=HMM_MIN_SAMPLES,
         )
+        _hmm_instance.load_state(HMM_STATE_PATH)
     return _hmm_instance
 
 
@@ -203,6 +209,7 @@ class DetectModeStep:
             try:
                 hmm = _get_hmm()
                 hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
+                hmm.save_state(HMM_STATE_PATH)
             except Exception as e:
                 log.warning("HMM update failed: %s", e)
 

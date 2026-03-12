@@ -14,6 +14,7 @@ SCAN_CONFIG_PATH = os.path.join(_SHARED, "SCAN_CONFIG.md")
 TRADE_STATE_PATH = os.path.join(_SHARED, "TRADE_STATE.md")
 TRADE_LOG_PATH   = os.path.join(_SHARED, "TRADE_LOG.md")
 SCAN_LOG_PATH    = os.path.join(_SHARED, "SCAN_LOG.md")
+HMM_STATE_PATH   = os.path.join(_SHARED, "hmm_state.json")
 LOG_DIR = os.path.join(AXC_HOME, "logs")
 
 # ─── Timezone ───

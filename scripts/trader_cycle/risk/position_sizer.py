@@ -124,7 +124,8 @@ class SizePositionStep:
         # ─── HMM confidence → risk adjustment ───
         # Higher HMM confidence = more conviction = keep full size
         # Lower confidence (but above threshold) = scale down proportionally
-        if HMM_ENABLED:
+        # Skip for CRASH mode — already has conservative 1% risk, double-penalize 唔好
+        if HMM_ENABLED and ctx.market_mode != "CRASH":
             hmm_conf_str = ctx.scan_config_updates.get("HMM_CONFIDENCE", "0.0")
             try:
                 hmm_conf = float(hmm_conf_str)

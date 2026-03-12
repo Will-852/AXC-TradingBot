@@ -14,8 +14,11 @@ regime_hmm.py — HMM-based market regime detection
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import os
+import tempfile
 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -66,6 +69,58 @@ class RegimeHMM:
         self._state_map: dict[int, str] = {}
         self._prev_close: float | None = None
         self._crash_vol_threshold: float = float("inf")  # percentile gate
+
+    def save_state(self, path: str) -> None:
+        """Persist feature history + prev_close for warm restart across processes.
+
+        設計決定：只存 feature_history（JSON-safe list[list[float]]），唔存 model。
+        每次 load 後 model=None → 自動觸發 _fit()。簡單可靠。
+        """
+        try:
+            data = {
+                "feature_history": self._feature_history,
+                "prev_close": self._prev_close,
+            }
+            dir_name = os.path.dirname(path)
+            os.makedirs(dir_name, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(data, f)
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        except Exception as e:
+            log.warning("HMM state save failed: %s", e)
+
+    def load_state(self, path: str) -> bool:
+        """Load persisted feature history for warm restart.
+
+        Returns True if loaded successfully. Model is NOT restored —
+        first update() will trigger _fit() on the loaded history.
+        """
+        try:
+            if not os.path.exists(path):
+                return False
+            with open(path, "r") as f:
+                data = json.load(f)
+            self._feature_history = data.get("feature_history", [])
+            self._prev_close = data.get("prev_close")
+            # Trim to window
+            if len(self._feature_history) > self.window:
+                self._feature_history = self._feature_history[-self.window:]
+            log.info(
+                "HMM state loaded: %d candles from %s",
+                len(self._feature_history), path,
+            )
+            return True
+        except Exception as e:
+            log.warning("HMM state load failed: %s", e)
+            return False
 
     def update(self, indicators_4h: dict) -> tuple[str, float, bool]:
         """Feed new 4H candle, return (regime_label, confidence, crash_confirmed).
@@ -168,7 +223,7 @@ class RegimeHMM:
                 if mask.any():
                     state_vol[s] = float(np.mean(X[mask, 1]))  # norm_atr
                 else:
-                    state_vol[s] = 0.0
+                    state_vol[s] = float("inf")  # empty state → safest rank = CRASH
 
             # Sort by volatility: lowest=RANGE, mid=TREND, highest=CRASH
             sorted_states = sorted(state_vol.keys(), key=lambda s: state_vol[s])
@@ -194,6 +249,7 @@ class RegimeHMM:
         except Exception as e:
             log.warning("HMM fit failed: %s", e)
             self.model = None
+            self._candles_since_fit = 0  # backoff: wait full refit_interval
             return False
 
     def _predict(self) -> tuple[str, float]:

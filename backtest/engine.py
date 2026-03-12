@@ -62,7 +62,7 @@ class BTPosition:
     tp_price: float
     notional: float     # position size in USDT
     entry_time: str
-    strategy: str       # "range" or "trend"
+    strategy: str       # "range", "trend", or "crash"
 
 
 @dataclass
