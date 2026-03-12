@@ -139,6 +139,14 @@
     .notif-time { font-size: .72rem; color: var(--text-3); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
     .notif-empty { text-align: center; padding: 24px 14px; color: var(--text-3); font-size: .85rem; }
 
+    /* ── Status Bar (置頂狀態欄) ──────────────────── */
+    .notif-status-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--card-bg, #fff); }
+    .status-dot { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--text-2); white-space: nowrap; }
+    .status-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.ok::before { background: #22c55e; box-shadow: 0 0 4px #22c55e88; }
+    .status-dot.warn::before { background: #eab308; box-shadow: 0 0 4px #eab30888; }
+    .status-dot.err::before { background: #ef4444; box-shadow: 0 0 4px #ef444488; }
+
     /* ── Sidebar ─────────────────────────────────── */
     .main-sidebar { background: #0f172a !important; }
     .brand-link {
@@ -660,7 +668,7 @@
         <div class="notif-dropdown" id="notif-dropdown" style="display:none;position:absolute;right:0;top:100%;z-index:1050">
           <div class="notif-header">
             <h6>通知</h6>
-            <button class="notif-mark-read" onclick="_notifRead=Date.now();renderNotifDropdown();return false">已讀</button>
+            <button class="notif-mark-read" onclick="_notifRead=Date.now();_saveNotifs();renderNotifDropdown();return false">已讀</button>
           </div>
           <div class="notif-tabs" id="notif-tabs">
             <button class="notif-tab active" data-filter="all" onclick="setNotifTab(this)">全部</button>
@@ -668,6 +676,7 @@
             <button class="notif-tab" data-filter="news" onclick="setNotifTab(this)">新聞</button>
             <button class="notif-tab" data-filter="mode,system" onclick="setNotifTab(this)">系統</button>
           </div>
+          <div class="notif-status-bar" id="notif-status-bar"></div>
           <div class="notif-list" id="notif-list"></div>
         </div>
       </li>
@@ -1589,6 +1598,7 @@ function renderNavbar(D) {
   }
 
   buildNotifications(D);
+  renderStatusBar(D);
   renderNotifDropdown();
 }
 
@@ -1598,6 +1608,34 @@ var _prevSnap = null;
 var _notifRead = 0;
 var _notifFilter = 'all';
 var _notifTimer = null;
+var _apiOk = true;
+var _apiFailNotified = false;
+
+// ── localStorage persistence (24h) ──────────
+var _NOTIF_STORAGE_KEY = 'axc_notifs';
+var _NOTIF_READ_KEY = 'axc_notif_read';
+var _NOTIF_TTL = 86400000; // 24h in ms
+
+function _saveNotifs() {
+  try {
+    var toSave = _notifs.filter(function(n) { return !n._heartbeat; });
+    localStorage.setItem(_NOTIF_STORAGE_KEY, JSON.stringify(toSave));
+    localStorage.setItem(_NOTIF_READ_KEY, String(_notifRead));
+  } catch (e) { /* quota exceeded — silently ignore */ }
+}
+
+function _loadNotifs() {
+  try {
+    var raw = localStorage.getItem(_NOTIF_STORAGE_KEY);
+    if (!raw) return false;
+    var arr = JSON.parse(raw);
+    var cutoff = Date.now() - _NOTIF_TTL;
+    _notifs = arr.filter(function(n) { return n.ts > cutoff; });
+    var savedRead = localStorage.getItem(_NOTIF_READ_KEY);
+    if (savedRead) _notifRead = parseInt(savedRead, 10) || 0;
+    return _notifs.length > 0;
+  } catch (e) { return false; }
+}
 
 function toggleNotif(e) {
   e.preventDefault();
@@ -1633,7 +1671,7 @@ document.addEventListener('click', function(e) {
     _closeNotif();
   }
 });
-var _MAX_NOTIFS = 30;
+var _MAX_NOTIFS = 200;
 
 var _NOTIF_META = {
   trade:    { icon: 'fa-exchange-alt',  bg: '#0d9488', bar: '#0d9488' },
@@ -1664,21 +1702,37 @@ function buildNotifications(D) {
   var positions = D.live_positions || [];
 
   if (_prevSnap === null) {
-    log.slice(0, 10).reverse().forEach(function(e) {
-      var type = 'system';
-      if (e.type === 'trade_entry' || e.type === 'trade_exit') type = 'trade';
-      else if (e.type === 'signal') type = 'trigger';
-      else if (e.type === 'mode_change') type = 'mode';
-      else if (e.type === 'error') type = 'risk';
-      var m = _NOTIF_META[type] || _NOTIF_META.system;
-      _notifs.push({
-        type: type, icon: m.icon, bg: m.bg, bar: m.bar,
-        msg: e.msg || '', detail: '',
-        time: e.time || '', ts: Date.now() - 1000
+    var latestStoredTs = _notifs.length ? _notifs[0].ts : 0;
+    if (!latestStoredTs) {
+      // No localStorage data — prefill from activity_log
+      log.slice(0, 10).reverse().forEach(function(e) {
+        var type = 'system';
+        if (e.type === 'trade_entry' || e.type === 'trade_exit') type = 'trade';
+        else if (e.type === 'signal') type = 'trigger';
+        else if (e.type === 'mode_change') type = 'mode';
+        else if (e.type === 'error') type = 'risk';
+        var m = _NOTIF_META[type] || _NOTIF_META.system;
+        _notifs.push({
+          type: type, icon: m.icon, bg: m.bg, bar: m.bar,
+          msg: e.msg || '', detail: '',
+          time: e.time || '', ts: Date.now() - 1000
+        });
       });
-    });
-    _notifRead = Date.now();
+      _notifRead = Date.now();
+    } else {
+      // Has localStorage data — backfill only newer activity_log entries
+      var newEntries = log.filter(function(e) { return (e.ts || 0) > latestStoredTs; });
+      newEntries.reverse().forEach(function(e) {
+        var type = 'system';
+        if (e.type === 'trade_entry' || e.type === 'trade_exit') type = 'trade';
+        else if (e.type === 'signal') type = 'trigger';
+        else if (e.type === 'mode_change') type = 'mode';
+        else if (e.type === 'error') type = 'risk';
+        pushNotif(type, e.msg || '', '');
+      });
+    }
     _prevSnap = _buildSnap(D, trades, ts, R, positions, log);
+    _saveNotifs();
     return;
   }
 
@@ -1795,6 +1849,7 @@ function buildNotifications(D) {
   }
 
   _prevSnap = snap;
+  _saveNotifs();
 }
 
 function _buildSnap(D, trades, ts, R, positions, log) {
@@ -1847,6 +1902,60 @@ function setNotifTab(el) {
   el.classList.add('active');
   _notifFilter = el.getAttribute('data-filter');
   renderNotifDropdown();
+}
+
+// ── Status Bar (置頂狀態欄) ─────────────────
+var _lastStatusData = null;
+
+function renderStatusBar(D) {
+  _lastStatusData = D;
+  var bar = byId('notif-status-bar');
+  if (!bar) return;
+  var now = Date.now();
+  var items = [];
+
+  // Scanner
+  var scanCls = 'err';
+  if (D.last_scan && D.last_scan !== '?') {
+    var sd = new Date(D.last_scan.replace(' ', 'T'));
+    if (!isNaN(sd)) {
+      var ageMin = Math.round((now - sd.getTime()) / 60000);
+      scanCls = ageMin <= 10 ? 'ok' : ageMin <= 30 ? 'warn' : 'err';
+    }
+  }
+  items.push('<span class="status-dot ' + scanCls + '">Scanner</span>');
+
+  // News
+  var newsCls = 'err';
+  var ns = D.news_sentiment;
+  if (ns && ns.updated_at) {
+    var nd = new Date(ns.updated_at);
+    if (!isNaN(nd)) {
+      var nAge = Math.round((now - nd.getTime()) / 60000);
+      newsCls = nAge <= 30 ? 'ok' : nAge <= 120 ? 'warn' : 'err';
+    }
+  }
+  items.push('<span class="status-dot ' + newsCls + '">News</span>');
+
+  // API
+  items.push('<span class="status-dot ' + (_apiOk ? 'ok' : 'err') + '">API</span>');
+
+  // Exchanges
+  var exchKeys = D.exchanges ? Object.keys(D.exchanges) : [];
+  items.push('<span class="status-dot ' + (exchKeys.length > 0 ? 'ok' : 'err') + '">Exch ' + exchKeys.length + '</span>');
+
+  // Telegram
+  var tg = D.telegram || {};
+  items.push('<span class="status-dot ' + (tg.connected ? 'ok' : 'err') + '">TG</span>');
+
+  // Agents
+  var agents = D.agents || [];
+  var hasErr = agents.some(function(a) { return a.status === 'error'; });
+  var agentCls = agents.length === 0 ? 'err' : hasErr ? 'warn' : 'ok';
+  items.push('<span class="status-dot ' + agentCls + '">Agents</span>');
+
+  var html = items.join('');
+  if (bar._prevHtml !== html) { bar.innerHTML = html; bar._prevHtml = html; }
 }
 
 // ── Close Position ──────────────────────────
@@ -3090,13 +3199,23 @@ async function fetchData() {
     var res = await fetch('/api/data', {signal: _fetchCtrl.signal});
     var D = await res.json();
     _fetchFails = 0;
+    if (!_apiOk) {
+      _apiOk = true;
+      _apiFailNotified = false;
+      pushNotif('system', 'API 連線恢復', '');
+    }
     render(D);
     if (dot) dot.classList.remove('loading');
   } catch (e) {
     if (e.name === 'AbortError') return;
     _fetchFails++;
+    _apiOk = false;
     console.error('fetchData error:', e);
     if (dot) dot.classList.add('loading');
+    if (!_apiFailNotified) {
+      _apiFailNotified = true;
+      pushNotif('system', 'API 連線失敗', e.message || 'fetch error');
+    }
     if (_fetchFails >= 3) {
       setText('last-update', 'API 離線');
     }
@@ -3391,6 +3510,7 @@ function getPosNote(pair) {
 // ── 啟動 ─────────────────────────────────────
 initNotyf();
 _initCardMemory();
+_loadNotifs();
 fetchData();
 refreshTimer = setInterval(fetchData, REFRESH_MS);
 // Exchange connection status on load
