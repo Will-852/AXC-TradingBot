@@ -3205,18 +3205,38 @@ function renderFooter(D) {
 }
 
 // ── Fetch + Refresh ─────────────────────────
-var _fetchCtrl = null;
 var _fetchFails = 0;
+var _fetching = false;
+var _lastD = null;
+// Keys to preserve from last good response when new response has empty/missing data
+var _PRESERVE_KEYS = ['action_plan', 'live_positions', 'exchange_trades', 'trade_history',
+  'pnl_history', 'drawdown', 'exchanges', 'news_sentiment', 'funding_rates', 'signal_heatmap',
+  'trigger_summary', 'trade_stats', 'fee_breakdown', 'activity_log', 'scan_log', 'risk_status'];
+
 async function fetchData() {
-  if (_fetchCtrl) _fetchCtrl.abort();
-  _fetchCtrl = new AbortController();
+  if (_fetching) return; // let in-flight request finish, don't abort
+  _fetching = true;
   var dot = byId('refresh-dot');
   if (dot) dot.classList.add('loading');
   try {
-    var res = await fetch('/api/data', {signal: _fetchCtrl.signal});
+    var res = await fetch('/api/data');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var D = await res.json();
     _fetchFails = 0;
+    // Preserve last good data for volatile fields (exchange API may timeout)
+    if (_lastD) {
+      for (var i = 0; i < _PRESERVE_KEYS.length; i++) {
+        var k = _PRESERVE_KEYS[i];
+        var v = D[k];
+        var old = _lastD[k];
+        if (old === undefined || old === null) continue;
+        var empty = v === undefined || v === null ||
+          (Array.isArray(v) && v.length === 0 && old.length > 0) ||
+          (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0 && Object.keys(old).length > 0);
+        if (empty) D[k] = old;
+      }
+    }
+    _lastD = D;
     if (_apiOk === false) {
       pushNotif('system', 'API 連線恢復', '');
     }
@@ -3225,7 +3245,6 @@ async function fetchData() {
     render(D);
     if (dot) dot.classList.remove('loading');
   } catch (e) {
-    if (e.name === 'AbortError') return;
     _fetchFails++;
     _apiOk = false;
     console.error('fetchData error:', e);
@@ -3238,6 +3257,8 @@ async function fetchData() {
     if (_fetchFails >= 3) {
       setText('last-update', 'API 離線');
     }
+  } finally {
+    _fetching = false;
   }
 }
 
