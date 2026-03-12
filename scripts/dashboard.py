@@ -1317,6 +1317,16 @@ def get_risk_status(live_balance=None):
     cooldown_active = trade_state.get("COOLDOWN_ACTIVE", "NO") == "YES"
     # max consecutive derived from highest cooldown tier
     max_cons = 3 if cooldown_3 > 0 else (2 if cooldown_2 > 0 else 1)
+
+    # HMM regime data (written by trader_cycle to SCAN_CONFIG.md)
+    scan_config = parse_md(os.path.join(HOME, "shared/SCAN_CONFIG.md"))
+    hmm_regime = scan_config.get("HMM_REGIME", "")
+    hmm_confidence = 0.0
+    try:
+        hmm_confidence = float(scan_config.get("HMM_CONFIDENCE", "0"))
+    except (ValueError, TypeError):
+        pass
+
     return {
         "consecutive_losses": cons_losses,
         "max_consecutive_losses": max_cons,
@@ -1329,6 +1339,8 @@ def get_risk_status(live_balance=None):
         "max_hold_hours": max_hold,
         "market_mode": market_mode,
         "trigger_cooldown": cooldown_active or cons_losses >= 2,
+        "hmm_regime": hmm_regime,
+        "hmm_confidence": hmm_confidence,
     }
 
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>AXC</title>
+  <link rel="icon" type="image/svg+xml" href="/svg/axc.svg">
 
   <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -441,6 +442,7 @@
     /* ── Market State ────────────────────────────── */
     .market-RANGE    { color: var(--text-3); }
     .market-TREND    { color: var(--pos); }
+    .market-CRASH    { color: #fff; background: var(--neg); padding: 1px 8px; border-radius: 4px; font-size: .85em; display: inline-block; line-height: 1.2; }
     .market-VOLATILE { color: var(--neg); }
 
     /* ── Footer ──────────────────────────────────── */
@@ -456,6 +458,13 @@
     .content-header h1 {
       font-size: 1rem; font-weight: 600; color: var(--text-1);
     }
+
+    /* ── Loading State (stat cards before first data) */
+    .stat-loading { color: var(--text-3) !important; }
+
+    /* ── Data Freshness ─────────────────────────── */
+    #data-freshness { font-size: .72rem; color: var(--text-3); }
+    #data-freshness.stale { color: var(--neg); }
 
     /* ── Refresh Indicator ───────────────────────── */
     #refresh-dot {
@@ -801,7 +810,7 @@
           <div class="col-lg-3 col-6" data-aos="fade-up">
             <div class="small-box" id="box-today-pnl">
               <div class="inner">
-                <h3 id="stat-today-pnl">$0.00</h3>
+                <h3 id="stat-today-pnl" class="stat-loading">–</h3>
                 <p>今日盈虧</p>
               </div>
               <div class="icon"><i class="fas fa-dollar-sign"></i></div>
@@ -815,7 +824,7 @@
           <div class="col-lg-3 col-6" data-aos="fade-up" data-aos-delay="50">
             <div class="small-box" id="box-total-pnl">
               <div class="inner">
-                <h3 id="stat-total-pnl">$0.00</h3>
+                <h3 id="stat-total-pnl" class="stat-loading">–</h3>
                 <p>總計盈虧</p>
               </div>
               <div class="icon"><i class="fas fa-chart-line"></i></div>
@@ -908,6 +917,7 @@
               <div class="info-box-content">
                 <span class="info-box-text">市場狀態</span>
                 <span class="info-box-number market-RANGE" id="risk-market">–</span>
+                <span class="text-muted" id="risk-hmm" style="font-size:.72rem;display:none"></span>
               </div>
             </div>
           </div>
@@ -992,12 +1002,12 @@
                 <div class="row mb-2">
                   <div class="col-6 text-center">
                     <div class="text-muted" style="font-size:.82rem;font-weight:500">今日</div>
-                    <div style="font-size:1.5rem;font-weight:700" id="pnl-today-big">$0.00</div>
+                    <div class="stat-loading" style="font-size:1.5rem;font-weight:700" id="pnl-today-big">–</div>
                     <div style="font-size:.6rem;color:#aaa;margin-top:-2px">交易所驗證</div>
                   </div>
                   <div class="col-6 text-center">
                     <div class="text-muted" style="font-size:.82rem;font-weight:500">總計</div>
-                    <div style="font-size:1.5rem;font-weight:700" id="pnl-total-big">$0.00</div>
+                    <div class="stat-loading" style="font-size:1.5rem;font-weight:700" id="pnl-total-big">–</div>
                     <div style="font-size:.6rem;color:#aaa;margin-top:-2px">餘額變化</div>
                   </div>
                 </div>
@@ -1177,6 +1187,7 @@
       今日 <span id="footer-api-calls">–</span> 次 API
       <span style="margin-left:12px;border-left:1px solid #e2e8f0;padding-left:12px">* 真實數據但樣本有限，隨時間累積會更準確</span>
     </span>
+    <span class="ml-3" id="data-freshness">數據：等待中…</span>
     <div class="float-right d-none d-sm-inline-block">
       <a href="/details" class="text-muted mr-2">說明</a>
       <a href="/share" class="text-muted mr-2">分享 (macOS)</a>
@@ -2280,21 +2291,21 @@ function renderStatsCards(D, todayTriggers) {
   var totalPnl = parseFloat(D.total_pnl) || 0;
   var triggers = (D.trigger_summary && D.trigger_summary.total) || todayTriggers.length;
 
-  // CountUp animated numbers
+  // CountUp animated numbers + clear loading state
   animateNum('stat-today-pnl', todayPnl, 2, '$');
-  var tp = byId('stat-today-pnl'); if (tp) tp.style.color = pnlColor(todayPnl);
+  var tp = byId('stat-today-pnl'); if (tp) { tp.style.color = pnlColor(todayPnl); tp.classList.remove('stat-loading'); }
 
   animateNum('stat-total-pnl', totalPnl, 2, '$');
-  var tlp = byId('stat-total-pnl'); if (tlp) tlp.style.color = pnlColor(totalPnl);
+  var tlp = byId('stat-total-pnl'); if (tlp) { tlp.style.color = pnlColor(totalPnl); tlp.classList.remove('stat-loading'); }
 
   animateNum('stat-triggers', triggers, 0, '');
 
   // 累積盈虧 big numbers
   animateNum('pnl-today-big', todayPnl, 2, '$');
-  var pt = byId('pnl-today-big'); if (pt) pt.style.color = pnlColor(todayPnl);
+  var pt = byId('pnl-today-big'); if (pt) { pt.style.color = pnlColor(todayPnl); pt.classList.remove('stat-loading'); }
 
   animateNum('pnl-total-big', totalPnl, 2, '$');
-  var ptot = byId('pnl-total-big'); if (ptot) ptot.style.color = pnlColor(totalPnl);
+  var ptot = byId('pnl-total-big'); if (ptot) { ptot.style.color = pnlColor(totalPnl); ptot.classList.remove('stat-loading'); }
 }
 
 // ── Trade Stats（compact strip）──────────────
@@ -2321,6 +2332,19 @@ function renderRiskBoxes(D) {
   var ms = byId('risk-market');
   var market = R.market_mode || '–';
   if (ms) { ms.textContent = market; ms.className = 'info-box-number market-' + market; }
+
+  // HMM confidence sub-line
+  var hmmEl = byId('risk-hmm');
+  if (hmmEl) {
+    var hmmConf = parseFloat(R.hmm_confidence) || 0;
+    var hmmRegime = R.hmm_regime || '';
+    if (hmmConf > 0 && hmmRegime) {
+      hmmEl.textContent = 'HMM: ' + hmmRegime + ' (' + Math.round(hmmConf * 100) + '%)';
+      hmmEl.style.display = '';
+    } else {
+      hmmEl.style.display = 'none';
+    }
+  }
 }
 
 // ── Action Plan ─────────────────────────────
@@ -3300,6 +3324,20 @@ function renderScanLog(D, todayScans) {
 function renderFooter(D) {
   setText('footer-api-calls', D.api_calls_today || '–');
   setText('last-update', '更新：' + new Date().toLocaleTimeString('zh-HK'));
+
+  // Data freshness indicator
+  var fresh = byId('data-freshness');
+  if (fresh) {
+    var now = new Date();
+    var timeStr = now.toLocaleTimeString('zh-HK', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    window._lastFreshTime = timeStr;
+    fresh.textContent = '最後更新 ' + timeStr;
+    fresh.classList.remove('stale');
+    clearTimeout(window._staleTimer);
+    window._staleTimer = setTimeout(function() {
+      if (fresh) { fresh.classList.add('stale'); fresh.textContent = '最後更新 ' + (window._lastFreshTime || '') + ' (逾時)'; }
+    }, 15000);
+  }
 }
 
 // ── Fetch + Refresh ─────────────────────────
