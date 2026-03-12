@@ -200,6 +200,27 @@ NEWS_SCRAPE_INTERVAL_MIN = 5      # RSS 抓取間隔（分鐘）
 NEWS_ANALYSIS_INTERVAL_MIN = 15   # Sentiment 分析間隔（分鐘）
 
 # ═══════════════════════════════════════
+# Section 10: HMM Regime Detection
+# ═══════════════════════════════════════
+HMM_ENABLED = True
+HMM_N_STATES = 3
+HMM_WINDOW = 500           # 4H candles for training (~83 days)
+HMM_REFIT_INTERVAL = 24    # refit every ~4 days
+HMM_MIN_CONFIDENCE = 0.6   # below this → HMM vote = UNKNOWN
+HMM_MIN_SAMPLES = 100      # cold start threshold
+HMM_CRASH_THRESHOLD = 0.7  # CRASH override needs higher confidence
+
+# ═══════════════════════════════════════
+# Section 11: CRASH Strategy
+# ═══════════════════════════════════════
+CRASH_RISK_PCT = 0.01       # 1% (vs 2% normal)
+CRASH_LEVERAGE = 5          # lower leverage
+CRASH_SL_ATR_MULT = 2.0     # wider SL
+CRASH_MIN_RR = 1.5
+CRASH_RSI_ENTRY = 75        # only short when very overbought
+CRASH_VOLUME_MIN = 2.0      # need volume spike
+
+# ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）
 # 用家自訂參數放呢度，git pull 永遠唔衝突
 # ═══════════════════════════════════════

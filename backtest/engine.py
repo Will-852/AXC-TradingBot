@@ -34,10 +34,14 @@ from indicator_calc import calc_indicators, TIMEFRAME_PARAMS, PRODUCT_OVERRIDES
 from trader_cycle.strategies.mode_detector import detect_mode_for_pair
 from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
+from trader_cycle.strategies.crash_strategy import CrashStrategy
+from trader_cycle.strategies.regime_hmm import RegimeHMM
 from trader_cycle.core.context import CycleContext
 from trader_cycle.config.settings import (
     MODE_CONFIRMATION_REQUIRED,
     MAX_CRYPTO_POSITIONS,
+    HMM_ENABLED, HMM_N_STATES, HMM_WINDOW,
+    HMM_REFIT_INTERVAL, HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
 )
 
 log = logging.getLogger(__name__)
@@ -170,6 +174,18 @@ class BacktestEngine:
         strats = strategy_overrides or {}
         self.range_strategy = strats.get("range", RangeStrategy())
         self.trend_strategy = strats.get("trend", TrendStrategy())
+        self.crash_strategy = strats.get("crash", CrashStrategy())
+
+        # HMM regime detector (optional, for backtest with HMM)
+        self.hmm_enabled = HMM_ENABLED
+        self._hmm: RegimeHMM | None = None
+        if self.hmm_enabled:
+            self._hmm = RegimeHMM(
+                n_states=HMM_N_STATES,
+                window=HMM_WINDOW,
+                refit_interval=HMM_REFIT_INTERVAL,
+                min_samples=HMM_MIN_SAMPLES,
+            )
 
         # State
         self.positions: list[BTPosition] = []
@@ -360,7 +376,25 @@ class BacktestEngine:
         else:
             self._ind_4h["volume_ratio"] = 1.0
 
-        raw_mode, _votes = detect_mode_for_pair(self._ind_4h, 0.0)
+        # HMM update (if enabled)
+        hmm_regime = None
+        hmm_confidence = 0.0
+        hmm_crash_confirmed = False
+        if self._hmm is not None:
+            try:
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = self._hmm.update(self._ind_4h)
+            except Exception as e:
+                log.warning("HMM update failed in backtest: %s", e)
+
+        raw_mode, _votes = detect_mode_for_pair(
+            self._ind_4h, 0.0, hmm_regime, hmm_confidence, hmm_crash_confirmed
+        )
+
+        # CRASH mode: skip confirmation, immediately active
+        if raw_mode == "CRASH":
+            self.current_mode = "CRASH"
+            self.mode_confirmed = True
+            return
 
         # Mode confirmation (mirrors DetectModeStep)
         if raw_mode == "UNKNOWN":
@@ -455,6 +489,8 @@ class BacktestEngine:
             signal = self.range_strategy.evaluate(self.symbol, indicators, ctx)
         elif self.current_mode == "TREND":
             signal = self.trend_strategy.evaluate(self.symbol, indicators, ctx)
+        elif self.current_mode == "CRASH":
+            signal = self.crash_strategy.evaluate(self.symbol, indicators, ctx)
 
         if signal:
             # Score-based filtering: discard low-quality signals
@@ -484,6 +520,8 @@ class BacktestEngine:
         # Strategy params
         if sig.strategy == "range":
             params = self.range_strategy.get_position_params()
+        elif sig.strategy == "crash":
+            params = self.crash_strategy.get_position_params()
         else:
             params = self.trend_strategy.get_position_params()
 
@@ -633,7 +671,7 @@ class BacktestEngine:
 
         # Strategy breakdown
         by_strategy = {}
-        for strat in ("range", "trend"):
+        for strat in ("range", "trend", "crash"):
             strat_trades = [t for t in self.trades if t.strategy == strat]
             if strat_trades:
                 strat_wins = sum(1 for t in strat_trades if t.pnl > 0)

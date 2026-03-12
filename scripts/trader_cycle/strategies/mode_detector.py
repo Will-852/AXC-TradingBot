@@ -1,17 +1,50 @@
 """
-mode_detector.py — 4H 5-indicator mode detection (RANGE/TREND)
-Based on STRATEGY.md 模式偵測（4H，5 指標）
+mode_detector.py — 4H 6-indicator mode detection (RANGE/TREND/CRASH)
+
+Original 5 indicators + HMM as 6th vote.
+CRASH override: HMM state=CRASH + confidence ≥ 0.7 → skip voting, force CRASH.
+Threshold: 4/6 majority (was 3/5).
 """
 
 from __future__ import annotations
+
+import logging
 
 from ..config.settings import (
     MODE_RSI_TREND_LOW, MODE_RSI_TREND_HIGH,
     MODE_VOLUME_LOW, MODE_VOLUME_HIGH,
     MODE_FUNDING_THRESHOLD, MODE_CONFIRMATION_REQUIRED,
     PRIMARY_TIMEFRAME,
+    HMM_ENABLED, HMM_N_STATES, HMM_WINDOW,
+    HMM_REFIT_INTERVAL, HMM_MIN_CONFIDENCE,
+    HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
 )
 from ..core.context import CycleContext
+
+log = logging.getLogger(__name__)
+
+# ─── Singleton HMM instance (lazy init) ───
+_hmm_instance = None
+
+
+def _get_hmm():
+    """Lazy singleton for RegimeHMM — only created when HMM_ENABLED."""
+    global _hmm_instance
+    if _hmm_instance is None:
+        from .regime_hmm import RegimeHMM
+        _hmm_instance = RegimeHMM(
+            n_states=HMM_N_STATES,
+            window=HMM_WINDOW,
+            refit_interval=HMM_REFIT_INTERVAL,
+            min_samples=HMM_MIN_SAMPLES,
+        )
+    return _hmm_instance
+
+
+def reset_hmm():
+    """Reset HMM singleton (for testing)."""
+    global _hmm_instance
+    _hmm_instance = None
 
 
 def _vote_rsi(rsi: float | None) -> str:
@@ -62,11 +95,42 @@ def _vote_funding(funding_rate: float | None) -> str:
     return "RANGE"
 
 
-def detect_mode_for_pair(indicators_4h: dict, funding_rate: float) -> tuple[str, dict[str, str]]:
+def _vote_hmm_from_result(regime: str, confidence: float) -> str:
+    """Convert HMM result to a RANGE/TREND vote string.
+
+    CRASH maps to RANGE vote (defensive), UNKNOWN = NEUTRAL.
     """
-    Run 5-indicator voting for one pair's 4H data.
+    if confidence < HMM_MIN_CONFIDENCE:
+        return "NEUTRAL"
+    if regime == "CRASH":
+        return "RANGE"  # crash → defensive = range-like vote
+    if regime in ("RANGE", "TREND"):
+        return regime
+    return "NEUTRAL"
+
+
+def detect_mode_for_pair(
+    indicators_4h: dict, funding_rate: float,
+    hmm_regime: str | None = None, hmm_confidence: float = 0.0,
+    hmm_crash_confirmed: bool = False,
+) -> tuple[str, dict[str, str]]:
+    """
+    Run 6-indicator voting for one pair's 4H data.
+
+    If HMM is available (hmm_regime not None), adds HMM as 6th vote.
+    CRASH override: requires crash_confirmed (percentile gate) + high confidence.
     Returns (mode, votes_dict).
     """
+    # CRASH override: HMM high-confidence + percentile-confirmed crash
+    if (
+        HMM_ENABLED
+        and hmm_regime == "CRASH"
+        and hmm_crash_confirmed
+        and hmm_confidence >= HMM_CRASH_THRESHOLD
+    ):
+        votes = {"HMM": f"CRASH (conf={hmm_confidence:.0%})"}
+        return "CRASH", votes
+
     votes = {
         "RSI": _vote_rsi(indicators_4h.get("rsi")),
         "MACD": _vote_macd(
@@ -82,12 +146,21 @@ def detect_mode_for_pair(indicators_4h: dict, funding_rate: float) -> tuple[str,
         "Funding": _vote_funding(funding_rate),
     }
 
+    # Add HMM as 6th vote if available
+    if HMM_ENABLED and hmm_regime is not None:
+        votes["HMM"] = _vote_hmm_from_result(hmm_regime, hmm_confidence)
+
     trend_count = sum(1 for v in votes.values() if v == "TREND")
     range_count = sum(1 for v in votes.values() if v == "RANGE")
 
-    if trend_count >= 3:
+    # Threshold: majority of actual votes (excluding NEUTRAL)
+    # With 6 voters: 4/6 = majority. With 5 (HMM absent): 3/5 = majority.
+    total_non_neutral = sum(1 for v in votes.values() if v in ("TREND", "RANGE"))
+    threshold = max((total_non_neutral // 2) + 1, 3)  # at least 3
+
+    if trend_count >= threshold:
         mode = "TREND"
-    elif range_count >= 3:
+    elif range_count >= threshold:
         mode = "RANGE"
     else:
         mode = "UNKNOWN"  # will maintain current mode
@@ -100,6 +173,7 @@ class DetectModeStep:
     Step 6: Market mode detection.
     Aggregates votes across all pairs (BTC has most weight).
     Requires 2 consecutive same-mode for switch.
+    CRASH mode: HMM override, skips confirmation requirement.
     """
     name = "detect_mode"
 
@@ -121,10 +195,36 @@ class DetectModeStep:
         funding = ctx.market_data.get(primary, None)
         funding_rate = funding.funding_rate if funding else 0.0
 
-        raw_mode, votes = detect_mode_for_pair(ind_4h, funding_rate)
+        # HMM update (if enabled)
+        hmm_regime = None
+        hmm_confidence = 0.0
+        hmm_crash_confirmed = False
+        if HMM_ENABLED:
+            try:
+                hmm = _get_hmm()
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
+            except Exception as e:
+                log.warning("HMM update failed: %s", e)
+
+        raw_mode, votes = detect_mode_for_pair(
+            ind_4h, funding_rate, hmm_regime, hmm_confidence, hmm_crash_confirmed
+        )
         ctx.mode_votes = votes
 
-        # Mode confirmation logic
+        # Store HMM confidence on context for position_sizer
+        ctx.scan_config_updates["HMM_REGIME"] = hmm_regime or "UNKNOWN"
+        ctx.scan_config_updates["HMM_CONFIDENCE"] = f"{hmm_confidence:.3f}"
+
+        # CRASH mode: skip confirmation, immediately active
+        if raw_mode == "CRASH":
+            ctx.market_mode = "CRASH"
+            ctx.mode_confirmed = True  # CRASH is always confirmed (emergency)
+            ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = ctx.prev_mode_cycles
+            if ctx.verbose:
+                print(f"    Mode: CRASH (HMM override, conf={hmm_confidence:.0%})")
+            return ctx
+
+        # Normal mode confirmation logic
         if raw_mode == "UNKNOWN":
             # Tie → maintain current mode
             ctx.market_mode = ctx.prev_mode
@@ -150,6 +250,7 @@ class DetectModeStep:
 
         if ctx.verbose:
             vote_str = " | ".join(f"{k}:{v}" for k, v in votes.items())
-            print(f"    Mode: {ctx.market_mode} (confirmed={ctx.mode_confirmed}) [{vote_str}]")
+            hmm_tag = f" HMM:{hmm_regime}({hmm_confidence:.0%})" if hmm_regime else ""
+            print(f"    Mode: {ctx.market_mode} (confirmed={ctx.mode_confirmed}) [{vote_str}]{hmm_tag}")
 
         return ctx

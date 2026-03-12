@@ -46,6 +46,7 @@ from trader_cycle.exchange.execute_trade import ExecuteTradeStep
 from trader_cycle.strategies.mode_detector import DetectModeStep
 from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
+from trader_cycle.strategies.crash_strategy import CrashStrategy
 from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalStep
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
 from trader_cycle.risk.adjust_positions import AdjustPositionsStep
@@ -287,7 +288,7 @@ def register_strategies() -> None:
     StrategyRegistry.clear()
     StrategyRegistry.register(RangeStrategy())
     StrategyRegistry.register(TrendStrategy())
-    # Future: StrategyRegistry.register(ScalpStrategy())
+    StrategyRegistry.register(CrashStrategy())
 
 
 def build_pipeline() -> Pipeline:

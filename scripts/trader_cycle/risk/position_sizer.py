@@ -16,7 +16,7 @@ from ..config.settings import (
     PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
     REENTRY_SIZE_REDUCTION,
     CONFIDENCE_RISK_HIGH, CONFIDENCE_RISK_NORMAL, CONFIDENCE_RISK_LOW,
-    CONFIDENCE_RISK_CAP,
+    CONFIDENCE_RISK_CAP, HMM_ENABLED, HMM_MIN_CONFIDENCE,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
@@ -121,6 +121,20 @@ class SizePositionStep:
             adjusted_risk = base_risk * CONFIDENCE_RISK_LOW
         adjusted_risk = min(adjusted_risk, CONFIDENCE_RISK_CAP)
 
+        # ─── HMM confidence → risk adjustment ───
+        # Higher HMM confidence = more conviction = keep full size
+        # Lower confidence (but above threshold) = scale down proportionally
+        if HMM_ENABLED:
+            hmm_conf_str = ctx.scan_config_updates.get("HMM_CONFIDENCE", "0.0")
+            try:
+                hmm_conf = float(hmm_conf_str)
+            except (TypeError, ValueError):
+                hmm_conf = 0.0
+            if hmm_conf > HMM_MIN_CONFIDENCE:
+                adjusted_risk *= hmm_conf  # e.g., 0.8 conf → 80% of risk
+                if ctx.verbose:
+                    print(f"      HMM confidence: {hmm_conf:.0%} → risk scaled to {adjusted_risk:.2%}")
+
         risk_amount = balance * adjusted_risk
 
         # Re-entry size reduction after losses
@@ -177,6 +191,8 @@ class SizePositionStep:
             return self._calc_range_tp(signal, ind_1h, entry_price, sl_distance, ctx)
         elif signal.strategy == "trend":
             return self._calc_trend_tp(signal, ind_4h, entry_price, sl_distance, ctx)
+        elif signal.strategy == "crash":
+            return self._calc_crash_tp(signal, ind_4h, entry_price, sl_distance, ctx)
         elif signal.strategy == "scalp":
             # Scalp: fixed ATR multiple
             atr = ind_4h.get("atr", 0)
@@ -257,6 +273,22 @@ class SizePositionStep:
 
         return tp1, None
 
+    def _calc_crash_tp(
+        self, signal: Signal, ind_4h: dict,
+        entry_price: float, sl_distance: float, ctx: CycleContext,
+    ) -> tuple[float | None, float | None]:
+        """Crash TP: ATR × 3.0 from entry (R:R ≥ 1.5 with 2.0× SL)."""
+        atr = ind_4h.get("atr", 0)
+        tp_dist = atr * 3.0 if atr > 0 else sl_distance * 1.5
+        # SHORT only in crash
+        tp1 = entry_price - tp_dist
+
+        tp1 = self._adjust_tp_for_funding(
+            signal.pair, signal.direction, signal.strategy,
+            entry_price, tp1, ctx
+        )
+        return tp1, None
+
     def _adjust_tp_for_funding(
         self, pair: str, direction: str, strategy: str,
         entry_price: float, tp_price: float | None,
@@ -295,8 +327,11 @@ class SizePositionStep:
             return tp_price  # Funding is in our favor or zero, no adjustment
 
         # Estimate total funding cost over hold period
+        # Crash holds are shorter (~12h) than range (~24h)
+        FUNDING_PERIODS_CRASH = 2   # ~12h for crash trades (quick exit)
         estimated_periods = (
             FUNDING_PERIODS_RANGE if strategy == "range"
+            else FUNDING_PERIODS_CRASH if strategy == "crash"
             else FUNDING_PERIODS_TREND
         )
         total_funding_pct = abs(funding_rate) * estimated_periods
