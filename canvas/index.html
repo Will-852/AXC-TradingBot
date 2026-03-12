@@ -139,7 +139,7 @@
     .notif-time { font-size: .72rem; color: var(--text-3); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
     .notif-empty { text-align: center; padding: 24px 14px; color: var(--text-3); font-size: .85rem; }
 
-    /* ── Status Dots (Navbar 常駐狀態燈) ─────────── */
+    /* ── Status Dots (Navbar 狀態燈) ───────────── */
     .status-dot { display: inline-flex; align-items: center; gap: 3px; font-size: .68rem; color: var(--text-3); white-space: nowrap; cursor: default; }
     .status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .status-dot.ok::before { background: #22c55e; box-shadow: 0 0 4px #22c55e88; }
@@ -598,6 +598,7 @@
       <li class="nav-item d-none d-sm-inline-block">
         <a href="/" class="nav-link">主控台</a>
       </li>
+      <li class="nav-item d-flex align-items-center" id="navbar-status-bar" style="padding:0 4px 0 8px;gap:8px"></li>
     </ul>
 
     <!-- Right: Exchange → Profile → Refresh → Bell → Help -->
@@ -651,13 +652,17 @@
         </div>
       </li>
 
-      <!-- 狀態燈 -->
-      <li class="nav-item d-flex align-items-center" id="navbar-status-bar" style="padding:0 8px;gap:8px"></li>
-
       <!-- 刷新按鈕 -->
       <li class="nav-item">
         <a class="nav-link" href="#" id="reload-btn" title="重新載入數據 (R)">
           <i class="fas fa-sync-alt" id="reload-icon"></i>
+        </a>
+      </li>
+
+      <!-- 說明 -->
+      <li class="nav-item">
+        <a class="nav-link" href="/details" target="_blank" title="系統說明">
+          <i class="fas fa-book"></i>
         </a>
       </li>
 
@@ -680,13 +685,6 @@
           </div>
           <div class="notif-list" id="notif-list"></div>
         </div>
-      </li>
-
-      <!-- 說明 -->
-      <li class="nav-item">
-        <a class="nav-link" href="/details" target="_blank" title="系統說明">
-          <i class="fas fa-book"></i>
-        </a>
       </li>
 
     </ul>
@@ -1609,7 +1607,7 @@ var _prevSnap = null;
 var _notifRead = 0;
 var _notifFilter = 'all';
 var _notifTimer = null;
-var _apiOk = true;
+var _apiOk = null; // null = not yet verified, true = ok, false = failed
 var _apiFailNotified = false;
 
 // ── localStorage persistence (24h) ──────────
@@ -1905,7 +1903,18 @@ function setNotifTab(el) {
   renderNotifDropdown();
 }
 
-// ── Status Dots (Navbar 常駐) ────────────────
+// ── Status Dots (Navbar) ────────────────────
+function _updateApiDot() {
+  var bar = byId('navbar-status-bar');
+  if (!bar) return;
+  var dot = bar.querySelector('[data-comp="api"]');
+  if (dot) {
+    var cls = _apiOk === null ? 'warn' : _apiOk ? 'ok' : 'err';
+    dot.className = 'status-dot ' + cls;
+    dot.title = _apiOk === null ? 'API: 驗證中…' : _apiOk ? 'API: 正常' : 'API: 離線 (失敗 ' + _fetchFails + ' 次)';
+  }
+}
+
 function renderStatusBar(D) {
   var bar = byId('navbar-status-bar');
   if (!bar) return;
@@ -1913,44 +1922,54 @@ function renderStatusBar(D) {
   var items = [];
 
   // Scanner
-  var scanCls = 'err';
+  var scanCls = 'err', scanTip = 'Scanner: 無數據';
   if (D.last_scan && D.last_scan !== '?') {
     var sd = new Date(D.last_scan.replace(' ', 'T'));
     if (!isNaN(sd)) {
       var ageMin = Math.round((now - sd.getTime()) / 60000);
       scanCls = ageMin <= 10 ? 'ok' : ageMin <= 30 ? 'warn' : 'err';
+      scanTip = 'Scanner: ' + (ageMin < 60 ? ageMin + '分鐘前' : Math.round(ageMin / 60) + '小時前');
     }
   }
-  items.push('<span class="status-dot ' + scanCls + '">Scanner</span>');
+  items.push('<span class="status-dot ' + scanCls + '" title="' + scanTip + '">Scanner</span>');
 
   // News
-  var newsCls = 'err';
+  var newsCls = 'err', newsTip = 'News: 無數據';
   var ns = D.news_sentiment;
   if (ns && ns.updated_at) {
     var nd = new Date(ns.updated_at);
     if (!isNaN(nd)) {
       var nAge = Math.round((now - nd.getTime()) / 60000);
       newsCls = nAge <= 30 ? 'ok' : nAge <= 120 ? 'warn' : 'err';
+      var sentMap = {bullish:'睇好', bearish:'睇淡', neutral:'中性', mixed:'混合'};
+      newsTip = 'News: ' + (sentMap[ns.overall_sentiment] || '?') + ' ' + Math.round((ns.confidence || 0) * 100) + '% (' + (nAge < 60 ? nAge + 'm' : Math.round(nAge / 60) + 'h') + ' ago)';
     }
   }
-  items.push('<span class="status-dot ' + newsCls + '">News</span>');
+  items.push('<span class="status-dot ' + newsCls + '" title="' + newsTip + '">News</span>');
 
   // API
-  items.push('<span class="status-dot ' + (_apiOk ? 'ok' : 'err') + '">API</span>');
+  var apiCls = _apiOk === null ? 'warn' : _apiOk ? 'ok' : 'err';
+  var apiTip = _apiOk === null ? 'API: 驗證中…' : _apiOk ? 'API: 正常' : 'API: 離線 (失敗 ' + _fetchFails + ' 次)';
+  items.push('<span class="status-dot ' + apiCls + '" data-comp="api" title="' + apiTip + '">API</span>');
 
   // Exchanges
   var exchKeys = D.exchanges ? Object.keys(D.exchanges) : [];
-  items.push('<span class="status-dot ' + (exchKeys.length > 0 ? 'ok' : 'err') + '">Exch ' + exchKeys.length + '</span>');
+  var exchTip = 'Exchanges: ' + (exchKeys.length ? exchKeys.join(', ') : '未連接');
+  items.push('<span class="status-dot ' + (exchKeys.length > 0 ? 'ok' : 'err') + '" title="' + exchTip + '">Exch ' + exchKeys.length + '</span>');
 
   // Telegram
   var tg = D.telegram || {};
-  items.push('<span class="status-dot ' + (tg.connected ? 'ok' : 'err') + '">TG</span>');
+  var tgTip = 'Telegram: ' + (tg.connected ? tg.bot_name || '已連接' : '未連接');
+  items.push('<span class="status-dot ' + (tg.connected ? 'ok' : 'err') + '" title="' + tgTip + '">TG</span>');
 
-  // Agents
-  var agents = D.agents || [];
-  var hasErr = agents.some(function(a) { return a.status === 'error'; });
-  var agentCls = agents.length === 0 ? 'err' : hasErr ? 'warn' : 'ok';
-  items.push('<span class="status-dot ' + agentCls + '">Agents</span>');
+  // Agents — exclude 'planned' (pipeline agents without launchd service)
+  var agents = (D.agents || []).filter(function(a) { return a.status !== 'planned'; });
+  var errAgents = agents.filter(function(a) { return a.status === 'error'; });
+  var okAgents = agents.filter(function(a) { return a.status === 'online' || a.status === 'idle'; });
+  var agentCls = agents.length === 0 ? 'err' : okAgents.length === 0 ? 'err' : errAgents.length ? 'warn' : 'ok';
+  var agentTip = 'Agents: ' + okAgents.length + '/' + agents.length + ' 運行中';
+  if (errAgents.length) agentTip += ' | 故障: ' + errAgents.map(function(a){return a.name}).join(', ');
+  items.push('<span class="status-dot ' + agentCls + '" title="' + agentTip + '">Agents</span>');
 
   var html = items.join('');
   if (bar._prevHtml !== html) { bar.innerHTML = html; bar._prevHtml = html; }
@@ -3195,13 +3214,14 @@ async function fetchData() {
   if (dot) dot.classList.add('loading');
   try {
     var res = await fetch('/api/data', {signal: _fetchCtrl.signal});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     var D = await res.json();
     _fetchFails = 0;
-    if (!_apiOk) {
-      _apiOk = true;
-      _apiFailNotified = false;
+    if (_apiOk === false) {
       pushNotif('system', 'API 連線恢復', '');
     }
+    _apiOk = true;
+    _apiFailNotified = false;
     render(D);
     if (dot) dot.classList.remove('loading');
   } catch (e) {
@@ -3214,6 +3234,7 @@ async function fetchData() {
       _apiFailNotified = true;
       pushNotif('system', 'API 連線失敗', e.message || 'fetch error');
     }
+    _updateApiDot();
     if (_fetchFails >= 3) {
       setText('last-update', 'API 離線');
     }
