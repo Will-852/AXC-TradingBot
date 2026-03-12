@@ -208,7 +208,7 @@ def _run_with_timeout(fn, timeout=CONNECT_TIMEOUT_SEC):
 
 _aster_client_singleton = None
 _aster_client_ts = 0
-_ASTER_RESYNC_INTERVAL = 300  # re-sync time offset every 5 min
+_EXCHANGE_RESYNC_INTERVAL = 300  # re-sync time offset every 5 min
 
 
 def _get_aster_client():
@@ -222,7 +222,7 @@ def _get_aster_client():
     if _aster_client_singleton is None:
         _aster_client_singleton = AsterClient()
         _aster_client_ts = now
-    elif now - _aster_client_ts >= _ASTER_RESYNC_INTERVAL:
+    elif now - _aster_client_ts >= _EXCHANGE_RESYNC_INTERVAL:
         # Periodic re-sync to fix drifted time_offset
         try:
             _aster_client_singleton._sync_time()
@@ -239,20 +239,42 @@ def _reset_aster_client():
     _aster_client_ts = 0
 
 
+_hl_client_singleton = None
+
+
 def _get_hl_client():
-    """Lazy-load HyperLiquidClient for live exchange queries."""
-    if SCRIPTS_DIR not in sys.path:
-        sys.path.insert(0, SCRIPTS_DIR)
-    from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
-    return HyperLiquidClient()
+    """Singleton HyperLiquidClient."""
+    global _hl_client_singleton
+    if _hl_client_singleton is None:
+        if SCRIPTS_DIR not in sys.path:
+            sys.path.insert(0, SCRIPTS_DIR)
+        from trader_cycle.exchange.hyperliquid_client import HyperLiquidClient
+        _hl_client_singleton = HyperLiquidClient()
+    return _hl_client_singleton
+
+
+_binance_client_singleton = None
+_binance_client_ts = 0
 
 
 def _get_binance_client():
-    """Lazy-load BinanceClient for live exchange queries."""
+    """Singleton BinanceClient with periodic time re-sync."""
+    global _binance_client_singleton, _binance_client_ts
     if SCRIPTS_DIR not in sys.path:
         sys.path.insert(0, SCRIPTS_DIR)
     from trader_cycle.exchange.binance_client import BinanceClient
-    return BinanceClient()
+
+    now = time.time()
+    if _binance_client_singleton is None:
+        _binance_client_singleton = BinanceClient()
+        _binance_client_ts = now
+    elif now - _binance_client_ts >= _EXCHANGE_RESYNC_INTERVAL:
+        try:
+            _binance_client_singleton._sync_time()
+        except Exception:
+            pass
+        _binance_client_ts = now
+    return _binance_client_singleton
 
 
 def _normalize_positions(raw, orders, platform):
@@ -337,6 +359,13 @@ def _query_single_exchange(name, client_fn, cred_check):
         # Reset singleton on auth/connection failure so next cycle rebuilds
         if name == "aster":
             _reset_aster_client()
+        elif name == "binance":
+            global _binance_client_singleton, _binance_client_ts
+            _binance_client_singleton = None
+            _binance_client_ts = 0
+        elif name == "hyperliquid":
+            global _hl_client_singleton
+            _hl_client_singleton = None
         return None
 
 
@@ -2074,6 +2103,253 @@ def _extract_open_orders(exchange_data):
     return result
 
 
+# ── Macro State (for position scoring) ─────────────────────────────
+MACRO_STATE_PATH = os.path.join(HOME, "shared", "macro_state.json")
+_macro_cache = {"data": {}, "ts": 0}
+_MACRO_CACHE_TTL = 120  # 2 min — macro updates ~30 min
+
+
+def _get_macro_state():
+    """Read macro_state.json with 2-min cache."""
+    now = time.time()
+    if now - _macro_cache["ts"] < _MACRO_CACHE_TTL and _macro_cache["data"]:
+        return _macro_cache["data"]
+    if not os.path.exists(MACRO_STATE_PATH):
+        return _macro_cache["data"]
+    try:
+        with open(MACRO_STATE_PATH, encoding="utf-8") as f:
+            _macro_cache["data"] = json.load(f)
+        _macro_cache["ts"] = now
+    except (json.JSONDecodeError, OSError) as e:
+        logging.warning("Failed to read macro_state: %s", e)
+    return _macro_cache["data"]
+
+
+# ── Position Hold Score ────────────────────────────────────────────
+# 5 dimensions, weighted average → 0-10 score. Pure formula, zero API calls.
+# Weights: PnL 25%, Tech 25%, Risk 20%, Sentiment 15%, Macro 15%
+
+_SCORE_W_PNL = 0.25
+_SCORE_W_TECH = 0.25
+_SCORE_W_RISK = 0.20
+_SCORE_W_SENT = 0.15
+_SCORE_W_MACRO = 0.15
+
+
+def _score_position(pos, plan_entry, news, risk_status, funding_rates, macro):
+    """即時評估持倉健康度（0-10）。
+    純公式計算，零 API call。用 dashboard 已 cache 嘅數據。
+    點解用 5 維度：涵蓋交易最關鍵嘅方面（盈虧、技術面、風控、情緒、宏觀），
+    缺任何一個維度 fallback 到中性分 5，唔影響整體。
+    """
+    factors = []
+    is_long = pos.get("direction") == "LONG"
+    entry = float(pos.get("entry_price", 0))
+    mark = float(pos.get("mark_price", 0))
+    symbol = pos.get("pair", "")
+
+    # ── 1. PnL 趨勢 (0-10) ──────────────────────────────────────
+    upnl_pct = float(pos.get("unrealized_pct", 0))
+    # Map [-5%, +5%] → [0, 10], clamp
+    pnl_base = max(0, min(10, upnl_pct + 5))
+
+    # Momentum bonus: 1H/4H change aligned with direction → +1 (max)
+    momentum_bonus = 0
+    changes = {}
+    if plan_entry:
+        changes = plan_entry.get("changes", {})
+    ch_1h = changes.get("1h", 0)
+    ch_4h = changes.get("4h", 0)
+    if is_long:
+        if ch_1h > 0:
+            momentum_bonus += 0.5
+        if ch_4h > 0:
+            momentum_bonus += 0.5
+    else:
+        if ch_1h < 0:
+            momentum_bonus += 0.5
+        if ch_4h < 0:
+            momentum_bonus += 0.5
+
+    pnl_score = max(0, min(10, pnl_base + momentum_bonus))
+    detail_pnl = f"{'+' if upnl_pct >= 0 else ''}{upnl_pct:.1f}%"
+    if momentum_bonus > 0:
+        detail_pnl += " 動量↑"
+    factors.append({"name": "PnL 趨勢", "score": round(pnl_score, 1), "detail": detail_pnl})
+
+    # ── 2. 技術位置 (0-10) ───────────────────────────────────────
+    tech_score = 5.0  # neutral fallback
+    detail_tech = "無 S/R 數據"
+    if plan_entry:
+        support = float(plan_entry.get("support", 0))
+        resistance = float(plan_entry.get("resistance", 0))
+        if support > 0 and resistance > support and mark > 0:
+            sr_range = resistance - support
+            pos_in_range = (mark - support) / sr_range
+            pos_in_range = max(0, min(1, pos_in_range))
+            if is_long:
+                # LONG: closer to resistance = closer to TP = higher score
+                tech_score = pos_in_range * 10
+                if pos_in_range > 0.7:
+                    detail_tech = "近阻力 TP"
+                elif pos_in_range < 0.3:
+                    detail_tech = "近支撐 SL"
+                else:
+                    detail_tech = f"S/R 中段 ({pos_in_range:.0%})"
+            else:
+                # SHORT: closer to support = closer to TP = higher score
+                tech_score = (1 - pos_in_range) * 10
+                if pos_in_range < 0.3:
+                    detail_tech = "近支撐 TP"
+                elif pos_in_range > 0.7:
+                    detail_tech = "近阻力 SL"
+                else:
+                    detail_tech = f"S/R 中段 ({1 - pos_in_range:.0%})"
+    factors.append({"name": "技術位置", "score": round(tech_score, 1), "detail": detail_tech})
+
+    # ── 3. 風險保護 (0-10) ───────────────────────────────────────
+    risk_score = 0.0
+    sl = float(pos.get("sl_price", 0))
+    tp = float(pos.get("tp_price", 0))
+    liq = float(pos.get("liq_price", 0))
+    detail_parts = []
+
+    if sl > 0:
+        risk_score += 4.0
+        detail_parts.append("SL✓")
+    else:
+        detail_parts.append("SL✗")
+    if tp > 0:
+        risk_score += 2.0
+        detail_parts.append("TP✓")
+    else:
+        detail_parts.append("TP✗")
+
+    # R:R ratio
+    if sl > 0 and tp > 0 and entry > 0:
+        if is_long:
+            risk_dist = entry - sl
+            reward_dist = tp - entry
+        else:
+            risk_dist = sl - entry
+            reward_dist = entry - tp
+        if risk_dist > 0:
+            rr = reward_dist / risk_dist
+            if rr >= 2:
+                risk_score += 3.0
+            elif rr >= 1.5:
+                risk_score += 2.0
+            elif rr >= 1:
+                risk_score += 1.0
+            detail_parts.append(f"R:R {rr:.1f}")
+
+    # Liquidation distance
+    if liq > 0 and mark > 0:
+        liq_dist_pct = abs(mark - liq) / mark * 100
+        if liq_dist_pct > 20:
+            risk_score += 1.0
+        detail_parts.append(f"強平{liq_dist_pct:.0f}%")
+
+    risk_score = min(10, risk_score)
+    factors.append({"name": "風險保護", "score": round(risk_score, 1), "detail": " ".join(detail_parts)})
+
+    # ── 4. 市場情緒 (0-10) ───────────────────────────────────────
+    sent_score = 5.0  # neutral fallback
+    detail_sent = "無數據"
+    if news and not news.get("stale", True):
+        # Per-symbol sentiment overrides overall
+        short = symbol.replace("USDT", "")
+        sym_sent = (news.get("sentiment_by_symbol") or {}).get(short)
+        if sym_sent and isinstance(sym_sent, dict):
+            sentiment = sym_sent.get("sentiment") or news.get("overall_sentiment", "neutral")
+            confidence = float(sym_sent.get("confidence") or news.get("confidence") or 0)
+        else:
+            sentiment = news.get("overall_sentiment", "neutral")
+            confidence = float(news.get("confidence") or 0)
+        confidence = max(0, min(1, confidence))
+
+        # Aligned = good
+        bullish = sentiment in ("bullish", "positive")
+        bearish = sentiment in ("bearish", "negative")
+        aligned = (is_long and bullish) or (not is_long and bearish)
+        opposed = (is_long and bearish) or (not is_long and bullish)
+
+        if aligned:
+            sent_score = 7 + confidence * 3
+            detail_sent = f"情緒利好 ({confidence:.0%})"
+        elif opposed:
+            sent_score = max(0, 3 - confidence * 3)
+            detail_sent = f"情緒逆向 ({confidence:.0%})"
+        else:
+            sent_score = 5.0
+            detail_sent = "中性"
+    elif news and news.get("stale"):
+        detail_sent = "數據過時"
+
+    factors.append({"name": "市場情緒", "score": round(sent_score, 1), "detail": detail_sent})
+
+    # ── 5. 宏觀環境 (0-10) ───────────────────────────────────────
+    macro_score = 5.0  # neutral fallback
+    detail_macro_parts = []
+
+    # VIX
+    vix = 0
+    try:
+        vix = float(macro.get("^VIX_price", 0))
+    except (ValueError, TypeError):
+        pass
+    if vix > 0:
+        if vix < 20:
+            macro_score = 8.0
+            detail_macro_parts.append(f"VIX {vix:.0f} 低")
+        elif vix <= 30:
+            macro_score = 5.0
+            detail_macro_parts.append(f"VIX {vix:.0f}")
+        else:
+            macro_score = 2.0
+            detail_macro_parts.append(f"VIX {vix:.0f} 高")
+    else:
+        detail_macro_parts.append("VIX N/A")
+
+    # Funding rate alignment
+    fr = (funding_rates or {}).get(symbol, {})
+    fr_rate = fr.get("rate", 0)  # percentage
+    if fr_rate != 0:
+        # LONG + negative funding = being paid = good
+        # SHORT + positive funding = being paid = good
+        funding_aligned = (is_long and fr_rate < 0) or (not is_long and fr_rate > 0)
+        if funding_aligned:
+            macro_score = min(10, macro_score + 1)
+            detail_macro_parts.append("FR利好")
+        elif abs(fr_rate) > 0.03:  # > 0.03% = significant opposing
+            macro_score = max(0, macro_score - 0.5)
+            detail_macro_parts.append("FR逆向")
+
+    # HMM regime confidence
+    if risk_status:
+        hmm_conf = float(risk_status.get("hmm_confidence", 0))
+        if hmm_conf > 0.7:
+            macro_score = min(10, macro_score + 1)
+
+    factors.append({"name": "宏觀環境", "score": round(macro_score, 1),
+                    "detail": " ".join(detail_macro_parts) if detail_macro_parts else "N/A"})
+
+    # ── Weighted average ─────────────────────────────────────────
+    weighted = (
+        pnl_score * _SCORE_W_PNL +
+        tech_score * _SCORE_W_TECH +
+        risk_score * _SCORE_W_RISK +
+        sent_score * _SCORE_W_SENT +
+        macro_score * _SCORE_W_MACRO
+    )
+    weighted = max(0, min(10, weighted))
+
+    return {
+        "score": round(weighted, 1),
+        "factors": factors,
+    }
+
+
 def collect_data():
     global _collect_cache
     now = time.time()
@@ -2169,6 +2445,21 @@ def collect_data():
     signal_heatmap = []  # removed — scan_log rotation causes incomplete data
     funding_rates = get_funding_rates()
 
+    # Pre-compute for position scoring (reused in result dict)
+    action_plan = get_action_plan(scan_config, trade)
+    news_sentiment = get_news_sentiment()
+    risk_status = get_risk_status(live_bal)
+
+    # Score each open position (pure formula, zero API calls)
+    if live_positions:
+        ap_by_sym = {p["symbol"]: p for p in action_plan} if action_plan else {}
+        macro = _get_macro_state()
+        for pos in live_positions:
+            plan_entry = ap_by_sym.get(pos.get("pair"))
+            pos["hold_score"] = _score_position(
+                pos, plan_entry, news_sentiment, risk_status, funding_rates, macro
+            )
+
     result = {
         "timestamp": ts,
         "balance": live_bal,
@@ -2189,7 +2480,7 @@ def collect_data():
         "scan_log": get_scan_log(),
         "file_tree": get_file_tree(),
         "prices": prices,
-        "action_plan": get_action_plan(scan_config, trade),
+        "action_plan": action_plan,
         "trigger": scan_config.get("TRIGGER_PENDING", "OFF"),
         "scan_count": scan_config.get("LIGHT_SCAN_COUNT", "0"),
         "last_scan": last_scan_ts,
@@ -2201,7 +2492,7 @@ def collect_data():
         "pnl_history": pnl_history,
         "trade_history": trades,
         "exchange_trades": exchange_trades,
-        "risk_status": get_risk_status(live_bal),
+        "risk_status": risk_status,
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pct": unrealized_pct,
         "fee_breakdown": fee_breakdown,
@@ -2212,7 +2503,7 @@ def collect_data():
         "drawdown": drawdown,
         "signal_heatmap": signal_heatmap,
         "funding_rates": funding_rates,
-        "news_sentiment": get_news_sentiment(),
+        "news_sentiment": news_sentiment,
         "demo_mode": False,
         "exchanges": exchange_data,
     }
@@ -2971,6 +3262,16 @@ DEMO_DATA = {
         "sl_price": 66500.0, "tp_price": 68500.0,
         "unrealized_pnl": "0.66", "unrealized_pct": "0.98",
         "liq_price": 63200.0, "margin": "13.45",
+        "hold_score": {
+            "score": 7.2,
+            "factors": [
+                {"name": "PnL 趨勢", "score": 6.0, "detail": "+0.98%"},
+                {"name": "技術位置", "score": 7.7, "detail": "S/R 中段 (54%)"},
+                {"name": "風險保護", "score": 9.0, "detail": "SL✓ TP✓ R:R 1.7"},
+                {"name": "市場情緒", "score": 5.0, "detail": "中性"},
+                {"name": "宏觀環境", "score": 5.5, "detail": "VIX 23"},
+            ],
+        },
     }],
     "consecutive_losses": 0,
     "agents": [
@@ -4252,12 +4553,14 @@ def _build_chat_context() -> str:
     if positions:
         pos_lines = []
         for p in positions[:5]:
+            hs = p.get("hold_score", {})
+            score_str = f" 評分={hs.get('score')}" if hs.get("score") is not None else ""
             pos_lines.append(
                 f"  {p.get('pair','?')} {p.get('direction','?')} "
                 f"entry={p.get('entry_price', 0)} "
                 f"SL={p['sl_price'] if p.get('sl_price') else '-'} "
                 f"TP={p['tp_price'] if p.get('tp_price') else '-'} "
-                f"uPnL={p.get('unrealized_pnl', 0):+.2f}"
+                f"uPnL={p.get('unrealized_pnl', 0):+.2f}{score_str}"
             )
         parts.append("持倉:\n" + "\n".join(pos_lines))
     else:
