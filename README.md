@@ -1,11 +1,11 @@
 <p align="center">
   <h1 align="center">AXC Trading System</h1>
   <p align="center">
-    本地 AI 加密貨幣交易系統 — Telegram Bot + 自動交易 + 智能分析
-    <br />
-    你嘅 key 永遠唔會離開你部機。
-    <br />
-    <code>v2.4</code> · 2026-03
+    AXC 就好似你請咗一個 24 小時唔使瞓嘅交易助理。<br />
+    佢住喺你部電腦入面，幫你睇住市場、計好風險、有機會就提你。<br />
+    你嘅密碼同錢永遠都只喺你部機。
+    <br /><br />
+    <code>v2.5</code> · 2026-03
     <br /><br />
     <a href="#-快速開始"><strong>快速開始 »</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -17,32 +17,76 @@
 
 ---
 
-## 目錄
-
-- [簡介](#-簡介)
-- [功能一覽](#-功能一覽)
-- [快速開始](#-快速開始)
-- [設定 API Keys](#-設定-api-keys)
-- [啟動](#-啟動)
-- [使用指南](#-使用指南)
-- [環境變數](#-環境變數)
-- [架構](#-架構)
-- [常見問題](#-常見問題)
-- [成本](#-成本)
-- [License](#license)
+> **Part 1** 係寫畀人睇嘅（廣東話，簡單直接）。
+> **[Part 2](#part-2--llm-structured-reference)** 係寫畀 LLM / 開發者睇嘅（結構化參考）。
 
 ---
 
-## 📖 簡介
+# Part 1 · 人睇
 
-AXC 係一個**完全本地運行**嘅 AI 加密貨幣交易系統，連接 [Aster DEX](https://asterdex.com) 合約交易所。
+## 點解用 AXC？
 
-**兩種使用方式：**
+🔒 **你嘅嘢永遠喺你度** — API key、交易記錄、AI 分析全部本地跑，冇嘢上雲
+🤖 **唔使盯盤** — 自動掃描 3 交易所、偵測 regime、幫你落單止損
+🧠 **愈用愈聰明** — RAG 記憶系統記住每一筆交易，AI 分析會參考你嘅歷史
+
+---
+
+## 🗺 系統全景
+
+```mermaid
+mindmap
+  root((AXC Trading))
+    📱 Telegram Bot
+      /pos /bal /pnl
+      /order 落單
+      /ask AI 分析
+      自然語言
+    📊 Dashboard
+      即時監控
+      風控面板
+      Paper Trading
+      Regime 切換
+      Service 管理
+    ⚡ Trader Cycle
+      Range 策略
+      Trend 策略
+      Crash 策略
+      BOCPD 偵測
+    🔍 Scanner
+      Aster DEX
+      Binance
+      HyperLiquid
+    🛡 Risk
+      ATR 止損
+      Conformal Prediction
+      Circuit Breaker
+      Kelly Sizing
+```
+
+---
+
+## 🧠 系統流程
+
+```mermaid
+graph LR
+    S[🔍 Scanner] -->|prices| TC[⚡ Trader Cycle]
+    TC -->|signals| D[📊 Dashboard]
+    TC -->|alerts| TG[📱 Telegram]
+    TC -->|check| R[🛡 Risk Manager]
+    R -->|stop loss| TC
+```
+
+Scanner 不斷掃描市場 → Trader Cycle 用策略分析 → 有信號就通知你 + 自動管理風險。
+
+---
+
+## 兩種用法
 
 | 模式 | 適合 | 包含 |
 |------|------|------|
 | **🤖 AXC Standalone** | 想用 Telegram Bot 查倉落單 | Telegram Bot + AI 分析 + 落單 |
-| **🦞 Full AXC** | 想要自動交易 + Dashboard | 以上全部 + 9 AI Agents + Dashboard + 自動掃描 |
+| **🦞 Full AXC** | 想要自動交易 + Dashboard | 以上全部 + Trader Cycle + Dashboard + 自動掃描 |
 
 > 大部分朋友用 **AXC Standalone** 就夠。以下指南以 AXC 為主。
 
@@ -98,12 +142,9 @@ all in ETH             →  全倉做多 ETHUSDT
 ### 1. 下載
 
 ```bash
-# 方法 A：Clone（推薦，方便更新）
+# Clone（推薦，方便更新）
 git clone https://github.com/Will-852/AXC-TradingBot.git
 cd AXC-TradingBot
-
-# 方法 B：Download ZIP
-# 右上角綠色 Code 按鈕 → Download ZIP → 解壓
 ```
 
 ### 2. 安裝 Python
@@ -114,10 +155,7 @@ cd AXC-TradingBot
 | Windows | [python.org/downloads](https://python.org/downloads/) → **勾選 "Add to PATH"** |
 | Linux | `sudo apt install python3 python3-pip` |
 
-確認版本（需要 **3.9+**）：
-```bash
-python3 --version
-```
+確認版本（需要 **3.9+**）：`python3 --version`
 
 ### 3. 安裝依賴
 
@@ -125,22 +163,14 @@ python3 --version
 pip install -r axc_requirements.txt
 ```
 
-> Windows 用 `pip` 而唔係 `pip3`。如果 `pip` 指令搵唔到，試 `python -m pip install -r axc_requirements.txt`
+> Windows 用 `pip` 唔係 `pip3`。搵唔到 `pip` → `python -m pip install -r axc_requirements.txt`
 
 ### 4. 設定 API Keys
 
 ```bash
 mkdir -p secrets
 cp .env.example secrets/.env
-```
-
-用任何文字編輯器打開 `secrets/.env`，填入你嘅 keys：
-
-```env
-TELEGRAM_BOT_TOKEN=你嘅token
-TELEGRAM_CHAT_ID=你嘅chatid
-ASTER_API_KEY=你嘅key
-ASTER_API_SECRET=你嘅secret
+# 用任何文字編輯器打開 secrets/.env，填入你嘅 keys
 ```
 
 > 唔知點攞呢啲 key？ → [詳細教學](#-設定-api-keys)
@@ -160,7 +190,7 @@ python scripts\tg_bot.py
 
 啟動成功你會見到：
 ```
-🦞 AXC v2.4 啟動
+🦞 AXC v2.5 啟動
   Chat ID: 你嘅chat_id
 ```
 
@@ -204,11 +234,8 @@ python scripts\tg_bot.py
 
 冇呢個 key，`/ask` 同自然語言落單唔會用到，但所有查詢指令（`/pos` `/bal` `/pnl`）照常運作。
 
-填入 `.env`：
 ```env
 PROXY_API_KEY=你嘅key
-# 如使用官方 API：https://api.anthropic.com
-# 如使用 proxy 服務：填入 proxy 提供嘅 URL
 PROXY_BASE_URL=https://api.anthropic.com
 ```
 
@@ -243,15 +270,7 @@ mkdir -p logs
 AXC_HOME=$(pwd) nohup python3 scripts/tg_bot.py > logs/tg_bot.log 2>&1 &
 ```
 
-查看 log：
-```bash
-tail -f logs/tg_bot.log
-```
-
-停止：
-```bash
-pkill -f tg_bot.py
-```
+查看 log：`tail -f logs/tg_bot.log` · 停止：`pkill -f tg_bot.py`
 
 ---
 
@@ -286,25 +305,9 @@ Send `/order`，按鈕引導你完成落單：
 
 ### 自然語言落單
 
-直接打字（唔使 `/` 開頭）：
-```
-做多 ETH $50
-```
+直接打字（唔使 `/` 開頭）：`做多 ETH $50`
 
-Bot 會顯示確認：
-```
-📋 確認落單：
-  方向：LONG
-  幣對：ETHUSDT
-  金額：$50 USDT
-  槓桿：10x
-  止損：-2.5%
-  止盈：+4.0%
-
-  [✅ 確認]  [❌ 取消]
-```
-
-撳 ✅ 先會真正落單。60 秒後自動取消。
+Bot 會顯示確認 → 撳 ✅ 先會真正落單。60 秒後自動取消。
 
 **支援嘅講法：**
 - `做多 ETH $50` / `long ETH 50u`
@@ -321,112 +324,6 @@ Bot 會顯示確認：
 
 Bot 會結合你嘅持倉、歷史交易記錄（RAG 記憶）同實時價格生成分析。
 
-### 自動平倉報告
-
-當倉位被平倉（止損/止盈觸發），Bot 會自動推送報告：
-```
-📊 平倉報告 · ETHUSDT
-
-方向：LONG → 已平
-入場：$2,150.00
-平倉：$2,100.00
-盈虧：-$25.00 (-2.3%)
-持倉時間：4h 32m
-
-💡 分析：價格跌穿支撐位觸及止損...
-```
-
----
-
-## 📋 環境變數
-
-| 變數 | 必填 | 用途 |
-|------|------|------|
-| `TELEGRAM_BOT_TOKEN` | ✅ | Telegram Bot Token（[@BotFather](https://t.me/BotFather)） |
-| `TELEGRAM_CHAT_ID` | ✅ | 你嘅 Chat ID（白名單，其他人用唔到） |
-| `ASTER_API_KEY` | ✅ | Aster DEX API Key |
-| `ASTER_API_SECRET` | ✅ | Aster DEX API Secret |
-| `PROXY_API_KEY` | 選填 | Claude API Key（`/ask` + 自然語言落單） |
-| `PROXY_BASE_URL` | 選填 | API endpoint（預設 `https://tao.plus7.plus/v1`） |
-| `VOYAGE_API_KEY` | 選填 | Voyage AI embedding（RAG 記憶增強，冇就用 hash fallback） |
-
----
-
-## 🏗 架構
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Scanner（9 交易所輪詢）                     │
-│  Aster · Binance · HyperLiquid · Bybit · OKX · KuCoin ...  │
-│  → prices_cache.json + SCAN_CONFIG.md                       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                  Trader Cycle（自動交易引擎）                  │
-│  fetch_market → calc_indicators → detect_mode               │
-│  → range/trend strategy → position_sizer → execute_trade    │
-└────────┬──────────────────┬──────────────────┬──────────────┘
-         │                  │                  │
-┌────────▼────────┐ ┌──────▼───────┐ ┌────────▼────────┐
-│   Dashboard     │ │ Telegram Bot │ │  Risk Manager   │
-│   port 5555     │ │  查詢 + 落單  │ │  移動止損/TP延伸 │
-└─────────────────┘ └──────────────┘ └─────────────────┘
-```
-
-### 交易對（7 pairs, 3 groups）
-
-| Pair | Exchange | Group | 備註 |
-|------|----------|-------|------|
-| BTCUSDT | Aster, Binance, HL | crypto_correlated | 核心 |
-| ETHUSDT | Aster, Binance, HL | crypto_correlated | 跟隨 BTC |
-| SOLUSDT | Binance, HL | crypto_correlated | Trend 強勢 |
-| XRPUSDT | Aster | crypto_independent | 獨立走勢 |
-| POLUSDT | Binance | crypto_independent | Polygon |
-| XAGUSDT | Aster | commodity | Silver |
-| XAUUSDT | Aster | commodity | Gold |
-
-### 檔案結構
-
-```
-axc-trading/
-├── scripts/                     # 所有可執行程式
-│   ├── tg_bot.py                #   Telegram Bot
-│   ├── dashboard.py             #   Web Dashboard
-│   ├── async_scanner.py         #   9 交易所掃描器
-│   ├── indicator_calc.py        #   技術指標計算
-│   └── trader_cycle/            #   ⭐ 自動交易引擎
-│       ├── strategies/          #     Range + Trend 策略
-│       ├── exchange/            #     Aster / Binance / HyperLiquid
-│       ├── risk/                #     風控（SL/TP/倉位）
-│       ├── state/               #     狀態管理
-│       └── config/              #     pairs (7) + settings.py
-├── backtest/                    # 回測系統
-│   ├── engine.py                #   Candle-by-candle 模擬器
-│   ├── optimizer.py             #   參數自動優化（Stage 1+2）
-│   ├── grid_search.py           #   Grid search 引擎
-│   ├── scoring.py               #   策略評分系統
-│   ├── run_backtest.py          #   CLI 入口
-│   └── strategies/              #   回測專用策略
-├── config/
-│   ├── params.py                #   共用參數（唔好直接改）
-│   ├── user_params.py           #   你嘅 override（gitignored）
-│   └── modes/                   #   RANGE / TREND / VOLATILE
-├── agents/                      # AI Agents（各有 SOUL.md）
-├── memory/                      # RAG 記憶系統（jsonl + npy）
-├── shared/                      # 運行時狀態
-├── secrets/.env                 # API keys（gitignored）
-├── docs/                        # 文檔 + 分析
-└── canvas/                      # Dashboard 前端
-```
-
-### 安全
-
-- 所有運算喺你本地執行
-- API keys 只存喺 `secrets/.env`（已 gitignore）
-- 交易需要你主動設定 exchange API key
-- Bot 只回應你嘅 Chat ID，其他人靜默忽略
-- 所有落單需要二次確認
-
 ---
 
 ## ❓ 常見問題
@@ -438,52 +335,33 @@ axc-trading/
 
 **解決**：
 ```bash
-# 殺掉所有 tg_bot 進程
 pkill -f tg_bot.py
-
 # 等幾秒再重新啟動
 AXC_HOME=$(pwd) python3 scripts/tg_bot.py
 ```
 
-Windows：
-```cmd
-taskkill /F /IM python.exe
-```
+Windows：`taskkill /F /IM python.exe`
 </details>
 
 <details>
 <summary><b>pip install 失敗 / ImportError: No module named 'telegram'</b></summary>
 
-**解決**：
 ```bash
-# 確認用正確嘅 pip
 python3 -m pip install -r axc_requirements.txt
-
-# 如果權限問題
+# 權限問題：加 --user
 python3 -m pip install --user -r axc_requirements.txt
 ```
 
-Windows 用 `python` 唔係 `python3`：
-```cmd
-python -m pip install -r axc_requirements.txt
-```
+Windows 用 `python` 唔係 `python3`。
 </details>
 
 <details>
 <summary><b>ASTER_API_KEY/ASTER_API_SECRET missing</b></summary>
 
-**原因**：`.env` 未建立或 key 未填。
-
-**解決**：
 ```bash
-# 確認 .env 存在
-ls secrets/.env
-
-# 如果唔存在，從 example 複製
-cp secrets/.env.example secrets/.env
-
-# 打開編輯
-nano secrets/.env
+ls secrets/.env        # 確認 .env 存在
+cp .env.example secrets/.env  # 如果唔存在
+nano secrets/.env      # 打開編輯
 ```
 </details>
 
@@ -499,72 +377,42 @@ nano secrets/.env
 <details>
 <summary><b>/mode 或 /pause 顯示「需要 AXC 環境」</b></summary>
 
-呢啲指令需要完整 AXC 系統（有 `config/params.py`）。
-
-Standalone 模式唔支援，但**唔影響**查詢同落單功能。
+呢啲指令需要完整 AXC 系統（有 `config/params.py`）。Standalone 模式唔支援，但**唔影響**查詢同落單功能。
 </details>
 
 <details>
 <summary><b>Windows 啟動失敗</b></summary>
 
-逐步檢查：
 1. `python --version` → 需要 3.9+
 2. 安裝時有冇勾選 **Add to PATH**？
 3. 用 `python` 唔係 `python3`
-4. PowerShell 執行 policy：`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+4. PowerShell：`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 5. 路徑用 `\` 唔係 `/`
 </details>
 
 <details>
 <summary><b>點樣更新到最新版？</b></summary>
 
-**Git clone 方式（推薦）：**
 ```bash
-cd ~/projects/axc-trading    # 或者你嘅安裝目錄
+cd ~/projects/axc-trading
 git pull origin main
-pip install -r axc_requirements.txt   # 如有新依賴
-```
-
-**ZIP 方式：**
-1. 去 [GitHub Releases](https://github.com/Will-852/AXC-TradingBot/releases) 下載最新 ZIP
-2. 解壓到同一個資料夾（覆蓋舊文件）
-3. 你嘅 `secrets/.env` 同 `config/user_params.py` **唔會被覆蓋**（唔使擔心）
-
-**更新後必做：**
-```bash
-# 重新安裝依賴（可能有新 package）
 pip install -r axc_requirements.txt
-
-# 重啟所有服務
-# macOS / Linux:
-pkill -f tg_bot.py; sleep 2; AXC_HOME=$(pwd) python3 scripts/tg_bot.py
-pkill -f dashboard.py; sleep 2; python3 scripts/dashboard.py
-
-# Windows CMD:
-taskkill /F /IM python.exe
-set AXC_HOME=%cd%
-python scripts\tg_bot.py
 ```
 
-**檢查更新是否成功：**
-- Telegram 發 `/start` → 應顯示新版本號
-- Dashboard `http://127.0.0.1:5555` → 右下角版本號
+你嘅 `secrets/.env` 同 `config/user_params.py` **唔會被覆蓋**。
 
-> ⚠️ 如果 `git pull` 有衝突，代表你改咗唔應該改嘅檔案：
-> ```bash
-> git stash          # 暫存你嘅改動
-> git pull           # 更新
-> git stash pop      # 還原，手動解決衝突
-> ```
+如有衝突：
+```bash
+git stash && git pull && git stash pop
+```
+
 > 自訂參數應該放 `config/user_params.py`（gitignored），唔好改 `config/params.py`。
-
 </details>
 
 <details>
 <summary><b>安全嗎？會唔會洩露我嘅 API key？</b></summary>
 
-- API keys 只存喺你本地嘅 `secrets/.env`
-- `.env` 已加入 `.gitignore`，唔會被 git 上傳
+- API keys 只存喺你本地嘅 `secrets/.env`（已 gitignore）
 - Bot 唔會將 key 發送去任何第三方
 - 交易所 API key 建議只開 **Futures Trading** 權限，唔好開提幣
 </details>
@@ -585,6 +433,310 @@ python scripts\tg_bot.py
 
 ---
 
+## 🆕 最新功能（v2.5）
+
+### Regime Engine — 4 種引擎組合
+
+市場唔會永遠一樣行。Regime Engine 幫你自動判斷而家係咩狀態（Range / Trend / Crash），揀唔同嘅偵測方式：
+
+```mermaid
+graph TD
+    P[Regime Presets] --> C["classic：HMM（穩定，預設）"]
+    P --> CC["classic+cp：HMM + Conformal Prediction"]
+    P --> B["bocpd：Bayesian Changepoint Detection"]
+    P --> F["full：BOCPD + Conformal Prediction"]
+    style C fill:#f0f0f0
+    style CC fill:#eff6ff
+    style B fill:#fef3c7
+    style F fill:#ecfdf5
+```
+
+- **classic** — 用 HMM + 5 票制，最穩定
+- **classic+cp** — 加埋 Conformal Prediction 調節止損寬度
+- **bocpd** — Bayesian 方法偵測 regime 轉換點，反應更快
+- **full** — BOCPD + CP，最保守嘅風控
+
+> Dashboard 可以一鍵切換 preset。Regime 同 Risk Profile 係正交嘅（N profiles × 4 presets）。
+
+### Paper Trading — 模擬交易
+
+想試下策略但唔想落真金？Dashboard 有 Paper Trading 模式：
+- 一鍵啟動 dry-run（同真嘅 Trader Cycle 一樣邏輯，但唔會真正落單）
+- 所有模擬交易記錄喺 `shared/TRADE_LOG.md`（`[DRY_RUN]` 標記）
+- 同 live trading 互斥 — 跑緊 live 就開唔到 paper，反之亦然
+
+### Backtest 系統 — 6 項驗證
+
+回測唔係跑一次就算。AXC 有 3 階段驗證：
+
+```mermaid
+graph LR
+    A["Phase 1<br>單次回測"] --> B["Phase 2<br>Must-use 驗證"]
+    B --> C["Phase 3<br>Optional 驗證"]
+    B --> B1["Monte Carlo<br>1000x shuffle"]
+    B --> B2["Walk-Forward<br>WFE > 0.50"]
+    B --> B3["Heatmap<br>cliff 檢測"]
+    C --> C1["Noise 測試"]
+    C --> C2["Delay 測試"]
+    C --> C3["Deflated Sharpe"]
+```
+
+全部 PASS 先改 `params.py`，唔係靠感覺。
+
+### Service Management — Dashboard 管理面板
+
+Dashboard sidebar 可以一鍵管理 8 個 macOS LaunchAgent 服務：
+Scanner / Trader / Telegram / Dashboard / Heartbeat / LightScan / NewsBot / Report
+
+### Crash Strategy — 跌市專用
+
+新增 SHORT-only 策略，專門應對 Crash regime。2-of-3 gate（RSI + MACD + Volume），風控更保守（1% risk, 5x leverage）。
+
+---
+
+## 📋 環境變數
+
+| 變數 | 必填 | 用途 |
+|------|------|------|
+| `TELEGRAM_BOT_TOKEN` | ✅ | Telegram Bot Token（[@BotFather](https://t.me/BotFather)） |
+| `TELEGRAM_CHAT_ID` | ✅ | 你嘅 Chat ID（白名單，其他人用唔到） |
+| `ASTER_API_KEY` | ✅ | Aster DEX API Key |
+| `ASTER_API_SECRET` | ✅ | Aster DEX API Secret |
+| `PROXY_API_KEY` | 選填 | Claude API Key（`/ask` + 自然語言落單） |
+| `PROXY_BASE_URL` | 選填 | API endpoint（預設 `https://tao.plus7.plus/v1`） |
+| `VOYAGE_API_KEY` | 選填 | Voyage AI embedding（RAG 記憶增強，冇就用 hash fallback） |
+
+---
+
+# Part 2 · LLM Structured Reference
+
+> 以下係寫畀 AI agent 同開發者嘅結構化參考。
+
+---
+
+## 🏗 Architecture
+
+### Trader Cycle Pipeline（16+ 步）
+
+```mermaid
+graph TD
+    A[Load State] --> B[Safety Check]
+    B --> C[Fetch Market]
+    C --> D[Calc Indicators]
+    D --> E[Detect Mode]
+    E --> F{Regime Engine}
+    F -->|votes_hmm| G1[5-vote + HMM]
+    F -->|bocpd_cp| G2[Bayesian Changepoint]
+    G1 & G2 --> H[Strategy: Range/Trend/Crash]
+    H --> I[Evaluate + Score]
+    I --> J[Position Sizer]
+    J -->|CP_ENABLED| K[Conformal ATR]
+    J -->|no CP| L[Standard ATR]
+    K & L --> M[Execute Trade]
+    M --> N[Risk Manager]
+    N --> O[Write State + Alert]
+```
+
+**兩層掃描系統：**
+- **Layer 1**: `async_scanner.py`（常駐 daemon）— 9 exchanges × 20s = 180s full rotation
+- **Layer 2**: `light_scan.py`（3 min cron）— Aster only, 4 triggers: PRICE / VOLUME / SR_ZONE / FUNDING
+
+**4 Regime Presets（§12 of params.py）：**
+
+| Preset | REGIME_ENGINE | CP_ENABLED | 描述 |
+|--------|---------------|------------|------|
+| `classic` | `votes_hmm` | False | HMM + 5 票制（預設） |
+| `classic_cp` | `votes_hmm` | True | HMM + Conformal ATR |
+| `bocpd` | `bocpd_cp` | False | Bayesian Changepoint |
+| `full` | `bocpd_cp` | True | BOCPD + Conformal ATR |
+
+---
+
+## 📂 Complete File Tree
+
+```
+axc-trading/
+├── scripts/                          # 所有可執行程式
+│   ├── tg_bot.py                     #   Telegram Bot
+│   ├── dashboard.py                  #   Web Dashboard（port 5566）
+│   ├── async_scanner.py              #   9 交易所掃描器（Layer 1）
+│   ├── light_scan.py                 #   Aster 輕量掃描（Layer 2）
+│   ├── indicator_calc.py             #   技術指標計算（25+ indicators）
+│   ├── public_feeds.py               #   9 exchange API adapters
+│   ├── heartbeat.py                  #   15 min 健康檢查
+│   ├── news_scraper.py               #   RSS 新聞收集
+│   ├── news_sentiment.py             #   Haiku 情緒分析
+│   ├── weekly_strategy_review.py     #   每週回顧 → ai/STRATEGY.md
+│   ├── slash_cmd.py                  #   14 slash commands（零 AI）
+│   ├── load_env.sh                   #   LaunchAgent .env wrapper
+│   ├── backup_agent.sh               #   git + push + zip backup
+│   ├── health_check.sh               #   7 類別系統診斷
+│   └── trader_cycle/                 #   ⭐ 自動交易引擎
+│       ├── main.py                   #     入口（--live / --dry-run）
+│       ├── core/                     #     pipeline.py, context.py, registry.py
+│       ├── strategies/               #     Range + Trend + Crash + Regime（HMM/BOCPD）
+│       │   ├── range_strategy.py     #       BB/RSI/STOCH entry
+│       │   ├── trend_strategy.py     #       EMA cross/RSI/ADX entry
+│       │   ├── crash_strategy.py     #       SHORT-only, 2-of-3 gate
+│       │   ├── mode_detector.py      #       5 票制 mode detection
+│       │   ├── regime_hmm.py         #       Hidden Markov Model
+│       │   ├── regime_bocpd.py       #       Bayesian Changepoint Detection
+│       │   └── evaluate.py           #       信號評分 + 排名
+│       ├── exchange/                 #     Aster / Binance / HyperLiquid
+│       │   ├── market_data.py        #       自動路由 API
+│       │   ├── aster_client.py       #       Aster DEX
+│       │   ├── execute_trade.py      #       7-step order sequence
+│       │   └── position_sync.py      #       持倉同步
+│       ├── risk/                     #     風控 + 倉位
+│       │   ├── risk_manager.py       #       移動止損 / TP 延伸
+│       │   ├── position_sizer.py     #       ATR-based + Kelly sizing
+│       │   ├── atr_conformal.py      #       Conformal Prediction ATR
+│       │   ├── adjust_positions.py   #       trailing SL / early exit
+│       │   └── validators.py         #       pre-trade checks
+│       ├── state/                    #     狀態管理
+│       ├── notify/                   #     Telegram alerts
+│       └── config/                   #     pairs.py (7) + settings.py
+├── backtest/                         # 回測系統
+│   ├── engine.py                     #   Candle-by-candle 模擬器（MTF, signal_delay）
+│   ├── validate.py                   #   6 驗證工具（3 must-use + 3 optional）
+│   ├── grid_search.py                #   參數優化（ProcessPoolExecutor）
+│   ├── optimizer.py                  #   LHS 優化器
+│   ├── run_backtest.py               #   單 pair CLI 入口
+│   ├── metrics_ext.py                #   擴展指標
+│   ├── compare_configs.py            #   A/B configs 對比
+│   └── strategies/                   #   回測專用策略
+├── config/
+│   ├── params.py                     #   14 sections 共用參數
+│   ├── user_params.py                #   你嘅 override（gitignored）
+│   ├── modes/                        #   RANGE / TREND / VOLATILE
+│   └── profiles/                     #   conservative / balanced / aggressive
+├── agents/                           # AI Agents（各有 SOUL.md）
+├── memory/                           # RAG 記憶系統（jsonl + npy）
+├── shared/                           # 運行時狀態（TRADE_STATE、prices_cache.json）
+├── secrets/.env                      # API keys（gitignored）
+├── docs/                             # 文檔 + 分析
+├── canvas/                           # Dashboard 前端 HTML + SVG
+├── logs/                             # 日誌
+└── backups/                          # auto zip（keep 10）
+```
+
+---
+
+## ⚙️ Config Reference
+
+### params.py（14 sections）
+
+| § | Section | 關鍵參數 |
+|---|---------|---------|
+| 1 | 掃描設定 | EXCHANGE_ROTATION, SCAN_INTERVAL |
+| 2 | BB 指標 | BB_PERIOD, BB_STD |
+| 3 | 指標時間框 | TIMEFRAME_PARAMS, MACD, Stoch, OBV, SR |
+| 4 | Trend 策略 | EMA_FAST, EMA_SLOW, ADX_THRESHOLD |
+| 5 | 模式偵測 | MODE_DETECTION thresholds |
+| 6 | 倉位管理 | MAX_POSITION_SIZE_USDT |
+| 7 | Profile 設定 | ACTIVE_PROFILE, AUTO_PROFILE_SWITCH |
+| 8 | 幣種 + 引擎 | ASTER_SYMBOLS, BINANCE_SYMBOLS, HL_SYMBOLS |
+| 9 | 新聞/情緒 | NEWS_SENTIMENT config |
+| 10 | HMM Regime | HMM parameters |
+| 11 | Crash Strategy | CRASH_RISK_PCT=0.01, CRASH_LEVERAGE=5 |
+| 12 | **Regime Engine** | **REGIME_PRESETS, ACTIVE_REGIME_PRESET** |
+| 13 | BOCPD | hazard_rate=0.02, max_run_length=200 |
+| 14 | Conformal Prediction | CP_ALPHA=0.10, CP_MIN/MAX_SCORES |
+
+### 環境變數
+
+見 [環境變數](#-環境變數) section。
+
+### REGIME_PRESETS 用法
+
+```python
+# config/params.py §12
+REGIME_PRESETS = {
+    "classic":    {"REGIME_ENGINE": "votes_hmm", "CP_ENABLED": False},
+    "classic_cp": {"REGIME_ENGINE": "votes_hmm", "CP_ENABLED": True},
+    "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
+    "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
+}
+ACTIVE_REGIME_PRESET = "classic"
+```
+
+Dashboard dropdown 切換。Preset 同 Profile 正交（N × M 組合）。
+
+---
+
+## 🔌 Dashboard API Endpoints
+
+### GET
+
+| Endpoint | 用途 |
+|----------|------|
+| `/api/data` | 主 dashboard 數據 |
+| `/api/state` | trade state + signal + key params |
+| `/api/config` | 所有交易參數 |
+| `/api/health` | agent status + timestamps + heartbeat |
+| `/api/scan-log` | last 20 scan log lines |
+| `/api/suggest_mode` | profile suggestion（BTC 24h change） |
+| `/api/exchange/balance` | 所有交易所餘額（parallel） |
+| `/api/exchange/symbol-info` | precision rules for trade modal |
+| `/api/binance/status` | Binance 連接狀態 |
+| `/api/aster/status` | Aster 連接狀態 |
+| `/api/hl/status` | HyperLiquid 連接狀態 |
+| `/api/backtest/list` | 回測 JSONL metadata |
+| `/api/backtest/results` | 回測交易結果 |
+| `/api/backtest/status` | 回測 job 狀態 |
+| `/api/paper-trading` | dry-run 狀態 + 紀錄 |
+| `/api/services` | 8 個 LaunchAgent 服務狀態 |
+
+### POST
+
+| Endpoint | 用途 |
+|----------|------|
+| `/api/set_mode` | 切換 trading profile |
+| `/api/set_regime` | 切換 regime preset |
+| `/api/config/trading` | 開關 TRADING_ENABLED |
+| `/api/place-order` | 開倉（from trade modal） |
+| `/api/close-position` | 市價平倉 |
+| `/api/modify-sltp` | 改 SL/TP |
+| `/api/cancel-order` | 取消掛單 |
+| `/api/backtest/run` | 啟動回測 |
+| `/api/paper-trading/start` | 啟動 dry-run |
+| `/api/paper-trading/stop` | 停止 dry-run |
+| `/api/service/restart` | 重啟 LaunchAgent 服務 |
+| `/api/chat` | AI 對話（haiku/sonnet） |
+| `/api/{exchange}/connect` | 儲存交易所 credentials |
+| `/api/{exchange}/disconnect` | 移除交易所 credentials |
+
+---
+
+## 🤖 Model Tiers
+
+| Tier | Model | 用途 | 成本 |
+|------|-------|------|------|
+| tier1 | claude-sonnet-4-6 | 決策 + 交易分析 | $$$ |
+| tier2 | claude-haiku-4-5 | 掃描 + tg_bot + 新聞 | $ |
+| tier3 | gpt-5-mini | 日常 / agent default | $ |
+| Python | — | scanner, trader_cycle, heartbeat | 零 AI cost |
+
+Proxy: `https://tao.plus7.plus/v1`（PROXY_API_KEY）
+
+---
+
+## 📊 Trading Pairs
+
+| Pair | Aster | Binance | HL | Group | Priority |
+|------|-------|---------|----|-------|----------|
+| BTCUSDT | ✅ | ✅ | ✅ | crypto_correlated | 4 |
+| ETHUSDT | ✅ | ✅ | ✅ | crypto_correlated | 3 |
+| SOLUSDT | - | ✅ | ✅ | crypto_correlated | 3 |
+| XRPUSDT | ✅ | - | - | crypto_independent | 2 |
+| POLUSDT | - | ✅ | - | crypto_independent | 2 |
+| XAGUSDT | ✅ | - | - | commodity | 1 |
+| XAUUSDT | ✅ | - | - | commodity | 1 |
+
+每組 max 1 倉，最多 3 倉同時。`market_data.py` 自動路由 API。
+
+---
+
 ## 🤝 共同開發指南
 
 > 如果你用 LLM（ChatGPT / Claude / Cursor）輔助開發，將呢個 section 貼畀佢就夠。
@@ -592,21 +744,12 @@ python scripts\tg_bot.py
 ### 環境設定（一次性）
 
 ```bash
-# 1. Clone
 git clone https://github.com/Will-852/AXC-TradingBot.git ~/projects/axc-trading
 cd ~/projects/axc-trading
-
-# 2. 安裝依賴
 pip3 install -r requirements.txt
-
-# 3. 建立 secrets（唔會被 git 追蹤）
 mkdir -p secrets
 cp docs/friends/.env.example secrets/.env
-# 用編輯器填入你嘅 API keys
-
-# 4. 自訂交易參數（選填，唔會被 git 追蹤）
-cp config/user_params.py.example config/user_params.py
-# 改你想 override 嘅值，其餘用預設
+# 填入你嘅 API keys
 ```
 
 ### 檔案修改規則
@@ -626,100 +769,23 @@ cp config/user_params.py.example config/user_params.py
   agents/*/SOUL.md          ← Agent 人格定義
 ```
 
-### 更新流程
-
-```bash
-cd ~/projects/axc-trading
-git pull                    # 攞最新 code
-# secrets/.env 同 config/user_params.py 唔受影響
-```
-
-如果 `git pull` 有衝突（你改咗唔應該改嘅檔案）：
-```bash
-git stash                   # 暫存你嘅改動
-git pull                    # 更新
-git stash pop               # 還原改動，手動解決衝突
-```
-
 ### 提交新方案（PR 流程）
 
-想改共用 code（策略、dashboard、scripts）？用 branch + Pull Request：
-
 ```bash
-# 1. 確保 main 係最新
-git checkout main
-git pull
-
-# 2. 開新分支（名稱描述你做嘅嘢）
+git checkout main && git pull
 git checkout -b friend-new-approach
-
-# 3. 做嘢、測試、commit
-#    可以有多個 commit，每個做一件事
+# 做嘢、測試、commit
 git add <改咗嘅文件>
 git commit -m "feat: 你嘅改動描述"
-
-# 4. Push 分支到 GitHub
 git push -u origin friend-new-approach
-
-# 5. 開 Pull Request
-#    去 https://github.com/Will-852/AXC-TradingBot/pulls
-#    撳 "New pull request" → base: main ← compare: friend-new-approach
-#    寫清楚：改咗咩、點解要改、點樣測試
-#    或者用 CLI：
 gh pr create --title "你嘅標題" --body "改咗咩 + 點解"
 ```
 
-之後 owner 會 review → approve → merge 入 main。你嘅分支 merge 完可以刪除。
+**注意：** 唔好直接 push 去 `main`。一個 PR 做一件事。改策略附上 backtest 結果會加快 review。
 
-**注意：**
-- 唔好直接 push 去 `main`
-- 一個 PR 做一件事，唔好混合多個功能
-- 如果改策略邏輯，附上 backtest 結果會加快 review
+---
 
-### 架構速查（畀 LLM 讀）
-
-```
-~/projects/axc-trading/
-├── scripts/              # 所有可執行程式
-│   ├── tg_bot.py         #   Telegram Bot
-│   ├── dashboard.py      #   Web Dashboard（port 5555）
-│   ├── async_scanner.py  #   9 交易所掃描器
-│   ├── indicator_calc.py #   技術指標計算
-│   └── trader_cycle/     #   ⭐ 自動交易引擎
-│       ├── strategies/   #     Range + Trend + Mode Detector
-│       ├── exchange/     #     Aster / Binance / HyperLiquid
-│       ├── risk/         #     風控 + 移動止損
-│       └── config/       #     pairs (7) + settings
-├── backtest/             # 回測系統（180d × 8 pairs）
-├── config/
-│   ├── params.py         #   共用參數（唔好直接改）
-│   ├── user_params.py    #   你嘅 override（gitignored）
-│   └── modes/            #   RANGE / TREND / VOLATILE
-├── agents/               # 9 個 AI agents，各自有 SOUL.md
-├── canvas/               # Dashboard 前端 HTML + SVG
-├── memory/               # RAG 記憶系統（jsonl + npy）
-├── secrets/.env          # API keys（gitignored）
-├── shared/               # 運行時狀態（TRADE_STATE、SCAN_CONFIG）
-└── logs/                 # 日誌
-```
-
-### 常用指令
-
-```bash
-# Dashboard（瀏覽器打開 http://127.0.0.1:5555）
-python3 scripts/dashboard.py
-
-# Telegram Bot
-AXC_HOME=~/projects/axc-trading python3 scripts/tg_bot.py
-
-# 掃描器
-python3 scripts/async_scanner.py
-
-# 系統健康檢查
-bash scripts/health_check.sh
-```
-
-### 技術棧
+## 🛠 Tech Stack
 
 | 層面 | 技術 |
 |------|------|
@@ -728,7 +794,11 @@ bash scripts/health_check.sh
 | 向量嵌入 | Voyage AI（voyage-3） |
 | 記憶儲存 | jsonl + numpy（唔用資料庫） |
 | 交易所 | Aster DEX / Binance Futures / HyperLiquid |
-| 介面 | Telegram Bot + Web Dashboard + 回測系統 |
+| Regime 偵測 | HMM + BOCPD（Bayesian Changepoint） |
+| 風控 | Conformal Prediction ATR + Kelly Sizing |
+| 回測驗證 | Monte Carlo / Walk-Forward / Heatmap / DSR |
+| 介面 | Telegram Bot + Web Dashboard（:5566） |
+| 排程 | macOS LaunchAgents |
 
 ---
 

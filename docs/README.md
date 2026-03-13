@@ -2,13 +2,13 @@
 
 > 本地優先的智能交易監控系統
 
-本地運行，AI 驅動，你擁有所有數據。唔需要 OpenClaw 或任何外部平台。
+本地運行，AI 驅動，你擁有所有數據。唔需要任何外部平台。
 
 ## 系統概覽
 
 | 組件 | 說明 | 必要？ |
 |------|------|--------|
-| Dashboard | 本地網頁監控介面（:5555） | ✅ 核心 |
+| Dashboard | 本地網頁監控介面（:5566） | ✅ 核心 |
 | Trader Cycle | 自動掃描 + 策略 + 下單 | ✅ 核心 |
 | Scanner | 多交易所市場掃描 | ✅ 核心 |
 | Heartbeat | 倉位 + 止損監控 + 告警 | ✅ 核心 |
@@ -18,7 +18,10 @@
 | News Agent | RSS 抓取 + AI 情緒分析 | 選填 |
 | Aster DEX | 交易執行 | 選填 |
 | Binance | 交易執行 | 選填 |
-| OpenClaw | Gateway（Agent sessions） | 選填 |
+| HyperLiquid | 交易執行 | 選填 |
+| Paper Trading | Dashboard 模擬交易（dry-run） | 選填 |
+| Backtest | 回測 + 6 項驗證（Phase 2+3） | 選填 |
+| Service Manager | Dashboard 一鍵管理 8 個 LaunchAgent | 選填 |
 
 ## 快速開始
 
@@ -29,13 +32,13 @@ pip3 install -r requirements.txt --break-system-packages
 cp docs/friends/.env.example secrets/.env
 nano secrets/.env    # 填入 API keys
 python3 scripts/dashboard.py
-# 打開 http://127.0.0.1:5555
+# 打開 http://127.0.0.1:5566
 ```
 
 ## 三層架構
 
 ```
-OpenClaw Gateway（可選）     ← @axccommandbot、Agent sessions
+Gateway（可選）             ← @axccommandbot、Agent sessions
         │
 AXC 交易系統（核心）         ← 掃描、交易、監控、Telegram、新聞
         │
@@ -50,8 +53,12 @@ Proxy API（AI 功能需要）     ← 任何 Claude/OpenAI 兼容 endpoint
 搜尋層：numpy cosine similarity
 記憶層：jsonl + npy
 排程層：macOS LaunchAgents（鬧鐘模式）
+Regime 層：BOCPD changepoint detection + HMM
+風控層：Conformal Prediction ATR + Kelly sizing
 通訊層：shared/ JSON + MD 文件
 ```
+
+> Regime Presets：`classic` / `classic_cp` / `bocpd` / `full`（Dashboard 切換）
 
 ## 文件索引
 
@@ -87,6 +94,7 @@ Proxy API（AI 功能需要）     ← 任何 Claude/OpenAI 兼容 endpoint
 | [guides/13-launchagents.md](guides/13-launchagents.md) | LaunchAgent 管理 |
 | [guides/BACKTEST.md](guides/BACKTEST.md) | 回測系統（Claude Code 專用） |
 | [guides/OPTIMIZER_EXPLAINED.md](guides/OPTIMIZER_EXPLAINED.md) | 參數優化完整解說 |
+| [guides/19-backtest-guide.md](guides/19-backtest-guide.md) | 回測完整指南（Phase 1-3） |
 
 ### 架構
 | 文件 | 用途 |

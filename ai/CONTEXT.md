@@ -1,9 +1,9 @@
-# OpenClaw — Agent 系統上下文
+# AXC — Agent 系統上下文
 > 讀者：AI Agent
 > 人類文件：docs/README.md
 > 判斷樹：docs/architecture/TAXONOMY.md
 > 深度分析：docs/analysis-20260310/（10 步架構分析）
-> 最後更新：2026-03-10
+> 最後更新：2026-03-13
 > ⚠️ 此文件只引用 docs/，不複製內容
 
 ## 立即讀取
@@ -20,8 +20,8 @@ Agent職責 → docs/architecture/AGENTS.md
 
 ## 系統概覽
 
-本地智能交易監控系統。10 agents + dashboard + Telegram bot。
-推理：Claude API（tier1 Sonnet / tier2 Haiku / Opus for decisions）
+本地智能交易監控系統。3 活躍 agents（main / heartbeat / news_agent）+ trader_cycle pipeline + dashboard + Telegram bot。
+推理：Claude API（tier1 Sonnet / tier2 Haiku / tier3 GPT-5-mini）
 向量：voyage-3 | 搜尋：numpy cosine | 記憶：jsonl + npy
 Proxy：https://tao.plus7.plus/v1（PROXY_API_KEY）
 
@@ -94,12 +94,13 @@ Step  2: SafetyCheck      — circuit breaker + cooldown
 Step  3: NoTradeCheck     — volume/funding filter + position group limits
 Step  4: FetchMarketData  — ticker + funding（Aster/Binance per pair）
 Step  5: CalcIndicators   — calc_indicators() for 4H + 1H
-Step  6: DetectMode       — 5 票制 mode detection（RANGE/TREND/UNKNOWN）
+Step  6: DetectMode       — Regime Engine 選擇：votes_hmm（5 票 + HMM）或 bocpd_cp（Bayesian Changepoint）
 Step  7: RangeStrategy    — BB/RSI/STOCH/MACD/ADX entry signals
 Step  8: TrendStrategy    — EMA cross/RSI/ADX/MACD entry signals
+Step 8b: CrashStrategy    — SHORT-only（2-of-3 gate：RSI>60 + MACD<0 + volume spike）
 Step  9: NewsFilter       — sentiment from shared/news_sentiment.json
 Step 10: EvaluateSignals  — score + rank + select best signal
-Step 11: PositionSizer    — ATR-based SL/TP + Kelly-inspired sizing
+Step 11: PositionSizer    — ATR-based SL/TP + Kelly-inspired sizing + Conformal Prediction（CP_ENABLED → ATR + q_hat）
 Step 12: AdjustPositions  — trailing SL, TP extension, early exit
 Step 13: ExecuteTrade     — 7-step order sequence
 Step 14: ManagePositions  — max hold, funding cost check
@@ -110,7 +111,7 @@ Step 16: SendAlerts       — Telegram notifications
 觸發：LaunchAgent interval。每個 cycle 處理所有 7 pairs。
 鎖機制：fcntl.flock 防止同 scanner 同時跑。
 
-## 十個 Agents
+## Agents（3 活躍 + 7 legacy）
 
 | Agent | Model | Role | 實際狀態 |
 |-------|-------|------|----------|
@@ -147,7 +148,7 @@ Python   → scanner, trader_cycle, heartbeat（確定性 + 零 AI cost）
 | indicator_calc.py | 技術指標計算（25+ indicators, 支持 aster/binance） |
 | tg_bot.py | Telegram Bot（69KB，自然語言 + 14 slash commands） |
 | slash_cmd.py | 14 個 slash commands（零 AI，純 Python） |
-| dashboard.py | ICU Dashboard（port 5555，105KB 最大文件） |
+| dashboard.py | ICU Dashboard（port 5566，~5400 行） |
 | heartbeat.py | 15 min 健康檢查 |
 | news_scraper.py | RSS 新聞收集（CoinTelegraph + CoinDesk） |
 | news_sentiment.py | Claude Haiku 情緒分析 → shared/news_sentiment.json |
@@ -161,9 +162,9 @@ Python   → scanner, trader_cycle, heartbeat（確定性 + 零 AI cost）
 | 子目錄 | 關鍵文件 | 用途 |
 |--------|---------|------|
 | config/ | pairs.py, settings.py | 7 pairs 定義 + 所有常數 |
-| strategies/ | range_strategy.py, trend_strategy.py, mode_detector.py, evaluate.py | 策略邏輯 |
+| strategies/ | range_strategy.py, trend_strategy.py, crash_strategy.py, mode_detector.py, regime_hmm.py, regime_bocpd.py, evaluate.py | 策略邏輯 |
 | exchange/ | market_data.py, aster_client.py, execute_trade.py, position_sync.py | 交易所接口 |
-| risk/ | risk_manager.py, position_sizer.py | 風控 + 倉位計算 |
+| risk/ | risk_manager.py, position_sizer.py, atr_conformal.py | 風控 + 倉位 + Conformal Prediction |
 | state/ | state_manager.py, scan_config_writer.py | 狀態讀寫 |
 
 ## Backtest 系統
@@ -218,6 +219,10 @@ trader_cycle/config/
 ```
 params.py 嘅 ACTIVE_PROFILE 透過 settings.py 覆蓋策略常數。
 
+REGIME_PRESETS（§12）定義 4 個引擎組合：classic / classic_cp / bocpd / full。
+ACTIVE_REGIME_PRESET 由 Dashboard dropdown 或 params.py 設定。
+CP_ENABLED 由 preset 驅動，唔應該手動改。
+
 ## Gotchas
 - 改參數只改 config/params.py，唔改 scripts
 - 加幣種要改 7 個位（見 docs/guides/SYMBOLS.md）
@@ -229,6 +234,10 @@ params.py 嘅 ACTIVE_PROFILE 透過 settings.py 覆蓋策略常數。
 - market_data.py 根據 ASTER_SYMBOLS 路由 API（Aster pair → Aster, 其他 → Binance）
 - MAX_CRYPTO_POSITIONS / MAX_XAG_POSITIONS 係 dead code（實際由 POSITION_GROUPS 控制）
 - SOUL.md Agent Pipeline 同 trader_cycle pipeline 係兩套系統（trader_cycle 為主）
+- REGIME_PRESETS 改完要重啟 trader_cycle
+- CP_ENABLED 由 preset 驅動，唔好單獨改
+- Dashboard port 已改為 5566（唔係 5555）
+- crash_strategy.py 只做 SHORT，RSI gate 已降至 60（原 75 從未觸發）
 
 ## Telegram
 - @AXCTradingBot → tg_bot.py — trading interface
