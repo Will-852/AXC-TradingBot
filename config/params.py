@@ -66,8 +66,8 @@ TIMEFRAME_PARAMS = {
         "bb_length": 20, "bb_mult": 2,
         "rsi_period": 14, "adx_period": 14,
         "ema_fast": 10, "ema_slow": 30, "atr_period": 14,
-        "rsi_long": 35, "rsi_short": 65,
-        "adx_range_max": 20,
+        "rsi_long": 40, "rsi_short": 60,
+        "adx_range_max": 25,   # 2026-03-13: was 20, diagnostic showed 246/380 candles blocked
         "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
         "bb_width_squeeze": 0.012,
         "lookback_support": 30,
@@ -217,8 +217,8 @@ CRASH_RISK_PCT = 0.01       # 1% (vs 2% normal)
 CRASH_LEVERAGE = 5          # lower leverage
 CRASH_SL_ATR_MULT = 2.0     # wider SL
 CRASH_MIN_RR = 1.5
-CRASH_RSI_ENTRY = 75        # only short when very overbought
-CRASH_VOLUME_MIN = 2.0      # need volume spike
+CRASH_RSI_ENTRY = 60        # 2026-03-13: was 75, RSI>75 never triggers in crash (median=48.6). 60=catch relief rallies
+CRASH_VOLUME_MIN = 1.5      # 2026-03-13: was 2.0, only 12.5% of crash candles had vol>2.0
 
 # ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）

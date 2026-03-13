@@ -12,6 +12,7 @@ Binance /fapi/v1/klines max 1000/request，自動分頁直到覆蓋全部 range�
 
 import logging
 import os
+import random
 import time
 from datetime import datetime, timezone
 
@@ -22,6 +23,49 @@ log = logging.getLogger(__name__)
 
 AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
 DATA_DIR = os.path.join(AXC_HOME, "backtest", "data")
+
+# ─── Circuit Breaker ───
+# 3-state: CLOSED (normal) → OPEN (failing, reject calls) → HALF_OPEN (probe one call)
+# Prevents hammering a failing exchange API.
+
+class CircuitBreaker:
+    """Lightweight circuit breaker for API endpoints."""
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF_OPEN = "HALF_OPEN"
+
+    def __init__(self, failure_threshold: int = 3, recovery_timeout: float = 60.0):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.state = self.CLOSED
+        self.failure_count = 0
+        self._opened_at: float = 0.0
+
+    def allow_request(self) -> bool:
+        if self.state == self.CLOSED:
+            return True
+        if self.state == self.OPEN:
+            if time.time() - self._opened_at >= self.recovery_timeout:
+                self.state = self.HALF_OPEN
+                return True
+            return False
+        # HALF_OPEN: allow one probe
+        return True
+
+    def record_success(self):
+        self.failure_count = 0
+        self.state = self.CLOSED
+
+    def record_failure(self):
+        self.failure_count += 1
+        if self.failure_count >= self.failure_threshold:
+            self.state = self.OPEN
+            self._opened_at = time.time()
+            log.warning("Circuit breaker OPEN after %d failures", self.failure_count)
+
+
+# Per-platform circuit breakers (module-level singletons)
+_breakers: dict[str, CircuitBreaker] = {}
 
 API_BASES = {
     "binance": "https://fapi.binance.com",
@@ -71,11 +115,18 @@ def fetch_klines_range(
     base_url = API_BASES.get(platform, API_BASES["binance"])
     url = f"{base_url}/fapi/v1/klines"
 
+    # Circuit breaker per platform
+    if platform not in _breakers:
+        _breakers[platform] = CircuitBreaker()
+    cb = _breakers[platform]
+
     all_data = []
     cursor = start_ms
     page = 0
 
     while cursor < end_ms:
+        if not cb.allow_request():
+            raise ConnectionError(f"Circuit breaker OPEN for {platform} — too many failures")
         params = {
             "symbol": symbol,
             "interval": interval,
@@ -83,9 +134,22 @@ def fetch_klines_range(
             "endTime": end_ms,
             "limit": 1000,
         }
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
+        # Retry with exponential backoff + random jitter
+        data = None
+        for attempt in range(4):
+            try:
+                resp = requests.get(url, params=params, timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+                cb.record_success()
+                break
+            except (requests.RequestException, ValueError) as e:
+                cb.record_failure()
+                if attempt == 3:
+                    raise
+                delay = (2 ** attempt) * (1 + random.random() * 0.5)
+                log.warning("Kline fetch attempt %d failed: %s, retry in %.1fs", attempt + 1, e, delay)
+                time.sleep(delay)
 
         if not data:
             break

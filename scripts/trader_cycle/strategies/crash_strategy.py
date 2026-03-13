@@ -23,10 +23,11 @@ from ..core.context import CycleContext, Signal
 class CrashStrategy(StrategyBase):
     """SHORT-only strategy for CRASH regime (HMM state=2).
 
-    Entry requires all 3 conditions:
-      1. RSI > CRASH_RSI_ENTRY (75) — overbought / relief rally exhaustion
+    Entry requires 2-of-3 conditions (RSI + MACD/Volume naturally anti-correlate
+    in crash — requiring all 3 simultaneously produces zero signals):
+      1. RSI > CRASH_RSI_ENTRY (60) — relief rally exhaustion
       2. MACD histogram < 0 — bearish momentum
-      3. volume_ratio > CRASH_VOLUME_MIN (2.0) — volume spike confirming panic
+      3. volume_ratio > CRASH_VOLUME_MIN (1.5) — volume spike confirming panic
     """
 
     name = "crash"
@@ -56,7 +57,9 @@ class CrashStrategy(StrategyBase):
             "Volume_spike": volume_ratio > CRASH_VOLUME_MIN,
         }
 
-        if not all(conditions.values()):
+        # 2-of-3 gate: RSI + MACD/Volume naturally anti-correlate in crash
+        # (relief rallies = high RSI + low volume; panic = low RSI + high volume)
+        if sum(conditions.values()) < 2:
             return None
 
         # ─── Only SHORT in crash ───

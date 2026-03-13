@@ -69,7 +69,8 @@ class BTCrashStrategy(StrategyBase):
             "Volume_spike": volume_ratio > self.volume_min,
         }
 
-        if not all(conditions.values()):
+        # 2-of-3 gate (mirrors production crash_strategy.py)
+        if sum(conditions.values()) < 2:
             return None
 
         score = 3.0
