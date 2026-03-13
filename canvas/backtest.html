@@ -404,6 +404,15 @@
       animation: fpPulse 1s ease-in-out infinite;
     }
     @keyframes fpPulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+    .vol-preset-btn {
+      font-size: .68rem; font-weight: 700; color: #d4a017;
+      background: rgba(212,160,23,0.12); border: 1px solid rgba(212,160,23,0.3);
+      border-radius: 4px; padding: 1px 7px; cursor: pointer;
+      letter-spacing: .04em; margin-left: 4px;
+      transition: background .15s, color .15s;
+    }
+    .vol-preset-btn:hover { background: rgba(212,160,23,0.25); }
+    .vol-preset-btn.active { background: rgba(212,160,23,0.3); color: #b8860b; border-color: #d4a017; }
 
     /* ── Drawing toolbar (Phase 3) ── */
     .draw-toolbar {
@@ -829,6 +838,7 @@
       <label title="Bollinger Bands"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> BB</label>
       <label title="EMA 快/慢線"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
       <label title="MA 50/200"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <label title="VWAP + 標準差帶"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep">|</span>
       <label title="RSI"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
       <label title="MACD"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
@@ -841,6 +851,8 @@
       <label title="Delta Volume（買-賣淨量）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> Delta</label>
       <label title="Volume Profile（價位成交分佈）" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> VP</label>
       <label title="Footprint Heatmap（蠟燭成交熱力圖）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
+      <label title="Cumulative Volume Delta" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> CVD</label>
+      <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵啟用 VP+FP+CVD+VWAP">Vol</button>
       <span class="fp-loading-dot" id="fp-loading-dot" style="display:none"></span>
     </div>
     <div style="position:relative">
@@ -1106,7 +1118,7 @@ var tradeOverlays = [];
 var slTpOverlays = [];        // Phase 3: SL/TP line overlays
 var indicatorData = {};       // Phase 2: timestamp → indicator values
 var indicatorPaneIds = {};    // Phase 2: indicator name → pane ID
-var activeIndicators = { AXC_BB: true, AXC_EMA: true, AXC_MA: false, AXC_RSI: false, AXC_MACD: false, AXC_STOCH: false, AXC_MODE: true };
+var activeIndicators = { AXC_BB: true, AXC_EMA: true, AXC_MA: false, AXC_VWAP: false, AXC_RSI: false, AXC_MACD: false, AXC_STOCH: false, AXC_MODE: true };
 var modeOverlays = [];        // Phase 2: mode transition overlays
 var compareRunA = null;       // Phase 4: stored Run A result
 var selectedTradeIdx = -1;    // Phase 4: currently selected trade
@@ -1289,11 +1301,11 @@ function initEquityChart() {
 // ══════════════════════════════════════════════════
 //  Footprint / Order Flow state + functions
 // ══════════════════════════════════════════════════
-var footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {} };
+var footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {}, cvd: {} };
 var largeTradeOverlays = [];
 var fpLoading = false;
 var fpFetched = false;
-var fpActive = { large: false, delta: false, profile: false, heatmap: false };
+var fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
 
 function _syncFpToggleStyle() {
   // Sync active class on fp-toggle labels with fpActive state
@@ -1325,7 +1337,7 @@ function toggleFootprint(feature) {
   if (fpLoading) return;
 
   // First time any feature toggled on → fetch all data (checkboxes stay enabled)
-  if (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap) {
+  if (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap || fpActive.cvd) {
     fetchFootprintData();
   }
 }
@@ -1342,7 +1354,7 @@ function fetchFootprintData() {
   _showFpLoading(true);
   showToast('正在拉取 aggTrades（' + days + '日）— 可以繼續撳其他 toggle', 'info');
 
-  api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap')
+  api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap,cvd')
     .then(function(data) {
       // Stale response guard: a newer fetch was started → discard
       if (myVersion !== _fpFetchVersion) return;
@@ -1351,6 +1363,7 @@ function fetchFootprintData() {
       footprintData.large_trades = data.large_trades || [];
       footprintData.volume_profile = data.volume_profile || [];
       footprintData.heatmap = data.heatmap || {};
+      footprintData.cvd = data.cvd || {};
       fpFetched = true;
       fpLoading = false;
 
@@ -1371,9 +1384,11 @@ function fetchFootprintData() {
       if (myVersion !== _fpFetchVersion) return;
       _showFpLoading(false);
       fpLoading = false;
-      fpActive = { large: false, delta: false, profile: false, heatmap: false };
+      fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
       _syncFpToggleStyle();
       document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+      var volBtn = document.querySelector('.vol-preset-btn');
+      if (volBtn) volBtn.classList.remove('active');
       var errMsg = (e && e.message) ? e.message : String(e);
       showToast('AggTrades 載入失敗: ' + errMsg, 'error');
     });
@@ -1392,6 +1407,9 @@ function applyFootprintFeature(feature) {
   } else if (feature === 'heatmap') {
     if (fpActive.heatmap) addIndicatorToChart('AXC_HEATMAP');
     else removeIndicatorFromChart('AXC_HEATMAP');
+  } else if (feature === 'cvd') {
+    if (fpActive.cvd) addIndicatorToChart('AXC_CVD');
+    else removeIndicatorFromChart('AXC_CVD');
   }
 }
 
@@ -1428,14 +1446,48 @@ function resetFootprintData() {
   fpLoading = false;
   _showFpLoading(false);
   clearLargeTradeMarkers();
-  ['AXC_DELTA','AXC_VP','AXC_HEATMAP'].forEach(function(name) {
+  ['AXC_DELTA','AXC_VP','AXC_HEATMAP','AXC_CVD'].forEach(function(name) {
     if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
   });
-  footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {} };
+  footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {}, cvd: {} };
   fpFetched = false;
-  fpActive = { large: false, delta: false, profile: false, heatmap: false };
+  fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
   _syncFpToggleStyle();
   document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+  var volBtn = document.querySelector('.vol-preset-btn');
+  if (volBtn) volBtn.classList.remove('active');
+}
+
+function activateVolPreset() {
+  // One-click: enable VP + FP + CVD + VWAP
+  var targets = ['profile', 'heatmap', 'cvd'];
+  targets.forEach(function(f) {
+    if (!fpActive[f]) {
+      fpActive[f] = true;
+      var cb = document.querySelector('#fp-' + f + ' input');
+      if (cb) cb.checked = true;
+    }
+  });
+  _syncFpToggleStyle();
+
+  // Also enable VWAP (standard indicator, not Order Flow)
+  if (!activeIndicators.AXC_VWAP) {
+    activeIndicators.AXC_VWAP = true;
+    var vwapCb = document.querySelector('label[title*="VWAP"] input');
+    if (vwapCb) vwapCb.checked = true;
+    if (Object.keys(indicatorData).length) addIndicatorToChart('AXC_VWAP');
+  }
+
+  // Toggle Vol button active state
+  var volBtn = document.querySelector('.vol-preset-btn');
+  if (volBtn) volBtn.classList.add('active');
+
+  // Fetch aggTrades if needed, then apply
+  if (fpFetched) {
+    targets.forEach(function(f) { applyFootprintFeature(f); });
+  } else if (!fpLoading) {
+    fetchFootprintData();
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -1487,6 +1539,14 @@ function registerCustomOverlays() {
       ];
     }
   });
+}
+
+// ── Volume shorthand formatter (1234 → 1.2K, 1234567 → 1.2M) ──
+function _fmtVolShort(v) {
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  if (v >= 1)   return v.toFixed(1);
+  return v.toFixed(2);
 }
 
 // ══════════════════════════════════════════════════
@@ -1617,6 +1677,29 @@ function registerBackendIndicators() {
       lines: [
         { color: '#3b82f6', size: 1 },
         { color: '#f59e0b', size: 1 }
+      ]
+    }
+  });
+
+  // ── VWAP (main pane overlay — gold line + bands) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_VWAP',
+    figures: [
+      { key: 'vwap', title: 'VWAP', type: 'line' },
+      { key: 'upper', title: 'VWAP+', type: 'line' },
+      { key: 'lower', title: 'VWAP-', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        return ind ? { vwap: ind.vwap, upper: ind.vwap_upper, lower: ind.vwap_lower } : {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#d4a017', size: 1.5 },
+        { color: 'rgba(212,160,23,0.4)', size: 1, dashedValue: [4,3] },
+        { color: 'rgba(212,160,23,0.4)', size: 1, dashedValue: [4,3] }
       ]
     }
   });
@@ -1837,6 +1920,8 @@ function registerBackendIndicators() {
         }
         if (bucketPx < 3) bucketPx = 5;
 
+        var showText = bucketPx > 14;  // zoom threshold for text mode
+
         lvls.forEach(function(lv) {
           if (!lv || typeof lv.total_vol !== 'number') return;
           var py = yAxis.convertToPixel(lv.price);
@@ -1849,26 +1934,69 @@ function registerBackendIndicators() {
           var by = py - bucketPx / 2;
 
           // Blue = net buy dominant, Yellow = net sell dominant
-          if (lv.buy_vol >= lv.sell_vol) {
+          var isBuyDom = lv.buy_vol >= lv.sell_vol;
+          if (isBuyDom) {
             ctx.fillStyle = 'rgba(66,133,244,' + alpha.toFixed(2) + ')';
           } else {
             ctx.fillStyle = 'rgba(255,193,7,' + alpha.toFixed(2) + ')';
           }
           ctx.fillRect(bx, by, candleW, bucketPx);
 
-          // Subtle border for high-volume blocks
-          if (intensity > 0.4) {
-            ctx.strokeStyle = lv.buy_vol >= lv.sell_vol
+          // Imbalance highlight — bright border (green=buy imbalance, red=sell)
+          if (lv.imbalance) {
+            ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.85)' : 'rgba(225,29,72,0.85)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(bx, by, candleW, bucketPx);
+          } else if (intensity > 0.4) {
+            // Subtle border for high-volume blocks (non-imbalance)
+            ctx.strokeStyle = isBuyDom
               ? 'rgba(66,133,244,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')'
               : 'rgba(255,193,7,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')';
             ctx.lineWidth = 0.5;
             ctx.strokeRect(bx, by, candleW, bucketPx);
+          }
+
+          // Text mode: show buy_vol × sell_vol when zoomed in enough
+          if (showText && candleW > 30) {
+            var fontSize = Math.max(8, Math.min(11, bucketPx * 0.55));
+            ctx.font = fontSize + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var midY = by + bucketPx / 2;
+            var bStr = _fmtVolShort(lv.buy_vol);
+            var sStr = _fmtVolShort(lv.sell_vol);
+            // Buy side (left half) — teal text
+            ctx.fillStyle = 'rgba(13,148,136,0.9)';
+            ctx.fillText(bStr, bx + candleW * 0.28, midY);
+            // Separator
+            ctx.fillStyle = 'rgba(148,163,184,0.6)';
+            ctx.fillText('×', bx + candleW * 0.5, midY);
+            // Sell side (right half) — red text
+            ctx.fillStyle = 'rgba(225,29,72,0.9)';
+            ctx.fillText(sStr, bx + candleW * 0.72, midY);
           }
         });
       }
 
       ctx.restore();
       return false;  // overlay mode
+    }
+  });
+
+  // ── CVD — Cumulative Volume Delta (sub-pane line, purple) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_CVD',
+    figures: [
+      { key: 'cvd', title: 'CVD $', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var cv = footprintData.cvd[String(d.timestamp)];
+        return cv ? { cvd: cv.cvd } : {};
+      });
+    },
+    styles: {
+      lines: [{ color: '#8b5cf6', size: 1.5 }]
     }
   });
 }
@@ -1882,7 +2010,7 @@ function applyIndicatorData(series) {
   });
 
   // Apply active indicators
-  var names = ['AXC_BB', 'AXC_EMA', 'AXC_MA', 'AXC_RSI', 'AXC_MACD', 'AXC_STOCH'];
+  var names = ['AXC_BB', 'AXC_EMA', 'AXC_MA', 'AXC_VWAP', 'AXC_RSI', 'AXC_MACD', 'AXC_STOCH'];
   names.forEach(function(name) {
     if (activeIndicators[name]) {
       addIndicatorToChart(name);
@@ -1897,7 +2025,7 @@ function applyIndicatorData(series) {
 
 function addIndicatorToChart(name) {
   if (!mainChart) return;
-  var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA');
+  var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA' || name === 'AXC_CVD');
   try {
     if (isSubPane) {
       var paneId = mainChart.createIndicator(name, true);
@@ -2677,7 +2805,7 @@ var _lastGatedInterval = '1h';
 function gateIndicators(interval) {
   // Hide indicator labels + seps for non-1h, but KEEP fp-toggle + fp-group-label visible
   var labels = document.querySelectorAll('#ind-toolbar label:not(.fp-toggle), #ind-toolbar .sep');
-  var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label');
+  var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label, #ind-toolbar .vol-preset-btn');
   if (interval !== '1h') {
     labels.forEach(function(el) { el.style.display = 'none'; });
     fpEls.forEach(function(el) { el.style.display = 'flex'; });

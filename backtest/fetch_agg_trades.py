@@ -292,17 +292,23 @@ def aggregate_volume_profile(
     return result
 
 
+FOOTPRINT_IMBALANCE_RATIO = 3.0  # buy:sell or sell:buy > 3:1 = imbalance
+
+
 def aggregate_footprint_heatmap(
     trades_df: pd.DataFrame,
     candle_timestamps: list[int],
     interval_ms: int,
     bucket_size: float = 50.0,
-    max_levels: int = 20,
+    max_levels: int = 40,
 ) -> dict:
     """
-    每根 candle 嘅 price-level heatmap。
+    每根 candle 嘅 price-level heatmap（含 delta + imbalance 標記）。
 
-    Returns: {candle_ts: [{price, buy_vol, sell_vol, total_vol}]}
+    設計決定：max_levels 40 而唔係 20，因為 BTC $50 bucket 喺 4H candle
+    價格範圍 ~$2000 = 40 levels 先夠覆蓋。imbalance ratio 3:1 係業界標準。
+
+    Returns: {candle_ts: [{price, buy_vol, sell_vol, total_vol, delta, imbalance}]}
     """
     if trades_df.empty:
         return {}
@@ -332,11 +338,17 @@ def aggregate_footprint_heatmap(
         for p in all_prices:
             bv = float(buys.get(p, 0))
             sv = float(sells.get(p, 0))
+            delta = bv - sv
+            # Imbalance: one side > 3× the other (skip if either side is negligible)
+            minor = min(bv, sv)
+            imbalance = (minor > 0 and max(bv, sv) / minor >= FOOTPRINT_IMBALANCE_RATIO)
             levels.append({
                 "price": float(p),
                 "buy_vol": round(bv, 4),
                 "sell_vol": round(sv, 4),
                 "total_vol": round(bv + sv, 4),
+                "delta": round(delta, 4),
+                "imbalance": imbalance,
             })
 
         # Keep top N levels by total_vol
@@ -346,5 +358,37 @@ def aggregate_footprint_heatmap(
         levels.sort(key=lambda x: x["price"])
 
         result[str(int(candle_ts))] = levels
+
+    return result
+
+
+def aggregate_cvd(
+    trades_df: pd.DataFrame,
+    candle_timestamps: list[int],
+    interval_ms: int,
+) -> dict:
+    """
+    Cumulative Volume Delta — per-candle delta 嘅 running sum。
+
+    重用 aggregate_delta_volume 嘅 per-candle buy-sell delta，做 cumulative sum。
+    CVD 上升 = 買方主導趨勢，CVD 下降 = 賣方主導。
+
+    Returns: {candle_ts: {delta, cvd}}
+    """
+    delta_data = aggregate_delta_volume(trades_df, candle_timestamps, interval_ms)
+    if not delta_data:
+        return {}
+
+    result = {}
+    cvd = 0.0
+    for ts in candle_timestamps:
+        ts_str = str(ts)
+        dv = delta_data.get(ts_str)
+        if dv:
+            cvd += dv["delta_usd"]
+        result[ts_str] = {
+            "delta": dv["delta_usd"] if dv else 0,
+            "cvd": round(cvd, 2),
+        }
 
     return result

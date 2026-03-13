@@ -4427,7 +4427,7 @@ def _handle_bt_aggtrades_inner(qs: dict):
     # Force minimum 15m for time-bucketed features
     _MIN_BUCKET_INTERVAL = 900_000  # 15m
     if _INTERVAL_MS[interval] < _MIN_BUCKET_INTERVAL:
-        if "delta" in features or "heatmap" in features:
+        if "delta" in features or "heatmap" in features or "cvd" in features:
             interval = "15m"
 
     try:
@@ -4441,6 +4441,7 @@ def _handle_bt_aggtrades_inner(qs: dict):
         aggregate_large_trades,
         aggregate_volume_profile,
         aggregate_footprint_heatmap,
+        aggregate_cvd,
         AGG_BUCKET_DEFAULTS,
     )
 
@@ -4499,6 +4500,13 @@ def _handle_bt_aggtrades_inner(qs: dict):
             logging.warning("aggregate_footprint_heatmap failed: %s", e)
             errors.append(f"heatmap: {e}")
             result["heatmap"] = {}
+    if "cvd" in features:
+        try:
+            result["cvd"] = aggregate_cvd(trades_df, candle_ts, interval_ms)
+        except Exception as e:
+            logging.warning("aggregate_cvd failed: %s", e)
+            errors.append(f"cvd: {e}")
+            result["cvd"] = {}
 
     if errors:
         result["warnings"] = errors

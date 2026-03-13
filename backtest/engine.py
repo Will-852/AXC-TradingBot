@@ -370,6 +370,9 @@ class BacktestEngine:
                 "stoch_k": ind_1h.get("stoch_k"),
                 "stoch_d": ind_1h.get("stoch_d"),
                 "volume_ratio": ind_1h.get("volume_ratio"),
+                "vwap": ind_1h.get("vwap"),
+                "vwap_upper": ind_1h.get("vwap_upper"),
+                "vwap_lower": ind_1h.get("vwap_lower"),
                 "mode": self.current_mode,
             })
 

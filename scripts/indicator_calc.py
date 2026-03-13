@@ -18,6 +18,7 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
+import numpy as np
 import pandas as pd
 import requests
 import tradingview_indicators as tv
@@ -158,6 +159,18 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         macd_signal = pd.Series([None] * len(close))
         macd_hist = pd.Series([None] * len(close))
 
+    # VWAP（anchored to loaded data start — 唔係 daily reset，
+    # 因為 backtest slice 跨多日，anchored VWAP 更有意義）
+    typical_price = (high + low + close) / 3
+    cum_tp_vol = (typical_price * df["volume"]).cumsum()
+    cum_vol = df["volume"].cumsum()
+    vwap = cum_tp_vol / cum_vol.replace(0, float("nan"))
+    # Standard deviation bands
+    vwap_var = ((typical_price - vwap) ** 2 * df["volume"]).cumsum() / cum_vol.replace(0, float("nan"))
+    vwap_std = np.sqrt(vwap_var.clip(lower=0))
+    vwap_upper = vwap + vwap_std
+    vwap_lower = vwap - vwap_std
+
     # 最新值
     i = len(df) - 1
 
@@ -217,6 +230,10 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         # Support / Resistance（rolling）
         "rolling_low": safe_val(low.rolling(params["lookback_support"]).min(), i),
         "rolling_high": safe_val(high.rolling(params["lookback_support"]).max(), i),
+        # VWAP
+        "vwap": safe_val(vwap, i),
+        "vwap_upper": safe_val(vwap_upper, i),
+        "vwap_lower": safe_val(vwap_lower, i),
     }
     return result
 
