@@ -1932,6 +1932,8 @@ def get_action_plan(scan_config, trade_state):
 
         high_24h = float(data.get("high", 0))
         low_24h = float(data.get("low", 0))
+        volume_24h = float(data.get("volume", 0))
+        volume_ratio = float(scan_config.get(f"{short}_volume_ratio", 0))
 
         plans.append({
             "symbol": sym, "price": price,
@@ -1952,6 +1954,8 @@ def get_action_plan(scan_config, trade_state):
             "tradeable": is_tradeable,
             "high_24h": high_24h,
             "low_24h": low_24h,
+            "volume_24h": volume_24h,
+            "volume_ratio": volume_ratio,
         })
     _action_cache["data"] = plans
     _action_cache["ts"] = now
@@ -3238,6 +3242,31 @@ def handle_symbol_info(qs):
             "order_types": ["MARKET"],
         }
     except Exception as e:
+        return 500, {"error": str(e)}
+
+
+_orderbook_cache: Dict[str, Any] = {}  # {symbol: {"data": ..., "ts": float}}
+_ORDERBOOK_CACHE_TTL = 10  # seconds
+
+
+def handle_orderbook(qs) -> tuple:
+    """GET /api/orderbook?symbol=BTCUSDT — Order book depth with wall detection. 10s cache."""
+    symbol = (qs.get("symbol", [""])[0] or "").upper().strip()
+    if not symbol:
+        return 400, {"error": "symbol required"}
+
+    now = time.time()
+    cached = _orderbook_cache.get(symbol)
+    if cached and now - cached["ts"] < _ORDERBOOK_CACHE_TTL:
+        return 200, cached["data"]
+
+    try:
+        client = _get_aster_client()
+        result = client.get_order_book(symbol, limit=20)
+        _orderbook_cache[symbol] = {"data": result, "ts": now}
+        return 200, result
+    except Exception as e:
+        logger.warning("Order book fetch failed for %s: %s", symbol, e)
         return 500, {"error": str(e)}
 
 
@@ -4718,7 +4747,8 @@ _ALLOWED_ORIGINS = {
 _CHAT_SYSTEM_PROMPT = """你係 AXC Dashboard 嘅 AI 交易搭檔。
 格式：Markdown OK（dashboard 支援 bold、list、code）。回覆上限 15 行。
 語氣：香港交易員廣東話口語，直接有態度。
-收到數據問數據答，有觀點要講。唔好客套。"""
+收到數據問數據答，有觀點要講。唔好客套。
+成交量解讀：volume_ratio >1.5 = 成交活躍，breakout 可信度高；<0.5 = 成交低迷，小心假突破。"""
 
 
 def _sonnet_usage_ok() -> bool:
@@ -4789,6 +4819,15 @@ def _build_chat_context() -> str:
             chg = a.get("change_24h", "")
             price_parts.append(f"{a.get('symbol','?')} {a.get('price', '?')} ({chg})")
         parts.append("價格: " + " | ".join(price_parts))
+
+    # Volume ratios (current vs 30-candle avg)
+    if ap:
+        vr_parts = [
+            f"{a.get('symbol','?').replace('USDT','')} {a.get('volume_ratio', 0):.1f}x"
+            for a in ap if a.get("volume_ratio", 0) > 0
+        ]
+        if vr_parts:
+            parts.append("成交量: " + " | ".join(vr_parts))
 
     # Funding rates
     fr = d.get("funding_rates", {})
@@ -5110,6 +5149,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(200, handle_exchange_balance())
         elif path == "/api/exchange/symbol-info":
             code, data = handle_symbol_info(qs)
+            self._json_response(code, data)
+        elif path == "/api/orderbook":
+            code, data = handle_orderbook(qs)
             self._json_response(code, data)
         elif path == "/api/file":
             rel = qs.get("path", [""])[0]

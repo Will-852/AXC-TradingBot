@@ -620,6 +620,22 @@
     .shepherd-cancel-icon { color: var(--text-3) !important; }
     .shepherd-modal-overlay-container { fill: rgba(15,23,42,.5) !important; }
     .shepherd-arrow:before { background: #fff !important; }
+
+    /* ── Order Book Modal ── */
+    .ob-grid { display: flex; gap: 8px; }
+    .ob-side { flex: 1; }
+    .ob-side-title { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; padding: 0 2px; }
+    .ob-side-title.bid { color: #0d9488; }
+    .ob-side-title.ask { color: #ef4444; }
+    .ob-row { display: flex; align-items: center; font-size: .7rem; padding: 1px 2px; border-radius: 3px; margin-bottom: 1px; position: relative; }
+    .ob-row.wall { outline: 2px solid #f59e0b; outline-offset: -1px; }
+    .ob-bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: .12; }
+    .ob-bar.bid { right: 0; background: #0d9488; }
+    .ob-bar.ask { left: 0; background: #ef4444; }
+    .ob-price { flex: 1; position: relative; z-index: 1; }
+    .ob-qty { flex: 1; text-align: right; position: relative; z-index: 1; color: #64748b; }
+    .ob-walls { margin-top: 8px; font-size: .65rem; color: #f59e0b; }
+    .ob-loading { text-align: center; color: #94a3b8; padding: 20px; font-size: .8rem; }
   </style>
   <link rel="stylesheet" href="/chat.css">
 </head>
@@ -1072,13 +1088,14 @@
                       <th>幣種</th>
                       <th>現價</th>
                       <th>24H</th>
+                      <th style="text-align:right">Vol</th>
                       <th style="text-align:center">24H 區間</th>
                       <th>SL / TP</th>
                       <th style="text-align:center">操作</th>
                     </tr>
                   </thead>
                   <tbody id="action-body">
-                    <tr><td colspan="6" class="text-center text-muted py-3">載入中…</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-3">載入中…</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1599,6 +1616,14 @@ function fmtPrice(n) {
   var v = parseFloat(n) || 0;
   if (v === 0) return '–';
   return v > 1000 ? v.toFixed(1) : v.toFixed(4);
+}
+function fmtVol(n) {
+  var v = parseFloat(n) || 0;
+  if (v === 0) return '–';
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(0) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
+  return v.toFixed(0);
 }
 function pnlColor(n) { return parseFloat(n) >= 0 ? '#0d9488' : '#e11d48'; }
 
@@ -2496,7 +2521,7 @@ function renderActionPlan(D) {
   var body = byId('action-body');
   if (!body) return;
   if (!plans.length) {
-    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">暫無數據</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">暫無數據</td></tr>';
     return;
   }
 
@@ -2612,22 +2637,103 @@ function renderActionPlan(D) {
     }
 
     var rowCls = isTradeable ? '' : ' class="ap-monitor"';
-    return '<tr' + rowCls + '>' +
+    // Volume cell with ratio badge
+    var vr = p.volume_ratio || 0;
+    var vrBadge = '';
+    if (vr > 0) {
+      var vrColor = vr >= 1.5 ? '#0d9488' : vr <= 0.5 ? '#ef4444' : '#94a3b8';
+      var vrWeight = vr >= 1.5 ? 'font-weight:600' : '';
+      vrBadge = '<div style="font-size:.55rem;color:' + vrColor + ';' + vrWeight + '">' + vr.toFixed(1) + 'x avg</div>';
+    }
+    var volHtml = '<span style="font-size:.75rem;color:#64748b">' + fmtVol(p.volume_24h) + '</span>' + vrBadge;
+
+    return '<tr' + rowCls + ' style="cursor:pointer" onclick="openOrderBook(\'' + p.symbol + '\')">' +
       '<td style="white-space:nowrap">' + symbolCell + '</td>' +
       '<td><div class="ap-price-row"><span class="ap-price">' + fmtPrice(p.price) + '</span>' + snapHtml + '</div></td>' +
       '<td>' + chgHtml + '</td>' +
+      '<td style="text-align:right">' + volHtml + '</td>' +
       '<td>' + rangeHtml + '</td>' +
       '<td>' + (isTradeable ? sltpHtml : monitorDash) + '</td>' +
-      '<td style="white-space:nowrap">' + actionHtml + '</td>' +
+      '<td style="white-space:nowrap" onclick="event.stopPropagation()">' + actionHtml + '</td>' +
       '</tr>';
   }
 
   var html = tradeable.map(_renderRow).join('');
   if (monitor.length) {
-    html += '<tr class="ap-monitor-divider"><td colspan="6" style="padding-top:6px"><span style="background:#f1f5f9;padding:1px 8px;border-radius:3px">📡 監控</span></td></tr>';
+    html += '<tr class="ap-monitor-divider"><td colspan="7" style="padding-top:6px"><span style="background:#f1f5f9;padding:1px 8px;border-radius:3px">📡 監控</span></td></tr>';
     html += monitor.map(_renderRow).join('');
   }
   body.innerHTML = html;
+}
+
+// ── Order Book Modal ──
+var _obTimer = null;
+var _obSymbol = null;
+
+function openOrderBook(symbol) {
+  _obSymbol = symbol;
+  byId('ob-title').textContent = symbol.replace('USDT', '') + ' Order Book';
+  byId('ob-body').innerHTML = '<div class="ob-loading">載入中…</div>';
+  $('#ob-modal').modal('show');
+  _fetchOrderBook();
+  _obTimer = setInterval(_fetchOrderBook, 10000);
+}
+
+$('#ob-modal').on('hidden.bs.modal', function() {
+  if (_obTimer) { clearInterval(_obTimer); _obTimer = null; }
+  _obSymbol = null;
+});
+
+function _fetchOrderBook() {
+  if (!_obSymbol) return;
+  fetch('/api/orderbook?symbol=' + _obSymbol)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { byId('ob-body').innerHTML = '<div class="ob-loading">錯誤: ' + d.error + '</div>'; return; }
+      _renderOrderBook(d);
+    })
+    .catch(function() { byId('ob-body').innerHTML = '<div class="ob-loading">連接失敗</div>'; });
+}
+
+function _renderOrderBook(d) {
+  var bids = d.bids || [], asks = d.asks || [], walls = d.walls || [];
+  var wallSet = {};
+  walls.forEach(function(w) { wallSet[w.price + '_' + w.side] = true; });
+
+  var maxQty = 0;
+  bids.forEach(function(b) { if (b[1] > maxQty) maxQty = b[1]; });
+  asks.forEach(function(a) { if (a[1] > maxQty) maxQty = a[1]; });
+  if (maxQty === 0) maxQty = 1;
+
+  function renderSide(levels, side) {
+    return levels.map(function(l) {
+      var price = l[0], qty = l[1];
+      var pct = (qty / maxQty * 100).toFixed(1);
+      var isWall = wallSet[price + '_' + side];
+      var wallCls = isWall ? ' wall' : '';
+      var barStyle = side === 'bid'
+        ? 'width:' + pct + '%;right:0'
+        : 'width:' + pct + '%;left:0';
+      return '<div class="ob-row' + wallCls + '">' +
+        '<div class="ob-bar ' + side + '" style="' + barStyle + '"></div>' +
+        '<span class="ob-price">' + fmtPrice(price) + '</span>' +
+        '<span class="ob-qty">' + fmtVol(qty) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  var wallHtml = '';
+  if (walls.length) {
+    wallHtml = '<div class="ob-walls">⚠ Walls: ' + walls.map(function(w) {
+      return (w.side === 'bid' ? '買' : '賣') + ' ' + fmtPrice(w.price) + ' (' + fmtVol(w.qty) + ')';
+    }).join(' | ') + '</div>';
+  }
+
+  byId('ob-body').innerHTML =
+    '<div class="ob-grid">' +
+      '<div class="ob-side"><div class="ob-side-title bid">Bids 買</div>' + renderSide(bids, 'bid') + '</div>' +
+      '<div class="ob-side"><div class="ob-side-title ask">Asks 賣</div>' + renderSide(asks, 'ask') + '</div>' +
+    '</div>' + wallHtml;
 }
 
 function showActionDetail(d) {
@@ -4105,6 +4211,21 @@ document.addEventListener('keydown', function(e) {
     <button class="chat-send-btn" id="chat-send">➜</button>
   </div>
 </div>
+<!-- Order Book Modal -->
+<div class="modal fade" id="ob-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content" style="border:none;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+      <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9">
+        <span style="font-weight:700;font-size:.85rem" id="ob-title">Order Book</span>
+        <button type="button" class="close" data-dismiss="modal" style="color:#64748b;text-shadow:none;opacity:.8;font-size:1.2rem"><span>&times;</span></button>
+      </div>
+      <div style="padding:12px 16px" id="ob-body">
+        <div class="ob-loading">載入中…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/chat.js"></script>
 <script src="/trade-modal.js"></script>

@@ -92,6 +92,9 @@ class BaseExchangeClient(ABC):
     @abstractmethod
     def validate_symbol_precision(self, symbol: str) -> Dict[str, float]: ...
 
+    @abstractmethod
+    def get_order_book(self, symbol: str, limit: int = 20) -> Dict[str, Any]: ...
+
 
 # ─── HMAC-based shared implementation ───
 
@@ -390,6 +393,20 @@ class HmacExchangeClient(BaseExchangeClient):
         if end_time:
             params["endTime"] = end_time
         return self._private_request("GET", "/fapi/v1/income", params)
+
+    def get_order_book(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
+        """Public order book depth. Detects walls (single order > 5% of total depth)."""
+        data = self._public_request("GET", f"/fapi/v1/depth?symbol={symbol}&limit={limit}")
+        bids = [[float(p), float(q)] for p, q in data.get("bids", [])]
+        asks = [[float(p), float(q)] for p, q in data.get("asks", [])]
+        total_qty = sum(q for _, q in bids) + sum(q for _, q in asks)
+        wall_threshold = total_qty * 0.05 if total_qty > 0 else float("inf")
+        walls = []
+        for side, levels in [("bid", bids), ("ask", asks)]:
+            for price, qty in levels:
+                if qty >= wall_threshold:
+                    walls.append({"side": side, "price": price, "qty": qty})
+        return {"bids": bids, "asks": asks, "walls": walls}
 
     def close_position_market(self, symbol: str) -> Dict[str, Any]:
         """Market close: read position → close with reduce_only."""

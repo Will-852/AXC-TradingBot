@@ -161,6 +161,11 @@ class WriteStateStep:
                             f"{rolling_high - zone_width:.2f}-{rolling_high + zone_width:.2f}"
                         )
 
+                # Volume ratio (current candle vol vs 30-candle avg)
+                vr = ind.get("volume_ratio")
+                if vr is not None:
+                    updates[f"{prefix}_volume_ratio"] = f"{vr:.2f}"
+
         # Funding timestamp
         updates["funding_ts"] = ts
 
