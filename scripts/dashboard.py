@@ -73,8 +73,10 @@ _CORE_SERVICES = [
 # ── AI Chat (Dashboard) ──────────────────────────────────────────────
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
-_CHAT_MODEL_CHAIN_FAST = ["claude-haiku-4-5-20251001", "gpt-5-mini"]
-_CHAT_MODEL_CHAIN_DEEP = ["claude-sonnet-4-6", "gpt-5-mini"]
+PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
+PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
+_CHAT_MODEL_CHAIN_FAST = ["claude-haiku-4-5-20251001", "gpt-5.4"]
+_CHAT_MODEL_CHAIN_DEEP = ["claude-sonnet-4-6", "gpt-5.4"]
 _CHAT_ANALYSIS_KW = {"分析", "點解", "策略", "比較", "評估", "建議"}
 _CHAT_SONNET_DAILY_CAP = 15
 _SONNET_USAGE_PATH = os.path.join(HOME, "shared", "sonnet_usage.json")
@@ -4387,23 +4389,90 @@ _INTERVAL_MS = {
     "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000,
 }
 
-_aggtrades_lock = threading.Lock()
+_aggtrades_jobs = {}  # job_id → {"status": "running"|"done"|"error", "result": ..., "started": float}
+_aggtrades_lock = threading.Lock()  # protects _aggtrades_jobs + ensures single concurrent fetch
+_AGGTRADES_JOB_TTL = 600  # seconds — evict completed jobs after this
+
+
+def _cleanup_old_jobs():
+    """Remove completed/errored jobs older than TTL."""
+    now = time.monotonic()
+    expired = [jid for jid, j in _aggtrades_jobs.items()
+               if j["status"] != "running" and (now - j["started"]) > _AGGTRADES_JOB_TTL]
+    for jid in expired:
+        del _aggtrades_jobs[jid]
 
 
 def handle_bt_aggtrades(qs: dict):
-    """Return aggregated aggTrade data for footprint/delta/VP/large-trade features."""
-    if not _aggtrades_lock.acquire(blocking=False):
-        return 429, {"error": "aggTrades fetch already in progress, please wait"}
-    try:
-        return _handle_bt_aggtrades_inner(qs)
-    finally:
-        _aggtrades_lock.release()
+    """Start aggTrades fetch as background job, return job_id immediately (202).
+
+    設計決定：aggTrades fetch 要 2-4 分鐘（SOL 410K trades/day），
+    同步 HTTP 會 timeout。改用 background job + polling 模式。
+    """
+    _cleanup_old_jobs()
+
+    # Check for running job — only 1 concurrent fetch allowed (Binance rate limit)
+    for jid, job in _aggtrades_jobs.items():
+        if job["status"] == "running":
+            elapsed = int(time.monotonic() - job["started"])
+            # Auto-expire stuck jobs (>5 min)
+            if elapsed > 300:
+                logging.warning("aggTrades job %s stuck (>300s), marking error", jid)
+                job["status"] = "error"
+                job["result"] = {"error": "fetch timed out after 300s"}
+                continue
+            return 429, {"error": f"aggTrades fetch already in progress ({elapsed}s elapsed)", "job_id": jid}
+
+    # Validate params before spawning thread
+    validated = _validate_aggtrades_params(qs)
+    if isinstance(validated, tuple):
+        return validated  # (status_code, error_dict)
+
+    job_id = f"agg_{int(time.time())}_{id(qs) % 10000}"
+    _aggtrades_jobs[job_id] = {"status": "running", "result": None, "started": time.monotonic()}
+
+    def _run():
+        try:
+            _, result = _handle_bt_aggtrades_inner(validated)
+            _aggtrades_jobs[job_id]["status"] = "done"
+            _aggtrades_jobs[job_id]["result"] = result
+        except Exception as e:
+            logging.exception("aggTrades job %s failed", job_id)
+            _aggtrades_jobs[job_id]["status"] = "error"
+            _aggtrades_jobs[job_id]["result"] = {"error": str(e)}
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return 202, {"job_id": job_id, "status": "running", "message": "aggTrades fetch started"}
+
+
+def handle_bt_aggtrades_status(qs: dict):
+    """Poll for aggTrades job completion."""
+    job_id = qs.get("job_id", [""])[0]
+    if not job_id or job_id not in _aggtrades_jobs:
+        return 404, {"error": "job not found"}
+    job = _aggtrades_jobs[job_id]
+    elapsed = int(time.monotonic() - job["started"])
+    if job["status"] == "running":
+        return 200, {"job_id": job_id, "status": "running", "elapsed": elapsed}
+    elif job["status"] == "done":
+        result = job["result"].copy()
+        result["job_id"] = job_id
+        result["elapsed"] = elapsed
+        result["status"] = "done"
+        return 200, result
+    else:
+        return 500, {"job_id": job_id, "status": "error", "error": job["result"].get("error", "unknown"), "elapsed": elapsed}
 
 
 _AGGTRADES_UNSUPPORTED = {"XAGUSDT", "XAUUSDT"}  # Aster DEX — no Binance aggTrades
 
+# BTC ~4min/day, SOL ~4min/day, ETH ~2min/day via Binance aggTrades API.
+_HIGH_VOL_MAX_DAYS = {"BTCUSDT": 1, "ETHUSDT": 2, "SOLUSDT": 1}
 
-def _handle_bt_aggtrades_inner(qs: dict):
+
+def _validate_aggtrades_params(qs: dict):
+    """Parse and validate aggTrades query params. Returns dict or (status, error) tuple."""
     symbol = qs.get("symbol", [""])[0].upper()
     if not symbol:
         return 400, {"error": "symbol required"}
@@ -4418,9 +4487,6 @@ def _handle_bt_aggtrades_inner(qs: dict):
         return 400, {"error": "invalid days"}
     if days < 1:
         return 400, {"error": "days must be >= 1"}
-    # BTC ~3min/day, ETH ~2min/day via Binance aggTrades API.
-    # Cap to keep total fetch <5min (HTTP timeout safe).
-    _HIGH_VOL_MAX_DAYS = {"BTCUSDT": 1, "ETHUSDT": 2}
     if symbol in _HIGH_VOL_MAX_DAYS:
         days = min(days, _HIGH_VOL_MAX_DAYS[symbol])
 
@@ -4431,9 +4497,7 @@ def _handle_bt_aggtrades_inner(qs: dict):
     features_str = qs.get("features", ["delta,large,profile,heatmap"])[0]
     features = set(f.strip() for f in features_str.split(","))
 
-    # Heatmap/delta on small intervals creates too many entries (20K+ at 1m)
-    # Force minimum 15m for time-bucketed features
-    _MIN_BUCKET_INTERVAL = 900_000  # 15m
+    _MIN_BUCKET_INTERVAL = 900_000
     if _INTERVAL_MS[interval] < _MIN_BUCKET_INTERVAL:
         if "delta" in features or "heatmap" in features or "cvd" in features:
             interval = "15m"
@@ -4443,6 +4507,28 @@ def _handle_bt_aggtrades_inner(qs: dict):
     except ValueError:
         threshold = 100_000
 
+    from backtest.fetch_agg_trades import AGG_BUCKET_DEFAULTS
+    try:
+        bucket_str = qs.get("bucket_size", [""])[0]
+        bucket_size = float(bucket_str) if bucket_str else AGG_BUCKET_DEFAULTS.get(symbol, 50)
+    except ValueError:
+        bucket_size = AGG_BUCKET_DEFAULTS.get(symbol, 50)
+
+    return {
+        "symbol": symbol, "days": days, "interval": interval,
+        "features": features, "threshold": threshold, "bucket_size": bucket_size,
+    }
+
+
+def _handle_bt_aggtrades_inner(params: dict):
+    """Execute aggTrades fetch + aggregation. Runs in background thread."""
+    symbol = params["symbol"]
+    days = params["days"]
+    interval = params["interval"]
+    features = params["features"]
+    threshold = params["threshold"]
+    bucket_size = params["bucket_size"]
+
     from backtest.fetch_agg_trades import (
         fetch_agg_trades_range,
         aggregate_delta_volume,
@@ -4450,29 +4536,15 @@ def _handle_bt_aggtrades_inner(qs: dict):
         aggregate_volume_profile,
         aggregate_footprint_heatmap,
         aggregate_cvd,
-        AGG_BUCKET_DEFAULTS,
     )
-
-    try:
-        bucket_str = qs.get("bucket_size", [""])[0]
-        bucket_size = float(bucket_str) if bucket_str else AGG_BUCKET_DEFAULTS.get(symbol, 50)
-    except ValueError:
-        bucket_size = AGG_BUCKET_DEFAULTS.get(symbol, 50)
 
     now = datetime.now(timezone.utc)
     end_ms = int(now.timestamp() * 1000)
     start_ms = int((now - timedelta(days=days)).timestamp() * 1000)
     interval_ms = _INTERVAL_MS[interval]
-
-    # Align start_ms to interval boundary so candle timestamps match Binance klines
     start_ms = (start_ms // interval_ms) * interval_ms
 
-    try:
-        trades_df = fetch_agg_trades_range(symbol, start_ms, end_ms)
-    except Exception as e:
-        return 500, {"error": f"Failed to fetch aggTrades: {e}"}
-
-    # Build candle timestamps aligned to interval boundaries
+    trades_df = fetch_agg_trades_range(symbol, start_ms, end_ms)
     candle_ts = list(range(start_ms, end_ms, interval_ms))
 
     result = {"symbol": symbol, "days": days, "interval": interval}
@@ -4953,32 +5025,36 @@ def _call_dashboard_llm(user_msg: str, context: str,
     for model in chain:
         is_anthropic = model.startswith("claude-")
         endpoint = "messages" if is_anthropic else "chat/completions"
-        url = f"{PROXY_BASE_URL}/{endpoint}"
+        proxies = [(PROXY_BASE_URL, PROXY_API_KEY)]
+        if not is_anthropic and PROXY2_BASE_URL and PROXY2_API_KEY:
+            proxies.append((PROXY2_BASE_URL, PROXY2_API_KEY))
 
-        if is_anthropic:
-            body_dict = {"model": model, "max_tokens": 1200,
-                         "system": _CHAT_SYSTEM_PROMPT,
-                         "messages": msgs[1:]}  # exclude system msg
-            headers = {"Content-Type": "application/json",
-                       "Authorization": f"Bearer {PROXY_API_KEY}",
-                       "anthropic-version": "2023-06-01"}
-        else:
-            body_dict = {"model": model, "max_tokens": 1200,
-                         "messages": msgs}
-            headers = {"Content-Type": "application/json",
-                       "Authorization": f"Bearer {PROXY_API_KEY}"}
-
-        req = urllib.request.Request(url, json.dumps(body_dict).encode(),
-                                     method="POST", headers=headers)
-        try:
-            resp = urllib.request.urlopen(req, timeout=30)
-            data = json.loads(resp.read())
+        for proxy_url, proxy_key in proxies:
+            url = f"{proxy_url}/{endpoint}"
             if is_anthropic:
-                return data["content"][0]["text"]
+                body_dict = {"model": model, "max_tokens": 1200,
+                             "system": _CHAT_SYSTEM_PROMPT,
+                             "messages": msgs[1:]}
+                headers = {"Content-Type": "application/json",
+                           "Authorization": f"Bearer {proxy_key}",
+                           "anthropic-version": "2023-06-01"}
             else:
-                return data["choices"][0]["message"]["content"]
-        except Exception:
-            continue
+                body_dict = {"model": model, "max_tokens": 1200,
+                             "messages": msgs}
+                headers = {"Content-Type": "application/json",
+                           "Authorization": f"Bearer {proxy_key}"}
+
+            req = urllib.request.Request(url, json.dumps(body_dict).encode(),
+                                         method="POST", headers=headers)
+            try:
+                resp = urllib.request.urlopen(req, timeout=30)
+                data = json.loads(resp.read())
+                if is_anthropic:
+                    return data["content"][0]["text"]
+                else:
+                    return data["choices"][0]["message"]["content"]
+            except Exception:
+                continue
 
     raise RuntimeError("All models in chain failed")
 
@@ -5271,6 +5347,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif path == "/api/backtest/aggtrades":
             code, data = handle_bt_aggtrades(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/aggtrades/status":
+            code, data = handle_bt_aggtrades_status(qs)
             self._json_response(code, data)
         elif path == "/api/backtest/export":
             code, data = handle_bt_export(qs)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 news_sentiment.py — 新聞情緒分析
-讀 shared/news_feed.json → LLM 情緒分類（fallback chain: Haiku → gpt-5-mini） → 原子寫入 shared/news_sentiment.json
+讀 shared/news_feed.json → LLM 情緒分類（fallback chain: Haiku → gpt-5.4） → 原子寫入 shared/news_sentiment.json
 
 只分析最近 1 小時嘅文章（避免分析過期舊聞影響決策）。
 已分析文章 URL hash 記錄在 sentiment 輸出，下次跳過。
@@ -42,7 +42,9 @@ if ENV_PATH.exists():
 
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
-MODEL_CHAIN = ["claude-haiku-4-5-20251001", "gpt-5-mini"]  # try in order
+PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
+PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
+MODEL_CHAIN = ["claude-haiku-4-5-20251001", "gpt-5.4"]  # try in order
 
 logging.basicConfig(
     level=logging.INFO,
@@ -191,40 +193,51 @@ s: per-item sentiment, one of "bullish", "bearish", "neutral". Every narrative a
 Each narrative/risk_event "text" should be 30-80 characters (Chinese). Include key detail — e.g. numbers, asset names, direction. More informative than a bare headline, but still concise."""
 
     # Try each model in chain until one succeeds AND parses as JSON
+    # GPT models: try proxy1 then proxy2 (failover)
     result = None
     for model in MODEL_CHAIN:
         is_anthropic = model.startswith("claude-")
-        endpoint = "messages" if is_anthropic else "chat/completions"
-        url = f"{PROXY_BASE_URL}/{endpoint}"
+        # Claude = proxy1 only; GPT = proxy1 then proxy2
+        proxies = [(PROXY_BASE_URL, PROXY_API_KEY)]
+        if not is_anthropic and PROXY2_BASE_URL and PROXY2_API_KEY:
+            proxies.append((PROXY2_BASE_URL, PROXY2_API_KEY))
 
-        if is_anthropic:
-            body = {"model": model, "max_tokens": 4096,
-                    "messages": [{"role": "user", "content": prompt}]}
-            headers = {"Content-Type": "application/json",
-                       "Authorization": f"Bearer {PROXY_API_KEY}",
-                       "anthropic-version": "2023-06-01"}
-        else:
-            body = {"model": model, "max_tokens": 4096,
-                    "messages": [{"role": "user", "content": prompt}]}
-            headers = {"Content-Type": "application/json",
-                       "Authorization": f"Bearer {PROXY_API_KEY}"}
+        text = ""
+        for proxy_url, proxy_key in proxies:
+            endpoint = "messages" if is_anthropic else "chat/completions"
+            url = f"{proxy_url}/{endpoint}"
 
-        req = urllib.request.Request(url, json.dumps(body).encode("utf-8"),
-                                     method="POST", headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.loads(resp.read().decode())
             if is_anthropic:
-                text = next((b["text"] for b in data.get("content", [])
-                             if b.get("type") == "text"), "")
+                body = {"model": model, "max_tokens": 4096,
+                        "messages": [{"role": "user", "content": prompt}]}
+                headers = {"Content-Type": "application/json",
+                           "Authorization": f"Bearer {proxy_key}",
+                           "anthropic-version": "2023-06-01"}
             else:
-                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            if not text:
-                log.warning("Model %s returned empty content", model)
+                body = {"model": model, "max_tokens": 4096,
+                        "messages": [{"role": "user", "content": prompt}]}
+                headers = {"Content-Type": "application/json",
+                           "Authorization": f"Bearer {proxy_key}"}
+
+            req = urllib.request.Request(url, json.dumps(body).encode("utf-8"),
+                                         method="POST", headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    data = json.loads(resp.read().decode())
+                if is_anthropic:
+                    text = next((b["text"] for b in data.get("content", [])
+                                 if b.get("type") == "text"), "")
+                else:
+                    text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if text:
+                    log.info("Model %s via %s returned %d chars", model, proxy_url.split("//")[1].split("/")[0], len(text))
+                    break
+                log.warning("Model %s via %s returned empty", model, proxy_url.split("//")[1].split("/")[0])
+            except Exception as e:
+                log.warning("Model %s via %s failed: %s", model, proxy_url.split("//")[1].split("/")[0], e)
                 continue
-            log.info("Model %s returned %d chars", model, len(text))
-        except Exception as e:
-            log.warning("Model %s failed: %s", model, e)
+
+        if not text:
             continue
 
         # Try to parse JSON from this model's response

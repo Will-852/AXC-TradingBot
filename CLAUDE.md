@@ -56,8 +56,9 @@
 ## Model Tiers
 - tier1: claude-sonnet-4-6 — decisions + trading
 - tier2: claude-haiku-4-5 — scanning + tg_bot
-- tier3: gpt-5-mini — daily/agent default
+- tier3: gpt-5.4 — daily/agent default
 - Proxy: `https://tao.plus7.plus/v1`, key = PROXY_API_KEY
+- Proxy2 (GPT failover): `https://yinli.one/v1`, key = PROXY2_API_KEY
 
 ## Telegram
 - @AXCTradingBot → tg_bot.py | @axccommandbot → gateway
