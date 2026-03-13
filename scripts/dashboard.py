@@ -4397,10 +4397,15 @@ def handle_bt_aggtrades(qs: dict):
         _aggtrades_lock.release()
 
 
+_AGGTRADES_UNSUPPORTED = {"XAGUSDT", "XAUUSDT"}  # Aster DEX — no Binance aggTrades
+
+
 def _handle_bt_aggtrades_inner(qs: dict):
     symbol = qs.get("symbol", [""])[0].upper()
     if not symbol:
         return 400, {"error": "symbol required"}
+    if symbol in _AGGTRADES_UNSUPPORTED:
+        return 400, {"error": f"{symbol} 係 Aster DEX 幣種，冇公開 aggTrades API。Order Flow 只適用於 Binance 幣種。"}
     if symbol not in _BT_ALLOWED_SYMBOLS:
         return 400, {"error": f"symbol not allowed: {symbol}. Valid: {sorted(_BT_ALLOWED_SYMBOLS)}"}
 
@@ -4462,17 +4467,41 @@ def _handle_bt_aggtrades_inner(qs: dict):
     candle_ts = list(range(start_ms, end_ms, interval_ms))
 
     result = {"symbol": symbol, "days": days, "interval": interval}
+    errors = []
 
     if "delta" in features:
-        result["delta_volume"] = aggregate_delta_volume(trades_df, candle_ts, interval_ms)
+        try:
+            result["delta_volume"] = aggregate_delta_volume(trades_df, candle_ts, interval_ms)
+        except Exception as e:
+            logging.warning("aggregate_delta_volume failed: %s", e)
+            errors.append(f"delta: {e}")
+            result["delta_volume"] = {}
     if "large" in features:
-        result["large_trades"] = aggregate_large_trades(trades_df, threshold)
+        try:
+            result["large_trades"] = aggregate_large_trades(trades_df, threshold)
+        except Exception as e:
+            logging.warning("aggregate_large_trades failed: %s", e)
+            errors.append(f"large: {e}")
+            result["large_trades"] = []
     if "profile" in features:
-        result["volume_profile"] = aggregate_volume_profile(trades_df, bucket_size)
+        try:
+            result["volume_profile"] = aggregate_volume_profile(trades_df, bucket_size)
+        except Exception as e:
+            logging.warning("aggregate_volume_profile failed: %s", e)
+            errors.append(f"profile: {e}")
+            result["volume_profile"] = []
     if "heatmap" in features:
-        result["heatmap"] = aggregate_footprint_heatmap(
-            trades_df, candle_ts, interval_ms, bucket_size
-        )
+        try:
+            result["heatmap"] = aggregate_footprint_heatmap(
+                trades_df, candle_ts, interval_ms, bucket_size
+            )
+        except Exception as e:
+            logging.warning("aggregate_footprint_heatmap failed: %s", e)
+            errors.append(f"heatmap: {e}")
+            result["heatmap"] = {}
+
+    if errors:
+        result["warnings"] = errors
 
     return 200, result
 

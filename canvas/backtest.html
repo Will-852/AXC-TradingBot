@@ -474,132 +474,149 @@
     .btn-livepos:hover { background: #cbd5e1; }
     .btn-livepos.active { background: #2563eb; color: #fff; }
 
-    /* ── Guide panel ── */
+    /* ── Guide panel (accordion pattern) ── */
     .guide-panel {
       background: var(--card);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding: 0;
-      overflow: hidden;
-      transition: max-height .3s ease;
     }
     .guide-toggle {
-      padding: 10px 16px;
-      font-size: .72rem;
+      padding: 12px 16px;
+      font-size: .78rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      color: var(--text-3);
+      color: var(--text-1);
       cursor: pointer;
       user-select: none;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
-    .guide-toggle:hover { color: var(--text-2); }
-    .guide-toggle .arrow { transition: transform .2s; font-size: .7rem; }
+    .guide-toggle:hover { background: #f8fafc; border-radius: var(--radius); }
+    .guide-toggle .arrow { transition: transform .2s; font-size: .7rem; color: var(--text-3); }
     .guide-toggle .arrow.open { transform: rotate(90deg); }
-    .guide-body {
-      padding: 0 16px 14px;
-      font-size: .75rem;
-      line-height: 1.65;
-      color: var(--text-2);
+    .guide-toggle .gi {
+      width: 24px; height: 24px;
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: .65rem;
     }
-    .guide-body h6 {
-      font-size: .68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      color: var(--accent);
-      margin: 12px 0 6px;
-      padding-top: 8px;
+    .guide-body { padding: 0 14px 12px; color: var(--text-2); }
+
+    /* ── Accordion sections (native <details>) ── */
+    .guide-body details {
       border-top: 1px solid var(--border);
     }
-    .guide-body h6:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+    .guide-body details:first-of-type { border-top: none; }
+    .guide-body summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 2px;
+      cursor: pointer;
+      list-style: none;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--text-1);
+      min-height: 44px;
+    }
+    .guide-body summary::-webkit-details-marker { display: none; }
+    .guide-body summary::before {
+      content: '\f105';
+      font-family: 'Font Awesome 5 Free';
+      font-weight: 900;
+      font-size: .6rem;
+      color: var(--text-3);
+      width: 12px;
+      text-align: center;
+      transition: transform .2s;
+    }
+    .guide-body details[open] > summary::before { transform: rotate(90deg); }
+    .guide-body summary .g-icon {
+      width: 22px; height: 22px; min-width: 22px;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .58rem; color: #fff;
+    }
+    .guide-body .g-content { padding: 0 2px 10px 22px; font-size: .75rem; line-height: 1.6; }
+
+    /* ── Connection status ── */
+    .guide-body .conn-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; background: #f8fafc;
+      border-radius: 6px; margin-bottom: 4px;
+    }
     .guide-body .conn-status {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: .68rem;
-      font-weight: 600;
+      padding: 3px 10px; border-radius: 10px;
+      font-size: .7rem; font-weight: 600; white-space: nowrap;
     }
     .guide-body .conn-ok { background: #d1fae5; color: #059669; }
     .guide-body .conn-fail { background: #fee2e2; color: #dc2626; }
     .guide-body .conn-checking { background: #dbeafe; color: #2563eb; }
+    .guide-body .conn-msg { font-size: .7rem; color: var(--text-3); }
     .guide-body code {
-      background: #f1f5f9;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: .7rem;
+      background: #f1f5f9; padding: 1px 5px;
+      border-radius: 3px; font-size: .68rem;
     }
-    .guide-body .strat-card {
-      background: #f8fafc;
-      border-radius: 6px;
-      padding: 8px 10px;
-      margin: 4px 0;
-    }
-    .guide-body .strat-card .strat-name {
-      font-weight: 700;
-      font-size: .72rem;
-      color: var(--text-1);
-    }
-    .guide-body .strat-card .strat-desc {
-      color: var(--text-3);
-      font-size: .68rem;
-      margin-top: 2px;
-    }
-    .guide-body table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .68rem;
-      margin: 4px 0;
-    }
-    .guide-body table th {
-      text-align: left;
-      font-weight: 600;
-      color: var(--text-3);
-      padding: 3px 6px;
-      border-bottom: 1px solid var(--border);
-    }
-    .guide-body table td {
-      padding: 3px 6px;
-      color: var(--text-2);
-    }
-    .guide-body .warn-box {
-      background: #fef3c7;
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: .68rem;
-      color: #92400e;
-      margin-top: 6px;
-    }
-    .guide-body .cmd-box {
-      background: #1e293b;
-      color: #e2e8f0;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-family: monospace;
-      font-size: .68rem;
-      margin: 4px 0;
-      overflow-x: auto;
-      user-select: all;
-    }
+
+    /* ── Steps ── */
+    .guide-body .g-step { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; }
     .guide-body .step-num {
-      display: inline-block;
-      width: 18px; height: 18px;
-      background: var(--accent);
-      color: #fff;
-      border-radius: 50%;
-      text-align: center;
-      font-size: .62rem;
-      font-weight: 700;
-      line-height: 18px;
-      margin-right: 4px;
+      width: 20px; height: 20px; min-width: 20px;
+      background: var(--accent); color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .62rem; font-weight: 700;
     }
-    .guide-body .note {
-      color: var(--text-3);
-      font-size: .65rem;
-      font-style: italic;
+    .guide-body .step-text { font-size: .75rem; line-height: 1.45; padding-top: 1px; }
+    .guide-body .note { color: var(--text-3); font-size: .68rem; padding: 4px 0 0 28px; }
+
+    /* ── Strategy cards ── */
+    .guide-body .strat-card {
+      display: flex; gap: 10px;
+      padding: 10px 12px; background: #f8fafc;
+      border-radius: 6px; margin: 6px 0;
+      border-left: 3px solid var(--text-3);
+    }
+    .guide-body .strat-card .strat-icon {
+      width: 28px; height: 28px; min-width: 28px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; color: #fff;
+    }
+    .guide-body .strat-card .strat-info { flex: 1; min-width: 0; }
+    .guide-body .strat-card .strat-name { font-weight: 700; font-size: .78rem; }
+    .guide-body .strat-card .strat-sub { font-size: .68rem; color: var(--text-3); margin-top: 1px; }
+    .guide-body .strat-card .strat-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+    .guide-body .strat-card .strat-tag {
+      font-size: .6rem; font-weight: 600;
+      padding: 1px 6px; border-radius: 3px;
+      background: #e2e8f0; color: var(--text-2);
+    }
+
+    /* ── Tables ── */
+    .guide-body table { width: 100%; border-collapse: collapse; font-size: .72rem; margin: 6px 0; }
+    .guide-body table th {
+      text-align: left; font-weight: 600; font-size: .62rem;
+      color: var(--text-3); text-transform: uppercase; letter-spacing: .03em;
+      padding: 6px 6px; border-bottom: 2px solid var(--border);
+    }
+    .guide-body table td { padding: 5px 6px; color: var(--text-2); border-bottom: 1px solid #f1f5f9; }
+    .guide-body table tr:last-child td { border-bottom: none; }
+    .guide-body table .t-label { font-weight: 600; color: var(--text-1); white-space: nowrap; }
+    .guide-body table .t-pass { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* ── Boxes ── */
+    .guide-body .warn-box {
+      display: flex; gap: 8px; align-items: flex-start;
+      background: #fef3c7; border-radius: 6px; padding: 10px 12px;
+      font-size: .72rem; color: #92400e; margin-top: 8px;
+    }
+    .guide-body .warn-box .warn-icon { font-size: .9rem; line-height: 1; min-width: 16px; }
+    .guide-body .cmd-box {
+      background: #1e293b; color: #e2e8f0; border-radius: 6px;
+      padding: 8px 10px; font-family: 'SF Mono', monospace;
+      font-size: .68rem; margin: 4px 0; overflow-x: auto;
+      user-select: all; line-height: 1.4;
     }
 
     /* ── Responsive (Phase 5) ── */
@@ -831,6 +848,8 @@
       <div class="draw-toolbar" id="draw-toolbar">
         <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線 — 標記支撐/阻力位">&#x2194;</button>
         <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線 — 兩點畫一條線">&#x2571;</button>
+        <button class="draw-btn" onclick="setDrawingMode('rect', this)" title="矩形 — 標記區域/zone" style="font-size:11px">&#x25AD;</button>
+        <button class="draw-btn" onclick="setDrawingMode('axc_arrow', this)" title="箭頭 — 方向標記">&#x2B07;</button>
         <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci — 黃金比例回撤">Fib</button>
         <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線">&#x1F5D1;</button>
       </div>
@@ -848,90 +867,155 @@
     <div class="guide-panel" id="guide-panel">
       <div class="guide-toggle" onclick="toggleGuide()">
         <i class="fas fa-caret-right arrow open" id="guide-arrow"></i>
-        <i class="fas fa-book"></i> HOW IT WORKS — 使用指南
+        <div class="gi"><i class="fas fa-book"></i></div>
+        使用指南
       </div>
       <div class="guide-body" id="guide-body">
 
-        <h6><i class="fas fa-wifi"></i> 連接狀態</h6>
-        <span class="conn-status conn-checking" id="conn-status">檢查中...</span>
-        <span id="conn-msg" style="font-size:.65rem;color:var(--text-3);margin-left:6px"></span>
-        <div id="conn-help" style="display:none;margin-top:6px">
-          <div style="font-size:.68rem;color:var(--text-2)">啟動 Dashboard：</div>
-          <div class="cmd-box">launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.dashboard.plist</div>
-          <div style="font-size:.65rem;color:var(--text-3);margin-top:2px">然後打開 <code id="conn-url"></code></div>
-        </div>
-
-        <h6><i class="fas fa-play-circle"></i> 快速開始</h6>
-        <div><span class="step-num">1</span> 揀 <b>Symbol</b>（幣對）同 <b>Days</b>（歷史日數）</div>
-        <div><span class="step-num">2</span> 撳 <b>「執行回測」</b> — 等 30-60 秒</div>
-        <div><span class="step-num">3</span> 睇結果：K 線圖 + 右邊 Performance + Trade Log</div>
-        <div class="note">進階：展開下方 PARAMETERS 面板可以調策略參數</div>
-
-        <h6><i class="fas fa-brain"></i> 策略引擎</h6>
-        <div style="font-size:.68rem;color:var(--text-3);margin-bottom:4px">
-          引擎每 4H 用 6 個指標（RSI / MACD / Volume / MA / Funding / HMM）投票判斷市場模式，然後用對應策略搵入場訊號。
-        </div>
-
-        <div class="strat-card">
-          <div class="strat-name" style="color:#0d9488">RANGE 震盪策略</div>
-          <div class="strat-desc">
-            <b>觸發：</b>BB 觸及 + RSI 超買超賣反轉 + 支撐/阻力位<br>
-            <b>方向：</b>LONG / SHORT<br>
-            <b>邏輯：</b>價格喺區間來回彈，喺邊界反轉入場
+        <!-- Connection — always visible -->
+        <details open>
+          <summary>
+            <div class="g-icon" style="background:#3b82f6"><i class="fas fa-wifi"></i></div>
+            連接狀態
+          </summary>
+          <div class="g-content">
+            <div class="conn-row">
+              <span class="conn-status conn-checking" id="conn-status">檢查中...</span>
+              <span class="conn-msg" id="conn-msg"></span>
+            </div>
+            <div id="conn-help" style="display:none;margin-top:6px">
+              <div style="font-size:.72rem;color:var(--text-2);margin-bottom:3px">啟動 Dashboard：</div>
+              <div class="cmd-box">launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.dashboard.plist</div>
+              <div style="font-size:.68rem;color:var(--text-3);margin-top:3px">然後打開 <code id="conn-url"></code></div>
+            </div>
           </div>
-        </div>
-        <div class="strat-card">
-          <div class="strat-name" style="color:#2563eb">TREND 趨勢策略</div>
-          <div class="strat-desc">
-            <b>觸發：</b>MA 排列 + MACD 擴張 + RSI 回調 + 價格接近 MA<br>
-            <b>方向：</b>LONG / SHORT<br>
-            <b>邏輯：</b>確認趨勢後，等回調到 MA 附近順勢入場
+        </details>
+
+        <!-- Quick Start — open by default -->
+        <details open>
+          <summary>
+            <div class="g-icon" style="background:var(--accent)"><i class="fas fa-play"></i></div>
+            快速開始
+          </summary>
+          <div class="g-content">
+            <div class="g-step">
+              <div class="step-num">1</div>
+              <div class="step-text">揀 <b>Symbol</b> 同 <b>Days</b></div>
+            </div>
+            <div class="g-step">
+              <div class="step-num">2</div>
+              <div class="step-text">撳 <b>「執行回測」</b> — 等 30-60 秒</div>
+            </div>
+            <div class="g-step">
+              <div class="step-num">3</div>
+              <div class="step-text">睇 K 線圖 + Performance + Trade Log</div>
+            </div>
+            <div class="note">展開 PARAMETERS 面板可調策略參數</div>
           </div>
-        </div>
-        <div class="strat-card">
-          <div class="strat-name" style="color:#e11d48">CRASH 崩盤策略</div>
-          <div class="strat-desc">
-            <b>觸發：</b>RSI > 60 + MACD < 0 + 成交量暴升（2/3 條件）<br>
-            <b>方向：</b>SHORT only<br>
-            <b>邏輯：</b>急跌反彈到高位後做空，捕捉繼續下跌
+        </details>
+
+        <!-- Strategies — collapsed -->
+        <details>
+          <summary>
+            <div class="g-icon" style="background:#8b5cf6"><i class="fas fa-brain"></i></div>
+            策略引擎
+          </summary>
+          <div class="g-content">
+            <div style="font-size:.68rem;color:var(--text-3);margin-bottom:6px">
+              每 4H 用 6 個指標投票判斷 RANGE / TREND / CRASH
+            </div>
+            <div class="strat-card" style="border-left-color:#0d9488">
+              <div class="strat-icon" style="background:#0d9488"><i class="fas fa-arrows-alt-h"></i></div>
+              <div class="strat-info">
+                <div class="strat-name" style="color:#0d9488">RANGE</div>
+                <div class="strat-sub">區間邊界反轉入場</div>
+                <div class="strat-tags">
+                  <span class="strat-tag">BB 觸及</span><span class="strat-tag">RSI 反轉</span><span class="strat-tag">支撐/阻力</span>
+                </div>
+              </div>
+            </div>
+            <div class="strat-card" style="border-left-color:#2563eb">
+              <div class="strat-icon" style="background:#2563eb"><i class="fas fa-chart-line"></i></div>
+              <div class="strat-info">
+                <div class="strat-name" style="color:#2563eb">TREND</div>
+                <div class="strat-sub">回調到 MA 附近順勢入場</div>
+                <div class="strat-tags">
+                  <span class="strat-tag">MA 排列</span><span class="strat-tag">MACD</span><span class="strat-tag">RSI 回調</span>
+                </div>
+              </div>
+            </div>
+            <div class="strat-card" style="border-left-color:#e11d48">
+              <div class="strat-icon" style="background:#e11d48"><i class="fas fa-bolt"></i></div>
+              <div class="strat-info">
+                <div class="strat-name" style="color:#e11d48">CRASH</div>
+                <div class="strat-sub">急跌反彈後做空</div>
+                <div class="strat-tags">
+                  <span class="strat-tag">RSI &gt;60</span><span class="strat-tag">MACD &lt;0</span>
+                  <span class="strat-tag" style="background:#fee2e2;color:#991b1b">SHORT only</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </details>
 
-        <h6><i class="fas fa-cog"></i> 引擎運作細節</h6>
-        <table>
-          <tr><th>項目</th><th>設定</th></tr>
-          <tr><td>主時框</td><td>1H tick + 4H MTF 雙時框</td></tr>
-          <tr><td>手續費</td><td>0.05% × 2（入場+出場）</td></tr>
-          <tr><td>SL 滑點</td><td>0.02%（市價止損額外成本）</td></tr>
-          <tr><td>模式確認</td><td>需要 2 次連續相同判定（CRASH 例外：即時生效）</td></tr>
-          <tr><td>訊號 → 入場</td><td>下一根 candle open 執行（無 look-ahead）</td></tr>
-          <tr><td>訊號確認</td><td>Range/Trend 需連續 2 根出相同訊號</td></tr>
-        </table>
-        <div class="note">唔模擬：Funding rate / Trailing SL / Partial TP / 滑點（止損外）/ 多幣同時持倉</div>
+        <!-- Engine — collapsed -->
+        <details>
+          <summary>
+            <div class="g-icon" style="background:#475569"><i class="fas fa-cog"></i></div>
+            引擎運作
+          </summary>
+          <div class="g-content">
+            <table>
+              <tr><td class="t-label">時框</td><td>1H + 4H MTF</td></tr>
+              <tr><td class="t-label">手續費</td><td>0.05% × 2</td></tr>
+              <tr><td class="t-label">SL 滑點</td><td>0.02%</td></tr>
+              <tr><td class="t-label">模式確認</td><td>2 次連續（CRASH 即時）</td></tr>
+              <tr><td class="t-label">入場</td><td>下根 candle open</td></tr>
+              <tr><td class="t-label">訊號確認</td><td>連續 2 根相同</td></tr>
+            </table>
+          </div>
+        </details>
 
-        <h6><i class="fas fa-sliders-h"></i> 預設參數</h6>
-        <table>
-          <tr><th>策略</th><th>SL</th><th>R:R</th><th>槓桿</th><th>風險</th></tr>
-          <tr><td style="color:#0d9488;font-weight:600">Range</td><td>1.2× ATR</td><td>2.3</td><td>8×</td><td>2%</td></tr>
-          <tr><td style="color:#2563eb;font-weight:600">Trend</td><td>1.5× ATR</td><td>3.0</td><td>7×</td><td>2%</td></tr>
-          <tr><td style="color:#e11d48;font-weight:600">Crash</td><td>2.0× ATR</td><td>1.5</td><td>5×</td><td>1%</td></tr>
-        </table>
-        <div class="note">展開 PARAMETERS 面板可以改呢啲數值，留空 = 用以上預設</div>
+        <!-- Params — collapsed -->
+        <details>
+          <summary>
+            <div class="g-icon" style="background:#f59e0b"><i class="fas fa-sliders-h"></i></div>
+            預設參數
+          </summary>
+          <div class="g-content">
+            <table>
+              <tr><th>策略</th><th>SL</th><th>R:R</th><th>Lev</th><th>Risk</th></tr>
+              <tr><td class="t-label" style="color:#0d9488">Range</td><td>1.2×</td><td class="t-pass">2.3</td><td>8×</td><td>2%</td></tr>
+              <tr><td class="t-label" style="color:#2563eb">Trend</td><td>1.5×</td><td class="t-pass">3.0</td><td>7×</td><td>2%</td></tr>
+              <tr><td class="t-label" style="color:#e11d48">Crash</td><td>2.0×</td><td class="t-pass">1.5</td><td>5×</td><td>1%</td></tr>
+            </table>
+            <div class="note">PARAMETERS 面板可改，留空 = 預設</div>
+          </div>
+        </details>
 
-        <h6><i class="fas fa-chart-bar"></i> 結果點睇</h6>
-        <table>
-          <tr><th>指標</th><th>及格線</th><th>意義</th></tr>
-          <tr><td>Win Rate</td><td>&gt; 50%</td><td>贏嘅比例</td></tr>
-          <tr><td>Profit Factor</td><td>&gt; 1.5</td><td>總賺 ÷ 總蝕</td></tr>
-          <tr><td>Sharpe</td><td>&gt; 1.0</td><td>風險調整後回報</td></tr>
-          <tr><td>Max DD</td><td>&lt; 15%</td><td>最大回撤（越低越好）</td></tr>
-          <tr><td>Expectancy</td><td>&gt; $0</td><td>平均每筆交易賺幾多</td></tr>
-        </table>
-
-        <div class="warn-box">
-          <b>回測 ≠ 真實交易</b><br>
-          唔模擬 funding rate、實際滑點、API 延遲。經驗法則：回測回報 × 0.5–0.7 ≈ 真實預期。
-        </div>
+        <!-- Results — collapsed -->
+        <details>
+          <summary>
+            <div class="g-icon" style="background:#059669"><i class="fas fa-chart-bar"></i></div>
+            結果點睇
+          </summary>
+          <div class="g-content">
+            <table>
+              <tr><th>指標</th><th>及格</th><th>意義</th></tr>
+              <tr><td class="t-label">WR</td><td class="t-pass" style="color:var(--pos)">&gt;50%</td><td>贏嘅比例</td></tr>
+              <tr><td class="t-label">PF</td><td class="t-pass" style="color:var(--pos)">&gt;1.5</td><td>總賺÷總蝕</td></tr>
+              <tr><td class="t-label">Sharpe</td><td class="t-pass" style="color:var(--pos)">&gt;1.0</td><td>風險調整回報</td></tr>
+              <tr><td class="t-label">DD</td><td class="t-pass" style="color:var(--neg)">&lt;15%</td><td>最大回撤</td></tr>
+            </table>
+            <div class="warn-box">
+              <div class="warn-icon">&#9888;</div>
+              <div>
+                <b>回測 ≠ 真實</b><br>
+                回測回報 × 0.5–0.7 ≈ 真實預期
+              </div>
+            </div>
+          </div>
+        </details>
 
       </div>
     </div>
@@ -1075,7 +1159,11 @@ function setState(s, ctx) {
 // ── API helpers ──
 function api(url, opts) {
   return fetch(url, opts).then(function(r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) {
+      return r.json().catch(function() { return {}; }).then(function(body) {
+        throw new Error(body.error || ('HTTP ' + r.status));
+      });
+    }
     return r.json();
   });
 }
@@ -1144,6 +1232,23 @@ function initChart() {
       crosshair: {
         horizontal: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } },
         vertical: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } }
+      },
+      overlay: {
+        rect: {
+          color: 'rgba(255,193,7,0.70)',
+          borderColor: 'rgba(255,193,7,0.70)',
+          borderSize: 1.5
+        },
+        line: { color: '#d1d4dc', size: 1 },
+        point: {
+          color: '#d1d4dc',
+          borderColor: 'rgba(255,255,255,0.4)',
+          borderSize: 1,
+          radius: 4,
+          activeColor: '#2962ff',
+          activeBorderColor: '#2962ff',
+          activeRadius: 6
+        }
       }
     }
   });
@@ -1248,7 +1353,14 @@ function fetchFootprintData() {
       footprintData.heatmap = data.heatmap || {};
       fpFetched = true;
       fpLoading = false;
-      showToast('AggTrades 載入完成 (' + (footprintData.large_trades.length) + ' whale trades)', 'success');
+
+      var msg = 'AggTrades 載入完成 (' + (footprintData.large_trades.length) + ' whale trades)';
+      if (data.warnings && data.warnings.length) {
+        msg += ' ⚠️ ' + data.warnings.join('; ');
+        showToast(msg, 'warning');
+      } else {
+        showToast(msg, 'success');
+      }
 
       // Apply all features toggled on during loading
       Object.keys(fpActive).forEach(function(f) {
@@ -1262,7 +1374,8 @@ function fetchFootprintData() {
       fpActive = { large: false, delta: false, profile: false, heatmap: false };
       _syncFpToggleStyle();
       document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
-      showToast('AggTrades 載入失敗: ' + e.message, 'error');
+      var errMsg = (e && e.message) ? e.message : String(e);
+      showToast('AggTrades 載入失敗: ' + errMsg, 'error');
     });
 }
 
@@ -1323,6 +1436,57 @@ function resetFootprintData() {
   fpActive = { large: false, delta: false, profile: false, heatmap: false };
   _syncFpToggleStyle();
   document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+}
+
+// ══════════════════════════════════════════════════
+//  Custom Overlays (drawing tools)
+// ══════════════════════════════════════════════════
+function registerCustomOverlays() {
+  if (!klinecharts || !klinecharts.registerOverlay) return;
+
+  // Arrow overlay — two-point directional arrow (red)
+  klinecharts.registerOverlay({
+    name: 'axc_arrow',
+    needDefaultPointFigure: true,
+    needDefaultXAxisMark: false,
+    needDefaultYAxisMark: false,
+    totalStep: 3,  // click start + click end + done
+    createPointFigures: function(params) {
+      var pts = params.overlay.points;
+      if (pts.length < 2) return [];
+      var p0 = params.coordinates[0];
+      var p1 = params.coordinates[1];
+      if (!p0 || !p1) return [];
+
+      // Arrow line
+      var dx = p1.x - p0.x;
+      var dy = p1.y - p0.y;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 2) return [];
+
+      // Arrowhead
+      var headLen = Math.min(16, len * 0.3);
+      var angle = Math.atan2(dy, dx);
+      var a1 = angle + Math.PI * 0.82;
+      var a2 = angle - Math.PI * 0.82;
+      var h1x = p1.x + headLen * Math.cos(a1);
+      var h1y = p1.y + headLen * Math.sin(a1);
+      var h2x = p1.x + headLen * Math.cos(a2);
+      var h2y = p1.y + headLen * Math.sin(a2);
+
+      return [
+        // Main line
+        { type: 'line', attrs: { coordinates: [p0, p1] },
+          styles: { style: 'solid', color: '#ef5350', size: 2 } },
+        // Arrowhead left
+        { type: 'line', attrs: { coordinates: [p1, { x: h1x, y: h1y }] },
+          styles: { style: 'solid', color: '#ef5350', size: 2 } },
+        // Arrowhead right
+        { type: 'line', attrs: { coordinates: [p1, { x: h2x, y: h2y }] },
+          styles: { style: 'solid', color: '#ef5350', size: 2 } }
+      ];
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -1474,7 +1638,9 @@ function registerBackendIndicators() {
     }
   });
 
-  // ── Volume Profile (right-side bars on candle_pane) ──
+  // ── Volume Profile (left-side bars on candle_pane) ──
+  // Design: blue=buy, yellow=sell (matching professional trading platforms)
+  // POC = red highlight, Value Area = yellow band, HVN = horizontal supply/demand zones
   klinecharts.registerIndicator({
     name: 'AXC_VP',
     figures: [],
@@ -1487,51 +1653,19 @@ function registerBackendIndicators() {
       if (!vp || !vp.length) return false;
 
       var maxVol = 0;
-      vp.forEach(function(v) { if (v.total_vol > maxVol) maxVol = v.total_vol; });
+      vp.forEach(function(v) { if (v && v.total_vol > maxVol) maxVol = v.total_vol; });
       if (maxVol === 0) return false;
 
-      var maxBarWidth = bounding.width * 0.22;
-      var bucketSize = vp.length > 1 ? vp[1].price - vp[0].price : 50;
+      var maxBarWidth = bounding.width * 0.28;  // wider bars for visibility
+      var bucketSize = vp.length > 1 ? Math.abs(vp[1].price - vp[0].price) : 50;
 
       // Find POC (Point of Control = highest volume level)
       var pocIdx = 0;
-      vp.forEach(function(v, i) { if (v.total_vol > vp[pocIdx].total_vol) pocIdx = i; });
+      vp.forEach(function(v, i) { if (v && v.total_vol > vp[pocIdx].total_vol) pocIdx = i; });
 
-      vp.forEach(function(v, i) {
-        var y1 = yAxis.convertToPixel(v.price + bucketSize);
-        var y2 = yAxis.convertToPixel(v.price);
-        if (y1 === undefined || y2 === undefined) return;
-        var barH = Math.abs(y2 - y1);
-        if (barH < 1) barH = 2;
-        var yTop = Math.min(y1, y2);
-        var ratio = v.total_vol / maxVol;
-
-        // Buy bar (green, from right)
-        var buyW = (v.buy_vol / maxVol) * maxBarWidth;
-        var sellW = (v.sell_vol / maxVol) * maxBarWidth;
-        var x = bounding.left + bounding.width - buyW - sellW;
-
-        ctx.fillStyle = 'rgba(38,166,154,0.40)';
-        ctx.fillRect(x + sellW, yTop, buyW, barH);
-
-        // Sell bar (red, stacked left of buy)
-        ctx.fillStyle = 'rgba(239,83,80,0.40)';
-        ctx.fillRect(x, yTop, sellW, barH);
-
-        // POC highlight (highest volume level)
-        if (i === pocIdx) {
-          ctx.fillStyle = 'rgba(255,193,7,0.15)';
-          ctx.fillRect(x, yTop, buyW + sellW, barH);
-          // POC label
-          ctx.fillStyle = 'rgba(255,193,7,0.7)';
-          ctx.font = '10px sans-serif';
-          ctx.fillText('POC', x - 28, yTop + barH / 2 + 3);
-        }
-      });
-
-      // Value Area (70% of total volume) — subtle background band
+      // Pre-calculate Value Area (70% of total volume)
       var totalVol = 0;
-      vp.forEach(function(v) { totalVol += v.total_vol; });
+      vp.forEach(function(v) { if (v) totalVol += v.total_vol; });
       var vaTarget = totalVol * 0.7;
       var vaAccum = vp[pocIdx].total_vol;
       var vaHigh = pocIdx, vaLow = pocIdx;
@@ -1540,20 +1674,108 @@ function registerBackendIndicators() {
         var addHigh = vaHigh < vp.length - 1 ? vp[vaHigh + 1].total_vol : 0;
         if (addLow >= addHigh && vaLow > 0) { vaLow--; vaAccum += addLow; }
         else if (vaHigh < vp.length - 1) { vaHigh++; vaAccum += addHigh; }
-        else { vaLow--; vaAccum += addLow; }
+        else if (vaLow > 0) { vaLow--; vaAccum += addLow; }
+        else break;
       }
+
+      // High-Volume Nodes threshold (top 15% = supply/demand zones)
+      var hvnThreshold = maxVol * 0.55;
+
+      // Draw Value Area background band (yellow tint across full chart width)
       var vaTopY = yAxis.convertToPixel(vp[vaHigh].price + bucketSize);
       var vaBotY = yAxis.convertToPixel(vp[vaLow].price);
-      if (vaTopY !== undefined && vaBotY !== undefined) {
-        ctx.fillStyle = 'rgba(255,193,7,0.04)';
+      if (vaTopY != null && vaBotY != null && !isNaN(vaTopY) && !isNaN(vaBotY)) {
+        ctx.fillStyle = 'rgba(255,193,7,0.06)';
         ctx.fillRect(bounding.left, Math.min(vaTopY, vaBotY), bounding.width, Math.abs(vaBotY - vaTopY));
+        // Value Area border lines
+        ctx.strokeStyle = 'rgba(255,193,7,0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(bounding.left, vaTopY);
+        ctx.lineTo(bounding.left + bounding.width, vaTopY);
+        ctx.moveTo(bounding.left, vaBotY);
+        ctx.lineTo(bounding.left + bounding.width, vaBotY);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
+
+      // Draw VP bars (left-side, blue=buy, yellow=sell)
+      vp.forEach(function(v, i) {
+        if (!v || typeof v.total_vol !== 'number') return;
+        var y1 = yAxis.convertToPixel(v.price + bucketSize);
+        var y2 = yAxis.convertToPixel(v.price);
+        if (y1 == null || y2 == null || isNaN(y1) || isNaN(y2)) return;
+        var barH = Math.abs(y2 - y1);
+        if (barH < 1) barH = 2;
+        var yTop = Math.min(y1, y2);
+
+        var buyW = (v.buy_vol / maxVol) * maxBarWidth;
+        var sellW = (v.sell_vol / maxVol) * maxBarWidth;
+        var totalW = buyW + sellW;
+        var isInVA = (i >= vaLow && i <= vaHigh);
+        var alphaBase = isInVA ? 0.65 : 0.35;
+
+        // Left-side: sell (yellow) first, then buy (blue) stacked right
+        var xStart = bounding.left + 2;
+
+        // Sell bar (yellow/orange)
+        ctx.fillStyle = 'rgba(255,193,7,' + alphaBase.toFixed(2) + ')';
+        ctx.fillRect(xStart, yTop, sellW, barH);
+
+        // Buy bar (blue)
+        ctx.fillStyle = 'rgba(66,133,244,' + alphaBase.toFixed(2) + ')';
+        ctx.fillRect(xStart + sellW, yTop, buyW, barH);
+
+        // POC highlight — red accent bar + extended line
+        if (i === pocIdx) {
+          // Red highlight on the bar
+          ctx.fillStyle = 'rgba(239,83,80,0.30)';
+          ctx.fillRect(xStart, yTop, totalW, barH);
+          // POC line across chart
+          var pocY = yTop + barH / 2;
+          ctx.strokeStyle = 'rgba(239,83,80,0.50)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 3]);
+          ctx.beginPath();
+          ctx.moveTo(xStart + totalW + 4, pocY);
+          ctx.lineTo(bounding.left + bounding.width, pocY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // POC label
+          ctx.fillStyle = 'rgba(239,83,80,0.85)';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.fillText('POC', xStart + totalW + 6, pocY + 3);
+        }
+
+        // High-Volume Node (HVN) = supply/demand zone — horizontal band
+        if (v.total_vol >= hvnThreshold && i !== pocIdx) {
+          var hvnColor = v.buy_vol > v.sell_vol
+            ? 'rgba(66,133,244,0.06)'   // demand zone (buy dominant)
+            : 'rgba(239,83,80,0.06)';   // supply zone (sell dominant)
+          ctx.fillStyle = hvnColor;
+          ctx.fillRect(xStart + totalW, yTop, bounding.width - totalW - 4, barH);
+        }
+      });
+
+      // Legend
+      ctx.font = '9px sans-serif';
+      ctx.fillStyle = 'rgba(66,133,244,0.8)';
+      ctx.fillRect(bounding.left + 4, bounding.top + 4, 8, 8);
+      ctx.fillText('Buy', bounding.left + 16, bounding.top + 12);
+      ctx.fillStyle = 'rgba(255,193,7,0.8)';
+      ctx.fillRect(bounding.left + 44, bounding.top + 4, 8, 8);
+      ctx.fillText('Sell', bounding.left + 56, bounding.top + 12);
+      ctx.fillStyle = 'rgba(255,193,7,0.5)';
+      ctx.fillText('VA 70%', bounding.left + 84, bounding.top + 12);
 
       return false;  // don't suppress candles
     }
   });
 
   // ── Footprint Heatmap (colored blocks behind candles) ──
+  // Design: blue=buy dominant, yellow=sell dominant (matching VP color scheme)
+  // Higher alpha + outlined blocks for visibility
   klinecharts.registerIndicator({
     name: 'AXC_HEATMAP',
     figures: [],
@@ -1567,10 +1789,10 @@ function registerBackendIndicators() {
       var dataList = params.dataList;
       var hm = footprintData.heatmap;
       if (!hm || !Object.keys(hm).length) return false;
-      if (!visibleRange) return false;
+      if (!visibleRange || !dataList || !dataList.length) return false;
 
-      var from = visibleRange.from || 0;
-      var to = visibleRange.to || dataList.length;
+      var from = Math.max(0, visibleRange.from || 0);
+      var to = Math.min(dataList.length, visibleRange.to || dataList.length);
 
       // Find max volume across all visible candles for color scaling
       var globalMax = 0;
@@ -1579,17 +1801,17 @@ function registerBackendIndicators() {
         if (!d) continue;
         var levels = hm[String(d.timestamp)];
         if (!levels) continue;
-        levels.forEach(function(lv) { if (lv.total_vol > globalMax) globalMax = lv.total_vol; });
+        levels.forEach(function(lv) { if (lv && lv.total_vol > globalMax) globalMax = lv.total_vol; });
       }
       if (globalMax === 0) return false;
 
       // Estimate candle width from adjacent timestamps
-      var candleW = 8;
+      var candleW = 10;
       if (from + 1 < dataList.length && dataList[from] && dataList[from+1]) {
         var x1 = xAxis.convertToPixel(from);
         var x2 = xAxis.convertToPixel(from + 1);
-        if (x1 !== undefined && x2 !== undefined) {
-          candleW = Math.max(4, Math.abs(x2 - x1) * 0.8);
+        if (x1 != null && x2 != null && !isNaN(x1) && !isNaN(x2)) {
+          candleW = Math.max(6, Math.abs(x2 - x1) * 0.85);
         }
       }
 
@@ -1600,32 +1822,48 @@ function registerBackendIndicators() {
         var dd = dataList[j];
         if (!dd) continue;
         var lvls = hm[String(dd.timestamp)];
-        if (!lvls) continue;
+        if (!lvls || !lvls.length) continue;
 
         var cx = xAxis.convertToPixel(j);
-        if (cx === undefined) continue;
+        if (cx == null || isNaN(cx)) continue;
 
         var bucketPx = 0;
         if (lvls.length > 1) {
           var py1 = yAxis.convertToPixel(lvls[0].price);
           var py2 = yAxis.convertToPixel(lvls[1].price);
-          if (py1 !== undefined && py2 !== undefined) bucketPx = Math.abs(py2 - py1);
+          if (py1 != null && py2 != null && !isNaN(py1) && !isNaN(py2)) {
+            bucketPx = Math.abs(py2 - py1);
+          }
         }
-        if (bucketPx < 2) bucketPx = 4;
+        if (bucketPx < 3) bucketPx = 5;
 
         lvls.forEach(function(lv) {
+          if (!lv || typeof lv.total_vol !== 'number') return;
           var py = yAxis.convertToPixel(lv.price);
-          if (py === undefined) return;
+          if (py == null || isNaN(py)) return;
           var intensity = lv.total_vol / globalMax;
-          var alpha = 0.1 + intensity * 0.5;
+          // Higher alpha range for better visibility: 0.15 → 0.70
+          var alpha = 0.15 + intensity * 0.55;
 
-          // Green = net buy dominant, Red = net sell dominant
+          var bx = cx - candleW / 2;
+          var by = py - bucketPx / 2;
+
+          // Blue = net buy dominant, Yellow = net sell dominant
           if (lv.buy_vol >= lv.sell_vol) {
-            ctx.fillStyle = 'rgba(38,166,154,' + alpha.toFixed(2) + ')';
+            ctx.fillStyle = 'rgba(66,133,244,' + alpha.toFixed(2) + ')';
           } else {
-            ctx.fillStyle = 'rgba(239,83,80,' + alpha.toFixed(2) + ')';
+            ctx.fillStyle = 'rgba(255,193,7,' + alpha.toFixed(2) + ')';
           }
-          ctx.fillRect(cx - candleW/2, py - bucketPx/2, candleW, bucketPx);
+          ctx.fillRect(bx, by, candleW, bucketPx);
+
+          // Subtle border for high-volume blocks
+          if (intensity > 0.4) {
+            ctx.strokeStyle = lv.buy_vol >= lv.sell_vol
+              ? 'rgba(66,133,244,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')'
+              : 'rgba(255,193,7,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(bx, by, candleW, bucketPx);
+          }
         });
       }
 
@@ -2992,6 +3230,7 @@ function checkConnection() {
 }
 
 window.addEventListener('DOMContentLoaded', function() {
+  registerCustomOverlays();
   registerBackendIndicators();
   initChart();
   checkConnection();
