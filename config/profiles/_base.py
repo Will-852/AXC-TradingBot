@@ -15,6 +15,7 @@ DEFAULT_PROFILE = {
     "sl_atr_mult_trend":      1.5,     # Trend SL = 1.5 × ATR（backtest 後調整）
     "tp_atr_mult":            2.0,     # TP = N × ATR（reserved）
     "range_min_rr":           2.3,     # Range 最低 reward:risk
+    "range_tp_mid_fraction":  0.50,    # Range TP1 = entry + 50%×(BB_mid − entry)。180d backtest: 100%→0%WR, 50%→59%WR
     "trend_min_rr":           3.0,     # Trend 最低 reward:risk
     "max_open_positions":     2,       # 最多倉位
     "allow_trend":            True,    # 允許 trend 策略

@@ -50,13 +50,13 @@ MODE_CONFIRMATION_REQUIRED = 2   # consecutive same-mode before switch
 CIRCUIT_BREAKER_SINGLE = 0.25    # 25% single position loss → immediate close
 CIRCUIT_BREAKER_DAILY = 0.20     # 20% daily realized loss → stop all
 COOLDOWN_2_LOSSES_MIN = 30       # 2 consecutive losses → 30min pause
-COOLDOWN_3_LOSSES_MIN = 120      # 3 consecutive losses → 2hr pause
+COOLDOWN_3_LOSSES_MIN = 360      # 3 consecutive losses → 6hr pause
 MAX_HOLD_HOURS = 72              # 3 days max hold
 FUNDING_COST_FORCE_RATIO = 0.50  # funding > 50% unrealized → force close
 
 # ─── Risk — No-Trade Conditions ───
-NO_TRADE_VOLUME_MIN = 0.50       # volume < 50% of 30d avg = dead market
-NO_TRADE_FUNDING_EXTREME = 0.002  # ±0.2% funding = extreme
+NO_TRADE_VOLUME_MIN = 0.40       # volume < 40% of 30d avg = dead market
+NO_TRADE_FUNDING_EXTREME = 0.003  # ±0.3% funding = extreme
 
 # ─── Validation Pipeline (Sprint 3) ───
 USE_VALIDATION_PIPELINE = os.environ.get("USE_VALIDATION_PIPELINE", "true").lower() == "true"
@@ -76,6 +76,7 @@ RANGE_RISK_PCT = 0.02            # 2% capital per trade
 RANGE_LEVERAGE = 8
 RANGE_SL_ATR_MULT = 1.2          # SL = 1.2 × ATR
 RANGE_MIN_RR = 2.3               # minimum reward:risk
+RANGE_TP_MID_FRACTION = 0.50     # TP1 = 50% toward BB mid (was 100%, 180d diag: 0%→59% WR)
 RANGE_TRAILING_TRIGGER = 1.0     # +1R profit → move SL to breakeven
 
 # ─── Trend Strategy (Mode B) ───
@@ -282,6 +283,7 @@ try:
     RANGE_SL_ATR_MULT   = _p["sl_atr_mult_range"]
     TREND_SL_ATR_MULT   = _p["sl_atr_mult_trend"]
     RANGE_MIN_RR        = _p["range_min_rr"]
+    RANGE_TP_MID_FRACTION = _p["range_tp_mid_fraction"]
     TREND_MIN_RR        = _p["trend_min_rr"]
     MAX_CRYPTO_POSITIONS = _p["max_open_positions"]
 

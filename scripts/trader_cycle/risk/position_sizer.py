@@ -18,6 +18,7 @@ from ..config.settings import (
     CONFIDENCE_RISK_HIGH, CONFIDENCE_RISK_NORMAL, CONFIDENCE_RISK_LOW,
     CONFIDENCE_RISK_CAP, HMM_ENABLED, HMM_MIN_CONFIDENCE,
     REGIME_ENGINE, CP_ENABLED,
+    RANGE_TP_MID_FRACTION,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
@@ -230,9 +231,10 @@ class SizePositionStep:
         entry_price: float, sl_distance: float, ctx: CycleContext,
     ) -> tuple[float | None, float | None]:
         """
-        Range TP (from STRATEGY.md):
-          TP1 = BB basis (close 50% position)
-          TP2 = opposite BB band (close remaining)
+        Range TP (180d backtest validated):
+          TP1 = entry + RANGE_TP_MID_FRACTION × (BB basis − entry)
+                Default 50%→mid (was 100%→mid, 0% WR → 59% WR)
+          TP2 = BB basis (full mean reversion for remaining position)
         Plus funding cost adjustment.
         """
         bb_basis = ind_1h.get("bb_basis")
@@ -246,12 +248,13 @@ class SizePositionStep:
             else:
                 return entry_price - sl_distance * 2.3, None
 
+        frac = RANGE_TP_MID_FRACTION
         if signal.direction == "LONG":
-            tp1 = bb_basis
-            tp2 = bb_upper if bb_upper else None
+            tp1 = entry_price + (bb_basis - entry_price) * frac
+            tp2 = bb_basis  # full mid for remaining position
         else:
-            tp1 = bb_basis
-            tp2 = bb_lower if bb_lower else None
+            tp1 = entry_price - (entry_price - bb_basis) * frac
+            tp2 = bb_basis  # full mid for remaining position
 
         # ─── Funding cost adjustment ───
         tp1 = self._adjust_tp_for_funding(

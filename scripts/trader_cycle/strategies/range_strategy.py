@@ -178,8 +178,8 @@ class RangeStrategy(StrategyBase):
     ) -> str | None:
         """
         Range exit conditions:
-          - TP1: price reaches BB basis → close 50%
-          - TP2: price reaches opposite BB band → close remaining
+          - TP1: price reaches 50% toward BB basis → close 50%
+          - TP2: price reaches BB basis (full mid) → close remaining
           - SL hit (handled by exchange order)
         Phase 3: implement with live position data.
         """
