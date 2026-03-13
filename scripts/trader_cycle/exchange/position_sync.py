@@ -270,6 +270,11 @@ class CheckPositionsStep:
                 ctx.warnings.append(
                     f"ORPHAN: {pos.pair} {pos.direction} has no SL → placing emergency SL"
                 )
+                ctx.telegram_messages.append(
+                    f"⚠️ <b>ORPHAN detected</b>\n"
+                    f"{pos.pair} {pos.direction} has NO SL order!\n"
+                    f"Placing emergency SL..."
+                )
 
                 sl_price = self._calc_emergency_sl(pos, ctx)
                 if sl_price and sl_price > 0:
@@ -283,11 +288,19 @@ class CheckPositionsStep:
                         ctx.warnings.append(
                             f"Emergency SL placed: {pos.pair} @ {sl_price}"
                         )
+                        ctx.telegram_messages.append(
+                            f"🛡️ <b>Emergency SL placed</b>\n"
+                            f"{pos.pair} {pos.direction} SL @ {sl_price}"
+                        )
                     except Exception as e:
                         # SL failed → force close position (no unprotected positions)
                         logger.error(f"Emergency SL FAILED for {pos.pair}: {e}")
                         ctx.warnings.append(
                             f"Emergency SL FAILED: {pos.pair} → force closing"
+                        )
+                        ctx.telegram_messages.append(
+                            f"🚨 <b>Emergency SL FAILED</b>\n"
+                            f"{pos.pair} {pos.direction} → force closing position!"
                         )
                         try:
                             client.close_position_market(pos.pair)

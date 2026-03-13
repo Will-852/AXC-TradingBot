@@ -108,6 +108,12 @@ class ExecuteTradeStep:
             logger.info(f"[{pair}] Leverage: {leverage}x")
 
             # ③ Market order (entry)
+            entry_intent_id = ""
+            if ctx.wal:
+                entry_intent_id = ctx.wal.log_intent(
+                    "entry", pair, signal.direction, qty,
+                    signal.entry_price, signal.sl_price, signal.platform,
+                )
             entry_result = client.create_market_order(pair, side, qty)
             order_id = str(entry_result.get("orderId", ""))
             fill_price = float(entry_result.get("avgPrice", 0)) or signal.entry_price
@@ -122,6 +128,9 @@ class ExecuteTradeStep:
             commission = _extract_commission(entry_result)
             # Slippage calculation (Sprint 1B)
             slippage = _calc_slippage(signal.entry_price, fill_price, signal.direction)
+
+            if ctx.wal and entry_intent_id:
+                ctx.wal.log_done(entry_intent_id, order_id)
 
             ctx.entry_order_id = order_id
             ctx.order_result = OrderResult(
@@ -158,16 +167,26 @@ class ExecuteTradeStep:
                 logger.warning(f"[{pair}] write_trade failed: {wt_err}")
 
             # ⑤ Stop Loss (CRITICAL — must succeed)
+            sl_intent_id = ""
+            if ctx.wal:
+                sl_intent_id = ctx.wal.log_intent(
+                    "sl_placement", pair, signal.direction, fill_qty,
+                    fill_price, signal.sl_price, signal.platform,
+                )
             try:
                 sl_result = client.create_stop_market(
                     pair, exit_side, fill_qty,
                     signal.sl_price, reduce_only=True,
                 )
                 ctx.sl_order_id = str(sl_result.get("orderId", ""))
+                if ctx.wal and sl_intent_id:
+                    ctx.wal.log_done(sl_intent_id, ctx.sl_order_id)
                 logger.info(f"[{pair}] SL placed: {signal.sl_price} id={ctx.sl_order_id}")
 
             except Exception as sl_err:
                 # SL FAILED → EMERGENCY: close position immediately
+                if ctx.wal and sl_intent_id:
+                    ctx.wal.log_failed(sl_intent_id, str(sl_err))
                 logger.error(f"[{pair}] SL FAILED: {sl_err} → emergency close!")
                 ctx.errors.append(
                     f"SL placement failed for {pair}: {sl_err} → emergency market close"
@@ -233,9 +252,11 @@ class ExecuteTradeStep:
             })
 
             # Trade log entry (with fee + slippage)
+            tp1_qty_log = tp1_qty if signal.tp1_price and signal.tp1_price > 0 else fill_qty
+            tp2_qty_log = tp2_qty if signal.tp1_price and signal.tp1_price > 0 and signal.tp2_price else 0
             tp_info = f"TP1={signal.tp1_price}"
             if signal.tp2_price:
-                tp_info += f" TP2={signal.tp2_price} (split {tp1_qty}/{tp2_qty})"
+                tp_info += f" TP2={signal.tp2_price} (split {tp1_qty_log}/{tp2_qty_log})"
             fee_info = f" fee=${commission:.4f}" if commission > 0 else ""
             slip_info = f" slip={slippage:+.3%}" if slippage != 0 else ""
             ctx.trade_log_entries.append(

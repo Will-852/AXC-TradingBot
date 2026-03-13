@@ -173,6 +173,9 @@ class CycleContext:
     reentry_pair: str = ""
     reentry_direction: str = ""
 
+    # ─── WAL (Write-Ahead Log) ───
+    wal: Any = None  # WriteAheadLog instance, injected in pipeline setup
+
     # ─── Error Tracking ───
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)

@@ -18,6 +18,7 @@ Exit codes: 0 = ok, 1 = signal found, 2 = error
 from __future__ import annotations
 import argparse
 import json
+import logging
 import os
 import sys
 import traceback
@@ -35,6 +36,7 @@ from trader_cycle.config.settings import (
     PRIMARY_TIMEFRAME, SILENT_MODE_THRESHOLD_CYCLES,
     PAPER_GATE_HOURS, PAPER_GATE_FILE, CYCLE_LOG_DIR,
     PIPELINE_LOCK_PATH,
+    WAL_PATH,
 )
 from trader_cycle.state.file_lock import FileLock
 from trader_cycle.core.context import CycleContext
@@ -59,7 +61,10 @@ from trader_cycle.state.trade_journal import WriteTradeJournalStep
 from trader_cycle.notify.telegram import SendReportsStep, send_telegram, format_urgent_alert
 from trader_cycle.state.memory_keeper import WriteMemoryStep
 from trader_cycle.state.read_sentiment import ReadSentimentStep
+from trader_cycle.state.wal import WriteAheadLog
 
+
+logger = logging.getLogger(__name__)
 
 # ─── Pipeline Steps ───
 
@@ -224,6 +229,132 @@ class WriteStateStep:
         return ctx
 
 
+class ReplayWALStep:
+    """
+    Step 1.5: Replay pending WAL intents from previous crash.
+    Recovery logic per operation type:
+      - entry pending → check exchange for position → mark done if exists, alert if not
+      - sl_placement pending → orphan detection (step 7) handles it, mark done
+      - close pending → check exchange → retry if still open, mark done if gone
+    """
+    name = "replay_wal"
+
+    def run(self, ctx: CycleContext) -> CycleContext:
+        if not ctx.wal or ctx.dry_run:
+            return ctx
+
+        pending = ctx.wal.get_pending()
+        if not pending:
+            return ctx
+
+        if ctx.verbose:
+            print(f"    WAL: {len(pending)} pending intent(s) from previous crash")
+
+        for intent in pending:
+            op = intent.get("op", "")
+            pair = intent.get("pair", "")
+            intent_id = intent.get("id", "")
+            platform = intent.get("platform", "aster")
+
+            client = ctx.exchange_clients.get(platform, ctx.exchange_client)
+            if not client:
+                ctx.wal.log_failed(intent_id, "no exchange client")
+                continue
+
+            try:
+                if op == "entry":
+                    self._recover_entry(intent, client, ctx)
+                elif op == "sl_placement":
+                    # Orphan detection at step 7 will handle placing SL
+                    ctx.wal.log_done(intent_id)
+                    if ctx.verbose:
+                        print(f"    WAL: {intent_id} → deferred to orphan detection")
+                elif op == "close":
+                    self._recover_close(intent, client, ctx)
+                else:
+                    ctx.wal.log_failed(intent_id, f"unknown op: {op}")
+            except Exception as e:
+                logger.warning(f"WAL recovery error for {intent_id}: {e}")
+                ctx.warnings.append(f"WAL recovery error: {intent_id}: {e}")
+
+        # Prune old entries
+        ctx.wal.prune(keep_days=7)
+
+        return ctx
+
+    def _recover_entry(self, intent: dict, client, ctx: CycleContext) -> None:
+        """Entry was pending → check if position exists on exchange."""
+        pair = intent.get("pair", "")
+        intent_id = intent.get("id", "")
+        direction = intent.get("direction", "")
+
+        try:
+            positions = client.get_positions()
+            has_position = any(
+                p.get("symbol") == pair and float(p.get("positionAmt", 0)) != 0
+                for p in positions
+            )
+        except Exception as e:
+            ctx.warnings.append(f"WAL entry check failed for {pair}: {e}")
+            return  # Don't mark done/failed — retry next cycle
+
+        if has_position:
+            ctx.wal.log_done(intent_id)
+            ctx.telegram_messages.append(
+                f"🔄 <b>WAL Recovery</b>\n"
+                f"Entry {direction} {pair} confirmed on exchange (from previous crash)"
+            )
+            if ctx.verbose:
+                print(f"    WAL: {intent_id} → entry confirmed on exchange")
+        else:
+            # Position doesn't exist — market may have changed, don't auto-retry
+            ctx.wal.log_failed(intent_id, "position not found post-crash")
+            ctx.telegram_messages.append(
+                f"⚠️ <b>WAL Recovery</b>\n"
+                f"Entry {direction} {pair} NOT found on exchange.\n"
+                f"Crashed before fill — no auto-retry (market changed)."
+            )
+            if ctx.verbose:
+                print(f"    WAL: {intent_id} → entry not found, marked failed")
+
+    def _recover_close(self, intent: dict, client, ctx: CycleContext) -> None:
+        """Close was pending → check if position still open, retry if so."""
+        pair = intent.get("pair", "")
+        intent_id = intent.get("id", "")
+
+        try:
+            positions = client.get_positions()
+            still_open = any(
+                p.get("symbol") == pair and float(p.get("positionAmt", 0)) != 0
+                for p in positions
+            )
+        except Exception as e:
+            ctx.warnings.append(f"WAL close check failed for {pair}: {e}")
+            return  # Don't mark — retry next cycle
+
+        if still_open:
+            # Retry close
+            try:
+                client.close_position_market(pair)
+                ctx.wal.log_done(intent_id)
+                ctx.telegram_messages.append(
+                    f"🔄 <b>WAL Recovery</b>\n"
+                    f"Retried close for {pair} — success"
+                )
+                if ctx.verbose:
+                    print(f"    WAL: {intent_id} → close retried successfully")
+            except Exception as e:
+                ctx.warnings.append(f"WAL close retry failed for {pair}: {e}")
+                ctx.telegram_messages.append(
+                    f"🚨 <b>WAL Recovery FAILED</b>\n"
+                    f"Could not close {pair}: {e}"
+                )
+        else:
+            ctx.wal.log_done(intent_id)
+            if ctx.verbose:
+                print(f"    WAL: {intent_id} → position already closed")
+
+
 # ─── Paper Gate ───
 
 def check_paper_gate() -> tuple[bool, str]:
@@ -300,11 +431,12 @@ def register_strategies() -> None:
 
 def build_pipeline() -> Pipeline:
     """
-    Build the Phase 3 pipeline (18 steps).
+    Build the Phase 3 pipeline (21 steps).
     Same pipeline for DRY_RUN and LIVE — each step checks ctx.dry_run internally.
 
     Pipeline order:
       1. read_state          — SCAN_CONFIG + TRADE_STATE
+      1.5 replay_wal         — WAL crash recovery (live only)
       2. safety_check        — circuit breakers, cooldowns
       3. fetch_market        — 4 pairs live data
       4. calc_indicators     — 4H + 1H technical indicators
@@ -326,6 +458,7 @@ def build_pipeline() -> Pipeline:
     """
     pipeline = Pipeline()
     pipeline.add_step(ReadStateStep())          # 1
+    pipeline.add_step(ReplayWALStep())          # 1.5 — WAL crash recovery
     pipeline.add_step(SafetyCheckStep())        # 2
     pipeline.add_step(FetchMarketDataStep())    # 3
     pipeline.add_step(CalcIndicatorsStep())     # 4
@@ -376,13 +509,11 @@ def main():
     # ─── Pipeline Mutex ───
     # Prevent overlapping cycles (launchd may fire before prev finishes).
     # Uses flock — if another cycle holds the lock, exit(0) silently.
-    import logging as _logging
-    _log = _logging.getLogger(__name__)
     try:
         _pipeline_lock = FileLock(PIPELINE_LOCK_PATH, timeout=0.1)
         _pipeline_lock.__enter__()
     except TimeoutError:
-        _log.info("Pipeline mutex held by another cycle — exiting cleanly")
+        logger.info("Pipeline mutex held by another cycle — exiting cleanly")
         sys.exit(0)
 
     if args.verbose:
@@ -407,6 +538,12 @@ def main():
         dry_run=not args.live,
         verbose=args.verbose,
     )
+
+    # ─── WAL: init for live mode ───
+    if args.live:
+        ctx.wal = WriteAheadLog(WAL_PATH)
+        if args.verbose:
+            print(f"  WAL initialized: {WAL_PATH}")
 
     # ─── Live mode: inject exchange clients ───
     if args.live:

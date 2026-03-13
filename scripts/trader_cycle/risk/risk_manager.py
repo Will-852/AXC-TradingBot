@@ -288,8 +288,16 @@ class ManagePositionsStep:
             ctx.warnings.append(f"Failed to cancel orders for {pos.pair}: {e}")
 
         # Market close
+        close_intent_id = ""
+        if ctx.wal:
+            close_intent_id = ctx.wal.log_intent(
+                "close", pos.pair, pos.direction, pos.size,
+                pos.mark_price, pos.sl_price, pos.platform,
+            )
         try:
             result = client.close_position_market(pos.pair)
+            if ctx.wal and close_intent_id:
+                ctx.wal.log_done(close_intent_id)
             reason_str = "; ".join(exit_reasons) if exit_reasons else "risk"
             ctx.warnings.append(f"Position closed: {pos.pair} {pos.direction}")
             ctx.trade_log_entries.append(
@@ -328,6 +336,8 @@ class ManagePositionsStep:
             })
 
         except Exception as e:
+            if ctx.wal and close_intent_id:
+                ctx.wal.log_failed(close_intent_id, str(e))
             ctx.errors.append(f"FAILED to close {pos.pair}: {e}")
 
     def _check_margin_health(self, pos, ctx: CycleContext) -> None:

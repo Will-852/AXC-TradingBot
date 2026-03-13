@@ -21,6 +21,7 @@ PIPELINE_LOCK_PATH = os.path.join(_SHARED, ".pipeline")
 TRADE_LOG_PATH   = os.path.join(_SHARED, "TRADE_LOG.md")
 SCAN_LOG_PATH    = os.path.join(_SHARED, "SCAN_LOG.md")
 HMM_STATE_PATH   = os.path.join(_SHARED, "hmm_state.json")
+WAL_PATH         = os.path.join(_SHARED, ".wal.jsonl")
 LOG_DIR = os.path.join(AXC_HOME, "logs")
 
 # ─── Timezone ───
