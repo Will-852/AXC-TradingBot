@@ -293,16 +293,16 @@
       text-transform: uppercase;
       padding: 5px 8px;
     }
-    /* Column ratio: Symbol 8 | Price 14 | Chg 12 | Vol 9 | Range 22 | SL/TP 20 | Action 7  (=92%) */
-    #action-table { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-variant-numeric: tabular-nums; table-layout: fixed; width: 100%; }
-    #action-table td { padding: 6px 8px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
+    /* Column ratio: Symbol 8 | Price 16 | Chg 12 | Vol 10 | Range 14 | SL/TP 24 | Action 8  (=92%) */
+    #action-table { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-variant-numeric: tabular-nums; table-layout: fixed; width: 100%; border-spacing: 0; }
+    #action-table td { padding: 6px 10px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
     #action-table td:nth-child(1) { width: 8%; }
-    #action-table td:nth-child(2) { width: 14%; }
+    #action-table td:nth-child(2) { width: 16%; }
     #action-table td:nth-child(3) { width: 12%; }
-    #action-table td:nth-child(4) { width: 9%; }
-    #action-table td:nth-child(5) { width: 22%; }
-    #action-table td:nth-child(6) { width: 20%; }
-    #action-table td:nth-child(7) { width: 7%; text-align: center; }
+    #action-table td:nth-child(4) { width: 10%; }
+    #action-table td:nth-child(5) { width: 14%; }
+    #action-table td:nth-child(6) { width: 24%; }
+    #action-table td:nth-child(7) { width: 8%; text-align: center; }
     #action-table tbody tr { transition: background .1s; }
     #action-table tbody tr:hover { background: #f1f5f9 !important; }
     .ap-chg-ok { font-weight: 600; }
@@ -335,7 +335,7 @@
     .ap-sr-s { color: var(--pos); }
     .ap-sr-r { color: #3b82f6; }
     /* 24H range bar — OKX style */
-    .ap-range { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 100px; cursor: default; }
+    .ap-range { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 60px; cursor: default; }
     .ap-range-bar { position: relative; height: 3px; background: #334155; border-radius: 2px; margin-top: 6px; }
     .ap-range-fill { position: absolute; top: 0; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #ef4444 0%, #94a3b8 50%, #0d9488 100%); opacity: .45; }
     .ap-range-marker { position: absolute; top: -8px; transform: translateX(-50%); width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--text-1, #1e293b); filter: drop-shadow(0 1px 1px rgba(0,0,0,.15)); }
@@ -596,8 +596,8 @@
     }
 
     /* ── Equal-height rows ─────────────────────── */
-    .row-eq { display: flex; flex-wrap: wrap; }
-    .row-eq > [class*="col-"] { display: flex; }
+    .row-eq { display: flex; flex-wrap: wrap; gap: 8px 0; }
+    .row-eq > [class*="col-"] { display: flex; padding-left: 8px; padding-right: 8px; }
     .row-eq > [class*="col-"] > .card,
     .row-eq > [class*="col-"] > .small-box { flex: 1; }
 
@@ -1091,12 +1091,12 @@
                   <thead>
                     <tr style="background:#f8f9fa">
                       <th style="width:8%">幣種</th>
-                      <th style="width:14%">現價</th>
+                      <th style="width:16%">現價</th>
                       <th style="width:12%">24H</th>
-                      <th style="width:9%;text-align:right">Vol</th>
-                      <th style="width:22%;text-align:center">24H 區間</th>
-                      <th style="width:20%">SL / TP</th>
-                      <th style="width:7%;text-align:center">操作</th>
+                      <th style="width:10%;text-align:right">Vol</th>
+                      <th style="width:14%;text-align:center">24H 區間</th>
+                      <th style="width:24%">SL / TP</th>
+                      <th style="width:8%;text-align:center">操作</th>
                     </tr>
                   </thead>
                   <tbody id="action-body">
@@ -2807,7 +2807,10 @@ function renderPnlChart(D) {
   var el = document.getElementById('pnl-chart');
   if (!el) return;
 
-  _pnlFullData = history.map(function(p) { return [p.t * 1000, Math.round(p.v * 100) / 100]; });
+  _pnlFullData = history.map(function(p) {
+    var val = (p.c !== undefined) ? p.c : p.v;
+    return [p.t * 1000, Math.round(val * 100) / 100];
+  });
   var seriesData = _filterPnlData(_pnlFullData, _pnlRange);
   var lastVal = seriesData.length ? seriesData[seriesData.length - 1][1] : 0;
   var color = lastVal >= 0 ? '#0d9488' : '#e11d48';
@@ -2833,7 +2836,7 @@ function renderPnlChart(D) {
     },
     xaxis: {
       type: 'datetime',
-      labels: { show: true, style: { fontSize: '10px', colors: '#94a3b8' }, datetimeFormatter: { hour: 'HH:mm' } },
+      labels: { show: true, style: { fontSize: '10px', colors: '#94a3b8' }, datetimeFormatter: { day: 'dd MMM', hour: 'HH:mm' } },
       axisBorder: { show: false }, axisTicks: { show: false }
     },
     yaxis: {
@@ -2843,7 +2846,7 @@ function renderPnlChart(D) {
     },
     grid: { show: true, borderColor: 'rgba(148,163,184,.15)', strokeDashArray: 3, padding: { left: 4, right: 8, top: -5, bottom: 0 } },
     tooltip: {
-      x: { format: 'HH:mm' },
+      x: { format: 'dd MMM HH:mm' },
       y: { formatter: function(v) { return '$' + v.toFixed(2); } },
       theme: 'light'
     }
@@ -4056,7 +4059,7 @@ function renderServices(services) {
   var body = byId('services-body');
   if (!body || !services || !services.length) return;
   body.innerHTML = services.map(function(s) {
-    var dot = !s.plist_exists ? 'na' : (s.running ? 'on' : 'off');
+    var dot = !s.plist_exists ? 'na' : (s.healthy ? 'on' : 'off');
     var pid = s.running ? ' <span style="color:#6b7280">' + s.pid + '</span>' : '';
     var btn = s.label !== 'ai.openclaw.dashboard' && s.plist_exists
       ? '<button class="svc-btn" onclick="restartService(\'' + s.label + '\',this)" title="Restart">&#8635;</button>'

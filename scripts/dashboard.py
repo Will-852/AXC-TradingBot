@@ -595,10 +595,10 @@ def _bootstrap_all_time_pnl():
     end_ms = int(today_start.timestamp() * 1000)
     result = _get_exchange_income(start_time=None, end_time=end_ms, limit=1000)
     if result is None:
-        return 0.0
+        return {"net": 0.0, "realized": 0.0, "funding": 0.0, "commission": 0.0, "insurance": 0.0}
     logging.info("Bootstrapped all-time realized PnL (excl today): %.4f (r=%.4f f=%.4f c=%.4f)",
                  result["net"], result["realized"], result["funding"], result["commission"])
-    return result["net"]
+    return result
 
 
 _funding_cache = {"data": {}, "ts": 0}
@@ -826,12 +826,15 @@ def handle_services():
     for label, name in _CORE_SERVICES:
         plist = os.path.join(_PLIST_DIR, f"{label}.plist")
         info = la.get(label, {})
+        pid_val = info.get("pid")
+        exit_val = info.get("exit")
         services.append({
             "label": label,
             "name": name,
-            "running": info.get("pid") is not None,
-            "pid": info.get("pid"),
-            "exit_code": info.get("exit"),
+            "running": pid_val is not None,
+            "healthy": pid_val is not None or exit_val == 0,  # green if running OR last exit OK
+            "pid": pid_val,
+            "exit_code": exit_val,
             "plist_exists": os.path.isfile(plist),
         })
     return services
@@ -1571,14 +1574,45 @@ def get_balance_baseline(current_balance, fee_breakdown=None):
         # First ever call — create baseline + bootstrap realized PnL from API
         bootstrapped = _bootstrap_all_time_pnl()
         data = {"start_of_day": bal, "date": today, "all_time_start": bal,
-                "all_time_realized": bootstrapped,
-                "cumulative_fees": {"realized": 0, "funding": 0, "commission": 0, "insurance": 0},
+                "all_time_realized": bootstrapped["net"],
+                "cumulative_fees": {
+                    "realized": bootstrapped["realized"],
+                    "funding": bootstrapped["funding"],
+                    "commission": bootstrapped["commission"],
+                    "insurance": bootstrapped["insurance"],
+                },
                 "yesterday_fees": {"realized": 0, "funding": 0, "commission": 0, "insurance": 0}}
         dirty = True
     else:
         # Migration: seed all_time_realized if missing from existing baseline
         if "all_time_realized" not in data:
-            data["all_time_realized"] = _bootstrap_all_time_pnl()
+            bootstrapped = _bootstrap_all_time_pnl()
+            data["all_time_realized"] = bootstrapped["net"]
+            data["cumulative_fees"] = {
+                "realized": bootstrapped["realized"],
+                "funding": bootstrapped["funding"],
+                "commission": bootstrapped["commission"],
+                "insurance": bootstrapped["insurance"],
+            }
+            dirty = True
+
+        # Migration: if cumulative_fees total drifted from all_time_realized, re-bootstrap
+        cum = data.get("cumulative_fees", {"realized": 0, "funding": 0, "commission": 0, "insurance": 0})
+        cum_total = sum(cum.get(k, 0) for k in ("realized", "funding", "commission", "insurance"))
+        atr = data.get("all_time_realized", 0)
+        if abs(cum_total - atr) > 0.01:
+            bootstrapped = _bootstrap_all_time_pnl()
+            data["cumulative_fees"] = {
+                "realized": bootstrapped["realized"],
+                "funding": bootstrapped["funding"],
+                "commission": bootstrapped["commission"],
+                "insurance": bootstrapped["insurance"],
+            }
+            data["all_time_realized"] = bootstrapped["net"]
+            # Reset yesterday_fees — bootstrap already covers all history up to today,
+            # prevents double-counting if day roll also triggers on this call
+            data["yesterday_fees"] = {"realized": 0, "funding": 0, "commission": 0, "insurance": 0}
+            logging.info("Re-bootstrapped cumulative_fees to match all_time_realized: %.4f", bootstrapped["net"])
             dirty = True
 
         if data.get("date") != today:
@@ -1640,8 +1674,9 @@ def get_balance_baseline(current_balance, fee_breakdown=None):
 
 
 
-def update_pnl_history_verified(today_pnl):
-    """Track PnL history using verified today_pnl value (from fee_breakdown.net)."""
+def update_pnl_history_verified(today_pnl, cumulative_pnl=None):
+    """Track PnL history using verified today_pnl value (from fee_breakdown.net).
+    cumulative_pnl = all_time_realized + today_net — cross-day cumulative for chart."""
     data = {"history": []}
     if os.path.exists(PNL_HISTORY_PATH):
         try:
@@ -1651,11 +1686,14 @@ def update_pnl_history_verified(today_pnl):
             data = {"history": []}
     now = int(time.time())
     pnl = round(today_pnl, 2)
+    point = {"t": now, "v": pnl}
+    if cumulative_pnl is not None:
+        point["c"] = round(cumulative_pnl, 2)
     hist = data.get("history", [])
     if hist and now - hist[-1]["t"] < 30:
-        hist[-1] = {"t": now, "v": pnl}
+        hist[-1] = point
     else:
-        hist.append({"t": now, "v": pnl})
+        hist.append(point)
     data["history"] = hist[-500:]
     try:
         with open(PNL_HISTORY_PATH, "w") as f:
@@ -2566,7 +2604,7 @@ def collect_data():
 
     # today_pnl: use verified source when API succeeded, fallback to balance delta when API failed
     today_pnl = fee_breakdown["net"] if fee_breakdown_raw is not None else baseline["today_pnl"]
-    pnl_history = update_pnl_history_verified(today_pnl)
+    pnl_history = update_pnl_history_verified(today_pnl, baseline["total_pnl"])
 
     # Unrealized PnL from live positions
     unrealized_pnl = round(sum(p["unrealized_pnl"] for p in live_positions), 4)
