@@ -131,8 +131,9 @@ MODE_FUNDING_THRESHOLD = 0.0007  # ±0.07%
 MODE_CONFIRMATION_REQUIRED = 2   # 連續同 mode 先切換
 
 # ═══════════════════════════════════════
-# Section 6: 倉位管理（dashboard 讀）
+# Section 6: Dashboard + 倉位管理
 # ═══════════════════════════════════════
+DASHBOARD_PORT = 5566          # 唯一定義點。改 port → 只改呢度
 MAX_POSITION_SIZE_USDT = 50
 
 # ═══════════════════════════════════════

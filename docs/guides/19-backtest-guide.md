@@ -17,7 +17,7 @@ audience: human,claude,github
 
 啟動 dashboard 後，訪問：
 ```
-http://127.0.0.1:5555/backtest
+http://127.0.0.1:5566/backtest
 ```
 或者喺主控台 (/) 點「回測」連結。
 

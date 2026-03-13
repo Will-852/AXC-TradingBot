@@ -4,8 +4,8 @@ dashboard.py — OpenClaw ICU Dashboard Backend
 Serves canvas/index.html + /api/data JSON endpoint.
 
 Usage:
-  python3 dashboard.py          # start on :5555
-  python3 dashboard.py --port 8080
+  python3 dashboard.py          # port from config/params.py DASHBOARD_PORT (default 5566)
+  DASHBOARD_PORT=6666 python3 dashboard.py   # env var override for testing
 """
 
 import copy
@@ -40,8 +40,14 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
-PORT = int(os.environ.get("DASHBOARD_PORT", 5566))
 HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+# Port: 從 config/params.py 讀 DASHBOARD_PORT（唯一定義點），env var 可 override
+try:
+    sys.path.insert(0, HOME)
+    from config.params import DASHBOARD_PORT as _DEFAULT_PORT
+except ImportError:
+    _DEFAULT_PORT = 5566
+PORT = int(os.environ.get("DASHBOARD_PORT", _DEFAULT_PORT))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 if HOME not in sys.path:
     sys.path.insert(0, HOME)

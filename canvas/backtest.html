@@ -474,6 +474,134 @@
     .btn-livepos:hover { background: #cbd5e1; }
     .btn-livepos.active { background: #2563eb; color: #fff; }
 
+    /* ── Guide panel ── */
+    .guide-panel {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 0;
+      overflow: hidden;
+      transition: max-height .3s ease;
+    }
+    .guide-toggle {
+      padding: 10px 16px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text-3);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .guide-toggle:hover { color: var(--text-2); }
+    .guide-toggle .arrow { transition: transform .2s; font-size: .7rem; }
+    .guide-toggle .arrow.open { transform: rotate(90deg); }
+    .guide-body {
+      padding: 0 16px 14px;
+      font-size: .75rem;
+      line-height: 1.65;
+      color: var(--text-2);
+    }
+    .guide-body h6 {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--accent);
+      margin: 12px 0 6px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .guide-body h6:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+    .guide-body .conn-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: .68rem;
+      font-weight: 600;
+    }
+    .guide-body .conn-ok { background: #d1fae5; color: #059669; }
+    .guide-body .conn-fail { background: #fee2e2; color: #dc2626; }
+    .guide-body .conn-checking { background: #dbeafe; color: #2563eb; }
+    .guide-body code {
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .7rem;
+    }
+    .guide-body .strat-card {
+      background: #f8fafc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin: 4px 0;
+    }
+    .guide-body .strat-card .strat-name {
+      font-weight: 700;
+      font-size: .72rem;
+      color: var(--text-1);
+    }
+    .guide-body .strat-card .strat-desc {
+      color: var(--text-3);
+      font-size: .68rem;
+      margin-top: 2px;
+    }
+    .guide-body table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .68rem;
+      margin: 4px 0;
+    }
+    .guide-body table th {
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-3);
+      padding: 3px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .guide-body table td {
+      padding: 3px 6px;
+      color: var(--text-2);
+    }
+    .guide-body .warn-box {
+      background: #fef3c7;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: .68rem;
+      color: #92400e;
+      margin-top: 6px;
+    }
+    .guide-body .cmd-box {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: monospace;
+      font-size: .68rem;
+      margin: 4px 0;
+      overflow-x: auto;
+      user-select: all;
+    }
+    .guide-body .step-num {
+      display: inline-block;
+      width: 18px; height: 18px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      text-align: center;
+      font-size: .62rem;
+      font-weight: 700;
+      line-height: 18px;
+      margin-right: 4px;
+    }
+    .guide-body .note {
+      color: var(--text-3);
+      font-size: .65rem;
+      font-style: italic;
+    }
+
     /* ── Responsive (Phase 5) ── */
     @media (max-width: 900px) {
       .main-grid {
@@ -715,6 +843,99 @@
 
   <!-- Right panel -->
   <div class="right-panel">
+
+    <!-- How It Works Guide -->
+    <div class="guide-panel" id="guide-panel">
+      <div class="guide-toggle" onclick="toggleGuide()">
+        <i class="fas fa-caret-right arrow open" id="guide-arrow"></i>
+        <i class="fas fa-book"></i> HOW IT WORKS — 使用指南
+      </div>
+      <div class="guide-body" id="guide-body">
+
+        <h6><i class="fas fa-wifi"></i> 連接狀態</h6>
+        <span class="conn-status conn-checking" id="conn-status">檢查中...</span>
+        <span id="conn-msg" style="font-size:.65rem;color:var(--text-3);margin-left:6px"></span>
+        <div id="conn-help" style="display:none;margin-top:6px">
+          <div style="font-size:.68rem;color:var(--text-2)">啟動 Dashboard：</div>
+          <div class="cmd-box">launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.dashboard.plist</div>
+          <div style="font-size:.65rem;color:var(--text-3);margin-top:2px">然後打開 <code id="conn-url"></code></div>
+        </div>
+
+        <h6><i class="fas fa-play-circle"></i> 快速開始</h6>
+        <div><span class="step-num">1</span> 揀 <b>Symbol</b>（幣對）同 <b>Days</b>（歷史日數）</div>
+        <div><span class="step-num">2</span> 撳 <b>「執行回測」</b> — 等 30-60 秒</div>
+        <div><span class="step-num">3</span> 睇結果：K 線圖 + 右邊 Performance + Trade Log</div>
+        <div class="note">進階：展開下方 PARAMETERS 面板可以調策略參數</div>
+
+        <h6><i class="fas fa-brain"></i> 策略引擎</h6>
+        <div style="font-size:.68rem;color:var(--text-3);margin-bottom:4px">
+          引擎每 4H 用 6 個指標（RSI / MACD / Volume / MA / Funding / HMM）投票判斷市場模式，然後用對應策略搵入場訊號。
+        </div>
+
+        <div class="strat-card">
+          <div class="strat-name" style="color:#0d9488">RANGE 震盪策略</div>
+          <div class="strat-desc">
+            <b>觸發：</b>BB 觸及 + RSI 超買超賣反轉 + 支撐/阻力位<br>
+            <b>方向：</b>LONG / SHORT<br>
+            <b>邏輯：</b>價格喺區間來回彈，喺邊界反轉入場
+          </div>
+        </div>
+        <div class="strat-card">
+          <div class="strat-name" style="color:#2563eb">TREND 趨勢策略</div>
+          <div class="strat-desc">
+            <b>觸發：</b>MA 排列 + MACD 擴張 + RSI 回調 + 價格接近 MA<br>
+            <b>方向：</b>LONG / SHORT<br>
+            <b>邏輯：</b>確認趨勢後，等回調到 MA 附近順勢入場
+          </div>
+        </div>
+        <div class="strat-card">
+          <div class="strat-name" style="color:#e11d48">CRASH 崩盤策略</div>
+          <div class="strat-desc">
+            <b>觸發：</b>RSI > 60 + MACD < 0 + 成交量暴升（2/3 條件）<br>
+            <b>方向：</b>SHORT only<br>
+            <b>邏輯：</b>急跌反彈到高位後做空，捕捉繼續下跌
+          </div>
+        </div>
+
+        <h6><i class="fas fa-cog"></i> 引擎運作細節</h6>
+        <table>
+          <tr><th>項目</th><th>設定</th></tr>
+          <tr><td>主時框</td><td>1H tick + 4H MTF 雙時框</td></tr>
+          <tr><td>手續費</td><td>0.05% × 2（入場+出場）</td></tr>
+          <tr><td>SL 滑點</td><td>0.02%（市價止損額外成本）</td></tr>
+          <tr><td>模式確認</td><td>需要 2 次連續相同判定（CRASH 例外：即時生效）</td></tr>
+          <tr><td>訊號 → 入場</td><td>下一根 candle open 執行（無 look-ahead）</td></tr>
+          <tr><td>訊號確認</td><td>Range/Trend 需連續 2 根出相同訊號</td></tr>
+        </table>
+        <div class="note">唔模擬：Funding rate / Trailing SL / Partial TP / 滑點（止損外）/ 多幣同時持倉</div>
+
+        <h6><i class="fas fa-sliders-h"></i> 預設參數</h6>
+        <table>
+          <tr><th>策略</th><th>SL</th><th>R:R</th><th>槓桿</th><th>風險</th></tr>
+          <tr><td style="color:#0d9488;font-weight:600">Range</td><td>1.2× ATR</td><td>2.3</td><td>8×</td><td>2%</td></tr>
+          <tr><td style="color:#2563eb;font-weight:600">Trend</td><td>1.5× ATR</td><td>3.0</td><td>7×</td><td>2%</td></tr>
+          <tr><td style="color:#e11d48;font-weight:600">Crash</td><td>2.0× ATR</td><td>1.5</td><td>5×</td><td>1%</td></tr>
+        </table>
+        <div class="note">展開 PARAMETERS 面板可以改呢啲數值，留空 = 用以上預設</div>
+
+        <h6><i class="fas fa-chart-bar"></i> 結果點睇</h6>
+        <table>
+          <tr><th>指標</th><th>及格線</th><th>意義</th></tr>
+          <tr><td>Win Rate</td><td>&gt; 50%</td><td>贏嘅比例</td></tr>
+          <tr><td>Profit Factor</td><td>&gt; 1.5</td><td>總賺 ÷ 總蝕</td></tr>
+          <tr><td>Sharpe</td><td>&gt; 1.0</td><td>風險調整後回報</td></tr>
+          <tr><td>Max DD</td><td>&lt; 15%</td><td>最大回撤（越低越好）</td></tr>
+          <tr><td>Expectancy</td><td>&gt; $0</td><td>平均每筆交易賺幾多</td></tr>
+        </table>
+
+        <div class="warn-box">
+          <b>回測 ≠ 真實交易</b><br>
+          唔模擬 funding rate、實際滑點、API 延遲。經驗法則：回測回報 × 0.5–0.7 ≈ 真實預期。
+        </div>
+
+      </div>
+    </div>
+
     <!-- Run Config (Phase A5) -->
     <div class="card-section" id="run-config-card" style="display:none">
       <h6 style="cursor:pointer;user-select:none" onclick="var b=document.getElementById('run-config-body');b.style.display=b.style.display==='none'?'block':'none'">
@@ -2470,6 +2691,8 @@ function pollJob(jobId, ctx) {
           updateRunConfig(currentRunConfig);
         }
         showToast('Backtest complete: ' + (result.total_trades || 0) + ' trades', 'success');
+        // Auto-collapse guide panel when results load
+        if (guideOpen) { toggleGuide(); }
         // Standard filename for fresh backtest
         currentFile = 'bt_' + ctx.symbol + '_' + ctx.days + 'd_trades.jsonl';
         // Enable export button
@@ -2735,9 +2958,43 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ── Init on load ──
+// ── Guide panel toggle + connection check ──
+var guideOpen = true;
+
+function toggleGuide() {
+  guideOpen = !guideOpen;
+  document.getElementById('guide-body').style.display = guideOpen ? 'block' : 'none';
+  var arrow = document.getElementById('guide-arrow');
+  arrow.classList.toggle('open', guideOpen);
+}
+
+function checkConnection() {
+  var el = document.getElementById('conn-status');
+  var msg = document.getElementById('conn-msg');
+  var help = document.getElementById('conn-help');
+  var urlEl = document.getElementById('conn-url');
+  var port = window.location.port || '5566';
+  if (urlEl) urlEl.textContent = 'http://127.0.0.1:' + port + '/backtest';
+  fetch('/api/backtest/list', {method: 'GET'})
+    .then(function(r) { return r.ok ? r.json() : Promise.reject('not ok'); })
+    .then(function() {
+      el.className = 'conn-status conn-ok';
+      el.textContent = 'Dashboard 已連接 (:' + port + ')';
+      msg.textContent = '可以直接執行回測';
+      help.style.display = 'none';
+    })
+    .catch(function() {
+      el.className = 'conn-status conn-fail';
+      el.textContent = '未連接';
+      msg.textContent = '需要先啟動 Dashboard';
+      help.style.display = 'block';
+    });
+}
+
 window.addEventListener('DOMContentLoaded', function() {
   registerBackendIndicators();
   initChart();
+  checkConnection();
 });
 
 // ── Resize handling ──
