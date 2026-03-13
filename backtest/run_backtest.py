@@ -63,16 +63,49 @@ def _print_results(result: dict, args):
         print(f"  Max Drawdown:   {result['max_drawdown_pct']:>11.1f}%")
         print(f"  Avg Win:        ${result['avg_win']:>+11.2f}")
         print(f"  Avg Loss:       ${result['avg_loss']:>+11.2f}")
+        sharpe = result.get("sharpe_ratio", 0.0)
+        print(f"  Sharpe:         {sharpe:>12.2f}")
+        sortino = result.get("sortino_ratio", 0.0)
+        print(f"  Sortino:        {sortino:>12.2f}")
+        calmar = result.get("calmar_ratio", 0.0)
+        print(f"  Calmar:         {calmar:>12.2f}")
+        var_95 = result.get("var_95", 0.0)
+        print(f"  VaR (95%):      {var_95 * 100:>+11.4f}%")
+        cvar_95 = result.get("cvar_95", 0.0)
+        print(f"  CVaR (95%):     {cvar_95 * 100:>+11.4f}%")
+        recovery = result.get("recovery_factor", 0.0)
+        print(f"  Recovery:       {recovery:>12.2f}")
+        payoff = result.get("payoff_ratio", 0.0)
+        print(f"  Payoff:         {payoff:>12.2f}")
+        sqn = result.get("sqn", 0.0)
+        sqn_grade = result.get("sqn_grade", "N/A")
+        print(f"  SQN:            {sqn:>12.2f}  ({sqn_grade})")
+        alpha = result.get("alpha", 0.0)
+        bh = result.get("buyhold_return", 0.0)
+        print(f"  Alpha:          {alpha:>+11.2f}%  (B&H: {bh:+.2f}%)")
+        exposure = result.get("exposure_pct", 0.0)
+        print(f"  Exposure:       {exposure:>11.1f}%")
 
         # Per-strategy breakdown
-        range_t = [t for t in result["trades"] if t.strategy == "range"]
-        trend_t = [t for t in result["trades"] if t.strategy == "trend"]
-        if range_t:
-            rw = sum(1 for t in range_t if t.pnl > 0)
-            print(f"  Range:          {rw}W / {len(range_t) - rw}L")
-        if trend_t:
-            tw = sum(1 for t in trend_t if t.pnl > 0)
-            print(f"  Trend:          {tw}W / {len(trend_t) - tw}L")
+        for strat in ("range", "trend", "crash"):
+            strat_t = [t for t in result["trades"] if t.strategy == strat]
+            if strat_t:
+                sw = sum(1 for t in strat_t if t.pnl > 0)
+                print(f"  {strat.title():14s}  {sw}W / {len(strat_t) - sw}L")
+
+        # Top drawdown periods
+        dd_periods = result.get("drawdown_periods", [])
+        if dd_periods:
+            print(f"\n  Top Drawdowns:")
+            for i, dd in enumerate(dd_periods, 1):
+                start = dd["start"][:10]
+                if dd["end"]:
+                    end = dd["end"][:10]
+                    status = f"{dd['duration_candles']} candles, recovered"
+                else:
+                    end = "ongoing"
+                    status = f"{dd['duration_candles']} candles"
+                print(f"    #{i}  {dd['depth_pct']:>5.1f}%  {start} → {end}  ({status})")
 
     print(f"{'─' * 45}")
 
@@ -106,7 +139,10 @@ def _save_meta(result: dict, symbol: str, days: int, balance: float) -> str:
             k: result.get(k)
             for k in ("return_pct", "win_rate", "profit_factor",
                        "max_drawdown_pct", "total_trades", "sharpe_ratio",
-                       "expectancy")
+                       "sortino_ratio", "calmar_ratio", "var_95", "cvar_95",
+                       "recovery_factor", "payoff_ratio",
+                       "expectancy", "sqn", "sqn_grade", "alpha",
+                       "buyhold_return", "exposure_pct")
             if result.get(k) is not None
         },
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -163,18 +199,29 @@ def _save_equity_chart(result: dict, symbol: str, days: int, initial_balance: fl
     return path
 
 
+def _fmt_vol(v: float) -> str:
+    """Format volume/value: 1234→1.2K, 1234567→1.2M, 1234567890→1.2B."""
+    if abs(v) >= 1e9:
+        return f"{v / 1e9:.1f}B"
+    if abs(v) >= 1e6:
+        return f"{v / 1e6:.1f}M"
+    if abs(v) >= 1e3:
+        return f"{v / 1e3:.1f}K"
+    return f"{v:.0f}"
+
+
 def _print_trade_log(result: dict):
-    """Print individual trade details."""
+    """Print trade roundtrip table with color hints and strategy breakdown."""
     if not result["trades"]:
         return
 
-    print(f"\n  Trade Log:")
-    for t in result["trades"]:
-        icon = "+" if t.pnl > 0 else "-"
+    print(f"\n  {'#':>3}  {'Side':5s} {'Strat':5s} {'Entry':>10s}  {'Exit':>10s}  {'PnL':>10s}  {'Reason':4s}")
+    print(f"  {'─' * 55}")
+    for i, t in enumerate(result["trades"], 1):
+        pnl_str = f"${t.pnl:+.2f}"
         print(
-            f"    [{icon}] {t.side:5s} {t.strategy:5s} "
-            f"entry={t.entry:.2f} exit={t.exit:.2f} "
-            f"pnl=${t.pnl:+.2f} [{t.exit_reason}]"
+            f"  {i:>3}  {t.side:5s} {t.strategy:5s} "
+            f"{t.entry:>10.2f}  {t.exit:>10.2f}  {pnl_str:>10s}  {t.exit_reason}"
         )
 
 

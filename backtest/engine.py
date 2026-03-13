@@ -52,6 +52,11 @@ SL_SLIPPAGE_PCT = 0.0002   # 0.02% adverse slippage on SL (market order)
 CLUSTER_GAP_HOURS = 4      # trades < N hours apart = same cluster
 MAX_RISK_PCT = 0.05        # hard cap: never risk >5% per trade (防止 optimizer 「全部加大注碼」)
 
+# Persistence threshold: signal must appear N consecutive candles before acknowledged.
+# Different from signal_delay (delays execution of an already-acknowledged signal).
+# Per-strategy: crash=0 (immediate), range/trend=2 (need 2 consecutive same-direction signals).
+PERSISTENCE_THRESHOLD = {"range": 2, "trend": 2, "crash": 0}
+
 
 @dataclass
 class BTPosition:
@@ -193,6 +198,11 @@ class BacktestEngine:
         self.equity_curve: list[dict] = []
         self.indicator_series: list[dict] = []
         self._pending_signal: _PendingSignal | None = None
+
+        # Persistence threshold tracking
+        self._persist_strategy: str | None = None  # last signal's strategy
+        self._persist_direction: str | None = None  # last signal's direction
+        self._persist_count: int = 0                 # consecutive candles with same signal
 
         # Mode tracking
         self.current_mode = "UNKNOWN"
@@ -448,7 +458,9 @@ class BacktestEngine:
         else:
             raw_pnl_pct = (pos.entry_price - exit_price) / pos.entry_price
 
-        pnl = pos.notional * (raw_pnl_pct - self.commission_rate * 2)
+        # Fee: truncate toward zero (int × 1e8 / 1e8), not round
+        commission = int(pos.notional * self.commission_rate * 2 * 1e8) / 1e8
+        pnl = pos.notional * raw_pnl_pct - commission
         self.balance += pnl
 
         if pos in self.positions:
@@ -492,21 +504,41 @@ class BacktestEngine:
         elif self.current_mode == "CRASH":
             signal = self.crash_strategy.evaluate(self.symbol, indicators, ctx)
 
-        if signal:
-            # Score-based filtering: discard low-quality signals
-            if signal.score < self.min_score:
-                return
+        if not signal:
+            self._persist_count = 0  # reset persistence on no signal
+            return
 
-            atr = ind_1h.get("atr")
-            if atr and atr > 0:
-                self._pending_signal = _PendingSignal(
-                    direction=signal.direction,
-                    strategy=signal.strategy,
-                    atr=atr,
-                    signal_time=candle_time,
-                    score=signal.score,
-                    remaining_delay=self.signal_delay,
-                )
+        # Score-based filtering: discard low-quality signals
+        if signal.score < self.min_score:
+            self._persist_count = 0
+            return
+
+        # Persistence threshold: same strategy+direction must persist N candles
+        threshold = PERSISTENCE_THRESHOLD.get(signal.strategy, 0)
+        if threshold > 0:
+            if (signal.strategy == self._persist_strategy
+                    and signal.direction == self._persist_direction):
+                self._persist_count += 1
+            else:
+                self._persist_strategy = signal.strategy
+                self._persist_direction = signal.direction
+                self._persist_count = 1
+
+            if self._persist_count < threshold:
+                return  # not yet persistent enough
+        # Reset persistence on successful pass
+        self._persist_count = 0
+
+        atr = ind_1h.get("atr")
+        if atr and atr > 0:
+            self._pending_signal = _PendingSignal(
+                direction=signal.direction,
+                strategy=signal.strategy,
+                atr=atr,
+                signal_time=candle_time,
+                score=signal.score,
+                remaining_delay=self.signal_delay,
+            )
 
     def _execute_pending(self, candle, candle_time: str):
         """Execute pending signal at this candle's open price."""
@@ -597,6 +629,10 @@ class BacktestEngine:
             "clusters": 0, "independent_decisions": 0,
             "cluster_adj_wr": 0.0,
             "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0, "calmar_ratio": 0.0,
+            "var_95": 0.0, "cvar_95": 0.0,
+            "recovery_factor": 0.0, "payoff_ratio": 0.0,
+            "drawdown_periods": [], "monthly_returns": {},
             "max_win_streak": 0, "max_loss_streak": 0,
             "by_strategy": {},
         }
@@ -615,6 +651,7 @@ class BacktestEngine:
 
         # Max drawdown
         max_dd = 0.0
+        max_dd_abs = 0.0
         peak = self.initial_balance
         for pt in self.equity_curve:
             eq = pt["equity"]
@@ -624,6 +661,60 @@ class BacktestEngine:
                 dd = (peak - eq) / peak
                 if dd > max_dd:
                     max_dd = dd
+                    max_dd_abs = peak - eq
+
+        # Drawdown periods (episodes with depth > 1%)
+        drawdown_periods: list[dict] = []
+        if self.equity_curve:
+            peak_val = self.equity_curve[0]["equity"]
+            peak_idx = 0
+            in_dd = False
+            dd_start = 0
+            dd_trough_idx = 0
+            dd_trough_val = peak_val
+
+            for idx, pt in enumerate(self.equity_curve):
+                eq = pt["equity"]
+                if eq >= peak_val:
+                    if in_dd:
+                        depth = (peak_val - dd_trough_val) / peak_val * 100
+                        if depth > 1.0:
+                            drawdown_periods.append({
+                                "start": self.equity_curve[dd_start]["time"],
+                                "trough": self.equity_curve[dd_trough_idx]["time"],
+                                "end": pt["time"],
+                                "depth_pct": round(depth, 1),
+                                "duration_candles": idx - dd_start,
+                                "recovery_candles": idx - dd_trough_idx,
+                            })
+                        in_dd = False
+                    peak_val = eq
+                    peak_idx = idx
+                else:
+                    if not in_dd:
+                        in_dd = True
+                        dd_start = peak_idx
+                        dd_trough_idx = idx
+                        dd_trough_val = eq
+                    elif eq < dd_trough_val:
+                        dd_trough_idx = idx
+                        dd_trough_val = eq
+
+            # Ongoing drawdown at end
+            if in_dd:
+                depth = (peak_val - dd_trough_val) / peak_val * 100
+                if depth > 1.0:
+                    drawdown_periods.append({
+                        "start": self.equity_curve[dd_start]["time"],
+                        "trough": self.equity_curve[dd_trough_idx]["time"],
+                        "end": None,
+                        "depth_pct": round(depth, 1),
+                        "duration_candles": len(self.equity_curve) - 1 - dd_start,
+                        "recovery_candles": None,
+                    })
+
+            drawdown_periods.sort(key=lambda d: d["depth_pct"], reverse=True)
+            drawdown_periods = drawdown_periods[:3]
 
         # Cluster analysis
         clusters = self._detect_clusters()
@@ -645,17 +736,47 @@ class BacktestEngine:
                 adj_losses += 1
         adj_wr = adj_wins / independent * 100 if independent > 0 else 0.0
 
-        # Sharpe ratio (annualized from 1H equity returns — sqrt(8760) for hourly)
-        sharpe = 0.0
+        # Hourly equity returns (shared by Sharpe, Sortino, VaR/CVaR)
+        hourly_returns: list[float] = []
         if len(self.equity_curve) > 1:
             eqs = [pt["equity"] for pt in self.equity_curve]
-            returns = [(eqs[j] - eqs[j-1]) / eqs[j-1]
-                       for j in range(1, len(eqs)) if eqs[j-1] > 0]
-            if returns:
-                r_mean = sum(returns) / len(returns)
-                r_std = (sum((r - r_mean) ** 2 for r in returns) / len(returns)) ** 0.5
-                if r_std > 0:
-                    sharpe = round((r_mean / r_std) * (8760 ** 0.5), 2)
+            hourly_returns = [(eqs[j] - eqs[j-1]) / eqs[j-1]
+                              for j in range(1, len(eqs)) if eqs[j-1] > 0]
+
+        # Sharpe ratio (annualized from 1H equity returns — sqrt(8760) for hourly)
+        sharpe = 0.0
+        if hourly_returns:
+            r_mean = sum(hourly_returns) / len(hourly_returns)
+            r_std = (sum((r - r_mean) ** 2 for r in hourly_returns) / len(hourly_returns)) ** 0.5
+            if r_std > 0:
+                sharpe = round((r_mean / r_std) * (8760 ** 0.5), 2)
+
+        # Sortino ratio (downside deviation: denominator = total N, not just negatives)
+        sortino = 0.0
+        if hourly_returns:
+            r_mean = sum(hourly_returns) / len(hourly_returns)
+            downside = [r for r in hourly_returns if r < 0]
+            if downside:
+                down_std = (sum(r ** 2 for r in downside) / len(hourly_returns)) ** 0.5
+                if down_std > 0:
+                    sortino = round((r_mean / down_std) * (8760 ** 0.5), 2)
+
+        # Calmar ratio (annualized return / max drawdown)
+        calmar = 0.0
+        if max_dd > 0 and len(self.equity_curve) >= 2:
+            days_span = len(self.equity_curve) / 24
+            if days_span > 0:
+                ann_return = (self.balance / self.initial_balance) ** (365 / days_span) - 1
+                calmar = round(ann_return / max_dd, 2)
+
+        # VaR 95% + CVaR 95% (hourly returns)
+        var_95 = 0.0
+        cvar_95 = 0.0
+        if hourly_returns:
+            var_95 = round(float(np.percentile(hourly_returns, 5)), 6)
+            tail = [r for r in hourly_returns if r <= var_95]
+            if tail:
+                cvar_95 = round(sum(tail) / len(tail), 6)
 
         # Win/loss streaks
         max_win_streak = max_loss_streak = cur_win = cur_loss = 0
@@ -682,6 +803,82 @@ class BacktestEngine:
                     "avg_pnl": round(sum(t.pnl for t in strat_trades) / len(strat_trades), 2),
                 }
 
+        # SQN = sqrt(N) × mean(R-multiples) / std(R-multiples)
+        # R-multiple = PnL / risk_amount (approximated as avg_loss)
+        sqn = 0.0
+        sqn_grade = "N/A"
+        if len(self.trades) >= 5 and losses:
+            avg_loss_abs = gross_loss / len(losses)
+            if avg_loss_abs > 0:
+                r_multiples = [t.pnl / avg_loss_abs for t in self.trades]
+                r_mean = sum(r_multiples) / len(r_multiples)
+                r_std = (sum((r - r_mean) ** 2 for r in r_multiples) / len(r_multiples)) ** 0.5
+                if r_std > 0:
+                    sqn = round(len(self.trades) ** 0.5 * r_mean / r_std, 2)
+                    if sqn >= 7.0: sqn_grade = "Holy Grail"
+                    elif sqn >= 5.0: sqn_grade = "Superb"
+                    elif sqn >= 3.0: sqn_grade = "Excellent"
+                    elif sqn >= 2.5: sqn_grade = "Good"
+                    elif sqn >= 2.0: sqn_grade = "Average"
+                    elif sqn >= 1.6: sqn_grade = "Below Avg"
+                    else: sqn_grade = "Poor"
+
+        # Alpha vs buy-and-hold
+        alpha = 0.0
+        buyhold_return = 0.0
+        if len(self.equity_curve) >= 2:
+            first_eq = self.equity_curve[0]
+            last_eq = self.equity_curve[-1]
+            # Buy-and-hold: first candle close → last candle close
+            first_price = float(self.df_1h.iloc[WARMUP_CANDLES]["close"])
+            last_price = float(self.df_1h.iloc[-1]["close"])
+            if first_price > 0:
+                buyhold_return = round((last_price - first_price) / first_price * 100, 2)
+            strategy_return = round(
+                (self.balance - self.initial_balance) / self.initial_balance * 100, 2
+            )
+            alpha = round(strategy_return - buyhold_return, 2)
+
+        # Exposure%: fraction of candles with open positions
+        exposure_pct = 0.0
+        if self.equity_curve:
+            candles_with_pos = sum(1 for pt in self.equity_curve if pt.get("positions", 0) > 0)
+            exposure_pct = round(candles_with_pos / len(self.equity_curve) * 100, 1)
+
+        # Recovery factor (net profit / max drawdown absolute)
+        recovery_factor = 0.0
+        if max_dd_abs > 0:
+            recovery_factor = round((self.balance - self.initial_balance) / max_dd_abs, 2)
+
+        # Payoff ratio (avg win / |avg loss|)
+        payoff_ratio = 0.0
+        if wins and losses:
+            avg_w = gross_profit / len(wins)
+            avg_l = gross_loss / len(losses)
+            if avg_l > 0:
+                payoff_ratio = round(avg_w / avg_l, 2)
+
+        # Monthly return breakdown
+        monthly_returns: dict[str, float] = {}
+        if len(self.equity_curve) >= 2:
+            cur_month: str | None = None
+            month_start_eq = 0.0
+            prev_eq = 0.0
+            for pt in self.equity_curve:
+                month_key = pt["time"][:7]
+                if month_key != cur_month:
+                    if cur_month is not None and month_start_eq > 0:
+                        monthly_returns[cur_month] = round(
+                            (prev_eq - month_start_eq) / month_start_eq * 100, 2
+                        )
+                    cur_month = month_key
+                    month_start_eq = pt["equity"]
+                prev_eq = pt["equity"]
+            if cur_month is not None and month_start_eq > 0:
+                monthly_returns[cur_month] = round(
+                    (prev_eq - month_start_eq) / month_start_eq * 100, 2
+                )
+
         base.update({
             "total_trades": len(self.trades),
             "winners": len(wins),
@@ -698,6 +895,11 @@ class BacktestEngine:
             "avg_win": round(gross_profit / len(wins), 2) if wins else 0.0,
             "avg_loss": round(-gross_loss / len(losses), 2) if losses else 0.0,
             "sharpe_ratio": sharpe,
+            "sqn": sqn,
+            "sqn_grade": sqn_grade,
+            "alpha": alpha,
+            "buyhold_return": buyhold_return,
+            "exposure_pct": exposure_pct,
             "max_win_streak": max_win_streak,
             "max_loss_streak": max_loss_streak,
             "by_strategy": by_strategy,
@@ -705,6 +907,14 @@ class BacktestEngine:
             "clusters": n_clusters,
             "independent_decisions": independent,
             "cluster_adj_wr": round(adj_wr, 1),
+            "sortino_ratio": sortino,
+            "calmar_ratio": calmar,
+            "var_95": var_95,
+            "cvar_95": cvar_95,
+            "recovery_factor": recovery_factor,
+            "payoff_ratio": payoff_ratio,
+            "drawdown_periods": drawdown_periods,
+            "monthly_returns": monthly_returns,
         })
         return base
 
