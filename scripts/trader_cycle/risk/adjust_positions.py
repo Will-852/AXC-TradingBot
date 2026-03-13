@@ -205,9 +205,53 @@ class AdjustPositionsStep:
                     )
                     logger.info(f"[{pos.pair}] Old SL {current_sl} restored")
                 except Exception as restore_err:
-                    ctx.errors.append(
-                        f"CRITICAL [{pos.pair}]: SL restore also failed: {restore_err}"
+                    # Restore 都失敗 → 倉位冇 SL 保護 → 即時 market close
+                    logger.error(
+                        f"[{pos.pair}] SL restore also failed: {restore_err} "
+                        f"→ emergency market close (no unprotected positions)"
                     )
+                    ctx.errors.append(
+                        f"CRITICAL [{pos.pair}]: SL restore failed → emergency close"
+                    )
+                    try:
+                        client.close_position_market(pos.pair)
+                        logger.info(f"[{pos.pair}] Emergency close after SL restore failure")
+                        try:
+                            write_trade(
+                                pos.pair, pos.direction, pos.entry_price,
+                                exit_price=pos.mark_price,
+                                pnl=pos.unrealized_pnl,
+                                notes="trailing SL restore failed → emergency close",
+                            )
+                        except Exception:
+                            pass
+                        ctx.closed_positions.append(ClosedPosition(
+                            pair=pos.pair, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=pos.mark_price,
+                            size=pos.size, pnl=pos.unrealized_pnl,
+                            reason="trailing SL restore failed",
+                            timestamp=ctx.timestamp_str,
+                        ))
+                        ctx.trade_state_updates.update({
+                            "POSITION_OPEN": "NO", "PAIR": "—",
+                            "DIRECTION": "—", "ENTRY_PRICE": "0",
+                            "SIZE": "0", "SL_PRICE": "0", "TP_PRICE": "0",
+                        })
+                        ctx.telegram_messages.append(
+                            f"<b>Emergency Close</b> [{pos.pair}]\n"
+                            f"Trailing SL cancel→replace both failed.\n"
+                            f"Position closed to prevent unprotected exposure."
+                        )
+                    except Exception as close_err:
+                        ctx.errors.append(
+                            f"CRITICAL [{pos.pair}]: emergency close also failed: "
+                            f"{close_err} — MANUAL INTERVENTION REQUIRED"
+                        )
+                        ctx.telegram_messages.append(
+                            f"<b>CRITICAL</b> [{pos.pair}]\n"
+                            f"SL restore + emergency close BOTH failed!\n"
+                            f"Manual intervention required immediately."
+                        )
 
     # ──────────────────────────────────────────────
     # Operation 2: TP Extension

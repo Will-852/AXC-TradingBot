@@ -238,11 +238,17 @@ class CheckPositionsStep:
         if ctx.verbose:
             print(f"    ⚠ AUTO-CLOSE detected: {pair} {direction} pnl={realized_pnl:.4f}")
 
+    # Orphan SL 重試上限 — 超過後只發通知，唔再嘗試下單（防止無限浪費 API 同手續費）
+    _ORPHAN_MAX_ATTEMPTS = 3
+
     def _detect_orphans(self, ctx: CycleContext) -> None:
         """
         Orphan detection: positions without SL order → auto-place SL.
         This handles crash recovery (entry filled but SL never placed).
         Routes to correct exchange per position.platform.
+
+        Safety: 跨 cycle 計數（ORPHAN_ATTEMPTS_<PAIR>），連續失敗 N 次後
+        停止重試，只發 CRITICAL TG 通知等人手處理。成功後自動清零。
         """
         if not ctx.open_positions or (not ctx.exchange_client and not ctx.exchange_clients):
             return
@@ -251,6 +257,18 @@ class CheckPositionsStep:
             client = ctx.exchange_clients.get(pos.platform, ctx.exchange_client)
             if not client:
                 continue
+
+            # ── 檢查重試次數（跨 cycle 持久化） ──
+            attempt_key = f"ORPHAN_ATTEMPTS_{pos.pair}"
+            attempts = _parse_int(ctx.trade_state.get(attempt_key, 0))
+            if attempts >= self._ORPHAN_MAX_ATTEMPTS:
+                # 已放棄 — 只 log，唔再下單
+                logger.warning(
+                    f"ORPHAN [{pos.pair}]: skipped — {attempts} consecutive failures, "
+                    f"waiting for manual intervention"
+                )
+                return
+
             try:
                 open_orders = client.get_open_orders(pos.pair)
             except Exception as e:
@@ -264,64 +282,88 @@ class CheckPositionsStep:
                 for o in open_orders
             )
 
-            if not has_sl:
-                # ─── Emergency SL placement ───
-                logger.warning(f"ORPHAN detected: {pos.pair} {pos.direction} has no SL order!")
-                ctx.warnings.append(
-                    f"ORPHAN: {pos.pair} {pos.direction} has no SL → placing emergency SL"
-                )
-                ctx.telegram_messages.append(
-                    f"⚠️ <b>ORPHAN detected</b>\n"
-                    f"{pos.pair} {pos.direction} has NO SL order!\n"
-                    f"Placing emergency SL..."
-                )
+            if has_sl:
+                # SL 存在 → 清零計數器（可能上次 orphan 已修復）
+                if attempts > 0:
+                    ctx.trade_state_updates[attempt_key] = "0"
+                continue
 
-                sl_price = self._calc_emergency_sl(pos, ctx)
-                if sl_price and sl_price > 0:
-                    exit_side = "SELL" if pos.direction == "LONG" else "BUY"
+            # ─── Emergency SL placement ───
+            attempts += 1
+            ctx.trade_state_updates[attempt_key] = str(attempts)
+
+            logger.warning(
+                f"ORPHAN detected: {pos.pair} {pos.direction} has no SL order! "
+                f"(attempt {attempts}/{self._ORPHAN_MAX_ATTEMPTS})"
+            )
+            ctx.warnings.append(
+                f"ORPHAN: {pos.pair} {pos.direction} has no SL → placing emergency SL "
+                f"(attempt {attempts}/{self._ORPHAN_MAX_ATTEMPTS})"
+            )
+            ctx.telegram_messages.append(
+                f"<b>ORPHAN detected</b>\n"
+                f"{pos.pair} {pos.direction} has NO SL order!\n"
+                f"Attempt {attempts}/{self._ORPHAN_MAX_ATTEMPTS}"
+            )
+
+            sl_price = self._calc_emergency_sl(pos, ctx)
+            if sl_price and sl_price > 0:
+                exit_side = "SELL" if pos.direction == "LONG" else "BUY"
+                try:
+                    result = client.create_stop_market(
+                        pos.pair, exit_side, pos.size,
+                        sl_price, reduce_only=True,
+                    )
+                    logger.info(f"Emergency SL placed: {pos.pair} @ {sl_price}")
+                    ctx.warnings.append(
+                        f"Emergency SL placed: {pos.pair} @ {sl_price}"
+                    )
+                    ctx.telegram_messages.append(
+                        f"<b>Emergency SL placed</b>\n"
+                        f"{pos.pair} {pos.direction} SL @ {sl_price}"
+                    )
+                    # 成功 → 清零
+                    ctx.trade_state_updates[attempt_key] = "0"
+
+                except Exception as e:
+                    # SL failed → force close position (no unprotected positions)
+                    logger.error(f"Emergency SL FAILED for {pos.pair}: {e}")
+                    ctx.warnings.append(
+                        f"Emergency SL FAILED: {pos.pair} → force closing"
+                    )
                     try:
-                        result = client.create_stop_market(
-                            pos.pair, exit_side, pos.size,
-                            sl_price, reduce_only=True,
-                        )
-                        logger.info(f"Emergency SL placed: {pos.pair} @ {sl_price}")
-                        ctx.warnings.append(
-                            f"Emergency SL placed: {pos.pair} @ {sl_price}"
-                        )
-                        ctx.telegram_messages.append(
-                            f"🛡️ <b>Emergency SL placed</b>\n"
-                            f"{pos.pair} {pos.direction} SL @ {sl_price}"
-                        )
-                    except Exception as e:
-                        # SL failed → force close position (no unprotected positions)
-                        logger.error(f"Emergency SL FAILED for {pos.pair}: {e}")
-                        ctx.warnings.append(
-                            f"Emergency SL FAILED: {pos.pair} → force closing"
-                        )
-                        ctx.telegram_messages.append(
-                            f"🚨 <b>Emergency SL FAILED</b>\n"
-                            f"{pos.pair} {pos.direction} → force closing position!"
-                        )
+                        client.close_position_market(pos.pair)
+                        ctx.warnings.append(f"Force closed orphan: {pos.pair}")
+                        # 平倉成功 → 清零（倉位已冇）
+                        ctx.trade_state_updates[attempt_key] = "0"
                         try:
-                            client.close_position_market(pos.pair)
-                            ctx.warnings.append(f"Force closed orphan: {pos.pair}")
-                            try:
-                                write_trade(pos.pair, pos.direction, pos.entry_price,
-                                            exit_price=pos.mark_price,
-                                            pnl=pos.unrealized_pnl,
-                                            notes="orphan force close (SL placement failed)")
-                            except Exception:
-                                pass
-                            ctx.closed_positions.append(ClosedPosition(
-                                pair=pos.pair, direction=pos.direction,
-                                entry_price=pos.entry_price, exit_price=pos.mark_price,
-                                size=pos.size, pnl=pos.unrealized_pnl,
-                                reason="orphan force close",
-                                timestamp=ctx.timestamp_str,
-                            ))
-                        except Exception as e2:
-                            ctx.errors.append(
-                                f"CRITICAL: Cannot close orphan {pos.pair}: {e2}"
+                            write_trade(pos.pair, pos.direction, pos.entry_price,
+                                        exit_price=pos.mark_price,
+                                        pnl=pos.unrealized_pnl,
+                                        notes="orphan force close (SL placement failed)")
+                        except Exception:
+                            pass
+                        ctx.closed_positions.append(ClosedPosition(
+                            pair=pos.pair, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=pos.mark_price,
+                            size=pos.size, pnl=pos.unrealized_pnl,
+                            reason="orphan force close",
+                            timestamp=ctx.timestamp_str,
+                        ))
+                        ctx.telegram_messages.append(
+                            f"<b>Orphan force closed</b>\n"
+                            f"{pos.pair} {pos.direction} (SL failed → market close)"
+                        )
+                    except Exception as e2:
+                        # SL 失敗 + close 失敗 → 計數已 +1，下個 cycle 再試
+                        ctx.errors.append(
+                            f"CRITICAL: Cannot close orphan {pos.pair}: {e2}"
+                        )
+                        if attempts >= self._ORPHAN_MAX_ATTEMPTS:
+                            ctx.telegram_messages.append(
+                                f"<b>CRITICAL: ORPHAN GAVE UP</b>\n"
+                                f"{pos.pair} {pos.direction} — {attempts} attempts exhausted!\n"
+                                f"SL + close both failed. Manual intervention required."
                             )
 
     def _calc_emergency_sl(self, pos: Position, ctx: CycleContext) -> Optional[float]:
