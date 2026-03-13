@@ -172,6 +172,25 @@ HMM_MIN_CONFIDENCE = 0.6
 HMM_MIN_SAMPLES = 100
 HMM_CRASH_THRESHOLD = 0.7
 
+# ─── Regime Engine ───
+REGIME_ENGINE = "votes_hmm"           # "votes_hmm" | "bocpd_cp"
+
+# ─── BOCPD ───
+BOCPD_HAZARD_RATE = 0.02
+BOCPD_MAX_RUN_LENGTH = 200
+BOCPD_MIN_SAMPLES = 30
+BOCPD_CHANGEPOINT_THRESHOLD = 0.3
+BOCPD_STATE_PATH = os.path.join(_SHARED, "bocpd_state.json")
+
+# ─── Conformal Prediction (ATR) ───
+CP_ENABLED = False
+CP_ALPHA = 0.10
+CP_MIN_SCORES = 20
+CP_MAX_SCORES = 200
+CP_INFLATION_FACTOR = 1.5
+CP_FALLBACK_MULT = 1.5
+CP_STATE_PATH = os.path.join(_SHARED, "cp_state.json")
+
 # ─── CRASH Strategy ───
 CRASH_RISK_PCT = 0.01
 CRASH_LEVERAGE = 5
@@ -225,6 +244,18 @@ try:
     HMM_MIN_CONFIDENCE = getattr(_mod, "HMM_MIN_CONFIDENCE", HMM_MIN_CONFIDENCE)
     HMM_MIN_SAMPLES = getattr(_mod, "HMM_MIN_SAMPLES", HMM_MIN_SAMPLES)
     HMM_CRASH_THRESHOLD = getattr(_mod, "HMM_CRASH_THRESHOLD", HMM_CRASH_THRESHOLD)
+    # Regime engine params from params.py
+    REGIME_ENGINE = getattr(_mod, "REGIME_ENGINE", REGIME_ENGINE)
+    BOCPD_HAZARD_RATE = getattr(_mod, "BOCPD_HAZARD_RATE", BOCPD_HAZARD_RATE)
+    BOCPD_MAX_RUN_LENGTH = getattr(_mod, "BOCPD_MAX_RUN_LENGTH", BOCPD_MAX_RUN_LENGTH)
+    BOCPD_MIN_SAMPLES = getattr(_mod, "BOCPD_MIN_SAMPLES", BOCPD_MIN_SAMPLES)
+    BOCPD_CHANGEPOINT_THRESHOLD = getattr(_mod, "BOCPD_CHANGEPOINT_THRESHOLD", BOCPD_CHANGEPOINT_THRESHOLD)
+    # Conformal Prediction params from params.py
+    CP_ENABLED = getattr(_mod, "CP_ENABLED", CP_ENABLED)
+    CP_ALPHA = getattr(_mod, "CP_ALPHA", CP_ALPHA)
+    CP_MIN_SCORES = getattr(_mod, "CP_MIN_SCORES", CP_MIN_SCORES)
+    CP_MAX_SCORES = getattr(_mod, "CP_MAX_SCORES", CP_MAX_SCORES)
+    CP_INFLATION_FACTOR = getattr(_mod, "CP_INFLATION_FACTOR", CP_INFLATION_FACTOR)
     # CRASH strategy params from params.py
     CRASH_RISK_PCT = getattr(_mod, "CRASH_RISK_PCT", CRASH_RISK_PCT)
     CRASH_LEVERAGE = getattr(_mod, "CRASH_LEVERAGE", CRASH_LEVERAGE)
@@ -270,6 +301,14 @@ try:
     REENTRY_COOLDOWN_CYCLES       = _p["reentry_cooldown_cycles"]
     BIAS_THRESHOLD                = _p["bias_threshold"]
 
+    # Tier 2 — strategy enablement + trend gate
+    ALLOW_TREND                   = _p.get("allow_trend", True)
+    ALLOW_RANGE                   = _p.get("allow_range", True)
+    TREND_MIN_CHANGE_PCT          = _p.get("trend_min_change_pct", 5.0)
+
     del _load_profile, _p
 except Exception as _e:
     _log.error("Profile load failed, using hardcoded defaults: %s", _e)
+    ALLOW_TREND = True
+    ALLOW_RANGE = True
+    TREND_MIN_CHANGE_PCT = 5.0

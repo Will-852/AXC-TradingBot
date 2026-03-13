@@ -15,6 +15,7 @@ from ..config.settings import (
     BIAS_THRESHOLD, HKT, PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
     ENTRY_VOLUME_MIN, MACD_HIST_DECAY_THRESHOLD,
     OBV_CONFIRM_BONUS, OBV_AGAINST_PENALTY,
+    TREND_MIN_CHANGE_PCT,
 )
 from ..core.context import CycleContext, Signal
 from .base import StrategyBase, PositionParams
@@ -106,6 +107,16 @@ class TrendStrategy(StrategyBase):
         volume_ratio = ind_4h.get("volume_ratio", 1.0)
         if volume_ratio < ENTRY_VOLUME_MIN:
             return None  # volume too low — skip
+
+        # ─── Minimum price change gate ───
+        # Profile 控制趨勢入場最低變動：AGGRESSIVE=2%, BALANCED=5%
+        if TREND_MIN_CHANGE_PCT is not None:
+            high = ind_4h.get("high")
+            low = ind_4h.get("low")
+            if high and low and low > 0:
+                change_pct = ((high - low) / low) * 100
+                if change_pct < TREND_MIN_CHANGE_PCT:
+                    return None  # 4H range too narrow for trend entry
 
         # Extract required values
         price = ind_4h.get("price")

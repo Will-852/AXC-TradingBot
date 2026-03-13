@@ -7,7 +7,7 @@ SelectSignalStep: picks the strongest signal from candidates
 
 from __future__ import annotations
 
-from ..config.settings import PRIMARY_TIMEFRAME
+from ..config.settings import PRIMARY_TIMEFRAME, ALLOW_TREND, ALLOW_RANGE
 
 from ..core.context import CycleContext, Signal
 from ..core.registry import StrategyRegistry
@@ -35,6 +35,16 @@ class EvaluateSignalsStep:
             return ctx
 
         strategy = StrategyRegistry.get(ctx.market_mode)
+
+        # ── Profile strategy gate ──
+        if ctx.market_mode == "TREND" and not ALLOW_TREND:
+            if ctx.verbose:
+                print("    Signals: TREND disabled by profile (allow_trend=False)")
+            return ctx
+        if ctx.market_mode == "RANGE" and not ALLOW_RANGE:
+            if ctx.verbose:
+                print("    Signals: RANGE disabled by profile (allow_range=False)")
+            return ctx
 
         if not strategy:
             if ctx.verbose:
