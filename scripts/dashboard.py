@@ -88,12 +88,12 @@ _CHAT_EXPIRY_SEC = 600  # 10 min
 PARAMS_DISPLAY = [
     ("RISK_PER_TRADE_PCT",      "風險/單",   "%"),
     ("MAX_OPEN_POSITIONS",      "最大倉位",  ""),
-    ("_SL_ATR_MULT",            "止損",      "×ATR"),
+    ("_SL_ATR_MULT_RANGE",      "SL(R)",     "×ATR"),
+    ("_SL_ATR_MULT_TREND",      "SL(T)",     "×ATR"),
     ("_TP_ATR_MULT",            "止盈",      "×ATR"),
     ("_TRIGGER_PCT",            "觸發門檻",  "%"),
     ("_ALLOW_TREND",            "趨勢",      "bool"),
     ("_ALLOW_RANGE",            "區間",      "bool"),
-    ("MAX_POSITION_SIZE_USDT",  "倉位上限",  "$"),
     ("SCAN_INTERVAL_SEC",       "掃描間隔",  "秒"),
 ]
 
@@ -1194,7 +1194,8 @@ def get_trading_params():
             params["_profile_desc"] = profile.get("description", "")
             params["RISK_PER_TRADE_PCT"] = profile.get("risk_per_trade_pct", 0.02)
             params["MAX_OPEN_POSITIONS"] = profile.get("max_open_positions", 2)
-            params["_SL_ATR_MULT"] = profile.get("sl_atr_mult", 1.2)
+            params["_SL_ATR_MULT_RANGE"] = profile.get("sl_atr_mult_range", 1.2)
+            params["_SL_ATR_MULT_TREND"] = profile.get("sl_atr_mult_trend", 1.5)
             params["_TP_ATR_MULT"] = profile.get("tp_atr_mult", 2.0)
             params["_ALLOW_TREND"] = profile.get("allow_trend", True)
             params["_ALLOW_RANGE"] = profile.get("allow_range", True)
@@ -1911,7 +1912,8 @@ def get_action_plan(scan_config, trade_state):
 
     profile = profiles.get(active_profile, {})
     threshold = profile.get("trigger_pct", 0.025) * 100  # → 2.5%
-    sl_mult = profile.get("sl_atr_mult", 1.2)
+    sl_mult_range = profile.get("sl_atr_mult_range", 1.2)
+    sl_mult_trend = profile.get("sl_atr_mult_trend", 1.5)
 
     # Read prices_cache.json
     cache = {}
@@ -1966,7 +1968,7 @@ def get_action_plan(scan_config, trade_state):
             status = "far"
 
         # SL/TP preview
-        sl_dist = atr * sl_mult if atr > 0 else 0
+        sl_dist = atr * sl_mult_range if atr > 0 else 0  # preview 用 range mult
         tp_dist = sl_dist * 2.0 if sl_dist > 0 else 0
 
         # Global blocker
@@ -3289,7 +3291,7 @@ def handle_symbol_info(qs):
         return 500, {"error": str(e)}
 
 
-_orderbook_cache: Dict[str, Any] = {}  # {symbol: {"data": ..., "ts": float}}
+_orderbook_cache: dict[str, any] = {}  # {symbol: {"data": ..., "ts": float}}
 _ORDERBOOK_CACHE_TTL = 10  # seconds
 
 
@@ -3567,7 +3569,8 @@ DEMO_DATA = {
     "params_display": [
         {"key": "RISK_PER_TRADE_PCT", "label": "風險/單", "value": "1.5", "unit": "%"},
         {"key": "MAX_OPEN_POSITIONS", "label": "最大倉位", "value": "3", "unit": ""},
-        {"key": "_SL_ATR_MULT", "label": "止損", "value": "1.5", "unit": "×ATR"},
+        {"key": "_SL_ATR_MULT_RANGE", "label": "SL(R)", "value": "1.2", "unit": "×ATR"},
+        {"key": "_SL_ATR_MULT_TREND", "label": "SL(T)", "value": "1.5", "unit": "×ATR"},
         {"key": "_TP_ATR_MULT", "label": "止盈", "value": "3.0", "unit": "×ATR"},
         {"key": "_TRIGGER_PCT", "label": "觸發門檻", "value": "2.0", "unit": "%"},
     ],
@@ -4415,6 +4418,11 @@ def _handle_bt_aggtrades_inner(qs: dict):
         return 400, {"error": "invalid days"}
     if days < 1:
         return 400, {"error": "days must be >= 1"}
+    # BTC ~3min/day, ETH ~2min/day via Binance aggTrades API.
+    # Cap to keep total fetch <5min (HTTP timeout safe).
+    _HIGH_VOL_MAX_DAYS = {"BTCUSDT": 1, "ETHUSDT": 2}
+    if symbol in _HIGH_VOL_MAX_DAYS:
+        days = min(days, _HIGH_VOL_MAX_DAYS[symbol])
 
     interval = qs.get("interval", ["1h"])[0].lower()
     if interval not in _INTERVAL_MS:

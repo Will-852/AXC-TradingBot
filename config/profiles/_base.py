@@ -11,7 +11,8 @@ DEFAULT_PROFILE = {
     "description":            "",
     "trigger_pct":            0.025,   # 信號觸發閾值（2.5%）
     "risk_per_trade_pct":     0.02,    # 每筆風險 2%
-    "sl_atr_mult":            1.2,     # SL = 1.2 × ATR
+    "sl_atr_mult_range":      1.2,     # Range SL = 1.2 × ATR（backtest 後調整）
+    "sl_atr_mult_trend":      1.5,     # Trend SL = 1.5 × ATR（backtest 後調整）
     "tp_atr_mult":            2.0,     # TP = N × ATR（reserved）
     "range_min_rr":           2.3,     # Range 最低 reward:risk
     "trend_min_rr":           3.0,     # Trend 最低 reward:risk

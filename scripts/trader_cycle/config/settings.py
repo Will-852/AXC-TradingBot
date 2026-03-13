@@ -279,8 +279,8 @@ try:
     # Tier 1 映射（原有 TRADING_PROFILES keys）
     RANGE_RISK_PCT      = _p["risk_per_trade_pct"]
     TREND_RISK_PCT      = _p["risk_per_trade_pct"]
-    RANGE_SL_ATR_MULT   = _p["sl_atr_mult"]
-    TREND_SL_ATR_MULT   = _p["sl_atr_mult"]
+    RANGE_SL_ATR_MULT   = _p["sl_atr_mult_range"]
+    TREND_SL_ATR_MULT   = _p["sl_atr_mult_trend"]
     RANGE_MIN_RR        = _p["range_min_rr"]
     TREND_MIN_RR        = _p["trend_min_rr"]
     MAX_CRYPTO_POSITIONS = _p["max_open_positions"]

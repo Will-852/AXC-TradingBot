@@ -29,6 +29,7 @@ BINANCE_FAPI = "https://fapi.binance.com"
 # BTC 高 volume 時段一小時可能超過 1000 trades per request
 # 所以用 30-min windows 而唔係 1-hour windows
 _WINDOW_MS = 30 * 60 * 1000  # 30 minutes
+_BASE_SLEEP = 0.6  # seconds between API calls（Binance 限制 2400 weight/min）
 
 # 每個 symbol 嘅默認 price bucket size（用於 volume profile + heatmap）
 AGG_BUCKET_DEFAULTS = {
@@ -89,7 +90,15 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
                 params["startTime"] = window_start
                 params["endTime"] = window_end
 
-            resp = requests.get(url, params=params, timeout=15)
+            # Retry with exponential backoff on 429 / 5xx
+            for attempt in range(4):
+                resp = requests.get(url, params=params, timeout=15)
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    wait = (2 ** attempt) * 2  # 2, 4, 8, 16 seconds
+                    log.warning("Binance %d on attempt %d, backing off %ds", resp.status_code, attempt + 1, wait)
+                    time.sleep(wait)
+                    continue
+                break
             resp.raise_for_status()
             data = resp.json()
             req_count += 1
@@ -116,10 +125,10 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
             if exceeded_window or len(data) < 1000:
                 break
 
-            time.sleep(0.6)
+            time.sleep(_BASE_SLEEP)
 
         window_start = window_end + 1
-        time.sleep(0.6)
+        time.sleep(_BASE_SLEEP)
 
     if not all_trades:
         log.warning("No aggTrades for %s on %s", symbol, day_str)

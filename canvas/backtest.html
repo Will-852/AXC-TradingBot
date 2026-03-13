@@ -404,6 +404,13 @@
       animation: fpPulse 1s ease-in-out infinite;
     }
     @keyframes fpPulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+    .fp-mode-btn {
+      font-size: .6rem; font-weight: 600; color: #64748b;
+      background: rgba(148,163,184,0.15); border: 1px solid rgba(148,163,184,0.3);
+      border-radius: 3px; padding: 0 5px; cursor: pointer;
+      letter-spacing: .03em; line-height: 1.6;
+    }
+    .fp-mode-btn:hover { background: rgba(148,163,184,0.3); }
     .vol-preset-btn {
       font-size: .68rem; font-weight: 700; color: #d4a017;
       background: rgba(212,160,23,0.12); border: 1px solid rgba(212,160,23,0.3);
@@ -851,6 +858,7 @@
       <label title="Delta Volume（買-賣淨量）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> Delta</label>
       <label title="Volume Profile（價位成交分佈）" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> VP</label>
       <label title="Footprint Heatmap（蠟燭成交熱力圖）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
+      <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" title="切換 Block/Bubble 模式">Blk</button>
       <label title="Cumulative Volume Delta" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> CVD</label>
       <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵啟用 VP+FP+CVD+VWAP">Vol</button>
       <span class="fp-loading-dot" id="fp-loading-dot" style="display:none"></span>
@@ -1302,6 +1310,7 @@ function initEquityChart() {
 //  Footprint / Order Flow state + functions
 // ══════════════════════════════════════════════════
 var footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {}, cvd: {} };
+var fpMode = 'block';  // 'block' or 'bubble'
 var largeTradeOverlays = [];
 var fpLoading = false;
 var fpFetched = false;
@@ -1456,6 +1465,17 @@ function resetFootprintData() {
   document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
   var volBtn = document.querySelector('.vol-preset-btn');
   if (volBtn) volBtn.classList.remove('active');
+}
+
+function toggleFpMode() {
+  fpMode = fpMode === 'block' ? 'bubble' : 'block';
+  var btn = document.getElementById('fp-mode-btn');
+  if (btn) btn.textContent = fpMode === 'block' ? 'Blk' : 'Bbl';
+  // Re-render heatmap if active
+  if (fpActive.heatmap && fpFetched && mainChart) {
+    removeIndicatorFromChart('AXC_HEATMAP');
+    addIndicatorToChart('AXC_HEATMAP');
+  }
 }
 
 function activateVolPreset() {
@@ -1922,58 +1942,68 @@ function registerBackendIndicators() {
 
         var showText = bucketPx > 14;  // zoom threshold for text mode
 
+        var isBubble = fpMode === 'bubble';
+        // Bubble mode: max radius = half of candle width or bucket height
+        var maxR = isBubble ? Math.min(candleW, bucketPx) * 0.48 : 0;
+
         lvls.forEach(function(lv) {
           if (!lv || typeof lv.total_vol !== 'number') return;
           var py = yAxis.convertToPixel(lv.price);
           if (py == null || isNaN(py)) return;
           var intensity = lv.total_vol / globalMax;
-          // Higher alpha range for better visibility: 0.15 → 0.70
           var alpha = 0.15 + intensity * 0.55;
 
-          var bx = cx - candleW / 2;
-          var by = py - bucketPx / 2;
-
-          // Blue = net buy dominant, Yellow = net sell dominant
           var isBuyDom = lv.buy_vol >= lv.sell_vol;
-          if (isBuyDom) {
-            ctx.fillStyle = 'rgba(66,133,244,' + alpha.toFixed(2) + ')';
+          var buyColor = 'rgba(66,133,244,';
+          var sellColor = 'rgba(255,193,7,';
+          var baseColor = isBuyDom ? buyColor : sellColor;
+
+          if (isBubble) {
+            // ── Bubble mode: circle with radius ∝ volume ──
+            var r = Math.max(2, Math.sqrt(intensity) * maxR);
+            ctx.beginPath();
+            ctx.arc(cx, py, r, 0, Math.PI * 2);
+            ctx.fillStyle = baseColor + Math.min(0.75, alpha + 0.1).toFixed(2) + ')';
+            ctx.fill();
+            // Imbalance ring
+            if (lv.imbalance) {
+              ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.9)' : 'rgba(225,29,72,0.9)';
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+            }
           } else {
-            ctx.fillStyle = 'rgba(255,193,7,' + alpha.toFixed(2) + ')';
-          }
-          ctx.fillRect(bx, by, candleW, bucketPx);
+            // ── Block mode (original) ──
+            var bx = cx - candleW / 2;
+            var by = py - bucketPx / 2;
+            ctx.fillStyle = baseColor + alpha.toFixed(2) + ')';
+            ctx.fillRect(bx, by, candleW, bucketPx);
 
-          // Imbalance highlight — bright border (green=buy imbalance, red=sell)
-          if (lv.imbalance) {
-            ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.85)' : 'rgba(225,29,72,0.85)';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(bx, by, candleW, bucketPx);
-          } else if (intensity > 0.4) {
-            // Subtle border for high-volume blocks (non-imbalance)
-            ctx.strokeStyle = isBuyDom
-              ? 'rgba(66,133,244,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')'
-              : 'rgba(255,193,7,' + Math.min(0.6, alpha + 0.15).toFixed(2) + ')';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(bx, by, candleW, bucketPx);
-          }
+            if (lv.imbalance) {
+              ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.85)' : 'rgba(225,29,72,0.85)';
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(bx, by, candleW, bucketPx);
+            } else if (intensity > 0.4) {
+              ctx.strokeStyle = baseColor + Math.min(0.6, alpha + 0.15).toFixed(2) + ')';
+              ctx.lineWidth = 0.5;
+              ctx.strokeRect(bx, by, candleW, bucketPx);
+            }
 
-          // Text mode: show buy_vol × sell_vol when zoomed in enough
-          if (showText && candleW > 30) {
-            var fontSize = Math.max(8, Math.min(11, bucketPx * 0.55));
-            ctx.font = fontSize + 'px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            var midY = by + bucketPx / 2;
-            var bStr = _fmtVolShort(lv.buy_vol);
-            var sStr = _fmtVolShort(lv.sell_vol);
-            // Buy side (left half) — teal text
-            ctx.fillStyle = 'rgba(13,148,136,0.9)';
-            ctx.fillText(bStr, bx + candleW * 0.28, midY);
-            // Separator
-            ctx.fillStyle = 'rgba(148,163,184,0.6)';
-            ctx.fillText('×', bx + candleW * 0.5, midY);
-            // Sell side (right half) — red text
-            ctx.fillStyle = 'rgba(225,29,72,0.9)';
-            ctx.fillText(sStr, bx + candleW * 0.72, midY);
+            // Text mode: show buy_vol × sell_vol when zoomed in enough
+            if (showText && candleW > 30) {
+              var fontSize = Math.max(8, Math.min(11, bucketPx * 0.55));
+              ctx.font = fontSize + 'px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              var midY = by + bucketPx / 2;
+              var bStr = _fmtVolShort(lv.buy_vol);
+              var sStr = _fmtVolShort(lv.sell_vol);
+              ctx.fillStyle = 'rgba(13,148,136,0.9)';
+              ctx.fillText(bStr, bx + candleW * 0.28, midY);
+              ctx.fillStyle = 'rgba(148,163,184,0.6)';
+              ctx.fillText('×', bx + candleW * 0.5, midY);
+              ctx.fillStyle = 'rgba(225,29,72,0.9)';
+              ctx.fillText(sStr, bx + candleW * 0.72, midY);
+            }
           }
         });
       }
@@ -2805,7 +2835,7 @@ var _lastGatedInterval = '1h';
 function gateIndicators(interval) {
   // Hide indicator labels + seps for non-1h, but KEEP fp-toggle + fp-group-label visible
   var labels = document.querySelectorAll('#ind-toolbar label:not(.fp-toggle), #ind-toolbar .sep');
-  var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label, #ind-toolbar .vol-preset-btn');
+  var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label, #ind-toolbar .vol-preset-btn, #ind-toolbar .fp-mode-btn');
   if (interval !== '1h') {
     labels.forEach(function(el) { el.style.display = 'none'; });
     fpEls.forEach(function(el) { el.style.display = 'flex'; });

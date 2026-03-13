@@ -157,10 +157,11 @@ class SizePositionStep:
 
         risk_amount = balance * adjusted_risk
 
-        # Re-entry size reduction after losses
+        # Re-entry size reduction after losses — 遞減：每次連虧再縮 30%
+        # 1 loss: ×0.7, 2 losses: ×0.49, 3 losses: ×0.343
         consecutive_losses = _parse_int(ctx.trade_state.get("CONSECUTIVE_LOSSES", 0))
         if consecutive_losses > 0:
-            risk_amount *= (1 - REENTRY_SIZE_REDUCTION)
+            risk_amount *= (1 - REENTRY_SIZE_REDUCTION) ** consecutive_losses
 
         # Position size = risk_amount / (sl_distance / entry_price)
         sl_pct = sl_distance / entry_price
@@ -297,9 +298,9 @@ class SizePositionStep:
         self, signal: Signal, ind_4h: dict,
         entry_price: float, sl_distance: float, ctx: CycleContext,
     ) -> tuple[float | None, float | None]:
-        """Crash TP: ATR × 3.0 from entry (R:R ≥ 1.5 with 2.0× SL)."""
+        """Crash TP: ATR × 3.5 from entry (R:R = 3.5/2.0 = 1.75 > min 1.5)."""
         atr = ind_4h.get("atr", 0)
-        tp_dist = atr * 3.0 if atr > 0 else sl_distance * 1.5
+        tp_dist = atr * 3.5 if atr > 0 else sl_distance * 1.75
         # SHORT only in crash
         tp1 = entry_price - tp_dist
 

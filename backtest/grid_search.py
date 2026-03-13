@@ -74,9 +74,10 @@ PARAM_REGISTRY: dict[str, ParamSpec] = {
     "bb_width_squeeze": ParamSpec("bb_width_squeeze", 0.008, 0.025, 0.002, "indicator", "BB width squeeze threshold"),
     "rsi_long":         ParamSpec("rsi_long",         25,    40,    5,     "indicator", "RSI lower bound (LONG entry)"),
     "rsi_short":        ParamSpec("rsi_short",        55,    75,    5,     "indicator", "RSI upper bound (SHORT entry)"),
-    # ─── position（monkey-patch settings module globals）───
-    "sl_atr_mult":      ParamSpec("sl_atr_mult",      0.8,   1.5,   0.1,  "position",  "SL = N x ATR"),
-    "min_rr":           ParamSpec("min_rr",           1.5,   3.0,   0.5,  "position",  "Minimum reward:risk"),
+    # ─── position（經 strategy_overrides + position_overrides 注入 BT 策略）───
+    "sl_atr_mult_range": ParamSpec("sl_atr_mult_range", 0.8,  1.5,  0.1, "position", "Range SL = N x ATR"),
+    "sl_atr_mult_trend": ParamSpec("sl_atr_mult_trend", 1.0,  2.0,  0.1, "position", "Trend SL = N x ATR"),
+    "min_rr":            ParamSpec("min_rr",            1.5,  3.0,  0.5, "position", "Minimum reward:risk"),
     # ─── trend（monkey-patch trend_strategy module global）───
     "pullback_tolerance": ParamSpec("pullback_tolerance", 0.010, 0.025, 0.005, "trend", "Pullback vs MA50 tolerance"),
 }
@@ -148,32 +149,18 @@ def _worker_run(
     data_paths: dict[str, tuple[str, str]],
     initial_balance: float,
 ) -> dict:
-    """Run one combo across all pairs. Isolated process = safe to patch globals."""
+    """Run one combo across all pairs. Uses strategy_overrides for position params."""
     import pandas as pd
     from indicator_calc import TIMEFRAME_PARAMS
+    from backtest.strategies.bt_range_strategy import BTRangeStrategy
+    from backtest.strategies.bt_trend_strategy import BTTrendStrategy
 
-    # ─── Monkey-patch position params ───
-    # Must patch strategy modules directly (not settings) because strategies
-    # use `from ..config.settings import X` which binds a local copy at import time.
-    if "sl_atr_mult" in combo:
-        import trader_cycle.strategies.range_strategy as _rs
-        import trader_cycle.strategies.trend_strategy as _ts
-        _rs.RANGE_SL_ATR_MULT = combo["sl_atr_mult"]
-        _ts.TREND_SL_ATR_MULT = combo["sl_atr_mult"]
-    if "min_rr" in combo:
-        import trader_cycle.strategies.range_strategy as _rs
-        import trader_cycle.strategies.trend_strategy as _ts
-        _rs.RANGE_MIN_RR = combo["min_rr"]
-        _ts.TREND_MIN_RR = combo["min_rr"]
-
-    # ─── Monkey-patch trend params ───
+    # ─── Monkey-patch trend entry params (live strategy module globals) ───
     if "pullback_tolerance" in combo:
         import trader_cycle.strategies.trend_strategy as _ts
         _ts.PULLBACK_TOLERANCE = combo["pullback_tolerance"]
 
     # ─── Patch TIMEFRAME_PARAMS for rsi_long / rsi_short ───
-    # (engine already patches bb_touch_tol, adx_range_max, bb_width_squeeze
-    #  but NOT rsi_long / rsi_short)
     for key in ("rsi_long", "rsi_short"):
         if key in combo:
             TIMEFRAME_PARAMS["1h"][key] = combo[key]
@@ -184,6 +171,23 @@ def _worker_run(
                                "rsi_long", "rsi_short")
         if k in combo
     }
+
+    # ─── Build position_overrides for BT strategies ───
+    pos_range = {}
+    pos_trend = {}
+    if "sl_atr_mult_range" in combo:
+        pos_range["sl_atr_mult"] = combo["sl_atr_mult_range"]
+    if "sl_atr_mult_trend" in combo:
+        pos_trend["sl_atr_mult"] = combo["sl_atr_mult_trend"]
+    if "min_rr" in combo:
+        pos_range["min_rr"] = combo["min_rr"]
+        pos_trend["min_rr"] = combo["min_rr"]
+
+    strat_overrides = {}
+    if pos_range:
+        strat_overrides["range"] = BTRangeStrategy(position_overrides=pos_range)
+    if pos_trend:
+        strat_overrides["trend"] = BTTrendStrategy(position_overrides=pos_trend)
 
     # ─── Run per pair ───
     results = {}
@@ -201,7 +205,9 @@ def _worker_run(
             engine = BacktestEngine(
                 symbol=pair, df_1h=df_1h, df_4h=df_4h,
                 initial_balance=initial_balance,
-                param_overrides=engine_overrides, quiet=True,
+                param_overrides=engine_overrides,
+                strategy_overrides=strat_overrides if strat_overrides else None,
+                quiet=True,
             )
             r = engine.run()
             results[pair] = {

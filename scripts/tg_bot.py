@@ -453,7 +453,7 @@ def _read_context_via_api() -> str:
         f'TRADING_ENABLED = {state.get("trading_enabled", True)}',
     ]
     config = _oc_client.get_config()
-    for k in ("RISK_PER_TRADE_PCT", "MAX_OPEN_POSITIONS", "MAX_POSITION_SIZE_USDT"):
+    for k in ("RISK_PER_TRADE_PCT", "MAX_OPEN_POSITIONS"):
         if k in config:
             param_lines.append(f"{k} = {config[k]}")
     parts.append(f"**參數：**\n" + "\n".join(param_lines))

@@ -134,7 +134,6 @@ MODE_CONFIRMATION_REQUIRED = 2   # 連續同 mode 先切換
 # Section 6: Dashboard + 倉位管理
 # ═══════════════════════════════════════
 DASHBOARD_PORT = 5566          # 唯一定義點。改 port → 只改呢度
-MAX_POSITION_SIZE_USDT = 50
 
 # ═══════════════════════════════════════
 # Section 7: Profile 設定

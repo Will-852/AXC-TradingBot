@@ -92,7 +92,6 @@ def get_params_snapshot() -> dict:
     return {
         "active_profile": getattr(_params, "ACTIVE_PROFILE", "?"),
         "risk_per_trade": _ap.get("risk_per_trade_pct", 0.02),
-        "max_position_usdt": getattr(_params, "MAX_POSITION_SIZE_USDT", 0),
         "max_open_positions": _ap.get("max_open_positions", 2),
         "aster_symbols": getattr(_params, "ASTER_SYMBOLS", []),
         "binance_symbols": getattr(_params, "BINANCE_SYMBOLS", []),
