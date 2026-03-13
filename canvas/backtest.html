@@ -1327,9 +1327,12 @@ function _syncFpToggleStyle() {
   });
 }
 
-function _showFpLoading(show) {
+function _showFpLoading(show, msg) {
   var dot = document.getElementById('fp-loading-dot');
-  if (dot) dot.style.display = show ? 'inline-block' : 'none';
+  if (dot) {
+    dot.style.display = show ? 'inline-block' : 'none';
+    if (msg) dot.title = msg;
+  }
 }
 
 function toggleFootprint(feature) {
@@ -1361,12 +1364,46 @@ function fetchFootprintData() {
   var myVersion = ++_fpFetchVersion;
   fpLoading = true;
   _showFpLoading(true);
-  showToast('正在拉取 aggTrades（' + days + '日）— 可以繼續撳其他 toggle', 'info');
+  showToast('正在拉取 aggTrades（' + days + '日）— 首次需要 2-4 分鐘', 'info');
 
+  // Step 1: Start background job
   api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap,cvd')
     .then(function(data) {
-      // Stale response guard: a newer fetch was started → discard
       if (myVersion !== _fpFetchVersion) return;
+      if (!data.job_id) {
+        // Shouldn't happen, but handle gracefully
+        _onFpError(myVersion, 'No job ID returned');
+        return;
+      }
+      // Step 2: Poll for completion
+      _pollAggtrades(data.job_id, myVersion, 0);
+    })
+    .catch(function(e) {
+      _onFpError(myVersion, e);
+    });
+}
+
+function _pollAggtrades(jobId, myVersion, elapsed) {
+  if (myVersion !== _fpFetchVersion) return;  // stale
+
+  api('/api/backtest/aggtrades/status?job_id=' + jobId)
+    .then(function(data) {
+      if (myVersion !== _fpFetchVersion) return;  // stale
+
+      if (data.status === 'running') {
+        // Update loading message with elapsed time
+        var secs = data.elapsed || elapsed;
+        _showFpLoading(true, '載入中 ' + secs + 's...');
+        setTimeout(function() { _pollAggtrades(jobId, myVersion, secs + 2); }, 2000);
+        return;
+      }
+
+      if (data.status === 'error') {
+        _onFpError(myVersion, data.error || 'unknown error');
+        return;
+      }
+
+      // Done — data contains the full result
       _showFpLoading(false);
       footprintData.delta_volume = data.delta_volume || {};
       footprintData.large_trades = data.large_trades || [];
@@ -1376,7 +1413,7 @@ function fetchFootprintData() {
       fpFetched = true;
       fpLoading = false;
 
-      var msg = 'AggTrades 載入完成 (' + (footprintData.large_trades.length) + ' whale trades)';
+      var msg = 'AggTrades 載入完成 (' + (data.elapsed || '?') + 's, ' + (footprintData.large_trades.length) + ' whale trades)';
       if (data.warnings && data.warnings.length) {
         msg += ' ⚠️ ' + data.warnings.join('; ');
         showToast(msg, 'warning');
@@ -1384,23 +1421,26 @@ function fetchFootprintData() {
         showToast(msg, 'success');
       }
 
-      // Apply all features toggled on during loading
       Object.keys(fpActive).forEach(function(f) {
         if (fpActive[f]) applyFootprintFeature(f);
       });
     })
     .catch(function(e) {
-      if (myVersion !== _fpFetchVersion) return;
-      _showFpLoading(false);
-      fpLoading = false;
-      fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
-      _syncFpToggleStyle();
-      document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
-      var volBtn = document.querySelector('.vol-preset-btn');
-      if (volBtn) volBtn.classList.remove('active');
-      var errMsg = (e && e.message) ? e.message : String(e);
-      showToast('AggTrades 載入失敗: ' + errMsg, 'error');
+      _onFpError(myVersion, e);
     });
+}
+
+function _onFpError(myVersion, e) {
+  if (myVersion !== _fpFetchVersion) return;
+  _showFpLoading(false);
+  fpLoading = false;
+  fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
+  _syncFpToggleStyle();
+  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+  var volBtn = document.querySelector('.vol-preset-btn');
+  if (volBtn) volBtn.classList.remove('active');
+  var errMsg = (e && e.message) ? e.message : String(e);
+  showToast('AggTrades 載入失敗: ' + errMsg, 'error');
 }
 
 function applyFootprintFeature(feature) {

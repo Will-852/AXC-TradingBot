@@ -29,7 +29,7 @@ BINANCE_FAPI = "https://fapi.binance.com"
 # BTC 高 volume 時段一小時可能超過 1000 trades per request
 # 所以用 30-min windows 而唔係 1-hour windows
 _WINDOW_MS = 30 * 60 * 1000  # 30 minutes
-_BASE_SLEEP = 0.6  # seconds between API calls（Binance 限制 2400 weight/min）
+_BASE_SLEEP = 0.25  # seconds between API calls（Binance 限制 2400 weight/min = 120 req/min at 20 weight each）
 
 # 每個 symbol 嘅默認 price bucket size（用於 volume profile + heatmap）
 AGG_BUCKET_DEFAULTS = {
