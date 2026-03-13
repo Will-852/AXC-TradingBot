@@ -40,7 +40,7 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
-PORT = 5555
+PORT = int(os.environ.get("DASHBOARD_PORT", 5566))
 HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
 SCRIPTS_DIR = os.path.join(HOME, "scripts")
 if HOME not in sys.path:
@@ -1118,9 +1118,9 @@ def get_trading_params():
 
 
 def get_trade_state():
-    """Read full trade state dynamically from TRADE_STATE.md.
-    Parses ALL fields including position details inside code blocks."""
-    path = os.path.join(HOME, "shared/TRADE_STATE.md")
+    """Read trade state — JSON first (v2), MD fallback (v1).
+    Returns dashboard-friendly dict with normalized key names.
+    """
     state = {
         "balance": 0, "pnl_today": 0, "pnl_total": 0,
         "position": "無", "direction": "—",
@@ -1130,6 +1130,19 @@ def get_trade_state():
         "entry_price": 0, "mark_price": 0, "size": 0,
         "sl_price": 0, "tp_price": 0, "unrealized_pnl": 0,
     }
+
+    # Try JSON first (Sprint 2A)
+    json_path = os.path.join(HOME, "shared/TRADE_STATE.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path) as f:
+                data = json.load(f)
+            return _json_state_to_dashboard(data, state)
+        except Exception:
+            pass  # fallback to MD
+
+    # Fallback: parse MD
+    path = os.path.join(HOME, "shared/TRADE_STATE.md")
     if not os.path.exists(path):
         return state
     try:
@@ -1179,6 +1192,37 @@ def get_trade_state():
         m = re.search(r'DIRECTION:\s*(\S+)', content)
         if m and m.group(1) != '—':
             state["direction"] = m.group(1)
+    return state
+
+
+def _json_state_to_dashboard(data: dict, defaults: dict) -> dict:
+    """Convert TRADE_STATE.json → dashboard-friendly dict."""
+    state = dict(defaults)
+    sys_d = data.get("system", {})
+    state["market_mode"] = sys_d.get("market_mode", "RANGE")
+    state["system_status"] = sys_d.get("status", "UNKNOWN")
+
+    acct = data.get("account", {})
+    state["balance"] = acct.get("balance_usdt", 0)
+
+    risk = data.get("risk", {})
+    state["daily_loss"] = risk.get("daily_loss", 0)
+    state["consecutive_losses"] = risk.get("consecutive_losses", 0)
+    state["cooldown_active"] = risk.get("cooldown_active", False)
+
+    positions = data.get("positions", [])
+    if positions:
+        pos = positions[0]
+        state["in_position"] = True
+        state["position"] = pos.get("pair", "無")
+        state["direction"] = pos.get("direction", "—")
+        state["entry_price"] = pos.get("entry_price", 0)
+        state["mark_price"] = pos.get("mark_price", 0)
+        state["size"] = pos.get("size", 0)
+        state["sl_price"] = pos.get("sl_price", 0)
+        state["tp_price"] = pos.get("tp_price", 0)
+        state["unrealized_pnl"] = pos.get("unrealized_pnl", 0)
+
     return state
 
 
