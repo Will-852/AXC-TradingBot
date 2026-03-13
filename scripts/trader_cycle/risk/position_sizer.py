@@ -17,12 +17,17 @@ from ..config.settings import (
     REENTRY_SIZE_REDUCTION,
     CONFIDENCE_RISK_HIGH, CONFIDENCE_RISK_NORMAL, CONFIDENCE_RISK_LOW,
     CONFIDENCE_RISK_CAP, HMM_ENABLED, HMM_MIN_CONFIDENCE,
+    REGIME_ENGINE, CP_ENABLED,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
 from ..strategies.base import PositionParams
 from ..core.registry import StrategyRegistry
 
+
+import logging
+
+log = logging.getLogger(__name__)
 
 # Estimated holding periods (in 8h funding intervals)
 FUNDING_PERIODS_RANGE = 3    # ~24h for range trades
@@ -79,7 +84,21 @@ class SizePositionStep:
         except KeyError:
             pair_cfg = None
 
-        sl_distance = atr * sl_atr_mult
+        # Conformal Prediction: widen SL with uncertainty estimate
+        # (calibration updated in DetectModeStep every 4H candle)
+        atr_for_sl = atr
+        if CP_ENABLED:
+            try:
+                from ..strategies.mode_detector import _get_cp
+                cp = _get_cp()
+                atr_for_sl = cp.get_atr_high(atr)
+                if ctx.verbose:
+                    q_hat = atr_for_sl - atr
+                    print(f"      CP: atr={atr:.2f} + q_hat={q_hat:.2f} = atr_high={atr_for_sl:.2f}")
+            except Exception as e:
+                log.warning("CP get_atr_high failed, using raw ATR: %s", e)
+
+        sl_distance = atr_for_sl * sl_atr_mult
 
         if signal.direction == "LONG":
             sl_price = entry_price - sl_distance
@@ -125,7 +144,7 @@ class SizePositionStep:
         # Higher HMM confidence = more conviction = keep full size
         # Lower confidence (but above threshold) = scale down proportionally
         # Skip for CRASH mode — already has conservative 1% risk, double-penalize 唔好
-        if HMM_ENABLED and ctx.market_mode != "CRASH":
+        if (HMM_ENABLED or REGIME_ENGINE == "bocpd_cp") and ctx.market_mode != "CRASH":
             hmm_conf_str = ctx.scan_config_updates.get("HMM_CONFIDENCE", "0.0")
             try:
                 hmm_conf = float(hmm_conf_str)

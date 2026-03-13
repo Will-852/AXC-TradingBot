@@ -19,6 +19,12 @@ from ..config.settings import (
     HMM_REFIT_INTERVAL, HMM_MIN_CONFIDENCE,
     HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
     HMM_STATE_PATH,
+    REGIME_ENGINE,
+    BOCPD_HAZARD_RATE, BOCPD_MAX_RUN_LENGTH,
+    BOCPD_MIN_SAMPLES, BOCPD_CHANGEPOINT_THRESHOLD,
+    BOCPD_STATE_PATH,
+    CP_ENABLED, CP_ALPHA, CP_MIN_SCORES, CP_MAX_SCORES,
+    CP_INFLATION_FACTOR, CP_FALLBACK_MULT, CP_STATE_PATH,
 )
 from ..core.context import CycleContext
 
@@ -51,6 +57,57 @@ def reset_hmm():
     """Reset HMM singleton (for testing)."""
     global _hmm_instance
     _hmm_instance = None
+
+
+# ─── Singleton BOCPD instance (lazy init) ───
+_bocpd_instance = None
+
+
+def _get_bocpd():
+    """Lazy singleton for RegimeBOCPD — only created when REGIME_ENGINE == 'bocpd_cp'."""
+    global _bocpd_instance
+    if _bocpd_instance is None:
+        from .regime_bocpd import RegimeBOCPD
+        _bocpd_instance = RegimeBOCPD(
+            hazard_rate=BOCPD_HAZARD_RATE,
+            max_run_length=BOCPD_MAX_RUN_LENGTH,
+            min_samples=BOCPD_MIN_SAMPLES,
+            changepoint_threshold=BOCPD_CHANGEPOINT_THRESHOLD,
+        )
+        _bocpd_instance.load_state(BOCPD_STATE_PATH)
+    return _bocpd_instance
+
+
+def reset_bocpd():
+    """Reset BOCPD singleton (for testing)."""
+    global _bocpd_instance
+    _bocpd_instance = None
+
+
+# ─── Singleton CP instance (lazy init) ───
+_cp_instance = None
+
+
+def _get_cp():
+    """Lazy singleton for ATRConformal — only created when CP_ENABLED."""
+    global _cp_instance
+    if _cp_instance is None:
+        from ..risk.atr_conformal import ATRConformal
+        _cp_instance = ATRConformal(
+            alpha=CP_ALPHA,
+            min_scores=CP_MIN_SCORES,
+            max_scores=CP_MAX_SCORES,
+            inflation_factor=CP_INFLATION_FACTOR,
+            fallback_mult=CP_FALLBACK_MULT,
+        )
+        _cp_instance.load_state(CP_STATE_PATH)
+    return _cp_instance
+
+
+def reset_cp():
+    """Reset CP singleton (for testing)."""
+    global _cp_instance
+    _cp_instance = None
 
 
 def _vote_rsi(rsi: float | None) -> str:
@@ -129,7 +186,7 @@ def detect_mode_for_pair(
     """
     # CRASH override: HMM high-confidence + percentile-confirmed crash
     if (
-        HMM_ENABLED
+        (HMM_ENABLED or REGIME_ENGINE == "bocpd_cp")
         and hmm_regime == "CRASH"
         and hmm_crash_confirmed
         and hmm_confidence >= HMM_CRASH_THRESHOLD
@@ -201,34 +258,60 @@ class DetectModeStep:
         funding = ctx.market_data.get(primary, None)
         funding_rate = funding.funding_rate if funding else 0.0
 
-        # HMM update (if enabled)
+        # Regime engine update
         hmm_regime = None
         hmm_confidence = 0.0
         hmm_crash_confirmed = False
-        if HMM_ENABLED:
-            try:
-                hmm = _get_hmm()
-                hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
-                hmm.save_state(HMM_STATE_PATH)
-            except Exception as e:
-                log.warning("HMM update failed: %s", e)
 
-        raw_mode, votes = detect_mode_for_pair(
-            ind_4h, funding_rate, hmm_regime, hmm_confidence, hmm_crash_confirmed
-        )
+        if REGIME_ENGINE == "bocpd_cp":
+            # BOCPD path: direct regime output, skip voting
+            try:
+                bocpd = _get_bocpd()
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = bocpd.update(ind_4h)
+                bocpd.save_state(BOCPD_STATE_PATH)
+            except Exception as e:
+                log.warning("BOCPD update failed: %s", e)
+
+            # Direct regime → no 6-way voting
+            if (
+                hmm_regime == "CRASH"
+                and hmm_crash_confirmed
+                and hmm_confidence >= HMM_CRASH_THRESHOLD
+            ):
+                raw_mode = "CRASH"
+            elif hmm_regime in ("RANGE", "TREND"):
+                raw_mode = hmm_regime
+            else:
+                raw_mode = "UNKNOWN"
+            votes = {"BOCPD": f"{hmm_regime or 'UNKNOWN'} (conf={hmm_confidence:.0%})"}
+        else:
+            # votes_hmm path: HMM as 6th vote (現有邏輯，零改動)
+            if HMM_ENABLED:
+                try:
+                    hmm = _get_hmm()
+                    hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
+                    hmm.save_state(HMM_STATE_PATH)
+                except Exception as e:
+                    log.warning("HMM update failed: %s", e)
+
+            raw_mode, votes = detect_mode_for_pair(
+                ind_4h, funding_rate, hmm_regime, hmm_confidence, hmm_crash_confirmed
+            )
         ctx.mode_votes = votes
 
-        # Store HMM confidence on context for position_sizer
+        # Store regime confidence on context for position_sizer
         ctx.scan_config_updates["HMM_REGIME"] = hmm_regime or "UNKNOWN"
         ctx.scan_config_updates["HMM_CONFIDENCE"] = f"{hmm_confidence:.3f}"
+        ctx.scan_config_updates["REGIME_ENGINE"] = REGIME_ENGINE
 
         # CRASH mode: skip confirmation, immediately active
         if raw_mode == "CRASH":
             ctx.market_mode = "CRASH"
             ctx.mode_confirmed = True  # CRASH is always confirmed (emergency)
             ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = ctx.prev_mode_cycles
+            self._update_cp(ind_4h, "CRASH", ctx)
             if ctx.verbose:
-                print(f"    Mode: CRASH (HMM override, conf={hmm_confidence:.0%})")
+                print(f"    Mode: CRASH (regime override, conf={hmm_confidence:.0%})")
             return ctx
 
         # Normal mode confirmation logic
@@ -255,9 +338,33 @@ class DetectModeStep:
                 ctx.mode_confirmed = False
                 ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = 1
 
+        # CP update (every 4H candle, not just on signal)
+        self._update_cp(ind_4h, ctx.market_mode, ctx)
+
         if ctx.verbose:
             vote_str = " | ".join(f"{k}:{v}" for k, v in votes.items())
-            hmm_tag = f" HMM:{hmm_regime}({hmm_confidence:.0%})" if hmm_regime else ""
-            print(f"    Mode: {ctx.market_mode} (confirmed={ctx.mode_confirmed}) [{vote_str}]{hmm_tag}")
+            regime_tag = f" {REGIME_ENGINE}:{hmm_regime}({hmm_confidence:.0%})" if hmm_regime else ""
+            print(f"    Mode: {ctx.market_mode} (confirmed={ctx.mode_confirmed}) [{vote_str}]{regime_tag}")
 
         return ctx
+
+    def _update_cp(self, ind_4h: dict, regime: str, ctx: CycleContext):
+        """Update Conformal Prediction calibration every 4H candle."""
+        if not CP_ENABLED:
+            return
+        try:
+            cp = _get_cp()
+            atr = ind_4h.get("atr")
+            if not atr or atr <= 0:
+                return
+            true_range = ind_4h.get("high", 0) - ind_4h.get("low", 0)
+            if true_range <= 0:
+                true_range = atr  # fallback
+            cp.update(regime=regime, atr=atr, true_range=true_range)
+            cp.save_state(CP_STATE_PATH)
+            if ctx.verbose:
+                atr_high = cp.get_atr_high(atr)
+                q_hat = atr_high - atr
+                print(f"      CP: atr={atr:.2f} + q_hat={q_hat:.2f} = atr_high={atr_high:.2f}")
+        except Exception as e:
+            log.warning("CP update failed: %s", e)

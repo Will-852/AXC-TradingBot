@@ -1,0 +1,52 @@
+{
+  "description": "Phase 0 baseline snapshot — before backtest system enhancements",
+  "created_at": "2026-03-13T16:56:00+08:00",
+  "baselines": {
+    "BTCUSDT_60d": {
+      "return_pct": 0.35,
+      "win_rate": 35.7,
+      "profit_factor": 1.01,
+      "max_drawdown_pct": 22.6,
+      "total_trades": 14,
+      "sharpe_ratio": 0.32,
+      "expectancy": 2.49,
+      "strategies_used": ["trend"],
+      "note": "All trend trades, no range/crash signals in period"
+    }
+  },
+  "existing_metrics": [
+    "return_pct", "win_rate", "profit_factor", "expectancy",
+    "max_drawdown_pct", "sharpe_ratio", "max_win_streak", "max_loss_streak",
+    "by_strategy", "clusters", "cluster_adj_wr", "equity_curve",
+    "indicator_series", "avg_win", "avg_loss"
+  ],
+  "missing_metrics": [
+    "sortino_ratio", "calmar_ratio", "cagr",
+    "alpha_vs_buyhold", "exposure_pct", "var_95", "cvar_95",
+    "kelly_criterion", "sqn", "information_ratio"
+  ],
+  "existing_features": {
+    "signal_delay": "Global delay (default 1 candle), NOT per-strategy persistence",
+    "cluster_analysis": "Trades <4h apart grouped, cluster-adjusted win rate",
+    "mode_confirmation": "N consecutive same-mode before allowing signals (default from settings)",
+    "hmm_regime": "Optional HMM regime detection (3-state)",
+    "min_score_filter": "Discard signals below score threshold",
+    "confidence_sizing": "WeightedScorer for score-based position sizing",
+    "validation_suite": "6 tools: monte-carlo, walk-forward, heatmap, noise, delay, dsr",
+    "optimizer": "LHS grid search + Bayesian stage2",
+    "equity_chart": "matplotlib PNG with trade markers",
+    "indicator_series": "Full 1H snapshot per candle for frontend charting"
+  },
+  "not_implemented": {
+    "persistence_threshold": "Signal must persist N consecutive candles (per-strategy)",
+    "extend_summary": "Wrapper to add new metrics without modifying engine.py core",
+    "roundtrip_table": "Detailed per-trade table with entry/exit markers",
+    "fee_precision": "int(value * 1e8) / 1e8 truncation (currently uses round())",
+    "volume_formatting": "Human-readable volume display (K/M/B)",
+    "monthly_heatmap": "QuantStats-style monthly return heatmap",
+    "rolling_sharpe": "Rolling window Sharpe ratio time series",
+    "drawdown_periods": "Named drawdown episodes with duration/depth",
+    "html_tearsheet": "QuantStats-style comprehensive HTML report",
+    "trade_markers_tv": "TradingView-style markers via lightweight-charts-python"
+  }
+}

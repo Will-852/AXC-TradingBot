@@ -36,12 +36,19 @@ from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
 from trader_cycle.strategies.regime_hmm import RegimeHMM
+from trader_cycle.strategies.regime_bocpd import RegimeBOCPD
+from trader_cycle.risk.atr_conformal import ATRConformal
 from trader_cycle.core.context import CycleContext
 from trader_cycle.config.settings import (
     MODE_CONFIRMATION_REQUIRED,
     MAX_CRYPTO_POSITIONS,
     HMM_ENABLED, HMM_N_STATES, HMM_WINDOW,
     HMM_REFIT_INTERVAL, HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
+    REGIME_ENGINE,
+    BOCPD_HAZARD_RATE, BOCPD_MAX_RUN_LENGTH,
+    BOCPD_MIN_SAMPLES, BOCPD_CHANGEPOINT_THRESHOLD,
+    CP_ENABLED, CP_ALPHA, CP_MIN_SCORES, CP_MAX_SCORES,
+    CP_INFLATION_FACTOR, CP_FALLBACK_MULT,
 )
 
 log = logging.getLogger(__name__)
@@ -181,15 +188,37 @@ class BacktestEngine:
         self.trend_strategy = strats.get("trend", TrendStrategy())
         self.crash_strategy = strats.get("crash", CrashStrategy())
 
-        # HMM regime detector (optional, for backtest with HMM)
+        # Regime engine (per-run independent instances, no persistence across backtests)
+        self.regime_engine = REGIME_ENGINE
         self.hmm_enabled = HMM_ENABLED
         self._hmm: RegimeHMM | None = None
-        if self.hmm_enabled:
+        self._bocpd: RegimeBOCPD | None = None
+
+        if self.regime_engine == "bocpd_cp":
+            self._bocpd = RegimeBOCPD(
+                hazard_rate=BOCPD_HAZARD_RATE,
+                max_run_length=BOCPD_MAX_RUN_LENGTH,
+                min_samples=BOCPD_MIN_SAMPLES,
+                changepoint_threshold=BOCPD_CHANGEPOINT_THRESHOLD,
+            )
+        elif self.hmm_enabled:
             self._hmm = RegimeHMM(
                 n_states=HMM_N_STATES,
                 window=HMM_WINDOW,
                 refit_interval=HMM_REFIT_INTERVAL,
                 min_samples=HMM_MIN_SAMPLES,
+            )
+
+        # Conformal Prediction (optional, independent of engine)
+        self.cp_enabled = CP_ENABLED
+        self._cp: ATRConformal | None = None
+        if self.cp_enabled:
+            self._cp = ATRConformal(
+                alpha=CP_ALPHA,
+                min_scores=CP_MIN_SCORES,
+                max_scores=CP_MAX_SCORES,
+                inflation_factor=CP_INFLATION_FACTOR,
+                fallback_mult=CP_FALLBACK_MULT,
             )
 
         # State
@@ -386,24 +415,44 @@ class BacktestEngine:
         else:
             self._ind_4h["volume_ratio"] = 1.0
 
-        # HMM update (if enabled)
+        # Regime engine update
         hmm_regime = None
         hmm_confidence = 0.0
         hmm_crash_confirmed = False
-        if self._hmm is not None:
+        if self._bocpd is not None:
+            # BOCPD: direct regime output, skip voting
             try:
-                hmm_regime, hmm_confidence, hmm_crash_confirmed = self._hmm.update(self._ind_4h)
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = self._bocpd.update(self._ind_4h)
             except Exception as e:
-                log.warning("HMM update failed in backtest: %s", e)
+                log.warning("BOCPD update failed in backtest: %s", e)
 
-        raw_mode, _votes = detect_mode_for_pair(
-            self._ind_4h, 0.0, hmm_regime, hmm_confidence, hmm_crash_confirmed
-        )
+            if (
+                hmm_regime == "CRASH"
+                and hmm_crash_confirmed
+                and hmm_confidence >= HMM_CRASH_THRESHOLD
+            ):
+                raw_mode = "CRASH"
+            elif hmm_regime in ("RANGE", "TREND"):
+                raw_mode = hmm_regime
+            else:
+                raw_mode = "UNKNOWN"
+        else:
+            # votes_hmm path
+            if self._hmm is not None:
+                try:
+                    hmm_regime, hmm_confidence, hmm_crash_confirmed = self._hmm.update(self._ind_4h)
+                except Exception as e:
+                    log.warning("HMM update failed in backtest: %s", e)
+
+            raw_mode, _votes = detect_mode_for_pair(
+                self._ind_4h, 0.0, hmm_regime, hmm_confidence, hmm_crash_confirmed
+            )
 
         # CRASH mode: skip confirmation, immediately active
         if raw_mode == "CRASH":
             self.current_mode = "CRASH"
             self.mode_confirmed = True
+            self._update_cp_backtest()
             return
 
         # Mode confirmation (mirrors DetectModeStep)
@@ -419,6 +468,24 @@ class BacktestEngine:
             self.mode_confirmed = False
             self.prev_mode = raw_mode
             self.prev_mode_cycles = 1
+
+        # CP update (every 4H candle, not just on trade execution)
+        self._update_cp_backtest()
+
+    def _update_cp_backtest(self):
+        """Update CP calibration every 4H candle (not just on trade execution)."""
+        if self._cp is None or not self._ind_4h:
+            return
+        try:
+            atr = self._ind_4h.get("atr")
+            if not atr or atr <= 0:
+                return
+            true_range = self._ind_4h.get("high", 0) - self._ind_4h.get("low", 0)
+            if true_range <= 0:
+                true_range = atr
+            self._cp.update(regime=self.current_mode, atr=atr, true_range=true_range)
+        except Exception as e:
+            log.warning("CP update failed in backtest: %s", e)
 
     def _check_sl_tp(self, candle, candle_time: str):
         """Check SL/TP. SL = market order (slippage applied). TP = limit (exact)."""
@@ -558,7 +625,15 @@ class BacktestEngine:
             params = self.trend_strategy.get_position_params()
 
         # SL/TP from ATR (captured at signal time)
-        sl_dist = sig.atr * params.sl_atr_mult
+        # CP: widen ATR with uncertainty estimate (calibration in _update_4h)
+        atr_for_sl = sig.atr
+        if self._cp is not None:
+            try:
+                atr_for_sl = self._cp.get_atr_high(sig.atr)
+            except Exception as e:
+                log.warning("CP get_atr_high failed in backtest: %s", e)
+
+        sl_dist = atr_for_sl * params.sl_atr_mult
         tp_dist = sl_dist * params.min_rr
 
         if sig.direction == "LONG":
