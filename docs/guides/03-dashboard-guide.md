@@ -7,7 +7,7 @@ audience: human,claude,github
 
 # 儀表板 + 縮寫對照
 
-打開 `http://localhost:5555` 可以見到儀表板。
+打開 `http://localhost:5566` 可以見到儀表板。
 
 ## 頁面一覽
 

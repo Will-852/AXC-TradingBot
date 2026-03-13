@@ -163,7 +163,7 @@ python3 backtest/run_backtest.py --symbol BTCUSDT --days 30
 }
 ```
 
-#### 必填欄位
+### 必填欄位
 
 | 欄位 | 位置 | 說明 |
 |------|------|------|
@@ -173,7 +173,7 @@ python3 backtest/run_backtest.py --symbol BTCUSDT --days 30
 | `trades[].entry` | trade | 入場價 |
 | `trades[].exit` | trade | 出場價 |
 
-#### 選填欄位
+### 選填欄位
 
 | 欄位 | 說明 | 冇填會點 |
 |------|------|----------|
