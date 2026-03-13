@@ -51,6 +51,19 @@ BALANCE_BASELINE_PATH = os.path.join(HOME, "shared", "balance_baseline.json")
 CANVAS_HTML = os.path.join(HOME, "canvas", "index.html")
 _profiles_cache = {"ts": 0, "data": {}, "active": ""}
 
+# ── Service Management ────────────────────────────────────────────────
+_PLIST_DIR = os.path.expanduser("~/Library/LaunchAgents")
+_CORE_SERVICES = [
+    ("ai.openclaw.scanner",      "Scanner"),
+    ("ai.openclaw.tradercycle",   "Trader"),
+    ("ai.openclaw.telegram",      "Telegram"),
+    ("ai.openclaw.dashboard",     "Dashboard"),
+    ("ai.openclaw.heartbeat",     "Heartbeat"),
+    ("ai.openclaw.lightscan",     "LightScan"),
+    ("ai.openclaw.newsbot",       "NewsBot"),
+    ("ai.openclaw.report",        "Report"),
+]
+
 # ── AI Chat (Dashboard) ──────────────────────────────────────────────
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
@@ -780,6 +793,73 @@ def get_launchagents():
         return status
     except Exception:
         return {}
+
+
+def _auto_bootstrap():
+    """Bootstrap stopped core services on dashboard startup."""
+    la = get_launchagents()
+    uid = os.getuid()
+    for label, name in _CORE_SERVICES:
+        if label == "ai.openclaw.dashboard":
+            continue
+        plist = os.path.join(_PLIST_DIR, f"{label}.plist")
+        if not os.path.isfile(plist):
+            continue
+        if label not in la:
+            logging.info("Auto-bootstrap: %s", label)
+            subprocess.run(
+                ["launchctl", "bootstrap", f"gui/{uid}", plist],
+                capture_output=True, timeout=10,
+            )
+
+
+def handle_services():
+    """GET /api/services — return all openclaw service statuses."""
+    la = get_launchagents()
+    services = []
+    for label, name in _CORE_SERVICES:
+        plist = os.path.join(_PLIST_DIR, f"{label}.plist")
+        info = la.get(label, {})
+        services.append({
+            "label": label,
+            "name": name,
+            "running": info.get("pid") is not None,
+            "pid": info.get("pid"),
+            "exit_code": info.get("exit"),
+            "plist_exists": os.path.isfile(plist),
+        })
+    return services
+
+
+def handle_service_restart(body):
+    """POST /api/service/restart — bootout + bootstrap a service."""
+    try:
+        data = json.loads(body) if isinstance(body, str) else body
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON"}
+    label = data.get("label", "")
+    valid_labels = {l for l, _ in _CORE_SERVICES}
+    if label not in valid_labels or label == "ai.openclaw.dashboard":
+        return {"ok": False, "error": "Invalid service label"}
+
+    plist = os.path.join(_PLIST_DIR, f"{label}.plist")
+    if not os.path.isfile(plist):
+        return {"ok": False, "error": "plist not found"}
+
+    uid = os.getuid()
+    # bootout first (ignore error if not running)
+    subprocess.run(
+        ["launchctl", "bootout", f"gui/{uid}/{label}"],
+        capture_output=True, timeout=10,
+    )
+    time.sleep(1)
+    # bootstrap
+    result = subprocess.run(
+        ["launchctl", "bootstrap", f"gui/{uid}", plist],
+        capture_output=True, timeout=10, text=True,
+    )
+    ok = result.returncode == 0
+    return {"ok": ok, "error": result.stderr.strip() if not ok else None}
 
 
 def get_scan_log(n=10):
@@ -5090,6 +5170,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 self.wfile.write(b"details.html not found")
+        elif path == "/paper":
+            paper_path = os.path.join(HOME, "canvas/paper.html")
+            try:
+                with open(paper_path, "rb") as f:
+                    html = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html)
+            except FileNotFoundError:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"canvas/paper.html not found")
         elif path == "/api/docs-list":
             self._json_response(200, get_docs_list())
         elif path.startswith("/api/doc/"):
@@ -5117,6 +5210,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/paper-trading":
             code, data = handle_paper_trading_status()
             self._json_response(code, data)
+        elif path == "/api/services":
+            self._json_response(200, handle_services())
         elif path == "/api/share/package":
             try:
                 zip_bytes = generate_share_package()
@@ -5236,6 +5331,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/paper-trading/stop":
             code, data = handle_paper_trading_stop()
             self._json_response(code, data)
+        elif self.path == "/api/service/restart":
+            data = handle_service_restart(body)
+            self._json_response(200 if data["ok"] else 400, data)
         else:
             self._json_response(404, {"error": "Not found"})
 
@@ -5261,6 +5359,9 @@ def main():
 
     # Restore pending SL/TP state from disk (crash recovery)
     _load_pending_sltp()
+
+    # Auto-bootstrap stopped services
+    _auto_bootstrap()
 
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True

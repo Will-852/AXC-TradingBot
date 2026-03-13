@@ -521,6 +521,16 @@
     #sidebar-layers .nav-link { padding: .35rem .8rem .35rem 1rem; }
     #sidebar-layers .nav-icon { font-size: .85rem !important; width: 1.6rem; text-align: center; }
 
+    /* ── Services Panel ─────────────────────────── */
+    .svc-row { display:flex; align-items:center; padding:3px 0; font-size:.75rem; }
+    .svc-dot { width:8px; height:8px; border-radius:50%; margin-right:6px; flex-shrink:0; }
+    .svc-dot.on { background:#22c55e; }
+    .svc-dot.off { background:#ef4444; }
+    .svc-dot.na { background:#6b7280; }
+    .svc-name { flex:1; color:var(--text-1); }
+    .svc-btn { border:none; background:none; color:#6b7280; cursor:pointer; font-size:.7rem; padding:2px 4px; }
+    .svc-btn:hover { color:#2563eb; }
+
     /* ── Scrollbar ───────────────────────────────── */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -624,7 +634,10 @@
     <!-- Left: Toggle + Breadcrumb -->
     <ul class="navbar-nav">
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="/" class="nav-link">主控台</a>
+        <a href="/" class="nav-link" style="font-weight:600;color:var(--text-1)">主控台</a>
+      </li>
+      <li class="nav-item d-none d-sm-inline-block">
+        <a href="/paper" class="nav-link"><i class="fas fa-flask mr-1" style="color:#7c3aed"></i>Paper</a>
       </li>
       <li class="nav-item d-flex align-items-center" id="navbar-status-bar" style="padding:0 4px 0 8px;gap:8px"></li>
     </ul>
@@ -785,6 +798,15 @@
             </a>
           </li>
 
+          <li class="nav-header" style="color:#4a5568;font-size:.68rem;margin-top:.5rem">TRADING</li>
+
+          <li class="nav-item">
+            <a href="/paper" target="_blank" class="nav-link">
+              <i class="nav-icon fas fa-flask"></i>
+              <p>Paper Trading</p>
+            </a>
+          </li>
+
           <li class="nav-header" style="color:#4a5568;font-size:.68rem;margin-top:.5rem">ANALYSIS</li>
 
           <li class="nav-item">
@@ -821,6 +843,14 @@
 
         </ul>
       </nav>
+
+      <!-- Services Status -->
+      <div style="padding:8px 10px 12px">
+        <div style="color:#4a5568;font-size:.68rem;font-weight:600;text-transform:uppercase;padding:0 0 4px;letter-spacing:.05em">Services</div>
+        <div id="services-body">
+          <div style="color:#9ca3af;font-size:.75rem">Loading...</div>
+        </div>
+      </div>
     </div>
   </aside>
 
@@ -1014,34 +1044,6 @@
                 </div>
               </div>
               <div class="card-body p-0" id="pending-orders-body"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── ROW 2.7：Paper Trading ───────────── -->
-        <div class="row" id="paper-trading-card" data-aos="fade-up" style="display:none">
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header p-2 pl-3" style="background:#7c3aed;border-bottom:none">
-                <h3 class="card-title" style="color:#fff;font-size:.9rem">
-                  <i class="fas fa-flask mr-2"></i>Paper Trading
-                  <span id="pt-status-badge" class="badge ml-2" style="font-size:.7rem;vertical-align:middle">STOPPED</span>
-                </h3>
-                <div class="card-tools">
-                  <button id="pt-run-btn" class="btn btn-sm mr-1" style="background:#8b5cf6;color:#fff;border:none;font-size:.75rem" onclick="paperTradingStart()">
-                    <i class="fas fa-play mr-1"></i>執行一次
-                  </button>
-                  <button id="pt-stop-btn" class="btn btn-sm mr-1" style="background:#ef4444;color:#fff;border:none;font-size:.75rem;display:none" onclick="paperTradingStop()">
-                    <i class="fas fa-stop mr-1"></i>停止
-                  </button>
-                  <button type="button" class="btn btn-tool" style="color:rgba(255,255,255,.7)" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="card-body p-0" id="pt-body">
-                <div class="text-center text-muted py-3" style="font-size:.85rem">載入中…</div>
-              </div>
             </div>
           </div>
         </div>
@@ -1653,7 +1655,6 @@ function render(D) {
   renderFundingRates(D);
   renderNewsCard(D);
   renderFooter(D);
-  fetchPaperTrading();
   if (typeof AOS !== 'undefined') AOS.refresh();
   // Save price snapshot every 5 mins
   if (!_priceSnapshotSaved || Date.now() - (_lastPrices._t || 0) > 300000) {
@@ -3762,7 +3763,7 @@ function exchangeConnect() {
 }
 
 function exchangeDisconnect() {
-  fetch('/api/' + _currentExchange + '/disconnect', {method:'POST'}).then(function(){
+  fetch('/api/' + _currentExchange + '/disconnect', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).then(function(){
     openExchangeModal(_currentExchange);
   });
 }
@@ -3926,133 +3927,40 @@ function getSnapshotAge() {
   return Math.round(hrs / 24) + '日前';
 }
 
-// ── 持倉備註（已移除，改用自動評分）──────────
-
-// ── Paper Trading ─────────────────────────────
-var _ptData = null;
-var _ptLastFetch = 0;
-
-function fetchPaperTrading() {
-  // Throttle: only fetch every 30s (psutil scan + file read not needed every 5s)
-  var now = Date.now();
-  if (_ptData && now - _ptLastFetch < 30000) return;
-  _ptLastFetch = now;
-  fetch('/api/paper-trading')
-    .then(function(r) { return r.json(); })
-    .then(function(d) { _ptData = d; renderPaperTrading(d); })
-    .catch(function() {
-      // API failed — show stopped state instead of stuck "載入中"
-      renderPaperTrading({mode: 'stopped', pid: null, entries: []});
-    });
+// ── Services Panel ────────────────────────────
+function renderServices(services) {
+  var body = byId('services-body');
+  if (!body || !services || !services.length) return;
+  body.innerHTML = services.map(function(s) {
+    var dot = !s.plist_exists ? 'na' : (s.running ? 'on' : 'off');
+    var pid = s.running ? ' <span style="color:#6b7280">' + s.pid + '</span>' : '';
+    var btn = s.label !== 'ai.openclaw.dashboard' && s.plist_exists
+      ? '<button class="svc-btn" onclick="restartService(\'' + s.label + '\',this)" title="Restart">&#8635;</button>'
+      : '';
+    return '<div class="svc-row">' +
+      '<span class="svc-dot ' + dot + '"></span>' +
+      '<span class="svc-name">' + s.name + pid + '</span>' + btn + '</div>';
+  }).join('');
 }
 
-function renderPaperTrading(d) {
-  var card = byId('paper-trading-card');
-  var badge = byId('pt-status-badge');
-  var runBtn = byId('pt-run-btn');
-  var stopBtn = byId('pt-stop-btn');
-  var body = byId('pt-body');
-  if (!badge || !body) return;
-  // Show card only when dry-run is active or has entries (hidden when live mode blocks it)
-  var hasContent = d.mode === 'dry_run' || (d.entries && d.entries.length > 0);
-  if (card) card.style.display = hasContent ? '' : 'none';
-
-  // Status badge
-  var colors = {live: '#e11d48', dry_run: '#8b5cf6', stopped: '#94a3b8'};
-  var labels = {live: 'LIVE', dry_run: 'DRY RUN', stopped: 'STOPPED'};
-  badge.textContent = labels[d.mode] || 'STOPPED';
-  badge.style.background = colors[d.mode] || colors.stopped;
-  badge.style.color = '#fff';
-
-  // Button visibility
-  if (runBtn) runBtn.style.display = (d.mode === 'stopped') ? '' : 'none';
-  if (stopBtn) stopBtn.style.display = (d.mode === 'dry_run') ? '' : 'none';
-
-  // Table
-  var entries = d.entries || [];
-  if (!entries.length) {
-    body.innerHTML = '<div class="text-center text-muted py-3" style="font-size:.85rem">暫無 dry-run 記錄</div>';
-    return;
-  }
-  var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:.8rem">' +
-    '<thead><tr style="background:#f8fafc">' +
-    '<th>時間</th><th>動作</th><th>方向</th><th>幣種</th><th>價格</th><th>數量</th><th>SL</th><th>TP</th>' +
-    '</tr></thead><tbody>';
-  for (var i = entries.length - 1; i >= 0; i--) {
-    var e = entries[i];
-    var dirColor = e.direction === 'LONG' ? 'var(--pos)' : 'var(--neg)';
-    html += '<tr>' +
-      '<td style="white-space:nowrap;color:var(--text-3)">' + esc(e.time) + '</td>' +
-      '<td>' + esc(e.action) + '</td>' +
-      '<td style="color:' + dirColor + ';font-weight:600">' + esc(e.direction) + '</td>' +
-      '<td style="font-weight:500">' + esc(e.pair) + '</td>' +
-      '<td style="font-variant-numeric:tabular-nums">' + esc(e.price) + '</td>' +
-      '<td style="font-variant-numeric:tabular-nums">' + esc(e.qty) + '</td>' +
-      '<td style="font-variant-numeric:tabular-nums;color:var(--neg)">' + esc(e.sl) + '</td>' +
-      '<td style="font-variant-numeric:tabular-nums;color:var(--pos)">' + esc(e.tp) + '</td>' +
-      '</tr>';
-  }
-  html += '</tbody></table></div>';
-  body.innerHTML = html;
+function restartService(label, btn) {
+  btn.textContent = '...';
+  btn.disabled = true;
+  fetch('/api/service/restart', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({label: label})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.innerHTML = d.ok ? '&#10003;' : '&#10007;';
+    setTimeout(function() { btn.innerHTML = '&#8635;'; btn.disabled = false; fetchServices(); }, 2000);
+  })
+  .catch(function() { btn.innerHTML = '&#10007;'; btn.disabled = false; });
 }
 
-function paperTradingStart() {
-  var btn = byId('pt-run-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>啟動中…'; }
-  fetch('/api/paper-trading/start', {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        pushNotif('system', 'Paper Trading 已啟動', 'PID ' + d.pid);
-        // Poll until process finishes
-        _ptPoll();
-      } else {
-        pushNotif('system', 'Paper Trading 啟動失敗', d.error || '');
-      }
-    })
-    .catch(function(e) { pushNotif('system', 'Paper Trading 錯誤', e.message); })
-    .finally(function() {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play mr-1"></i>執行一次'; }
-      fetchPaperTrading();
-    });
-}
-
-function paperTradingStop() {
-  var btn = byId('pt-stop-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i>停止中…'; }
-  fetch('/api/paper-trading/stop', {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        pushNotif('system', 'Paper Trading 已停止', '');
-      } else {
-        pushNotif('system', '停止失敗', d.error || '');
-      }
-    })
-    .catch(function(e) { pushNotif('system', 'Paper Trading 錯誤', e.message); })
-    .finally(function() {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-stop mr-1"></i>停止'; }
-      fetchPaperTrading();
-    });
-}
-
-var _ptPollTimer = null;
-function _ptPoll() {
-  if (_ptPollTimer) clearInterval(_ptPollTimer);
-  _ptPollTimer = setInterval(function() {
-    fetch('/api/paper-trading')
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        _ptData = d;
-        renderPaperTrading(d);
-        if (d.mode === 'stopped') {
-          clearInterval(_ptPollTimer);
-          _ptPollTimer = null;
-          pushNotif('system', 'Paper Trading 完成', '');
-        }
-      })
-      .catch(function() {});
-  }, 3000);
+function fetchServices() {
+  fetch('/api/services').then(function(r) { return r.json(); }).then(renderServices).catch(function(){});
 }
 
 // ── 啟動 ─────────────────────────────────────
@@ -4061,6 +3969,9 @@ _initCardMemory();
 _loadNotifs();
 fetchData();
 refreshTimer = setInterval(fetchData, REFRESH_MS);
+// Services status (separate 60s interval)
+fetchServices();
+setInterval(fetchServices, 60000);
 // Exchange connection status on load
 fetch('/api/aster/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('aster',d.status,d)}).catch(function(){});
 fetch('/api/binance/status').then(function(r){return r.json()}).then(function(d){_updateConnDot('binance',d.status,d)}).catch(function(){});
