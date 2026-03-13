@@ -1903,8 +1903,45 @@ def _enrich_trades(trades, prices, trade_state):
 _collect_cache = {"data": None, "ts": 0}
 _COLLECT_CACHE_TTL = 4  # seconds — frontend polls every 5s
 
+def _extract_hl_order_info(result: dict) -> dict:
+    """Parse HyperLiquid SDK nested order response into flat dict.
+
+    HL SDK returns: {status:"ok", response:{type:"order",
+      data:{statuses:[{resting:{oid:N}} | {filled:{totalSz,avgPx,oid}}]}}}
+    Returns: {orderId, avgPrice, executedQty, filled} or empty dict.
+    """
+    try:
+        resp = result.get("response", {})
+        if isinstance(resp, str):
+            return {}
+        data = resp.get("data", {})
+        statuses = data.get("statuses", [])
+        if not statuses:
+            return {}
+        s = statuses[0]
+        if "filled" in s:
+            f = s["filled"]
+            return {
+                "orderId": str(f.get("oid", "")),
+                "avgPrice": float(f.get("avgPx", 0)),
+                "executedQty": float(f.get("totalSz", 0)),
+                "filled": True,
+            }
+        if "resting" in s:
+            r = s["resting"]
+            return {
+                "orderId": str(r.get("oid", "")),
+                "avgPrice": 0,
+                "executedQty": 0,
+                "filled": False,
+            }
+    except (KeyError, TypeError, ValueError, IndexError) as e:
+        logging.warning("Failed to parse HL order response: %s → %s", result, e)
+    return {}
+
+
 # ── Pending SL/TP for limit orders (auto-set after fill) ────────────
-_pending_sltp = {}  # {orderId: {symbol, platform, sl_price, tp_price, exit_side, created_at}}
+_pending_sltp = {}  # {orderId: {symbol, platform, sl_price, tp_price, exit_side, qty, created_at}}
 _PENDING_SLTP_FILE = os.path.join(HOME, "shared", "pending_sltp.json")
 _pending_sltp_lock = threading.Lock()
 _PENDING_SLTP_EXPIRY_SEC = 86400  # 24h
@@ -1993,21 +2030,19 @@ def _check_pending_sltp(exchange_data):
 
         # Order disappeared from open orders → filled or cancelled
         has_position = False
-        pos_qty = 0
         for pos in plat_data.get("positions", []):
             if pos.get("pair", "").upper() == symbol.upper():
                 has_position = True
-                pos_qty = abs(float(pos.get("size", 0)))
                 break
 
-        if not has_position or pos_qty <= 0:
+        if not has_position:
             logging.info(
                 "Pending SLTP: orderId=%s no position found for %s %s — removing (likely cancelled)",
                 order_id, platform, symbol,
             )
             to_remove.append(order_id)
         else:
-            to_process[order_id] = (entry, pos_qty)
+            to_process[order_id] = entry
 
     # Pop entries BEFORE processing to prevent concurrent duplicate placement
     if to_process or to_remove:
@@ -2020,16 +2055,21 @@ def _check_pending_sltp(exchange_data):
 
     # Now place SL/TP (no lock held — safe for slow API calls)
     re_queue = []  # entries to put back on failure
-    for order_id, (entry, pos_qty) in to_process.items():
+    for order_id, entry in to_process.items():
         platform = entry["platform"]
         symbol = entry["symbol"]
         exit_side = entry["exit_side"]
         sl_price = entry.get("sl_price", 0)
         tp_price = entry.get("tp_price", 0)
+        # Use stored order qty (not total position size — avoids conflict with existing SL/TP on add-to-position)
+        order_qty = entry.get("qty", 0)
+        if order_qty <= 0:
+            logging.warning("Pending SLTP: orderId=%s has no stored qty, skipping", order_id)
+            continue
 
         logging.info(
             "Pending SLTP: orderId=%s filled! Setting SL/TP for %s %s (qty=%s)",
-            order_id, platform, symbol, pos_qty,
+            order_id, platform, symbol, order_qty,
         )
 
         try:
@@ -2044,8 +2084,8 @@ def _check_pending_sltp(exchange_data):
         # Place SL (important but not emergency-close worthy — position already existed)
         if sl_price > 0:
             try:
-                client.create_stop_market(symbol, exit_side, pos_qty, sl_price)
-                logging.info("Pending SLTP: SL set %s %s @ %s", platform, symbol, sl_price)
+                client.create_stop_market(symbol, exit_side, order_qty, sl_price)
+                logging.info("Pending SLTP: SL set %s %s @ %s qty=%s", platform, symbol, sl_price, order_qty)
             except Exception as e:
                 sl_ok = False
                 logging.error("Pending SLTP: SL failed %s %s @ %s → %s", platform, symbol, sl_price, e)
@@ -2053,8 +2093,8 @@ def _check_pending_sltp(exchange_data):
         # Place TP (best-effort)
         if tp_price > 0:
             try:
-                client.create_take_profit_market(symbol, exit_side, pos_qty, tp_price)
-                logging.info("Pending SLTP: TP set %s %s @ %s", platform, symbol, tp_price)
+                client.create_take_profit_market(symbol, exit_side, order_qty, tp_price)
+                logging.info("Pending SLTP: TP set %s %s @ %s qty=%s", platform, symbol, tp_price, order_qty)
             except Exception as e:
                 logging.warning("Pending SLTP: TP failed %s %s @ %s → %s", platform, symbol, tp_price, e)
 
@@ -2924,15 +2964,22 @@ def handle_place_order(body):
         t_fill = time.time()
 
         is_limit = order_type == "LIMIT"
-        fill_qty = float(entry_result.get("executedQty", 0)) or qty
-        fill_price = float(entry_result.get("avgPrice", 0))
+
+        # HL SDK returns nested structure: {status:"ok", response:{type:"order",
+        # data:{statuses:[{resting:{oid:N}} or {filled:{totalSz,avgPx,oid}}]}}}
+        # Binance/Aster return flat: {orderId, avgPrice, executedQty, status}
+        hl_info = _extract_hl_order_info(entry_result) if platform == "hyperliquid" else {}
+        fill_qty = float(hl_info.get("executedQty") or entry_result.get("executedQty", 0)) or qty
+        fill_price = float(hl_info.get("avgPrice") or entry_result.get("avgPrice", 0))
+        raw_order_id = str(hl_info.get("orderId") or entry_result.get("orderId", ""))
+
         # Limit order may fill immediately if price matches market
-        actually_pending = is_limit and fill_price == 0
+        actually_pending = is_limit and fill_price == 0 and not hl_info.get("filled")
         resp = {
             "ok": True,
             "pending": actually_pending,
             "entry": {
-                "orderId": str(entry_result.get("orderId", "")),
+                "orderId": raw_order_id,
                 "avgPrice": fill_price if fill_price > 0 else limit_price,
                 "executedQty": fill_qty,
             },
@@ -2945,24 +2992,29 @@ def handle_place_order(body):
 
         # ④a Queue SL/TP for pending limit orders — auto-set after fill
         if actually_pending and (sl_price or tp_price):
-            order_id = str(entry_result.get("orderId", entry_result.get("oid", "")))
-            if order_id:
+            if raw_order_id:
                 pending_entry = {
                     "symbol": symbol,
                     "platform": platform,
                     "sl_price": float(sl_price) if sl_price else 0,
                     "tp_price": float(tp_price) if tp_price else 0,
                     "exit_side": exit_side,
+                    "qty": float(qty),  # store order qty for SL/TP placement
                     "created_at": time.time(),
                 }
                 with _pending_sltp_lock:
-                    _pending_sltp[order_id] = pending_entry
+                    _pending_sltp[raw_order_id] = pending_entry
                 _save_pending_sltp()
                 resp["sltp_queued"] = True
                 logging.info(
-                    "Pending SLTP queued: %s %s orderId=%s sl=%s tp=%s",
-                    platform, symbol, order_id,
-                    sl_price or "none", tp_price or "none",
+                    "Pending SLTP queued: %s %s orderId=%s sl=%s tp=%s qty=%s",
+                    platform, symbol, raw_order_id,
+                    sl_price or "none", tp_price or "none", qty,
+                )
+            else:
+                logging.warning(
+                    "Pending SLTP: cannot queue — empty orderId from %s %s response: %s",
+                    platform, symbol, entry_result,
                 )
 
         # ④b SL (critical) — skip for pending limit orders (not yet filled)

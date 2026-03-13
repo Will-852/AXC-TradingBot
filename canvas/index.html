@@ -967,22 +967,22 @@
         </div>
 
         <!-- ── ROW 2.7：Paper Trading ───────────── -->
-        <div class="row" id="paper-trading-card" data-aos="fade-up">
+        <div class="row" id="paper-trading-card" data-aos="fade-up" style="display:none">
           <div class="col-12">
-            <div class="card card-outline" style="border-top-color:#8b5cf6">
-              <div class="card-header" style="background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%);color:#fff;border-radius:var(--radius) var(--radius) 0 0">
-                <h3 class="card-title" style="color:#fff">
+            <div class="card">
+              <div class="card-header p-2 pl-3" style="background:#7c3aed;border-bottom:none">
+                <h3 class="card-title" style="color:#fff;font-size:.9rem">
                   <i class="fas fa-flask mr-2"></i>Paper Trading
                   <span id="pt-status-badge" class="badge ml-2" style="font-size:.7rem;vertical-align:middle">STOPPED</span>
                 </h3>
                 <div class="card-tools">
-                  <button id="pt-run-btn" class="btn btn-sm mr-1" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.75rem" onclick="paperTradingStart()">
+                  <button id="pt-run-btn" class="btn btn-sm mr-1" style="background:#8b5cf6;color:#fff;border:none;font-size:.75rem" onclick="paperTradingStart()">
                     <i class="fas fa-play mr-1"></i>執行一次
                   </button>
-                  <button id="pt-stop-btn" class="btn btn-sm mr-1" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.75rem;display:none" onclick="paperTradingStop()">
+                  <button id="pt-stop-btn" class="btn btn-sm mr-1" style="background:#ef4444;color:#fff;border:none;font-size:.75rem;display:none" onclick="paperTradingStop()">
                     <i class="fas fa-stop mr-1"></i>停止
                   </button>
-                  <button type="button" class="btn btn-tool" style="color:#fff" data-card-widget="collapse">
+                  <button type="button" class="btn btn-tool" style="color:rgba(255,255,255,.7)" data-card-widget="collapse">
                     <i class="fas fa-minus"></i>
                   </button>
                 </div>
@@ -3839,20 +3839,32 @@ function getSnapshotAge() {
 
 // ── Paper Trading ─────────────────────────────
 var _ptData = null;
+var _ptLastFetch = 0;
 
 function fetchPaperTrading() {
+  // Throttle: only fetch every 30s (psutil scan + file read not needed every 5s)
+  var now = Date.now();
+  if (_ptData && now - _ptLastFetch < 30000) return;
+  _ptLastFetch = now;
   fetch('/api/paper-trading')
     .then(function(r) { return r.json(); })
     .then(function(d) { _ptData = d; renderPaperTrading(d); })
-    .catch(function() {});
+    .catch(function() {
+      // API failed — show stopped state instead of stuck "載入中"
+      renderPaperTrading({mode: 'stopped', pid: null, entries: []});
+    });
 }
 
 function renderPaperTrading(d) {
+  var card = byId('paper-trading-card');
   var badge = byId('pt-status-badge');
   var runBtn = byId('pt-run-btn');
   var stopBtn = byId('pt-stop-btn');
   var body = byId('pt-body');
   if (!badge || !body) return;
+  // Show card only when dry-run is active or has entries (hidden when live mode blocks it)
+  var hasContent = d.mode === 'dry_run' || (d.entries && d.entries.length > 0);
+  if (card) card.style.display = hasContent ? '' : 'none';
 
   // Status badge
   var colors = {live: '#e11d48', dry_run: '#8b5cf6', stopped: '#94a3b8'};
