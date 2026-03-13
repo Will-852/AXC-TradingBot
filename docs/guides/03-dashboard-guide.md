@@ -112,12 +112,12 @@ audience: human,claude,github
 | 執行回測 | 用歷史數據模擬 AXC 策略，30-60 秒出結果 |
 | K 線圖 | 蠟燭圖 + 入場/出場 markers + 連接線 |
 | 指標 Overlay | BB、EMA、MA、RSI、MACD、Stoch（只喺 1H 顯示） |
-| Order Flow | Whale 大額成交、Delta Volume、VP 成交分佈、FP 熱力圖（所有 interval 可用） |
+| Order Flow | Whale 大額成交、Delta Volume、VP 成交分佈（藍=買/黃=賣）、FP 熱力圖（所有 interval 可用，Aster 幣種除外） |
 | Live | 即時 K 線（Binance WebSocket，<1s 延遲） |
 | Live Pos | 即時持倉線（入場/SL/TP，需要 API key） |
 | A/B 對比 | 兩組參數結果並排比較 |
 | 匯入/匯出 | JSON 格式報告，支持外部策略結果 |
-| 畫圖工具 | 水平線、趨勢線、Fibonacci |
+| 畫圖工具 | 水平線、趨勢線、矩形（zone）、箭頭、Fibonacci |
 
 詳見 → **回測頁面完整指南**（sidebar 搵「回測」）
 
