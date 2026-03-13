@@ -315,13 +315,16 @@ def write_scan_results(results: list[dict], prev_cache: dict) -> dict:
 
         if results:
             # Merge：本輪掃到嘅幣種更新，其他保持不變
+            # 保護：high/low/volume 為 0 時保留舊值（HL 無 24h high/low）
             for r in results:
-                new_cache[r["symbol"]] = {
-                    "price":    r.get("price"),
-                    "change":   r.get("change"),
-                    "high":     r.get("high"),
-                    "low":      r.get("low"),
-                    "volume":   r.get("volume"),
+                sym = r["symbol"]
+                old = new_cache.get(sym, {})
+                new_cache[sym] = {
+                    "price":    r.get("price") or old.get("price"),
+                    "change":   r.get("change") if r.get("change") is not None else old.get("change"),
+                    "high":     r.get("high") or old.get("high", 0),
+                    "low":      r.get("low") or old.get("low", 0),
+                    "volume":   r.get("volume") or old.get("volume", 0),
                     "signal":   r.get("signal"),
                     "platform": r.get("platform"),
                     "ts":       r.get("ts"),
