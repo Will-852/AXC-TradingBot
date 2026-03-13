@@ -2582,6 +2582,9 @@ def collect_data():
         "fee_breakdown": fee_breakdown,
         "cumulative_fees": baseline.get("cumulative_fees", {}),
         "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
+        "active_regime_preset": params.get("ACTIVE_REGIME_PRESET", "classic"),
+        "regime_engine": params.get("REGIME_ENGINE", "votes_hmm"),
+        "cp_enabled": params.get("CP_ENABLED", False),
         "activity_log": get_activity_log(50),
         "trade_stats": trade_stats,
         "drawdown": drawdown,
@@ -2613,7 +2616,35 @@ def handle_set_mode(body):
         content = re.sub(r'ACTIVE_PROFILE\s*=\s*"[^"]*"', f'ACTIVE_PROFILE = "{mode}"', content)
         with open(params_path, "w") as f:
             f.write(content)
+        _collect_cache["ts"] = 0
         return 200, {"ok": True, "mode": mode, "message": f"已切換至 {mode} 模式"}
+    except Exception as e:
+        return 500, {"error": str(e)}
+
+
+def handle_set_regime(body):
+    """POST /api/set_regime — switch regime preset."""
+    try:
+        data = json.loads(body)
+    except Exception:
+        return 400, {"error": "Invalid JSON"}
+    preset = data.get("preset", "").lower()
+    valid = ["classic", "classic_cp", "bocpd", "full"]
+    if preset not in valid:
+        return 400, {"error": f"Invalid preset. Use: {valid}"}
+    params_path = os.path.join(HOME, "config/params.py")
+    try:
+        with open(params_path) as f:
+            content = f.read()
+        content = re.sub(
+            r'ACTIVE_REGIME_PRESET\s*=\s*"[^"]*"',
+            f'ACTIVE_REGIME_PRESET = "{preset}"',
+            content,
+        )
+        with open(params_path, "w") as f:
+            f.write(content)
+        _collect_cache["ts"] = 0
+        return 200, {"ok": True, "preset": preset, "message": f"Regime → {preset}"}
     except Exception as e:
         return 500, {"error": str(e)}
 
@@ -5150,6 +5181,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/config/mode":
             code, data = handle_set_mode(body)
+            self._json_response(code, data)
+        elif self.path == "/api/set_regime":
+            code, data = handle_set_regime(body)
             self._json_response(code, data)
         elif self.path == "/api/config/trading":
             code, data = handle_set_trading(body)

@@ -221,6 +221,37 @@ CRASH_RSI_ENTRY = 60        # 2026-03-13: was 75, RSI>75 never triggers in crash
 CRASH_VOLUME_MIN = 1.5      # 2026-03-13: was 2.0, only 12.5% of crash candles had vol>2.0
 
 # ═══════════════════════════════════════
+# Section 12: Regime Engine
+# ═══════════════════════════════════════
+# Dashboard dropdown 切換 preset，正交於 Risk Profile（N×M 組合）
+REGIME_PRESETS = {
+    "classic":    {"REGIME_ENGINE": "votes_hmm", "CP_ENABLED": False},
+    "classic_cp": {"REGIME_ENGINE": "votes_hmm", "CP_ENABLED": True},
+    "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
+    "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
+}
+ACTIVE_REGIME_PRESET = "classic"
+# Derived from preset（settings.py getattr 繼續正常運作）
+REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
+CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]
+
+# ═══════════════════════════════════════
+# Section 13: BOCPD
+# ═══════════════════════════════════════
+BOCPD_HAZARD_RATE = 0.02           # 1/50 = 每 ~50 根 4H candle 期望 1 次變點 (~8 日)
+BOCPD_MAX_RUN_LENGTH = 200         # truncation（記憶體 + 速度）
+BOCPD_MIN_SAMPLES = 30             # cold start gate（比 HMM 100 少，BOCPD 更快收斂）
+BOCPD_CHANGEPOINT_THRESHOLD = 0.3  # P(r=0) > 0.3 → confidence 低
+
+# ═══════════════════════════════════════
+# Section 14: Conformal Prediction (ATR)
+# ═══════════════════════════════════════
+CP_ALPHA = 0.10                    # 90% coverage
+CP_MIN_SCORES = 20                 # bank 最少 scores 先用
+CP_MAX_SCORES = 200                # 每個 bank 最多存幾多
+CP_INFLATION_FACTOR = 1.5          # cold start inflation
+
+# ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）
 # 用家自訂參數放呢度，git pull 永遠唔衝突
 # ═══════════════════════════════════════

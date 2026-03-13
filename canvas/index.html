@@ -423,6 +423,30 @@
     .profile-AGGRESSIVE   { background: #fef3c7; color: var(--warn); }
     .profile-CONSERVATIVE { background: #eff6ff; color: #2563eb; }
 
+    /* ── Regime Badge ─────────────────────────── */
+    .regime-badge {
+      font-size: .72rem; padding: 3px 10px; border-radius: 20px;
+      font-weight: 600; letter-spacing: .03em;
+    }
+    .regime-classic    { background: #f0f0f0; color: #555; }
+    .regime-classic_cp { background: #eff6ff; color: #2563eb; }
+    .regime-bocpd      { background: #fef3c7; color: var(--warn); }
+    .regime-full       { background: #ecfdf5; color: var(--pos); }
+
+    .regime-tips {
+      display: none; position: absolute; top: 100%; right: 0; z-index: 1040;
+      background: #fff; border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.10); padding: 10px 14px;
+      width: 340px; white-space: nowrap; font-size: .78rem; line-height: 1.5;
+    }
+    .regime-tips.show { display: block; }
+    .regime-tips .tip-title {
+      font-weight: 700; font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .04em; margin-bottom: 6px; color: var(--text-2);
+    }
+    .regime-tips ul { list-style: none; padding: 0; margin: 0; }
+    .regime-tips li { padding: 2px 0; color: var(--text-1); }
+
     /* ── Profile Focus Tips ─────────────────────── */
     .profile-tips {
       display: none; position: absolute; top: 100%; right: 0; z-index: 1040;
@@ -653,6 +677,34 @@
         <div class="profile-tips" id="profile-tips">
           <div class="tip-title" id="tip-title">重點指標</div>
           <ul id="tip-list"></ul>
+        </div>
+      </li>
+
+      <!-- Regime 切換 -->
+      <li class="nav-item dropdown d-none d-sm-inline-block" style="position:relative"
+          onmouseenter="byId('regime-tips').classList.add('show')"
+          onmouseleave="byId('regime-tips').classList.remove('show')"
+          onclick="byId('regime-tips').classList.remove('show')">
+        <a class="nav-link" href="#" data-toggle="dropdown" style="cursor:pointer">
+          <span id="nav-regime" class="regime-badge regime-classic">classic</span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-right" style="min-width:160px">
+          <a class="dropdown-item" href="#" onclick="switchRegime('classic');return false">
+            <span class="regime-badge regime-classic" style="font-size:.7rem">classic</span>
+          </a>
+          <a class="dropdown-item" href="#" onclick="switchRegime('classic_cp');return false">
+            <span class="regime-badge regime-classic_cp" style="font-size:.7rem">classic+cp</span>
+          </a>
+          <a class="dropdown-item" href="#" onclick="switchRegime('bocpd');return false">
+            <span class="regime-badge regime-bocpd" style="font-size:.7rem">bocpd</span>
+          </a>
+          <a class="dropdown-item" href="#" onclick="switchRegime('full');return false">
+            <span class="regime-badge regime-full" style="font-size:.7rem">full</span>
+          </a>
+        </div>
+        <div class="regime-tips" id="regime-tips">
+          <div class="tip-title">Regime Engine</div>
+          <ul id="regime-tip-list"></ul>
         </div>
       </li>
 
@@ -1634,6 +1686,13 @@ var PROFILE_TIPS = {
   ]
 };
 
+var REGIME_TIPS = {
+  classic:    ['5-vote + HMM（現行系統）', 'CP 關閉，原始 ATR sizing', '最穩定，零風險'],
+  classic_cp: ['5-vote + HMM + Conformal Prediction', 'ATR 自動加闊（uncertainty-aware SL）', '保守 sizing，適合高波動'],
+  bocpd:      ['BOCPD 逐 candle regime detection', 'CP 關閉，原始 ATR sizing', '更快偵測制度變化'],
+  full:       ['BOCPD + Conformal Prediction', '最快 regime + uncertainty SL', '完整新系統']
+};
+
 function renderNavbar(D) {
   var profile = D.active_profile || 'BALANCED';
   var navP = byId('nav-profile');
@@ -1649,6 +1708,20 @@ function renderNavbar(D) {
   if (tipList && PROFILE_TIPS[profile]) {
     tipTitle.textContent = profile + ' 重點指標';
     tipList.innerHTML = PROFILE_TIPS[profile].map(function(t) {
+      return '<li>' + t + '</li>';
+    }).join('');
+  }
+
+  // Regime preset badge
+  var regime = D.active_regime_preset || 'classic';
+  var navR = byId('nav-regime');
+  if (navR) {
+    navR.textContent = regime;
+    navR.className = 'regime-badge regime-' + regime;
+  }
+  var regimeList = byId('regime-tip-list');
+  if (regimeList && REGIME_TIPS[regime]) {
+    regimeList.innerHTML = REGIME_TIPS[regime].map(function(t) {
       return '<li>' + t + '</li>';
     }).join('');
   }
@@ -2392,13 +2465,16 @@ function renderRiskBoxes(D) {
   var market = R.market_mode || '–';
   if (ms) { ms.textContent = market; ms.className = 'info-box-number market-' + market; }
 
-  // HMM confidence sub-line
+  // Regime engine sub-line (engine-aware)
   var hmmEl = byId('risk-hmm');
   if (hmmEl) {
     var hmmConf = parseFloat(R.hmm_confidence) || 0;
     var hmmRegime = R.hmm_regime || '';
+    var engine = D.regime_engine || 'votes_hmm';
+    var cpOn = D.cp_enabled ? ' +CP' : '';
+    var label = engine === 'bocpd_cp' ? 'BOCPD' : 'HMM';
     if (hmmConf > 0 && hmmRegime) {
-      hmmEl.textContent = 'HMM: ' + hmmRegime + ' (' + Math.round(hmmConf * 100) + '%)';
+      hmmEl.textContent = label + ': ' + hmmRegime + ' (' + Math.round(hmmConf * 100) + '%)' + cpOn;
       hmmEl.style.display = '';
     } else {
       hmmEl.style.display = 'none';
@@ -3742,6 +3818,21 @@ function switchProfile(mode) {
     } else {
       alert(d.error || 'Failed');
     }
+  })
+  .catch(function(e) { alert('Error: ' + e); });
+}
+
+// ── Regime 切換 ──────────────────────────────
+function switchRegime(preset) {
+  fetch('/api/set_regime', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({preset: preset})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) { fetchData(); }
+    else { alert(d.error || 'Failed'); }
   })
   .catch(function(e) { alert('Error: ' + e); });
 }
