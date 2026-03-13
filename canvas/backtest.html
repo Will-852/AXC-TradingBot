@@ -199,7 +199,11 @@
       gap: 6px;
       transition: background .15s;
     }
-    .trade-row:hover { background: #f1f5f9; }
+    .trade-row:nth-child(odd) { background: #f8fafc; }
+    .trade-row:nth-child(even) { background: #ffffff; }
+    .trade-row:hover { background: #e0e7ff; }
+    .trade-row.win { border-left: 3px solid var(--pos); }
+    .trade-row.loss { border-left: 3px solid var(--neg); }
     .trade-row .side {
       font-weight: 700;
       font-size: .7rem;
@@ -214,6 +218,20 @@
       color: var(--text-3);
       width: 24px;
       text-align: center;
+    }
+
+    /* Monthly heatmap */
+    .monthly-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 4px;
+    }
+    .monthly-cell {
+      padding: 6px 4px;
+      border-radius: 4px;
+      text-align: center;
+      font-size: .7rem;
+      font-weight: 600;
     }
 
     /* Equity sub-chart */
@@ -735,6 +753,12 @@
         <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px">A/B COMPARE</div>
         <div id="compare-body"></div>
       </div>
+    </div>
+
+    <!-- Monthly heatmap -->
+    <div class="card-section" id="monthly-heatmap" style="display:none">
+      <h6>Monthly Returns</h6>
+      <div id="monthly-grid" class="monthly-grid"></div>
     </div>
 
     <!-- Trade detail (Phase 4) -->
@@ -1764,6 +1788,34 @@ function updateStats(result) {
 
   // Update compare if Run A exists
   if (compareRunA) updateCompare(result);
+
+  // Monthly heatmap
+  renderMonthlyHeatmap(result.monthly_returns);
+}
+
+// ══════════════════════════════════════════════════
+//  Monthly Returns Heatmap
+// ══════════════════════════════════════════════════
+function renderMonthlyHeatmap(monthly) {
+  var container = document.getElementById('monthly-heatmap');
+  var grid = document.getElementById('monthly-grid');
+  if (!monthly || !Object.keys(monthly).length) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+  var months = Object.keys(monthly).sort();
+  grid.innerHTML = months.map(function(m) {
+    var ret = monthly[m];
+    var intensity = Math.min(Math.abs(ret) / 10, 1);
+    var bg = ret >= 0
+      ? 'rgba(13,148,136,' + (0.15 + intensity * 0.55) + ')'
+      : 'rgba(225,29,72,' + (0.15 + intensity * 0.55) + ')';
+    var label = m.substring(5);
+    return '<div class="monthly-cell" style="background:' + bg + '">' +
+      '<div style="font-size:.6rem;color:var(--text-3)">' + m.substring(0,4) + '-' + label + '</div>' +
+      '<div>' + (ret >= 0 ? '+' : '') + ret.toFixed(1) + '%</div></div>';
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════
@@ -1846,7 +1898,8 @@ function updateTradeLog(trades) {
     var strategy = t.strategy || '';
     var reason = t.exit_reason || '';
     var timeStr = (t.entry_time || t.ts || '').substring(5, 16);
-    html += '<div class="trade-row" onclick="selectTrade(' + i + ')" title="' +
+    var rowClass = 'trade-row ' + (pnl >= 0 ? 'win' : 'loss');
+    html += '<div class="' + rowClass + '" onclick="selectTrade(' + i + ')" title="' +
       t.side + ' ' + (t.entry||0).toFixed(2) + ' \u2192 ' + (t.exit||0).toFixed(2) + '">' +
       '<span class="side ' + sideClass + '">' + t.side + '</span>' +
       '<span style="font-size:.72rem;color:var(--text-3)">' + timeStr + '</span>' +

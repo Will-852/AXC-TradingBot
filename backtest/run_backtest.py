@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(AXC_HOME, "scripts"))
 
 from backtest.fetch_historical import fetch_klines_range
 from backtest.engine import BacktestEngine, WARMUP_CANDLES
+from backtest.metrics_ext import extend_summary
 
 DATA_DIR = os.path.join(AXC_HOME, "backtest", "data")
 
@@ -85,6 +86,10 @@ def _print_results(result: dict, args):
         print(f"  Alpha:          {alpha:>+11.2f}%  (B&H: {bh:+.2f}%)")
         exposure = result.get("exposure_pct", 0.0)
         print(f"  Exposure:       {exposure:>11.1f}%")
+        kelly = result.get("kelly_pct", 0.0)
+        print(f"  Kelly:          {kelly:>+11.2f}%")
+        cagr = result.get("cagr_pct", 0.0)
+        print(f"  CAGR:           {cagr:>+11.2f}%")
 
         # Per-strategy breakdown
         for strat in ("range", "trend", "crash"):
@@ -142,7 +147,8 @@ def _save_meta(result: dict, symbol: str, days: int, balance: float) -> str:
                        "sortino_ratio", "calmar_ratio", "var_95", "cvar_95",
                        "recovery_factor", "payoff_ratio",
                        "expectancy", "sqn", "sqn_grade", "alpha",
-                       "buyhold_return", "exposure_pct")
+                       "buyhold_return", "exposure_pct",
+                       "kelly_pct", "cagr_pct")
             if result.get(k) is not None
         },
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -261,6 +267,7 @@ def main():
         initial_balance=args.balance,
     )
     result = engine.run()
+    result = extend_summary(result)
 
     # ── Phase 3: Output ──
     print("\n[3/3] Output")
