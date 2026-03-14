@@ -745,6 +745,7 @@
         <a class="nav-link d-flex align-items-center" href="#" id="reload-btn" title="重新載入數據 (R)" style="gap:5px">
           <i class="fas fa-sync-alt" id="reload-icon"></i>
           <span id="data-freshness" style="font-size:.68rem;color:var(--text-3);font-variant-numeric:tabular-nums">–</span>
+          <span id="api-health-badge" style="display:none;font-size:.62rem;margin-left:6px;padding:1px 5px;border-radius:3px;background:rgba(255,77,77,.15);font-variant-numeric:tabular-nums"></span>
         </a>
       </li>
 
@@ -3712,6 +3713,27 @@ function renderFooter(D) {
       if (fresh) { fresh.style.color = 'var(--neg)'; }
     }, 15000);
   }
+
+  // API health badge — shows exchange status + stale data warning
+  var healthEl = byId('api-health-badge');
+  if (healthEl) {
+    var h = D.api_health || {};
+    var staleKeys = D._staleKeys || [];
+    var parts = [];
+    if (h.aster === false) parts.push('Aster\u2717');
+    if (h.binance === false) parts.push('Binance\u2717');
+    if (h.hyperliquid === false) parts.push('HL\u2717');
+    if (h.pnl_source === 'balance_delta') parts.push('PnL\u2248');
+    if (h.exchange_data_age_s > 15) parts.push('Data ' + h.exchange_data_age_s + 's');
+    if (staleKeys.length > 0) parts.push(staleKeys.length + ' stale');
+    if (parts.length > 0) {
+      healthEl.textContent = parts.join(' | ');
+      healthEl.style.display = 'inline';
+      healthEl.style.color = 'var(--neg)';
+    } else {
+      healthEl.style.display = 'none';
+    }
+  }
 }
 
 // ── Fetch + Refresh ─────────────────────────
@@ -3734,6 +3756,8 @@ async function fetchData() {
     var D = await res.json();
     _fetchFails = 0;
     // Preserve last good data for volatile fields (exchange API may timeout)
+    // Track which keys are using stale data
+    var _staleKeys = [];
     if (_lastD) {
       for (var i = 0; i < _PRESERVE_KEYS.length; i++) {
         var k = _PRESERVE_KEYS[i];
@@ -3743,9 +3767,10 @@ async function fetchData() {
         var empty = v === undefined || v === null ||
           (Array.isArray(v) && v.length === 0 && old.length > 0) ||
           (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0 && Object.keys(old).length > 0);
-        if (empty) D[k] = old;
+        if (empty) { D[k] = old; _staleKeys.push(k); }
       }
     }
+    D._staleKeys = _staleKeys;
     _lastD = D;
     if (_apiOk === false) {
       pushNotif('system', 'API 連線恢復', '');

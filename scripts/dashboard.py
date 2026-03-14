@@ -391,16 +391,18 @@ def _query_single_exchange(name, client_fn, cred_check):
 
 
 _exchange_cache = {"data": {}, "ts": 0}
-_EXCHANGE_CACHE_TTL = 10  # 10s — positions update every 10s, not every 4s
+_exchange_cache_lock = threading.Lock()
+_EXCHANGE_CACHE_TTL = 10  # 10s — positions update every 10s, not every 5s
 
 
 def get_all_exchange_data():
     """Query all connected exchanges in parallel → per-exchange balance + positions.
-    10s cache to avoid 429 rate limit (~18 calls/min instead of ~60)."""
-    global _exchange_cache
+    10s cache to avoid 429 rate limit (~18 calls/min instead of ~60).
+    Thread-safe: lock protects cache read/write from concurrent requests."""
     now = time.time()
-    if _exchange_cache["data"] and now - _exchange_cache["ts"] < _EXCHANGE_CACHE_TTL:
-        return _exchange_cache["data"]
+    with _exchange_cache_lock:
+        if _exchange_cache["data"] and now - _exchange_cache["ts"] < _EXCHANGE_CACHE_TTL:
+            return _exchange_cache["data"]
 
     exchanges = [
         ("aster", _get_aster_client, _get_aster_credentials),
@@ -422,11 +424,12 @@ def get_all_exchange_data():
             except Exception as e:
                 logging.warning("exchange query %s timeout/error: %s", name, e)
 
-    if result:
-        _exchange_cache["data"] = result
-        _exchange_cache["ts"] = now
-    elif _exchange_cache["data"]:
-        return _exchange_cache["data"]  # keep stale data on total failure
+    with _exchange_cache_lock:
+        if result:
+            _exchange_cache["data"] = result
+            _exchange_cache["ts"] = now
+        elif _exchange_cache["data"]:
+            return _exchange_cache["data"]  # keep stale data on total failure
     return result
 
 
@@ -2033,7 +2036,7 @@ def _enrich_trades(trades, prices, trade_state):
 
 
 _collect_cache = {"data": None, "ts": 0}
-_COLLECT_CACHE_TTL = 4  # seconds — frontend polls every 5s
+_COLLECT_CACHE_TTL = 5  # seconds — aligned with frontend's 5s polling interval
 
 def _extract_hl_order_info(result: dict) -> dict:
     """Parse HyperLiquid SDK nested order response into flat dict.
@@ -2585,6 +2588,17 @@ def collect_data():
     # Multi-exchange breakdown — single pass, reuse for balance/positions
     exchange_data = get_all_exchange_data()
 
+    # API health: which exchanges responded, how old is the data
+    with _exchange_cache_lock:
+        _exch_age = round(time.time() - _exchange_cache["ts"], 1) if _exchange_cache["ts"] else 999
+    api_health = {
+        "aster": "aster" in exchange_data,
+        "binance": "binance" in exchange_data,
+        "hyperliquid": "hyperliquid" in exchange_data,
+        "exchange_data_age_s": _exch_age,
+        "pnl_source": "api",  # updated below if fallback
+    }
+
     # Check pending SL/TP for filled limit orders (zero extra API calls)
     if _pending_sltp:
         _check_pending_sltp(exchange_data)
@@ -2607,6 +2621,8 @@ def collect_data():
     baseline = get_balance_baseline(live_bal, fee_breakdown if fee_breakdown_raw else None)
 
     # today_pnl: use verified source when API succeeded, fallback to balance delta when API failed
+    if fee_breakdown_raw is None:
+        api_health["pnl_source"] = "balance_delta"
     today_pnl = fee_breakdown["net"] if fee_breakdown_raw is not None else baseline["today_pnl"]
     pnl_history = update_pnl_history_verified(today_pnl, baseline["total_pnl"])
 
@@ -2725,6 +2741,7 @@ def collect_data():
         "news_sentiment": news_sentiment,
         "demo_mode": False,
         "exchanges": exchange_data,
+        "api_health": api_health,
     }
     _collect_cache["data"] = result
     _collect_cache["ts"] = time.time()
