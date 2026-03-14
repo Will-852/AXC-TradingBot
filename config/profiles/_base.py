@@ -11,8 +11,8 @@ DEFAULT_PROFILE = {
     "description":            "",
     "trigger_pct":            0.025,   # 信號觸發閾值（2.5%）
     "risk_per_trade_pct":     0.02,    # 每筆風險 2%
-    "sl_atr_mult_range":      1.2,     # Range SL = 1.2 × ATR（backtest 後調整）
-    "sl_atr_mult_trend":      1.5,     # Trend SL = 1.5 × ATR（backtest 後調整）
+    "sl_atr_mult_range":      1.0,     # Range SL = 1.0 × ATR（180d grid: flat plateau, 1.0 中位）
+    "sl_atr_mult_trend":      1.5,     # Trend SL = 1.5 × ATR（180d grid: <1.3 斷崖, ≥1.4 plateau）
     "tp_atr_mult":            2.0,     # TP = N × ATR（reserved）
     "range_min_rr":           2.3,     # Range 最低 reward:risk
     "range_tp_mid_fraction":  0.50,    # Range TP1 = entry + 50%×(BB_mid − entry)。180d backtest: 100%→0%WR, 50%→59%WR

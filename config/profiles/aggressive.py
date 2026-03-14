@@ -9,8 +9,8 @@ PROFILE = {
     "description":            "進取：追趨勢，最高風險最高回報",
     "trigger_pct":            0.02,     # 2%（最敏感）
     "risk_per_trade_pct":     0.03,     # 3% 風險
-    "sl_atr_mult_range":      1.0,      # 緊 SL（快止損快止盈）
-    "sl_atr_mult_trend":      1.2,      # Trend 稍寬（backtest 後調整）
+    "sl_atr_mult_range":      0.8,      # 最窄 Range SL（180d grid top 1）
+    "sl_atr_mult_trend":      1.4,      # Trend 底線（180d grid: <1.3 斷崖）
     "tp_atr_mult":            3.0,      # 更大 TP 目標
     "range_min_rr":           2.0,      # 較鬆 RR
     "trend_min_rr":           2.5,      # Trend RR 仍高於 Range

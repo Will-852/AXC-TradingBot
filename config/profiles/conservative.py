@@ -9,8 +9,8 @@ PROFILE = {
     "description":            "保守：等待 RANGE 機會，最低風險",
     "trigger_pct":            0.03,     # 3%（較嚴格，減少噪音）
     "risk_per_trade_pct":     0.01,     # 1% 風險（base 嘅一半）
-    "sl_atr_mult_range":      1.5,      # 更寬 SL 畀多啲空間
-    "sl_atr_mult_trend":      2.0,      # Trend 再寬（backtest 後調整）
+    "sl_atr_mult_range":      1.3,      # 寬 Range SL 減被掃機率
+    "sl_atr_mult_trend":      2.0,      # 最寬 Trend SL（180d grid top 1）
     "max_open_positions":     1,        # 單倉
     "allow_trend":            False,    # 唔做 trend
     "trend_min_change_pct":   None,     # N/A — trend disabled
