@@ -117,7 +117,8 @@ def run_single_backtest(
 
     # param_overrides for engine (BB width, ADX, bb_touch_tol — patched into indicator_calc)
     engine_overrides = {}
-    for key in ("bb_width_min", "bb_touch_tol", "adx_range_max", "bb_width_squeeze"):
+    for key in ("bb_width_min", "bb_touch_tol", "adx_range_max", "bb_width_squeeze",
+                "mode_rsi_trend_low", "mode_rsi_trend_high"):
         if key in entry_params:
             engine_overrides[key] = entry_params[key]
 

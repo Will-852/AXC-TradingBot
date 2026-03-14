@@ -52,6 +52,10 @@ ENTRY_SEARCH_SPACE: list[EntryParam] = [
                description="Trend SHORT RSI lower bound"),
     EntryParam("rsi_short_high", 55, 70, 60,
                description="Trend SHORT RSI upper bound"),
+    EntryParam("mode_rsi_trend_low", 30, 40, 32,
+               description="Mode RSI: below this → TREND vote"),
+    EntryParam("mode_rsi_trend_high", 60, 70, 68,
+               description="Mode RSI: above this → TREND vote"),
 ]
 
 # Production baseline for comparison
@@ -75,7 +79,7 @@ class WeightParam:
 WEIGHT_SEARCH_SPACE: list[WeightParam] = [
     WeightParam("w_vol", 0.0, 0.5, 0.3,
                 description="Volume multiplier slope"),
-    WeightParam("w_obv", 0.0, 1.0, 0.5,
+    WeightParam("w_obv", 0.0, 1.5, 0.5,
                 description="OBV confirmation strength"),
     WeightParam("w_stoch", 0.0, 1.5, 1.0,
                 description="Stochastic STRONG bonus"),

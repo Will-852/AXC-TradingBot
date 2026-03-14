@@ -27,6 +27,14 @@ from memory.writer import write_trade
 logger = logging.getLogger(__name__)
 
 
+def _parse_int(val, default: int = 0) -> int:
+    """Safely parse a value to int, returning default on failure."""
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 class CheckPositionsStep:
     """
     Step 7: Sync positions + balance from exchange.

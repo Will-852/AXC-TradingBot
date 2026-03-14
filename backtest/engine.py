@@ -293,14 +293,25 @@ class BacktestEngine:
                 _patched_keys["_BB_WIDTH_MIN"] = _ic.BB_WIDTH_MIN
                 _ic.BB_WIDTH_MIN = self.param_overrides["bb_width_min"]
 
+            # Patch mode_detector RSI thresholds (imported as module attrs)
+            import trader_cycle.strategies.mode_detector as _md
+            for md_key in ("mode_rsi_trend_low", "mode_rsi_trend_high"):
+                if md_key in self.param_overrides:
+                    attr = md_key.upper()  # MODE_RSI_TREND_LOW / HIGH
+                    _patched_keys[f"_md_{attr}"] = getattr(_md, attr)
+                    setattr(_md, attr, self.param_overrides[md_key])
+
         try:
             self._run_loop(total_1h, close_times_4h)
         finally:
             if _patched_keys:
                 import indicator_calc as _ic
+                import trader_cycle.strategies.mode_detector as _md
                 for key, orig in _patched_keys.items():
                     if key == "_BB_WIDTH_MIN":
                         _ic.BB_WIDTH_MIN = orig
+                    elif key.startswith("_md_"):
+                        setattr(_md, key[4:], orig)  # strip "_md_" prefix
                     elif orig is _SENTINEL:
                         TIMEFRAME_PARAMS["1h"].pop(key, None)
                     else:
