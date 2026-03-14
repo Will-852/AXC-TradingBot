@@ -195,7 +195,7 @@ TRIGGER_PCT         = 0.05        # fallback 信號觸發閾值（5%）
 NEWS_ARCHIVE_WINDOW_HOURS = 6     # RSS 文章保留時間
 NEWS_ANALYSIS_WINDOW_HOURS = 1    # Sentiment 分析只看最近 N 小時
 NEWS_STALE_MINUTES = 30           # Sentiment 數據過期閾值
-BEARISH_BLOCK_LONG_CONF = 0.70    # bearish confidence > 70% → block LONG signals
+BEARISH_BLOCK_LONG_CONF = 0.75    # bearish confidence > 75% → block LONG signals
 NEWS_SCRAPE_INTERVAL_MIN = 5      # RSS 抓取間隔（分鐘）
 NEWS_ANALYSIS_INTERVAL_MIN = 15   # Sentiment 分析間隔（分鐘）
 
@@ -256,7 +256,14 @@ CP_INFLATION_FACTOR = 1.5          # cold start inflation
 # 用家自訂參數放呢度，git pull 永遠唔衝突
 # ═══════════════════════════════════════
 import importlib.util as _ilu
+import logging as _logging
 import os as _os
+
+_log = _logging.getLogger(__name__)
+
+# Dashboard / tg_bot 用 regex 直接寫入 params.py，
+# 如果 user_params.py 覆蓋呢啲值，UI 切換會無效。
+_USER_OVERRIDE_BLOCKLIST = {"ACTIVE_PROFILE", "ACTIVE_REGIME_PRESET"}
 
 _user_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "user_params.py")
 if _os.path.exists(_user_path):
@@ -264,5 +271,12 @@ if _os.path.exists(_user_path):
     _umod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_umod)
     for _name in dir(_umod):
-        if not _name.startswith("_"):
-            globals()[_name] = getattr(_umod, _name)
+        if _name.startswith("_"):
+            continue
+        if _name in _USER_OVERRIDE_BLOCKLIST:
+            _log.warning(
+                "user_params.py 定義咗 '%s'，已忽略（會破壞 dashboard UI 切換）",
+                _name,
+            )
+            continue
+        globals()[_name] = getattr(_umod, _name)

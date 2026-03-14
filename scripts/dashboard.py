@@ -3432,6 +3432,14 @@ def handle_suggest_mode():
 SECRETS_ENV_PATH = os.path.join(HOME, "secrets", ".env")
 
 
+def _strip_env_value(raw: str) -> str:
+    """Strip surrounding quotes and whitespace from .env value."""
+    val = raw.strip()
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+        val = val[1:-1]
+    return val
+
+
 def _get_aster_credentials():
     """Read Aster keys from secrets/.env"""
     api_key = api_secret = ""
@@ -3439,18 +3447,26 @@ def _get_aster_credentials():
         with open(SECRETS_ENV_PATH) as f:
             for line in f:
                 line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
                 if line.startswith("ASTER_API_KEY="):
-                    api_key = line.split("=", 1)[1].strip()
+                    api_key = _strip_env_value(line.split("=", 1)[1])
                 elif line.startswith("ASTER_API_SECRET="):
-                    api_secret = line.split("=", 1)[1].strip()
+                    api_secret = _strip_env_value(line.split("=", 1)[1])
     return api_key, api_secret
 
 
 def _save_aster_credentials(api_key, api_secret):
-    """Write or update Aster keys in secrets/.env + os.environ."""
+    """Write or update Aster keys in secrets/.env + os.environ.
+
+    設計決定：用 tempfile + os.replace() 原子寫入，避免寫入中途 crash 導致文件損壞。
+    """
+    import tempfile
+
     os.environ["ASTER_API_KEY"] = api_key
     os.environ["ASTER_API_SECRET"] = api_secret
-    os.makedirs(os.path.dirname(SECRETS_ENV_PATH), exist_ok=True)
+    env_dir = os.path.dirname(SECRETS_ENV_PATH)
+    os.makedirs(env_dir, exist_ok=True)
     lines = []
     if os.path.exists(SECRETS_ENV_PATH):
         with open(SECRETS_ENV_PATH) as f:
@@ -3459,8 +3475,15 @@ def _save_aster_credentials(api_key, api_secret):
                     lines.append(line.rstrip("\n"))
     lines.append(f"ASTER_API_KEY={api_key}")
     lines.append(f"ASTER_API_SECRET={api_secret}")
-    with open(SECRETS_ENV_PATH, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    fd, tmp_path = tempfile.mkstemp(dir=env_dir, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(tmp_path, SECRETS_ENV_PATH)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
 
 
 def handle_aster_status():
