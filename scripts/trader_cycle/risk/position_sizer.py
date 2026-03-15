@@ -2,7 +2,7 @@
 position_sizer.py — Position sizing, SL/TP calculation, funding cost adjustment
 
 Implements:
-  - 2% Kelly position sizing (per settings.py)
+  - Per-regime Kelly sizing when sufficient data exists, fixed fallback otherwise
   - ATR-based stop loss
   - Strategy-specific take profit (BB bands for range, S/R for trend)
   - R:R validation
@@ -19,7 +19,9 @@ from ..config.settings import (
     CONFIDENCE_RISK_CAP, HMM_ENABLED, HMM_MIN_CONFIDENCE,
     REGIME_ENGINE, CP_ENABLED,
     RANGE_TP_MID_FRACTION,
+    KELLY_NO_EDGE,
 )
+from .kelly import compute_kelly_base_risk
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, Signal
 from ..strategies.base import PositionParams
@@ -129,9 +131,23 @@ class SizePositionStep:
         # ─── Position Size ───
         balance = ctx.account_balance if ctx.account_balance > 0 else 100.0
 
+        # ─── Base Risk: Kelly or Fixed ───
+        # Kelly activates when sufficient per-regime trade history exists.
+        # KELLY_NO_EDGE (-1.0) == comparison is intentional: direct constant return,
+        # not a computed float — see kelly.py docstring.
+        kelly_risk = compute_kelly_base_risk(ctx.market_mode)
+
+        if kelly_risk == KELLY_NO_EDGE:
+            ctx.warnings.append(
+                f"Kelly: no statistical edge in {ctx.market_mode} regime → signal blocked"
+            )
+            ctx.selected_signal = None
+            return ctx
+
+        base_risk = kelly_risk if kelly_risk is not None else params.risk_pct
+
         # ─── Signal confidence → risk adjustment (Yunis Collection) ───
         # Use original_score (pre-boost) to prevent re-entry boost inflating size
-        base_risk = params.risk_pct
         sizing_score = signal.original_score if signal.original_score != 0.0 else signal.score
         if sizing_score >= 4.5:
             adjusted_risk = base_risk * CONFIDENCE_RISK_HIGH
@@ -187,7 +203,9 @@ class SizePositionStep:
         signal.leverage = params.leverage
 
         if ctx.verbose:
+            kelly_src = "Kelly" if kelly_risk is not None else "fixed"
             print(f"    Position Sizing: {signal.pair} {signal.direction}")
+            print(f"      Base risk: {base_risk:.2%} ({kelly_src})")
             print(f"      Entry: {entry_price} | SL: {signal.sl_price} | TP1: {signal.tp1_price}")
             if signal.tp2_price:
                 print(f"      TP2: {signal.tp2_price}")

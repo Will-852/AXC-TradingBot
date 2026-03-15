@@ -162,7 +162,10 @@ class ExecuteTradeStep:
 
             # ④-b Write entry to trades.jsonl
             try:
-                write_trade(pair, side, fill_price, notes="auto entry via trader_cycle")
+                write_trade(pair, side, fill_price,
+                            sl_price=ctx.selected_signal.sl_price,
+                            strategy=ctx.selected_signal.strategy,
+                            notes="auto entry via trader_cycle")
             except Exception as wt_err:
                 logger.warning(f"[{pair}] write_trade failed: {wt_err}")
 

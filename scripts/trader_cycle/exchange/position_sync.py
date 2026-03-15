@@ -217,6 +217,7 @@ class CheckPositionsStep:
         try:
             write_trade(pair, direction, entry_price, exit_price=calc_exit,
                         pnl=realized_pnl,
+                        strategy=ctx.market_mode.lower(),
                         notes=f"auto-close {exit_reason}")
         except Exception as e:
             logger.warning(f"write_trade for close failed: {e}")
@@ -348,6 +349,7 @@ class CheckPositionsStep:
                             write_trade(pos.pair, pos.direction, pos.entry_price,
                                         exit_price=pos.mark_price,
                                         pnl=pos.unrealized_pnl,
+                                        strategy=ctx.market_mode.lower(),
                                         notes="orphan force close (SL placement failed)")
                         except Exception:
                             pass

@@ -107,6 +107,17 @@ CONFIDENCE_RISK_NORMAL = 1.0        # score 3.0-4.4 → risk × 1.0
 CONFIDENCE_RISK_LOW = 0.6           # score < 3.0 → risk × 0.6
 CONFIDENCE_RISK_CAP = 0.03          # absolute cap: never exceed 3% risk
 
+# ─── Kelly Criterion Position Sizing ───
+# Activates per-regime when enough closed trades exist.
+# Below threshold → fixed params.risk_pct fallback.
+KELLY_MIN_TRADES_RANGE  = 30        # min closed trades before Kelly activates
+KELLY_MIN_TRADES_TREND  = 30
+KELLY_MIN_TRADES_CRASH  = 20        # lower: crash triggers are rare by design
+KELLY_WINDOW_N          = 60        # rolling window: last N trades per regime
+KELLY_MIN_RISK          = 0.005     # 0.5% floor (half-Kelly can go very low)
+KELLY_MAX_RISK          = 0.03      # 3% cap (= CONFIDENCE_RISK_CAP)
+KELLY_NO_EDGE           = -1.0      # sentinel: data sufficient but f*≤0 → block trade
+
 # ─── Day-of-Week Bias (UTC+8) ───
 # Thursday 21:00-01:00 → SHORT bias (3.5/5 sufficient)
 # Friday  21:00-03:00 → LONG bias  (3.5/5 sufficient)

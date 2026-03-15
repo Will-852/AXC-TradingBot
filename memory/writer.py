@@ -103,11 +103,13 @@ def write_conversation(user_msg, bot_reply):
     })
 
 
-def write_trade(symbol, side, entry, exit_price=None, pnl=None, sl_price=None, notes=""):
+def write_trade(symbol, side, entry, exit_price=None, pnl=None, sl_price=None,
+                notes="", strategy="unknown"):
     """Write a trade record.
 
-    sl_price added for R-multiple calculation:
-    R = PnL / (|entry - sl_price| × qty)
+    sl_price: for R-multiple calculation (R = PnL / |entry - sl_price| × qty).
+    strategy: "range"/"trend"/"crash" for per-regime Kelly sizing;
+              "manual" for tg_bot; "unknown" for legacy/untagged.
     """
     parts = [f"交易 {symbol} {side} 入場${entry}"]
     if exit_price is not None:
@@ -118,6 +120,7 @@ def write_trade(symbol, side, entry, exit_price=None, pnl=None, sl_price=None, n
     meta = {
         "symbol": symbol, "side": side,
         "entry": entry, "exit": exit_price, "pnl": pnl,
+        "strategy": strategy,
     }
     if sl_price is not None:
         meta["sl_price"] = sl_price
@@ -164,5 +167,6 @@ def read_last_entry(symbol: str) -> dict | None:
                 "side": rec.get("side", ""),
                 "symbol": symbol,
                 "sl_price": rec.get("sl_price", 0),
+                "strategy": rec.get("strategy", "unknown"),
             }
     return None

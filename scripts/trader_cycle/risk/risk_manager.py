@@ -312,6 +312,7 @@ class ManagePositionsStep:
                 write_trade(pos.pair, pos.direction, pos.entry_price,
                             exit_price=pos.mark_price,
                             pnl=pos.unrealized_pnl,
+                            strategy=ctx.market_mode.lower(),
                             notes=f"risk close: {reason_str}")
             except Exception as e:
                 logger.warning(f"write_trade for risk close failed: {e}")

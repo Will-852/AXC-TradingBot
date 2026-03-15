@@ -221,6 +221,7 @@ class AdjustPositionsStep:
                                 pos.pair, pos.direction, pos.entry_price,
                                 exit_price=pos.mark_price,
                                 pnl=pos.unrealized_pnl,
+                                strategy=ctx.market_mode.lower(),
                                 notes="trailing SL restore failed → emergency close",
                             )
                         except Exception:
@@ -477,6 +478,7 @@ class AdjustPositionsStep:
                     pos.pair, pos.direction, pos.entry_price,
                     exit_price=pos.mark_price,
                     pnl=pos.unrealized_pnl,
+                    strategy=ctx.market_mode.lower(),
                     notes=f"early exit: {exit_reason}",
                 )
             except Exception as wt_err:
