@@ -21,16 +21,16 @@ from dataclasses import dataclass, field, fields
 @dataclass
 class ScoringWeights:
     """Tunable scoring parameters."""
-    w_vol: float = 0.3                  # volume multiplier slope
-    w_obv: float = 0.5                  # OBV confirmation strength
-    w_stoch: float = 1.0                # stochastic bonus (STRONG vs WEAK)
-    base_score_strong: float = 4.0      # range STRONG base
-    base_score_weak: float = 3.0        # range WEAK base
+    w_vol: float = 0.30                 # volume multiplier slope (shrunk: unchanged)
+    w_obv: float = 1.12                 # OBV confirmation strength (shrunk: 0.7×1.38+0.3×0.5)
+    w_stoch: float = 0.39               # stochastic bonus (shrunk: 0.7×0.13+0.3×1.0)
+    base_score_strong: float = 3.57     # range STRONG base (shrunk: 0.7×3.39+0.3×4.0)
+    base_score_weak: float = 2.36       # range WEAK base (shrunk: 0.7×2.09+0.3×3.0)
     base_score_trend_full: float = 5.0  # trend 4/4 base
     base_score_trend_bias: float = 3.5  # trend 3/4 bias base
-    confidence_threshold_low: float = 3.0    # score <= this → 1.0x risk (ramp starts here)
-    confidence_threshold_high: float = 4.5   # score >= this → max risk multiplier (ramp ends here)
-    confidence_risk_high_mult: float = 1.25  # max risk multiplier at ramp top
+    confidence_threshold_low: float = 3.0    # score <= this → 1.0x risk (unchanged)
+    confidence_threshold_high: float = 4.34  # score >= this → max risk multiplier (shrunk)
+    confidence_risk_high_mult: float = 1.27  # max risk multiplier at ramp top (shrunk)
     reentry_boost: float = 0.0          # fixed boost for re-entry signals
 
     def to_dict(self) -> dict:

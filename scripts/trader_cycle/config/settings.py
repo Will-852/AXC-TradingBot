@@ -92,7 +92,7 @@ SCALP_SL_ATR_MULT = 1.0
 SCALP_TP_ATR_MULT = 2.5
 
 # ─── Yunis Collection: Volume Gate ───
-ENTRY_VOLUME_MIN = 0.8              # volume_ratio < 0.8 → skip entry (low conviction)
+ENTRY_VOLUME_MIN = 0.40             # opt: 0.4022 (was 0.8)
 
 # ─── Yunis Collection: MACD Weakening Exit ───
 MACD_HIST_DECAY_THRESHOLD = 0.6     # histogram shrinks to <60% of prev → weakening

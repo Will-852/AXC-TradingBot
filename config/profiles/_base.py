@@ -29,7 +29,7 @@ DEFAULT_PROFILE = {
     "confidence_risk_normal":        1.0,    # 普通信心 → risk × 1.0
     "confidence_risk_low":           0.6,    # 低信心 → risk × 0.6
     "confidence_risk_cap":           0.03,   # 風險絕對上限 3%
-    "entry_volume_min":              0.8,    # volume_ratio < 0.8 → skip
+    "entry_volume_min":              0.40,   # opt: 0.4022 (was 0.8)
     "trailing_sl_breakeven_atr":     1.0,    # profit > 1×ATR → SL 移到 entry
     "trailing_sl_lock_profit_atr":   2.0,    # profit > 2×ATR → 鎖利
     "early_exit_rsi_overbought":     70,     # LONG 提早離場 RSI

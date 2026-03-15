@@ -42,9 +42,9 @@ EXCHANGE_ROTATION = [
 # ═══════════════════════════════════════
 # Section 2: BB 指標參數（indicator_calc 讀）
 # ═══════════════════════════════════════
-BB_TOUCH_TOL_DEFAULT = 0.005   # BTC, ETH, XAG
+BB_TOUCH_TOL_DEFAULT = 0.006   # BTC, ETH, XAG (opt: 0.0063, rounded)
 BB_TOUCH_TOL_XRP = 0.008       # XRP 較大容忍度
-BB_WIDTH_MIN = 0.05            # 最小BB寬度過濾
+BB_WIDTH_MIN = 0.065           # 最小BB寬度過濾 (opt: 0.0645)
 
 # ═══════════════════════════════════════
 # Section 3: 指標時間框參數（indicator_calc 讀）
@@ -106,29 +106,29 @@ SR_PROXIMITY_TOL = 0.005
 # Section 4: Trend 策略參數（trend_strategy 讀）
 # ═══════════════════════════════════════
 # RSI 範圍：確認趨勢方向（1H timeframe）
-TREND_RSI_LONG_LOW = 40       # LONG: RSI 下限
-TREND_RSI_LONG_HIGH = 55      # LONG: RSI 上限
-TREND_RSI_SHORT_LOW = 45      # SHORT: RSI 下限
-TREND_RSI_SHORT_HIGH = 60     # SHORT: RSI 上限
+TREND_RSI_LONG_LOW = 33       # LONG: RSI 下限 (opt: 33.29)
+TREND_RSI_LONG_HIGH = 54      # LONG: RSI 上限 (opt: 53.96)
+TREND_RSI_SHORT_LOW = 53      # SHORT: RSI 下限 (opt: 53.22)
+TREND_RSI_SHORT_HIGH = 70     # SHORT: RSI 上限 (opt: 69.65)
 
 # 回調容忍度：價格距 1H MA50 幾 % 先算 "pullback"
 # 2026-03-11 optimizer Stage1: 6/6 viable configs 用 ≥0.020，收縮後 0.025
-PULLBACK_TOLERANCE = 0.025    # 2.5% (was 1.5%, optimizer shrinkage)
+PULLBACK_TOLERANCE = 0.039    # 3.9% (opt: 0.0392, was 2.5%)
 
 # Trend 入場最少 KEY 數（4=全部確認，3=允許 1 個唔 pass）
 # 2026-03-11 optimizer Stage1: 5/6 viable configs 用 3
-TREND_MIN_KEYS = 3            # (was hardcoded 4)
+TREND_MIN_KEYS = 4            # opt: top 3 configs all used 4
 
 # ═══════════════════════════════════════
 # Section 5: 模式偵測閾值（settings.py 讀）
 # ═══════════════════════════════════════
 # mode_detector 用嚟判斷 RANGE vs TREND
-MODE_RSI_TREND_LOW = 32       # RSI < 32 = trend signal
-MODE_RSI_TREND_HIGH = 68      # RSI > 68 = trend signal
+MODE_RSI_TREND_LOW = 34       # RSI < 34 = trend signal (opt: 34.10)
+MODE_RSI_TREND_HIGH = 69      # RSI > 69 = trend signal (opt: 68.77)
 MODE_VOLUME_LOW = 0.50        # <50% avg = trend signal
 MODE_VOLUME_HIGH = 1.50       # >150% avg = trend signal
 MODE_FUNDING_THRESHOLD = 0.0007  # ±0.07%
-MODE_CONFIRMATION_REQUIRED = 2   # 連續同 mode 先切換
+MODE_CONFIRMATION_REQUIRED = 1   # opt: top 3 全選 1（更快反應模式切換）
 
 # ═══════════════════════════════════════
 # Section 6: Dashboard + 倉位管理

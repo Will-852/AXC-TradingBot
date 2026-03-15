@@ -1,0 +1,268 @@
+{
+  "stage2": [
+    {
+      "entry_params": {
+        "bb_width_min": 0.0645,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0392,
+        "adx_range_max": 19.8225,
+        "entry_volume_min": 0.4022,
+        "mode_confirmation": 1,
+        "rsi_long_low": 33.2932,
+        "rsi_long_high": 53.964,
+        "bb_touch_tol": 0.0063,
+        "rsi_short_low": 53.2152,
+        "rsi_short_high": 69.6516,
+        "mode_rsi_trend_low": 34.0998,
+        "mode_rsi_trend_high": 68.7695
+      },
+      "best_weights": {
+        "w_vol": 0.29894998940554257,
+        "w_obv": 1.3828113525346752,
+        "w_stoch": 0.13273875307787925,
+        "base_score_strong": 3.3919657248382906,
+        "base_score_weak": 2.090454577821076,
+        "confidence_threshold_low": 2.9879954961448965,
+        "confidence_threshold_high": 4.277354579378964,
+        "confidence_risk_high_mult": 1.2713490317738958,
+        "min_score": 2.9005812820317525
+      },
+      "best_objective": 32.7864,
+      "n_trials": 30,
+      "results_by_pair": {
+        "BTCUSDT": {
+          "total_trades": 44,
+          "pnl": 5235.23,
+          "win_rate": 63.6,
+          "max_drawdown_pct": 5.9,
+          "profit_factor": 2.71
+        },
+        "ETHUSDT": {
+          "total_trades": 29,
+          "pnl": 4663.45,
+          "win_rate": 72.4,
+          "max_drawdown_pct": 7.1,
+          "profit_factor": 3.97
+        },
+        "XRPUSDT": {
+          "total_trades": 32,
+          "pnl": 2056.57,
+          "win_rate": 65.6,
+          "max_drawdown_pct": 7.0,
+          "profit_factor": 2.47
+        },
+        "SOLUSDT": {
+          "total_trades": 21,
+          "pnl": 2634.08,
+          "win_rate": 66.7,
+          "max_drawdown_pct": 5.9,
+          "profit_factor": 2.62
+        },
+        "DOGEUSDT": {
+          "total_trades": 21,
+          "pnl": 2305.99,
+          "win_rate": 81.0,
+          "max_drawdown_pct": 3.8,
+          "profit_factor": 6.19
+        },
+        "LINKUSDT": {
+          "total_trades": 7,
+          "pnl": 299.15,
+          "win_rate": 57.1,
+          "max_drawdown_pct": 3.4,
+          "profit_factor": 1.83
+        },
+        "ADAUSDT": {
+          "total_trades": 24,
+          "pnl": 235.49,
+          "win_rate": 45.8,
+          "max_drawdown_pct": 7.2,
+          "profit_factor": 1.17
+        },
+        "AVAXUSDT": {
+          "total_trades": 7,
+          "pnl": 1173.97,
+          "win_rate": 100.0,
+          "max_drawdown_pct": 2.2,
+          "profit_factor": "inf"
+        }
+      }
+    },
+    {
+      "entry_params": {
+        "bb_width_min": 0.0555,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0357,
+        "adx_range_max": 27.8156,
+        "entry_volume_min": 0.522,
+        "mode_confirmation": 1,
+        "rsi_long_low": 39.0225,
+        "rsi_long_high": 57.5604,
+        "bb_touch_tol": 0.0056,
+        "rsi_short_low": 51.0389,
+        "rsi_short_high": 64.6061,
+        "mode_rsi_trend_low": 30.2396,
+        "mode_rsi_trend_high": 67.8441
+      },
+      "best_weights": {
+        "w_vol": 0.09194920773235862,
+        "w_obv": 1.4885408038739634,
+        "w_stoch": 1.3046831279491276,
+        "base_score_strong": 3.7136546014480323,
+        "base_score_weak": 2.062758409901838,
+        "confidence_threshold_low": 2.9340037414591005,
+        "confidence_threshold_high": 4.06986635634806,
+        "confidence_risk_high_mult": 1.4271123056333317,
+        "min_score": 2.521211915573826
+      },
+      "best_objective": 30.9852,
+      "n_trials": 30,
+      "results_by_pair": {
+        "BTCUSDT": {
+          "total_trades": 46,
+          "pnl": 8568.9,
+          "win_rate": 65.2,
+          "max_drawdown_pct": 7.5,
+          "profit_factor": 3.22
+        },
+        "ETHUSDT": {
+          "total_trades": 31,
+          "pnl": 7348.28,
+          "win_rate": 74.2,
+          "max_drawdown_pct": 7.2,
+          "profit_factor": 4.64
+        },
+        "XRPUSDT": {
+          "total_trades": 33,
+          "pnl": 1700.99,
+          "win_rate": 63.6,
+          "max_drawdown_pct": 7.9,
+          "profit_factor": 1.95
+        },
+        "SOLUSDT": {
+          "total_trades": 25,
+          "pnl": 2702.91,
+          "win_rate": 60.0,
+          "max_drawdown_pct": 13.8,
+          "profit_factor": 1.91
+        },
+        "DOGEUSDT": {
+          "total_trades": 21,
+          "pnl": 2392.45,
+          "win_rate": 81.0,
+          "max_drawdown_pct": 3.8,
+          "profit_factor": 6.15
+        },
+        "LINKUSDT": {
+          "total_trades": 9,
+          "pnl": -301.19,
+          "win_rate": 44.4,
+          "max_drawdown_pct": 11.8,
+          "profit_factor": 0.69
+        },
+        "ADAUSDT": {
+          "total_trades": 24,
+          "pnl": 239.53,
+          "win_rate": 45.8,
+          "max_drawdown_pct": 7.4,
+          "profit_factor": 1.17
+        },
+        "AVAXUSDT": {
+          "total_trades": 7,
+          "pnl": 1288.68,
+          "win_rate": 100.0,
+          "max_drawdown_pct": 2.5,
+          "profit_factor": "inf"
+        }
+      }
+    },
+    {
+      "entry_params": {
+        "bb_width_min": 0.0451,
+        "trend_min_keys": 4,
+        "pullback_tolerance": 0.0231,
+        "adx_range_max": 21.1726,
+        "entry_volume_min": 0.5745,
+        "mode_confirmation": 1,
+        "rsi_long_low": 38.0581,
+        "rsi_long_high": 59.5542,
+        "bb_touch_tol": 0.0123,
+        "rsi_short_low": 54.4116,
+        "rsi_short_high": 68.9304,
+        "mode_rsi_trend_low": 34.447,
+        "mode_rsi_trend_high": 64.6731
+      },
+      "best_weights": {
+        "w_vol": 0.03961826705567736,
+        "w_obv": 1.333583941105926,
+        "w_stoch": 0.9195532616218944,
+        "base_score_strong": 4.769753690106716,
+        "base_score_weak": 2.840734655250989,
+        "confidence_threshold_low": 3.1265692883219236,
+        "confidence_threshold_high": 4.540954089997734,
+        "confidence_risk_high_mult": 1.1958085259034048,
+        "min_score": 2.4800642977698875
+      },
+      "best_objective": 28.1803,
+      "n_trials": 30,
+      "results_by_pair": {
+        "BTCUSDT": {
+          "total_trades": 48,
+          "pnl": 5936.71,
+          "win_rate": 62.5,
+          "max_drawdown_pct": 8.1,
+          "profit_factor": 2.62
+        },
+        "ETHUSDT": {
+          "total_trades": 32,
+          "pnl": 5640.29,
+          "win_rate": 71.9,
+          "max_drawdown_pct": 9.3,
+          "profit_factor": 4.03
+        },
+        "XRPUSDT": {
+          "total_trades": 32,
+          "pnl": 2065.32,
+          "win_rate": 65.6,
+          "max_drawdown_pct": 6.6,
+          "profit_factor": 2.55
+        },
+        "SOLUSDT": {
+          "total_trades": 24,
+          "pnl": 1414.32,
+          "win_rate": 58.3,
+          "max_drawdown_pct": 21.6,
+          "profit_factor": 1.65
+        },
+        "DOGEUSDT": {
+          "total_trades": 21,
+          "pnl": 2279.02,
+          "win_rate": 81.0,
+          "max_drawdown_pct": 3.7,
+          "profit_factor": 6.22
+        },
+        "LINKUSDT": {
+          "total_trades": 14,
+          "pnl": -1445.88,
+          "win_rate": 28.6,
+          "max_drawdown_pct": 21.0,
+          "profit_factor": 0.28
+        },
+        "ADAUSDT": {
+          "total_trades": 24,
+          "pnl": 235.03,
+          "win_rate": 45.8,
+          "max_drawdown_pct": 7.2,
+          "profit_factor": 1.17
+        },
+        "AVAXUSDT": {
+          "total_trades": 7,
+          "pnl": 1121.11,
+          "win_rate": 100.0,
+          "max_drawdown_pct": 2.0,
+          "profit_factor": "inf"
+        }
+      }
+    }
+  ]
+}
