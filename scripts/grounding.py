@@ -41,6 +41,9 @@ _SCAN_INDICATOR_MAP = {
     "resistance": "RESISTANCE",
 }
 
+# from_context() 提取嘅指標 keys
+_IND_KEYS = ("rsi", "adx", "macd_hist", "atr", "bb_width")
+
 
 def _pair_prefix(symbol: str) -> str:
     """BTCUSDT → BTC, ETHUSDT → ETH"""
@@ -163,13 +166,12 @@ def from_context(ctx: CycleContext) -> dict[str, str | float]:
     # 價格
     for symbol, ms in ctx.market_data.items():
         prefix = _pair_prefix(symbol)
-        if ms.price:
+        if ms.price is not None:
             snap[f"{prefix}_PRICE"] = ms.price
-        if ms.price_change_24h_pct:
+        if ms.price_change_24h_pct is not None:
             snap[f"{prefix}_CHG24H"] = round(ms.price_change_24h_pct, 2)
 
     # 指標（4h + 1h）
-    _IND_KEYS = ("rsi", "adx", "macd_hist", "atr", "bb_width")
     for symbol, tf_data in ctx.indicators.items():
         prefix = _pair_prefix(symbol)
         for tf_label, tf_key in [("4H", "4h"), ("1H", "1h")]:
