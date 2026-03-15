@@ -48,6 +48,8 @@ from memory.retriever import retrieve_full, format_for_prompt
 
 import slash_cmd
 from axc_client import OpenClawClient
+from grounding import from_files as grounding_from_files
+from grounding import format_grounding_prompt, citation_instruction
 
 _oc_client = OpenClawClient()
 
@@ -1612,12 +1614,15 @@ async def _handle_analysis(update: Update, text: str):
 
     memories = await _safe_retrieve(text, top_k=6)
     mem_text = format_for_prompt(memories, max_chars=2000)
-    local_text = read_local_context()
 
-    context = ""
-    if mem_text:
-        context += mem_text + "\n\n"
-    context += local_text
+    # Grounding: 結構化實時數據（取代 read_local_context 的非結構化文字）
+    loop = asyncio.get_event_loop()
+    snapshot = await loop.run_in_executor(None, grounding_from_files)
+    ground_text = format_grounding_prompt(snapshot, max_chars=1200)
+    context = (mem_text + "\n\n" if mem_text else "") + ground_text
+
+    # System prompt + citation 指令
+    sys_prompt = SYSTEM_PROMPT + "\n\n" + citation_instruction()
 
     # 取短期對話歷史（最近 5 組，10 分鐘過期）
     history = _get_history(chat_id)
@@ -1628,7 +1633,8 @@ async def _handle_analysis(update: Update, text: str):
     else:
         ai_model = MODEL_HAIKU
 
-    raw = call_claude(text, context, history=history, max_tokens=250, model=ai_model)
+    raw = call_claude(text, context, system=sys_prompt, history=history,
+                      max_tokens=250, model=ai_model)
     reply = _clean_for_telegram(raw)
 
     # Hard limit: max 8 lines (proxy may ignore max_tokens)

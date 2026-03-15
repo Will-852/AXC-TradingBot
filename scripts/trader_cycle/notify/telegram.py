@@ -16,6 +16,9 @@ from light_scan import send_telegram as _send
 
 from ..core.context import CycleContext, Signal
 
+# grounding — scripts/ 已在 sys.path
+from grounding import from_context as grounding_from_context
+
 
 def send_telegram(text: str) -> dict:
     """Send Telegram message (HTML format)."""
@@ -96,6 +99,18 @@ def format_cycle_report(ctx: CycleContext) -> str:
     else:
         lines.append("信號: 無")
         lines.append("")
+
+    # Citation: 有信號時顯示數據依據
+    if ctx.selected_signal:
+        snapshot = grounding_from_context(ctx)
+        pair_prefix = ctx.selected_signal.pair.replace("USDT", "")
+        keys = [k for k in snapshot
+                if k.startswith(pair_prefix) or k in ("REGIME",)]
+        cite = " ".join(f"[{k}={snapshot[k]}]" for k in keys[:8])
+        if cite:
+            lines.append("<b>數據依據</b>")
+            lines.append(cite)
+            lines.append("")
 
     # Risk status
     if ctx.risk_blocked:
