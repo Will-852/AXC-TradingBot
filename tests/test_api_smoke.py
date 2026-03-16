@@ -65,9 +65,9 @@ class TestBacktestAPIContract:
 
     def test_bt_run_returns_job_id(self):
         """POST /api/backtest/run should return job_id."""
-        from scripts.dashboard import handle_bt_run, _bt_jobs, _bt_lock
+        from scripts.dashboard.backtest import handle_bt_run, _bt_jobs, _bt_lock
 
-        with patch("scripts.dashboard._get_bt_pool") as mock_pool:
+        with patch("scripts.dashboard.backtest._get_bt_pool") as mock_pool:
             mock_future = MagicMock()
             mock_pool.return_value.submit.return_value = mock_future
             mock_future.add_done_callback = MagicMock()
@@ -81,19 +81,19 @@ class TestBacktestAPIContract:
 
     def test_bt_run_invalid_json(self):
         """POST with bad JSON should return 400."""
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         code, data = handle_bt_run("not json{{{")
         assert code == 400
 
     def test_bt_status_not_found(self):
         """GET status for non-existent job should return 404."""
-        from scripts.dashboard import handle_bt_status
+        from scripts.dashboard.backtest import handle_bt_status
         code, data = handle_bt_status({"job_id": ["nonexistent_job_123"]})
         assert code == 404
 
     def test_bt_status_done_has_indicator_series(self):
         """When job is done, result should include indicator_series."""
-        from scripts.dashboard import handle_bt_status, _bt_jobs, _bt_lock
+        from scripts.dashboard.backtest import handle_bt_status, _bt_jobs, _bt_lock
 
         test_job_id = "TEST_SMOKE_001"
         with _bt_lock:
@@ -118,6 +118,6 @@ class TestBacktestAPIContract:
 
     def test_bt_results_missing_params(self):
         """GET results without symbol should return 400."""
-        from scripts.dashboard import handle_bt_results
+        from scripts.dashboard.backtest import handle_bt_results
         code, data = handle_bt_results({"symbol": [""], "days": [""]})
         assert code == 400

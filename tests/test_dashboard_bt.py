@@ -22,35 +22,35 @@ class TestInputValidation:
     """Phase 5C: Bad input should return 400 with friendly error."""
 
     def test_invalid_symbol(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         body = json.dumps({"symbol": "DOGEUSDT", "days": 30})
         code, data = handle_bt_run(body)
         assert code == 400
         assert "not allowed" in data["error"]
 
     def test_negative_days(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         body = json.dumps({"symbol": "BTCUSDT", "days": -5})
         code, data = handle_bt_run(body)
         assert code == 400
         assert "days" in data["error"]
 
     def test_days_too_large(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         body = json.dumps({"symbol": "BTCUSDT", "days": 500})
         code, data = handle_bt_run(body)
         assert code == 400
         assert "days" in data["error"]
 
     def test_balance_too_low(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         body = json.dumps({"symbol": "BTCUSDT", "days": 30, "balance": 10})
         code, data = handle_bt_run(body)
         assert code == 400
         assert "balance" in data["error"]
 
     def test_non_numeric_param_override(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
         body = json.dumps({"symbol": "BTCUSDT", "days": 30,
                           "param_overrides": {"bb_touch_tol": "bad"}})
         code, data = handle_bt_run(body)
@@ -58,8 +58,8 @@ class TestInputValidation:
         assert "numeric" in data["error"]
 
     def test_valid_input_accepted(self):
-        from scripts.dashboard import handle_bt_run
-        with patch("scripts.dashboard._get_bt_pool") as mock_pool:
+        from scripts.dashboard.backtest import handle_bt_run
+        with patch("scripts.dashboard.backtest._get_bt_pool") as mock_pool:
             mock_future = MagicMock()
             mock_pool.return_value.submit.return_value = mock_future
             mock_future.add_done_callback = MagicMock()
@@ -74,9 +74,9 @@ class TestJobLifecycle:
     """Job submit → poll → done flow."""
 
     def test_submit_and_poll(self):
-        from scripts.dashboard import handle_bt_run, handle_bt_status, _bt_jobs, _bt_lock
+        from scripts.dashboard.backtest import handle_bt_run, handle_bt_status, _bt_jobs, _bt_lock
 
-        with patch("scripts.dashboard._get_bt_pool") as mock_pool:
+        with patch("scripts.dashboard.backtest._get_bt_pool") as mock_pool:
             mock_future = MagicMock()
             mock_pool.return_value.submit.return_value = mock_future
             mock_future.add_done_callback = MagicMock()
@@ -110,9 +110,9 @@ class TestParamOverridePropagation:
     """Param overrides reach the worker."""
 
     def test_strategy_params_passed(self):
-        from scripts.dashboard import handle_bt_run
+        from scripts.dashboard.backtest import handle_bt_run
 
-        with patch("scripts.dashboard._get_bt_pool") as mock_pool:
+        with patch("scripts.dashboard.backtest._get_bt_pool") as mock_pool:
             mock_future = MagicMock()
             mock_pool.return_value.submit.return_value = mock_future
             mock_future.add_done_callback = MagicMock()
