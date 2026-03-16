@@ -86,6 +86,8 @@ class BTRangeStrategy(StrategyBase):
         obv = ind_4h.get("obv")
         obv_ema = ind_4h.get("obv_ema")
 
+        vol_spike = ind_1h.get("vol_spike", False)
+
         # ─── LONG ───
         if result["signal_long"] == 1:
             strength = "STRONG" if any("STRONG" in r for r in result["reasons"]) else "WEAK"
@@ -94,6 +96,7 @@ class BTRangeStrategy(StrategyBase):
                 strength=strength,
                 volume_ratio=volume_ratio,
                 obv_signal=obv_signal,
+                vol_spike=vol_spike,
             )
             return Signal(
                 pair=pair, direction="LONG", strategy=self.name,
@@ -109,6 +112,7 @@ class BTRangeStrategy(StrategyBase):
                 strength=strength,
                 volume_ratio=volume_ratio,
                 obv_signal=obv_signal,
+                vol_spike=vol_spike,
             )
             return Signal(
                 pair=pair, direction="SHORT", strategy=self.name,

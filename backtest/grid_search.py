@@ -80,6 +80,9 @@ PARAM_REGISTRY: dict[str, ParamSpec] = {
     "min_rr":            ParamSpec("min_rr",            1.5,  3.0,  0.5, "position", "Minimum reward:risk"),
     # ─── trend（monkey-patch trend_strategy module global）───
     "pullback_tolerance": ParamSpec("pullback_tolerance", 0.010, 0.025, 0.005, "trend", "Pullback vs MA50 tolerance"),
+    # ─── volume spike（indicator patch + scorer override）───
+    "vol_spike_mult":  ParamSpec("vol_spike_mult",  1.5, 3.0, 0.5, "indicator", "Volume spike threshold multiplier"),
+    "vol_spike_bonus": ParamSpec("vol_spike_bonus", 0.0, 1.0, 0.25, "indicator", "Volume spike score bonus"),
 }
 
 
@@ -154,6 +157,7 @@ def _worker_run(
     from indicator_calc import TIMEFRAME_PARAMS
     from backtest.strategies.bt_range_strategy import BTRangeStrategy
     from backtest.strategies.bt_trend_strategy import BTTrendStrategy
+    from backtest.scoring import WeightedScorer
 
     # ─── Monkey-patch trend entry params (live strategy module globals) ───
     if "pullback_tolerance" in combo:
@@ -165,12 +169,23 @@ def _worker_run(
         if key in combo:
             TIMEFRAME_PARAMS["1h"][key] = combo[key]
 
+    # ─── Patch vol_spike multiplier (indicator module global) ───
+    if "vol_spike_mult" in combo:
+        import indicator_calc as _ic
+        _ic.VOL_SPIKE_MULT = combo["vol_spike_mult"]
+
     # ─── Engine indicator overrides ───
     engine_overrides = {
         k: combo[k] for k in ("bb_touch_tol", "adx_range_max", "bb_width_squeeze",
                                "rsi_long", "rsi_short")
         if k in combo
     }
+
+    # ─── Build scorer override for vol_spike_bonus ───
+    scorer_override = None
+    if "vol_spike_bonus" in combo:
+        from backtest.scoring import ScoringWeights
+        scorer_override = WeightedScorer(ScoringWeights(w_vol_spike=combo["vol_spike_bonus"]))
 
     # ─── Build position_overrides for BT strategies ───
     pos_range = {}
@@ -184,10 +199,12 @@ def _worker_run(
         pos_trend["min_rr"] = combo["min_rr"]
 
     strat_overrides = {}
-    if pos_range:
-        strat_overrides["range"] = BTRangeStrategy(position_overrides=pos_range)
-    if pos_trend:
-        strat_overrides["trend"] = BTTrendStrategy(position_overrides=pos_trend)
+    if pos_range or scorer_override:
+        strat_overrides["range"] = BTRangeStrategy(
+            position_overrides=pos_range or None, scorer=scorer_override)
+    if pos_trend or scorer_override:
+        strat_overrides["trend"] = BTTrendStrategy(
+            position_overrides=pos_trend or None, scorer=scorer_override)
 
     # ─── Run per pair ───
     results = {}

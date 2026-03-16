@@ -102,6 +102,8 @@ class RangeStrategy(StrategyBase):
         obv = ind_4h.get("obv")
         obv_ema = ind_4h.get("obv_ema")
 
+        vol_spike = ind_1h.get("vol_spike", False) if ind_1h else False
+
         # ─── LONG signal ───
         if result["signal_long"] == 1:
             strength = "STRONG" if any("STRONG" in r for r in result["reasons"]) else "WEAK"
@@ -109,6 +111,8 @@ class RangeStrategy(StrategyBase):
             reasons = list(result["reasons"])
             if vol_bonus > 0:
                 reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+            if vol_spike:
+                reasons.append("VOL_SPIKE: detected (SMA-based)")
 
             obv_adj = 0.0
             if obv is not None and obv_ema is not None:
@@ -139,6 +143,8 @@ class RangeStrategy(StrategyBase):
             reasons = list(result["reasons"])
             if vol_bonus > 0:
                 reasons.append(f"VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+            if vol_spike:
+                reasons.append("VOL_SPIKE: detected (SMA-based)")
 
             obv_adj = 0.0
             if obv is not None and obv_ema is not None:

@@ -142,6 +142,8 @@ class BTTrendStrategy(StrategyBase):
         obv = ind_4h.get("obv")
         obv_ema = ind_4h.get("obv_ema")
 
+        vol_spike = ind_1h.get("vol_spike", False)
+
         # ─── LONG ───
         if long_count >= min_long and long_count > short_count:
             obv_signal = 0
@@ -152,6 +154,7 @@ class BTTrendStrategy(StrategyBase):
                 key_count=long_count,
                 volume_ratio=volume_ratio,
                 obv_signal=obv_signal,
+                vol_spike=vol_spike,
             )
             strength = "STRONG" if long_count == 4 else "BIAS"
             reasons = [f"LONG_TREND: {long_count}/4 KEY confirmed"]
@@ -174,6 +177,7 @@ class BTTrendStrategy(StrategyBase):
                 key_count=short_count,
                 volume_ratio=volume_ratio,
                 obv_signal=obv_signal,
+                vol_spike=vol_spike,
             )
             strength = "STRONG" if short_count == 4 else "BIAS"
             reasons = [f"SHORT_TREND: {short_count}/4 KEY confirmed"]

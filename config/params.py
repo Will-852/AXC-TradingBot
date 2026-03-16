@@ -102,6 +102,12 @@ OBV_EMA_PERIOD = 20
 # 支撐/阻力接近容忍度（indicator_calc 讀）
 SR_PROXIMITY_TOL = 0.005
 
+# Volume Spike Detection (Moon Dev inspired)
+VOL_SPIKE_SMA = 20              # Volume baseline SMA period
+VOL_SPIKE_MULT = 2.0            # volume > SMA * mult = spike
+VOL_SPIKE_BONUS = 0.5           # reference only — actual default in backtest/scoring.py ScoringWeights.w_vol_spike
+VOL_SPIKE_GREEN_CANDLE = False  # optional: spike 只計陽線
+
 # ═══════════════════════════════════════
 # Section 4: Trend 策略參數（trend_strategy 讀）
 # ═══════════════════════════════════════

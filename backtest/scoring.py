@@ -8,7 +8,7 @@ scoring.py — WeightedScorer: 可配置評分公式
   - clamp 防止極端放大
 
 公式：
-  score = conviction × vol_multiplier + obv_adj + reentry_boost
+  score = conviction × vol_multiplier + obv_adj + reentry_boost + vol_spike_bonus
   vol_multiplier = clamp(1.0 + w_vol × (volume_ratio - 1.0), 0.7, 1.5)
   obv_adj = w_obv × obv_signal   # obv_signal ∈ {-1, 0, +1}
 """
@@ -32,6 +32,7 @@ class ScoringWeights:
     confidence_threshold_high: float = 4.34  # score >= this → max risk multiplier (shrunk)
     confidence_risk_high_mult: float = 1.27  # max risk multiplier at ramp top (shrunk)
     reentry_boost: float = 0.0          # fixed boost for re-entry signals
+    w_vol_spike: float = 0.5            # additive bonus when vol_spike detected
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -70,6 +71,7 @@ class WeightedScorer:
         volume_ratio: float = 1.0,
         obv_signal: int = 0,
         has_reentry: bool = False,
+        vol_spike: bool = False,
     ) -> float:
         """Score a range signal with configurable weights."""
         if strength == "STRONG":
@@ -81,8 +83,9 @@ class WeightedScorer:
         vol_mult = self._vol_multiplier(volume_ratio)
         obv = self._obv_adj(obv_signal)
         reentry = self.w.reentry_boost if has_reentry else 0.0
+        spike = self.w.w_vol_spike if vol_spike else 0.0
 
-        return conviction * vol_mult + obv + reentry
+        return conviction * vol_mult + obv + reentry + spike
 
     def score_trend(
         self,
@@ -90,6 +93,7 @@ class WeightedScorer:
         volume_ratio: float = 1.0,
         obv_signal: int = 0,
         has_reentry: bool = False,
+        vol_spike: bool = False,
     ) -> float:
         """Score a trend signal with configurable weights."""
         if key_count >= 4:
@@ -101,8 +105,9 @@ class WeightedScorer:
         vol_mult = self._vol_multiplier(volume_ratio)
         obv = self._obv_adj(obv_signal)
         reentry = self.w.reentry_boost if has_reentry else 0.0
+        spike = self.w.w_vol_spike if vol_spike else 0.0
 
-        return conviction * vol_mult + obv + reentry
+        return conviction * vol_mult + obv + reentry + spike
 
     def is_high_confidence(self, score: float) -> bool:
         """Check if score qualifies for larger position."""

@@ -166,6 +166,8 @@ class TrendStrategy(StrategyBase):
         obv = ind_4h.get("obv")
         obv_ema = ind_4h.get("obv_ema")
 
+        vol_spike = ind_1h.get("vol_spike", False) if ind_1h else False
+
         # ─── Check LONG ───
         if long_count >= min_long and long_count > short_count:
             reasons = [f"LONG_TREND: {long_count}/4 KEY confirmed"]
@@ -175,6 +177,8 @@ class TrendStrategy(StrategyBase):
                 reasons.append("  DAY_BIAS: LONG active (3/4 sufficient)")
             if vol_bonus > 0:
                 reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+            if vol_spike:
+                reasons.append("  VOL_SPIKE: detected (SMA-based)")
 
             obv_adj = 0.0
             if obv is not None and obv_ema is not None:
@@ -208,6 +212,8 @@ class TrendStrategy(StrategyBase):
                 reasons.append("  DAY_BIAS: SHORT active (3/4 sufficient)")
             if vol_bonus > 0:
                 reasons.append(f"  VOLUME_BONUS: +{vol_bonus} (ratio={volume_ratio:.2f})")
+            if vol_spike:
+                reasons.append("  VOL_SPIKE: detected (SMA-based)")
 
             obv_adj = 0.0
             if obv is not None and obv_ema is not None:

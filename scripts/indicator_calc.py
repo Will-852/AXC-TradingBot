@@ -41,6 +41,9 @@ STOCH_OVERSOLD = _params.STOCH_OVERSOLD
 STOCH_OVERBOUGHT = _params.STOCH_OVERBOUGHT
 SR_PROXIMITY_TOL = _params.SR_PROXIMITY_TOL
 OBV_EMA_PERIOD = _params.OBV_EMA_PERIOD
+VOL_SPIKE_SMA = _params.VOL_SPIKE_SMA
+VOL_SPIKE_MULT = _params.VOL_SPIKE_MULT
+VOL_SPIKE_GREEN_CANDLE = _params.VOL_SPIKE_GREEN_CANDLE
 
 # ─── Exchange API bases ───
 API_BASE = "https://fapi.asterdex.com"
@@ -99,6 +102,21 @@ def calc_obv(df: pd.DataFrame) -> pd.Series:
     close_diff = df["close"].diff()
     direction = close_diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
     return (df["volume"] * direction).cumsum()
+
+
+def _detect_vol_spike(df: pd.DataFrame, vol_sma: pd.Series, idx: int) -> bool:
+    """Volume spike: current volume > SMA(N) × multiplier, optional green candle filter."""
+    try:
+        cur_vol = float(df["volume"].iloc[idx])
+        sma_val = vol_sma.iloc[idx]
+        if pd.isna(sma_val) or float(sma_val) <= 0 or cur_vol <= 0:
+            return False
+        spike = cur_vol > float(sma_val) * VOL_SPIKE_MULT
+        if spike and VOL_SPIKE_GREEN_CANDLE:
+            spike = float(df["close"].iloc[idx]) > float(df["open"].iloc[idx])
+        return spike
+    except (IndexError, KeyError, ValueError, TypeError):
+        return False
 
 
 def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
@@ -171,6 +189,9 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
     vwap_upper = vwap + vwap_std
     vwap_lower = vwap - vwap_std
 
+    # Volume Spike
+    vol_sma_series = tv.sma(df["volume"].astype(float), VOL_SPIKE_SMA) if len(df) >= VOL_SPIKE_SMA else pd.Series([None] * len(df))
+
     # 最新值
     i = len(df) - 1
 
@@ -234,6 +255,8 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         "vwap": safe_val(vwap, i),
         "vwap_upper": safe_val(vwap_upper, i),
         "vwap_lower": safe_val(vwap_lower, i),
+        # Volume Spike
+        "vol_spike": _detect_vol_spike(df, vol_sma_series, i),
     }
     return result
 
