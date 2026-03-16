@@ -95,6 +95,9 @@ class BaseExchangeClient(ABC):
     @abstractmethod
     def get_order_book(self, symbol: str, limit: int = 20) -> Dict[str, Any]: ...
 
+    @abstractmethod
+    def get_order_status(self, symbol: str, order_id: str) -> Dict[str, Any]: ...
+
 
 # ─── HMAC-based shared implementation ───
 
@@ -393,6 +396,14 @@ class HmacExchangeClient(BaseExchangeClient):
         if end_time:
             params["endTime"] = end_time
         return self._private_request("GET", "/fapi/v1/income", params)
+
+    @retry_quadratic()
+    def get_order_status(self, symbol: str, order_id: str) -> Dict[str, Any]:
+        """Query single order status by orderId."""
+        return self._private_request(
+            "GET", "/fapi/v1/order",
+            {"symbol": symbol, "orderId": order_id},
+        )
 
     def get_order_book(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
         """Public order book depth. Detects walls (single order > 5% of total depth)."""

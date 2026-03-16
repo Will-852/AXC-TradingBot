@@ -27,6 +27,10 @@ from ..exchange.exceptions import (
     ExchangeError, InsufficientFundsError, InvalidOrderError,
     AuthenticationError, CriticalError,
 )
+from ..exchange.order_chaser import OrderChaser, CHASER_TIMEOUT, CHASER_CANCELLED
+from ..config.settings import (
+    CHASER_ENABLED, CHASER_FALLBACK_TO_MARKET,
+)
 from memory.writer import write_trade
 
 logger = logging.getLogger(__name__)
@@ -107,14 +111,42 @@ class ExecuteTradeStep:
             client.set_leverage(pair, leverage)
             logger.info(f"[{pair}] Leverage: {leverage}x")
 
-            # ③ Market order (entry)
+            # ③ Entry order (chaser or market)
             entry_intent_id = ""
+            wal_op = "chaser_entry" if CHASER_ENABLED else "entry"
             if ctx.wal:
                 entry_intent_id = ctx.wal.log_intent(
-                    "entry", pair, signal.direction, qty,
+                    wal_op, pair, signal.direction, qty,
                     signal.entry_price, signal.sl_price, signal.platform,
                 )
-            entry_result = client.create_market_order(pair, side, qty)
+
+            if CHASER_ENABLED:
+                chaser = OrderChaser(
+                    client, pair, side, qty, signal.entry_price,
+                )
+                entry_result = chaser.run()
+                chaser_status = entry_result.get("status", "")
+                if chaser_status in (CHASER_TIMEOUT, CHASER_CANCELLED):
+                    iters = entry_result.get("iterations", 0)
+                    logger.warning(
+                        f"[{pair}] Chaser {chaser_status} after {iters} iterations"
+                    )
+                    if CHASER_FALLBACK_TO_MARKET and chaser_status == CHASER_TIMEOUT:
+                        ctx.warnings.append(
+                            f"Chaser timeout → fallback market order for {pair}"
+                        )
+                        entry_result = client.create_market_order(pair, side, qty)
+                    else:
+                        if ctx.wal and entry_intent_id:
+                            ctx.wal.log_failed(entry_intent_id, chaser_status)
+                        ctx.warnings.append(
+                            f"Chaser {chaser_status} for {pair}, no fallback"
+                        )
+                        ctx.selected_signal = None
+                        return ctx
+            else:
+                entry_result = client.create_market_order(pair, side, qty)
+
             order_id = str(entry_result.get("orderId", ""))
             fill_price = float(entry_result.get("avgPrice", 0)) or signal.entry_price
             fill_qty = float(entry_result.get("executedQty", 0)) or qty

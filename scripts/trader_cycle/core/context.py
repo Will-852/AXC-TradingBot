@@ -126,6 +126,10 @@ class CycleContext:
     news_sentiment: dict = field(default_factory=dict)  # from shared/news_sentiment.json
     # indicators = {"BTCUSDT": {"4h": {...}, "1h": {...}}, ...}
 
+    # ─── Liquidation Monitor ───
+    liq_state: dict = field(default_factory=dict)    # raw liq_state.json
+    liq_events: list = field(default_factory=list)   # active LiqEvent dicts
+
     # ─── Mode Detection ───
     market_mode: str = "UNKNOWN"     # "RANGE", "TREND", "UNKNOWN"
     mode_votes: dict[str, str] = field(default_factory=dict)
@@ -145,6 +149,7 @@ class CycleContext:
     open_positions: list[Position] = field(default_factory=list)
     account_balance: float = 0.0
     available_margin: float = 0.0
+    margin_utilization_pct: float = 0.0  # aggregate margin / balance (for dashboard + validator)
 
     # ─── Strategy ───
     signals: list[Signal] = field(default_factory=list)

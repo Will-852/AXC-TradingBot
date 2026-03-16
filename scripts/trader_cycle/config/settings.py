@@ -54,9 +54,28 @@ COOLDOWN_3_LOSSES_MIN = 360      # 3 consecutive losses → 6hr pause
 MAX_HOLD_HOURS = 72              # 3 days max hold
 FUNDING_COST_FORCE_RATIO = 0.50  # funding > 50% unrealized → force close
 
+# ─── Risk — Max Margin Utilization ───
+# 所有倉位 margin 總和唔超過 balance 嘅 X%，防連續信號用盡資金
+MAX_MARGIN_PCT = 0.50              # hard block: 50%
+MARGIN_WARNING_PCT = 0.40          # soft warning: 40%
+
 # ─── Risk — No-Trade Conditions ───
 NO_TRADE_VOLUME_MIN = 0.40       # volume < 40% of 30d avg = dead market
 NO_TRADE_FUNDING_EXTREME = 0.003  # ±0.3% funding = extreme
+
+# ─── Order Chaser ───
+# Limit-order chase loop to reduce slippage (opt-in)
+CHASER_ENABLED = os.environ.get("CHASER_ENABLED", "false").lower() == "true"
+CHASER_INITIAL_OFFSET_TICKS = 1      # offset from best price (in ticks)
+CHASER_REPRICE_INTERVAL_SEC = 5      # seconds between reprice iterations
+CHASER_MAX_ITERATIONS = 12           # 12 × 5s = 60s max
+CHASER_TIMEOUT_SEC = 60
+CHASER_FALLBACK_TO_MARKET = True     # timeout → fallback to market order
+CHASER_STATE_PATH = os.path.join(_SHARED, ".chaser_state.json")
+
+# ─── Liquidation Monitor ───
+LIQ_MONITOR_ENABLED = os.environ.get("LIQ_MONITOR_ENABLED", "true").lower() == "true"
+LIQ_STATE_PATH = os.path.join(_SHARED, "liq_state.json")
 
 # ─── Validation Pipeline (Sprint 3) ───
 USE_VALIDATION_PIPELINE = os.environ.get("USE_VALIDATION_PIPELINE", "true").lower() == "true"

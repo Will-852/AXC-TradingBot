@@ -61,6 +61,7 @@ from trader_cycle.state.trade_journal import WriteTradeJournalStep
 from trader_cycle.notify.telegram import SendReportsStep, send_telegram, format_urgent_alert
 from trader_cycle.state.memory_keeper import WriteMemoryStep
 from trader_cycle.state.read_sentiment import ReadSentimentStep
+from trader_cycle.strategies.liq_signal import LiqSignalStep
 from trader_cycle.state.wal import WriteAheadLog
 
 
@@ -267,7 +268,7 @@ class ReplayWALStep:
                 continue
 
             try:
-                if op == "entry":
+                if op in ("entry", "chaser_entry"):
                     self._recover_entry(intent, client, ctx)
                 elif op == "sl_placement":
                     # Orphan detection at step 7 will handle placing SL
@@ -436,7 +437,7 @@ def register_strategies() -> None:
 
 def build_pipeline() -> Pipeline:
     """
-    Build the Phase 3 pipeline (21 steps).
+    Build the Phase 3 pipeline (22 steps).
     Same pipeline for DRY_RUN and LIVE — each step checks ctx.dry_run internally.
 
     Pipeline order:
@@ -446,6 +447,7 @@ def build_pipeline() -> Pipeline:
       3. fetch_market        — 4 pairs live data
       4. calc_indicators     — 4H + 1H technical indicators
       4.5 read_sentiment     — news sentiment overlay
+      4.6 liq_signal         — liquidation event detection + signal boost
       5. detect_mode         — 5-indicator voting (RANGE/TREND)
       6. no_trade_check      — volume, funding, position limits
       7. check_positions     — sync positions + balance from exchange
@@ -468,6 +470,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(FetchMarketDataStep())    # 3
     pipeline.add_step(CalcIndicatorsStep())     # 4
     pipeline.add_step(ReadSentimentStep())      # 4.5 — news sentiment overlay
+    pipeline.add_step(LiqSignalStep())          # 4.6 — liquidation event detection
     pipeline.add_step(DetectModeStep())         # 5
     pipeline.add_step(NoTradeCheckStep())       # 6
     pipeline.add_step(CheckPositionsStep())     # 7

@@ -28,6 +28,7 @@ from ..config.settings import (
     NO_TRADE_VOLUME_MIN, NO_TRADE_FUNDING_EXTREME,
     MAX_CRYPTO_POSITIONS, MAX_XAG_POSITIONS,
     POSITION_GROUPS, HKT,
+    MAX_MARGIN_PCT, MARGIN_WARNING_PCT,
 )
 from ..config.pairs import get_pair
 from ..core.context import CycleContext, ClosedPosition
@@ -265,6 +266,9 @@ class ManagePositionsStep:
                 for r in exit_reasons:
                     print(f"    {prefix} EXIT {pos.pair}: {r}")
 
+        # ─── Aggregate Margin Monitoring (post-trade, alert-only) ───
+        self._check_aggregate_margin(ctx)
+
         return ctx
 
     def _execute_close(self, pos, ctx: CycleContext,
@@ -370,6 +374,35 @@ class ManagePositionsStep:
             )
             ctx.telegram_messages.append(alert)
             logger.error(f"[{pos.pair}] Near liquidation: {dist_pct:.1f}%")
+
+    def _check_aggregate_margin(self, ctx: CycleContext) -> None:
+        """Post-trade aggregate margin monitoring (alert-only, no auto-close).
+
+        Why separate from MarginUtilizationValidator: validator blocks new entries,
+        this monitors after position changes within the cycle (e.g. after partial close).
+        """
+        if ctx.account_balance <= 0 or not ctx.open_positions:
+            return
+
+        total_margin = sum(
+            pos.isolated_wallet for pos in ctx.open_positions
+            if pos.isolated_wallet > 0
+        )
+        utilization = total_margin / ctx.account_balance
+
+        if utilization > MAX_MARGIN_PCT:
+            alert = (
+                f"<b>Margin Utilization Alert</b>\n"
+                f"Usage: {utilization:.0%} (limit {MAX_MARGIN_PCT:.0%})\n"
+                f"Total margin: ${total_margin:.2f} / Balance: ${ctx.account_balance:.2f}"
+            )
+            ctx.telegram_messages.append(alert)
+            logger.warning(f"Aggregate margin {utilization:.0%} exceeds {MAX_MARGIN_PCT:.0%}")
+        elif utilization > MARGIN_WARNING_PCT:
+            logger.info(f"Aggregate margin {utilization:.0%} approaching limit")
+            ctx.warnings.append(
+                f"Margin utilization {utilization:.0%} approaching {MAX_MARGIN_PCT:.0%} limit"
+            )
 
 
 # ─── Helpers ───

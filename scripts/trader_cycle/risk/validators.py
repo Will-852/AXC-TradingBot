@@ -18,6 +18,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from ..core.context import CycleContext
+from ..config.settings import MAX_MARGIN_PCT, MARGIN_WARNING_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,61 @@ class BalanceValidator(BaseValidator):
         return ValidationResult()
 
 
+class MarginUtilizationValidator(BaseValidator):
+    """Block new trades when aggregate margin usage exceeds MAX_MARGIN_PCT.
+
+    Why: prevents consecutive signals from exhausting all capital.
+    Calculates current margin (sum of isolated_wallet across positions)
+    plus the proposed signal's margin_required, vs account_balance.
+    Fallback: if isolated_wallet==0, estimate margin from size*entry/leverage.
+    """
+    name = "margin_utilization"
+
+    def validate(self, ctx: CycleContext) -> ValidationResult:
+        signal = ctx.selected_signal
+        if not signal:
+            return ValidationResult()
+
+        if ctx.account_balance <= 0:
+            return ValidationResult()  # no balance info → skip (fail-open)
+
+        # Sum existing margin across all positions
+        total_margin = 0.0
+        for pos in ctx.open_positions:
+            if pos.isolated_wallet > 0:
+                total_margin += pos.isolated_wallet
+            elif pos.size > 0 and pos.entry_price > 0:
+                # Fallback estimate: notional / leverage (assume leverage from signal)
+                leverage = signal.leverage if signal.leverage > 0 else 5
+                total_margin += pos.size * pos.entry_price / leverage
+
+        # Add proposed signal margin
+        proposed_total = total_margin + signal.margin_required
+        utilization = proposed_total / ctx.account_balance
+
+        if utilization > MAX_MARGIN_PCT:
+            return ValidationResult(
+                passed=False, hard_block=True,
+                message=(
+                    f"Margin utilization {utilization:.0%} would exceed "
+                    f"{MAX_MARGIN_PCT:.0%} limit "
+                    f"(current ${total_margin:.2f} + new ${signal.margin_required:.2f} "
+                    f"/ balance ${ctx.account_balance:.2f})"
+                ),
+            )
+
+        if utilization > MARGIN_WARNING_PCT:
+            return ValidationResult(
+                passed=True, hard_block=False,
+                message=(
+                    f"Margin utilization {utilization:.0%} approaching "
+                    f"{MAX_MARGIN_PCT:.0%} limit"
+                ),
+            )
+
+        return ValidationResult()
+
+
 class DuplicateValidator(BaseValidator):
     """Prevent duplicate entries on same pair."""
     name = "duplicate"
@@ -149,6 +205,7 @@ class DuplicateValidator(BaseValidator):
 _VALIDATORS: list[BaseValidator] = [
     DataFreshnessValidator(),
     BalanceValidator(),
+    MarginUtilizationValidator(),
     DuplicateValidator(),
 ]
 

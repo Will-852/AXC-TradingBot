@@ -230,6 +230,70 @@ class HyperLiquidClient(BaseExchangeClient):
             orders = [o for o in orders if o.get("coin") == coin]
         return orders
 
+    # ─── Open Interest ───
+
+    @retry_quadratic()
+    def get_open_interest(self) -> Dict[str, float]:
+        """Fetch OI for all coins via meta_and_asset_ctxs.
+
+        Returns {coin: oi_value_usd} where oi_value = openInterest * markPx.
+        """
+        try:
+            data = self.info.meta_and_asset_ctxs()
+            # data = [meta_dict, [asset_ctx_1, asset_ctx_2, ...]]
+            meta = data[0]
+            ctxs = data[1]
+            universe = meta.get("universe", [])
+
+            result: Dict[str, float] = {}
+            for i, asset in enumerate(universe):
+                coin = asset.get("name", "")
+                if i < len(ctxs):
+                    ctx = ctxs[i]
+                    oi = float(ctx.get("openInterest", 0))
+                    mark_px = float(ctx.get("markPx", 0))
+                    result[coin] = oi * mark_px
+            return result
+        except Exception as e:
+            raise TemporaryError(f"HL OI fetch error: {e}")
+
+    # ─── Order Status ───
+
+    @retry_quadratic()
+    def get_order_status(self, symbol: str, order_id: str) -> Dict[str, Any]:
+        """Check order status by looking through open orders.
+
+        HL SDK doesn't have a direct query-by-oid endpoint for order status,
+        so we check open_orders: if order_id is absent, it was filled or cancelled.
+        """
+        try:
+            oid = int(order_id)
+        except (ValueError, TypeError):
+            return {"status": "UNKNOWN", "orderId": order_id}
+
+        try:
+            open_orders = self.info.open_orders(self.account_address)
+        except Exception as e:
+            raise TemporaryError(f"HL order status error: {e}")
+
+        for o in open_orders:
+            if o.get("oid") == oid:
+                return {
+                    "orderId": str(oid),
+                    "status": "NEW",
+                    "symbol": symbol,
+                    "side": o.get("side", ""),
+                    "price": o.get("limitPx", "0"),
+                    "origQty": o.get("sz", "0"),
+                }
+
+        # Not in open orders → filled or cancelled
+        return {
+            "orderId": str(oid),
+            "status": "FILLED",
+            "symbol": symbol,
+        }
+
     # ─── Orders ───
 
     @retry_quadratic()

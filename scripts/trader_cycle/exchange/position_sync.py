@@ -148,6 +148,16 @@ class CheckPositionsStep:
 
         ctx.account_balance = total_balance
 
+        # ─── Aggregate Margin Utilization (for dashboard + validator) ───
+        total_margin = sum(
+            pos.isolated_wallet for pos in ctx.open_positions
+            if pos.isolated_wallet > 0
+        )
+        if ctx.account_balance > 0:
+            ctx.margin_utilization_pct = total_margin / ctx.account_balance * 100
+        else:
+            ctx.margin_utilization_pct = 0.0
+
         # ─── Orphan Detection ───
         self._detect_orphans(ctx)
 

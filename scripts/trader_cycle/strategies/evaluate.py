@@ -11,6 +11,7 @@ from ..config.settings import PRIMARY_TIMEFRAME, ALLOW_TREND, ALLOW_RANGE
 
 from ..core.context import CycleContext, Signal
 from ..core.registry import StrategyRegistry
+from .liq_signal import apply_liq_boost
 
 # Sentiment risk filter threshold (read from params.py)
 try:
@@ -93,6 +94,14 @@ class EvaluateSignalsStep:
                     signal.reasons.append("REENTRY_BOOST +0.5")
                     if ctx.verbose:
                         print(f"    {symbol}: re-entry boost applied (score +0.5)")
+
+                # Liquidation event boost
+                liq_boost = apply_liq_boost(signal, ctx.liq_events)
+                if liq_boost > 0:
+                    signal.score += liq_boost
+                    signal.reasons.append(f"LIQ_BOOST +{liq_boost}")
+                    if ctx.verbose:
+                        print(f"    {symbol}: liq boost applied (score +{liq_boost})")
 
                 ctx.signals.append(signal)
                 if ctx.verbose:
