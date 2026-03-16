@@ -1,0 +1,182 @@
+<mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+
+    <!-- DATA INGESTION -->
+    <mxCell id="g1" value="📡 數據入口 Data Ingestion" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;rounded=1;fontSize=13;fontStyle=1;swimlaneLine=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="160" width="220" height="280" as="geometry"/>
+    </mxCell>
+    <mxCell id="n1" value="異步掃描器&#xa;Async Scanner&#xa;9 交易所 × 20s" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g1">
+      <mxGeometry x="20" y="45" width="180" height="55" as="geometry"/>
+    </mxCell>
+    <mxCell id="n2" value="輕量掃描 Light Scan&#xa;Aster 3min" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g1">
+      <mxGeometry x="20" y="115" width="180" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="n3" value="新聞爬蟲 News Scraper&#xa;RSS 每小時" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g1">
+      <mxGeometry x="20" y="175" width="180" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="n3b" value="掃描交易所 Scan Exchanges&#xa;Bybit · OKX · KuCoin&#xa;Gate · MEXC · Bitget" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;whiteSpace=wrap;" vertex="1" parent="g1">
+      <mxGeometry x="20" y="230" width="180" height="40" as="geometry"/>
+    </mxCell>
+
+    <!-- STATE LAYER -->
+    <mxCell id="g2" value="💾 狀態層 State Layer" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="310" y="160" width="200" height="280" as="geometry"/>
+    </mxCell>
+    <mxCell id="n4" value="SCAN_CONFIG&#xa;掃描結果 Scan Results" style="rounded=1;fillColor=#fff;strokeColor=#999;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g2">
+      <mxGeometry x="15" y="45" width="170" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="n5" value="TRADE_STATE&#xa;持倉+餘額 Positions" style="rounded=1;fillColor=#fff;strokeColor=#999;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g2">
+      <mxGeometry x="15" y="105" width="170" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="n6" value="RAG 記憶庫 Memory&#xa;向量+BM25" style="rounded=1;fillColor=#fff;strokeColor=#999;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g2">
+      <mxGeometry x="15" y="165" width="170" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="n7" value="活動日誌 Activity Log&#xa;WAL 恢復 Recovery" style="rounded=1;fillColor=#fff;strokeColor=#999;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g2">
+      <mxGeometry x="15" y="225" width="170" height="45" as="geometry"/>
+    </mxCell>
+
+    <!-- TRADING ENGINE -->
+    <mxCell id="g3" value="⚙️ 交易引擎 Trading Engine · 每 30 分鐘一輪" style="swimlane;startSize=35;fillColor=#d5e8d4;strokeColor=#82b366;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="560" y="100" width="720" height="170" as="geometry"/>
+    </mxCell>
+    <mxCell id="p1" value="交易管道&#xa;Pipeline" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="15" y="50" width="90" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="p2" value="指標計算&#xa;Indicators&#xa;25+ × 3TF" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="125" y="45" width="90" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="p3" value="狀態偵測&#xa;Mode Detect&#xa;6票投票" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="235" y="45" width="90" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="p4" value="策略選擇&#xa;Strategy&#xa;橫盤·趨勢·暴跌" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="345" y="45" width="100" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="p5" value="風控&#xa;Risk Mgr&#xa;熔斷·倉位" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="465" y="45" width="90" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="p6" value="下單執行&#xa;Executor&#xa;7步序列" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="g3">
+      <mxGeometry x="575" y="45" width="90" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="pa1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;" edge="1" source="p1" target="p2" parent="g3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="pa2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="p2" target="p3" parent="g3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="pa3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="p3" target="p4" parent="g3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="pa4" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="p4" target="p5" parent="g3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="pa5" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;strokeWidth=2;" edge="1" source="p5" target="p6" parent="g3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="pl1" value="數據 → 決策 → 執行" style="text;fontSize=11;fontColor=#666;align=center;" vertex="1" parent="g3">
+      <mxGeometry x="250" y="120" width="200" height="20" as="geometry"/>
+    </mxCell>
+
+    <!-- EXCHANGES -->
+    <mxCell id="g4" value="🏦 交易所 Exchanges" style="swimlane;startSize=30;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="560" y="320" width="420" height="120" as="geometry"/>
+    </mxCell>
+    <mxCell id="e1" value="Aster DEX&#xa;主力 Primary" style="rounded=1;fillColor=#FF9800;fontColor=#fff;strokeColor=#E65100;fontSize=11;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="g4">
+      <mxGeometry x="15" y="45" width="120" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="e2" value="Binance&#xa;副線 Secondary" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g4">
+      <mxGeometry x="150" y="45" width="120" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="e3" value="HyperLiquid&#xa;第三 Tertiary" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g4">
+      <mxGeometry x="285" y="45" width="120" height="50" as="geometry"/>
+    </mxCell>
+
+    <!-- OUTPUT -->
+    <mxCell id="g5" value="👤 輸出 Output" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="1030" y="320" width="250" height="120" as="geometry"/>
+    </mxCell>
+    <mxCell id="o1" value="Telegram Bot&#xa;通知+對話 Alerts" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g5">
+      <mxGeometry x="15" y="45" width="105" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="o2" value="儀表板 Dashboard&#xa;:5566" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g5">
+      <mxGeometry x="130" y="45" width="105" height="50" as="geometry"/>
+    </mxCell>
+
+    <!-- AI LAYER -->
+    <mxCell id="g6" value="🧠 AI 層 AI Layer" style="swimlane;startSize=30;fillColor=#b3cde3;strokeColor=#6c8ebf;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="1030" y="100" width="250" height="170" as="geometry"/>
+    </mxCell>
+    <mxCell id="a1" value="Claude Sonnet&#xa;深度分析 Deep Analysis" style="rounded=1;fillColor=#b3cde3;strokeColor=#6c8ebf;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g6">
+      <mxGeometry x="15" y="45" width="220" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="a2" value="Haiku · GPT-5.4&#xa;情緒·閒聊 Sentiment·Chat" style="rounded=1;fillColor=#b3cde3;strokeColor=#6c8ebf;fontSize=11;whiteSpace=wrap;" vertex="1" parent="g6">
+      <mxGeometry x="15" y="105" width="220" height="45" as="geometry"/>
+    </mxCell>
+
+    <!-- BACKTEST -->
+    <mxCell id="g7" value="🔬 回測 Backtest" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666;rounded=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="560" y="0" width="350" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="b1" value="回測引擎 Engine（同 code）→ 6 驗證器 Validators → 網格搜索 Grid Search" style="text;fontSize=11;fontColor=#333;align=center;verticalAlign=middle;" vertex="1" parent="g7">
+      <mxGeometry x="10" y="35" width="330" height="25" as="geometry"/>
+    </mxCell>
+
+    <!-- EDGES -->
+    <mxCell id="ed1" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" edge="1" source="g1" target="g2" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed1l" value="掃描結果" style="edgeLabel;fontSize=10;fontColor=#6c8ebf;" vertex="1" connectable="0" parent="ed1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;strokeWidth=2;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="g2" target="g3" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed2l" value="讀取狀態" style="edgeLabel;fontSize=10;fontColor=#82b366;" vertex="1" connectable="0" parent="ed2">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="g3" target="g4" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed3l" value="下單" style="edgeLabel;fontSize=10;fontColor=#d79b00;" vertex="1" connectable="0" parent="ed3">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed4" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;strokeWidth=2;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="g3" target="g5" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed4l" value="通知" style="edgeLabel;fontSize=10;fontColor=#9673a6;" vertex="1" connectable="0" parent="ed4">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed5" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#666;strokeWidth=1;dashed=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" edge="1" source="g3" target="g2" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed5l" value="寫回狀態" style="edgeLabel;fontSize=9;fontColor=#666;" vertex="1" connectable="0" parent="ed5">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed6" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" source="g5" target="g6" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed6l" value="對話查詢" style="edgeLabel;fontSize=9;fontColor=#6c8ebf;" vertex="1" connectable="0" parent="ed6">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed8" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#666;strokeWidth=1;dashed=1;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" source="g3" target="g7" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed8l" value="共用 code" style="edgeLabel;fontSize=9;fontColor=#666;" vertex="1" connectable="0" parent="ed8">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="ed9" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;strokeWidth=1;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="g4" target="g1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="540" y="380"/>
+          <mxPoint x="540" y="480"/>
+          <mxPoint x="20" y="480"/>
+          <mxPoint x="20" y="300"/>
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="ed9l" value="行情數據回饋" style="edgeLabel;fontSize=9;fontColor=#d79b00;" vertex="1" connectable="0" parent="ed9">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>
