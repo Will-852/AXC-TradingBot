@@ -56,3 +56,36 @@ voyage-3 免費額度 = 約 40 萬條
 排程：每週一 10:00 HKT via LaunchAgent
 
 *唔好因為「新方案」而偏離呢個選型。*
+
+---
+
+## 系統架構圖 System Architecture Diagrams
+> 更新：2026-03-16 | 中英雙語
+
+所有圖存放於 `docs/architecture/`，可用瀏覽器直接開 SVG。
+
+| # | 檔案 | 類型 | 內容 |
+|---|------|------|------|
+| 1 | `1-system-overview.svg` | Draw.io | 全系統鳥瞰 — 7 大區塊：數據入口、狀態層、交易引擎、交易所、輸出、AI、回測 |
+| 1 | `1-system-overview.drawio` | Draw.io 原始檔 | 可用 [draw.io](https://app.diagrams.net) 開啟再編輯 |
+| 2 | `2-pipeline-16steps.svg` | Mermaid | 交易引擎 16 步流程 + 決策分支（SafetyCheck → Execute → Report） |
+| 3 | `3-mindmap.svg` | Mermaid | 概念樹 — 一眼睇晒數據/信號/執行/AI/回測/狀態 |
+| 4 | `4-sequence-diagram.svg` | Mermaid | 時序圖 — 一個 30min cycle 內各模組互動順序 |
+| 5 | `5-strategy-flow.svg` | Mermaid | 策略層 — 6票投票偵測 → 3 大策略入場邏輯 → 倉位計算 |
+
+### 顏色標準
+| 顏色 | 區塊 |
+|------|------|
+| 藍 `#dae8fc` | 數據 Data |
+| 綠 `#d5e8d4` | 引擎 Engine |
+| 橙 `#ffe6cc` | 交易所 Exchange |
+| 紫 `#e1d5e7` | 輸出 Output |
+| 灰 `#f5f5f5` | 狀態 State |
+| 紅 `#f8cecc` | 風控/執行 Risk/Exec |
+| 淺藍 `#b3cde3` | AI 層 |
+| 白底灰邊 | 回測 Backtest |
+
+### 更新指引
+- Mermaid 圖：叫 Claude 重新 `mermaid_preview` → `mermaid_save` 覆蓋 SVG
+- Draw.io 圖：用 draw.io 編輯 `.drawio` → Export 覆蓋 SVG，**同時保留 .drawio 原始檔**
+- 架構有重大改動時更新圖表，小改動唔需要
