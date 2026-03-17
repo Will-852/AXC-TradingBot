@@ -25,6 +25,34 @@
 - 獨立 config、logs、state
 - shared/ 入面嘅 SCAN_CONFIG.md + news_sentiment.json 係共用讀取（read-only）
 
+## GTO（Game Theory Optimal）Rules
+
+### 核心認知：預測市場係零和博弈
+- 每筆 fill 都有對手盤。問「點解佢肯賣俾我？」
+- 如果冇答案 → 你就係 dumb money
+
+### 市場分類 + Adverse Selection 風險
+| Type | Base Risk | 策略 | 例子 |
+|------|-----------|------|------|
+| live_event | 0.95 | BLOCK | NBA score, match result |
+| news_driven | 0.75 | LIMIT near mid (3%) | Fed rate, CEO fired |
+| quantifiable | 0.15 | LIMIT aggressive (10%) | Temperature, gas fee |
+| crypto_15m | 0.40 | MARKET (FOK) | BTC Up/Down |
+| crypto | 0.50 | LIMIT near mid (5%) | Default |
+
+### GTO Decision Rules
+1. `live_event` → 永遠 BLOCK（場內有人睇住比分）
+2. `fill_quality == "bad"` on non-quantifiable → BLOCK
+3. `adverse_selection > 0.80` → BLOCK
+4. `nash_eq > 0.90` AND `edge < 10%` → SKIP（市場已 efficient）
+5. `is_dominant_strategy` → APPROVE + full Kelly
+6. 其餘 → APPROVE，Kelly scaled by unexploitability
+
+### Nash Equilibrium 原則
+- 高 Nash score = 市場接近均衡 = 冇 edge = skip
+- 低 Nash score = 市場失衡 = 有機會
+- Price near 50% + tight spread + deep liquidity → 最高 Nash score
+
 ## 依賴清單（shared_infra only）
 | import | 用途 |
 |--------|------|

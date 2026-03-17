@@ -101,6 +101,17 @@ WEATHER_CONFIDENCE_BY_LEAD = {
 
 # Weather edge threshold — lower than crypto because forecast-based (more deterministic)
 WEATHER_MIN_EDGE_PCT = 0.08
+WEATHER_MAX_LEAD_DAYS = 3         # Lead >3d σ too large → unreliable edge, hurts Sharpe
+WEATHER_ENTRY_PRICE_CAP = 0.70    # Entry >$0.70 = <1.43x odds, one miss wipes gains
+WEATHER_MAX_ASSESSMENTS = 15      # Weather = zero AI cost, scan more for edge
+
+# ─── GTO (Game Theory Optimal) ───
+GTO_ADVERSE_BLOCK_THRESHOLD = 0.80    # adverse selection > 80% → block
+GTO_NASH_SKIP_THRESHOLD = 0.90        # market at equilibrium + small edge → skip
+GTO_UNEXPLOITABILITY_MIN = 0.30       # below 30% → too exploitable
+GTO_KELLY_SCALE_ENABLED = True        # scale Kelly by unexploitability
+GTO_LIVE_EVENT_BLOCK = True           # always block live events
+GTO_NEWS_DRIVEN_MAX_OFFSET = 0.03     # max 3% offset for news-driven limits
 
 # ─── Telegram ───
 # 共用 trader_cycle 嘅 Telegram 設定

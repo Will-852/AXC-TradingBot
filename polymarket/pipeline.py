@@ -2,7 +2,7 @@
 """
 main.py — Polymarket Prediction Market Pipeline 入口
 
-12-step pipeline for binary prediction market trading.
+13-step pipeline for binary prediction market trading.
 Independent from trader_cycle — shared infra lives in shared_infra/:
 - Pipeline + Step + CriticalError/RecoverableError
 - WriteAheadLog + FileLock
@@ -255,6 +255,71 @@ class FindEdgeStep:
         return ctx
 
 
+class GTOFilterStep:
+    """Step 7.5: GTO filter — adverse selection, Nash equilibrium, fill quality.
+
+    Zero AI cost. Classifies market type, scores adverse selection risk,
+    checks Nash equilibrium, and either blocks or adjusts Kelly sizing.
+    """
+    name = "gto_filter"
+
+    def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.strategy.gto import assess_gto_batch
+
+        if not ctx.edge_assessments:
+            return ctx
+
+        # Build market list from filtered + scanned (edge may reference either)
+        all_markets = list(ctx.filtered_markets)
+        seen_ids = {m.condition_id for m in all_markets}
+        for m in ctx.scanned_markets:
+            if m.condition_id not in seen_ids:
+                all_markets.append(m)
+                seen_ids.add(m.condition_id)
+
+        gto_results = assess_gto_batch(all_markets, ctx.edge_assessments)
+        ctx.gto_assessments = gto_results
+
+        # Attach GTO fields to each EdgeAssessment
+        blocked = 0
+        for ea in ctx.edge_assessments:
+            gto = gto_results.get(ea.condition_id)
+            if not gto:
+                continue
+
+            ea.gto_type = gto.gto_type
+            ea.adverse_selection_score = gto.adverse_selection_score
+            ea.nash_equilibrium_score = gto.nash_equilibrium_score
+            ea.unexploitability_score = gto.unexploitability_score
+            ea.fill_quality = gto.fill_quality
+            ea.gto_approved = gto.approved
+            ea.gto_order_type = gto.order_type
+            ea.gto_limit_offset = gto.limit_offset
+            ea.gto_reasoning = gto.reasoning
+            ea.is_dominant_strategy = gto.is_dominant_strategy
+
+            if not gto.approved:
+                blocked += 1
+
+        ctx.gto_blocked_count = blocked
+
+        if ctx.verbose:
+            total = len(gto_results)
+            print(f"    GTO: {total} assessed, {blocked} blocked")
+            for ea in ctx.edge_assessments:
+                gto = gto_results.get(ea.condition_id)
+                if gto:
+                    status = "APPROVED" if gto.approved else "BLOCKED"
+                    print(
+                        f"      [{gto.gto_type}] {ea.title[:40]} "
+                        f"adv:{gto.adverse_selection_score:.2f} "
+                        f"nash:{gto.nash_equilibrium_score:.2f} "
+                        f"fill:{gto.fill_quality} {status}"
+                    )
+
+        return ctx
+
+
 class GenerateSignalsStep:
     """Step 8: Convert edge assessments above threshold to trading signals."""
     name = "generate_signals"
@@ -272,6 +337,12 @@ class GenerateSignalsStep:
             return ctx
 
         for edge in ctx.edge_assessments:
+            # GTO filter: skip blocked markets
+            if not edge.gto_approved:
+                if ctx.verbose:
+                    print(f"      Skipped (GTO): {edge.title[:40]} — {edge.gto_reasoning}")
+                continue
+
             # Category-aware thresholds: 15M markets have lower bars
             if edge.category == "crypto_15m":
                 min_edge = CRYPTO_15M_MIN_EDGE_PCT
@@ -317,6 +388,13 @@ class GenerateSignalsStep:
                 edge=edge.edge,
                 confidence=edge.confidence,
                 reasoning=edge.reasoning,
+                # GTO fields
+                gto_type=edge.gto_type,
+                adverse_selection_score=edge.adverse_selection_score,
+                unexploitability_score=edge.unexploitability_score,
+                gto_order_type=edge.gto_order_type,
+                gto_limit_offset=edge.gto_limit_offset,
+                is_dominant_strategy=edge.is_dominant_strategy,
             )
             ctx.signals.append(signal)
 
@@ -386,6 +464,12 @@ class ExecuteTradesStep:
                 "price": signal.price,
                 "edge": signal.edge,
                 "confidence": signal.confidence,
+                "gto_type": signal.gto_type,
+                "gto_order_type": signal.gto_order_type,
+                "gto_limit_offset": signal.gto_limit_offset,
+                "adverse_selection": signal.adverse_selection_score,
+                "unexploitability": signal.unexploitability_score,
+                "is_dominant_strategy": signal.is_dominant_strategy,
             }
 
             if ctx.dry_run:
@@ -535,21 +619,22 @@ class SendReportsStep:
 # ════════════════════════════════════════════════════════════════
 
 def build_pipeline() -> Pipeline:
-    """Build the 12-step Polymarket pipeline.
+    """Build the 13-step Polymarket pipeline.
 
     Pipeline order:
-      1. read_state          — POLYMARKET_STATE.json
-      2. replay_wal          — WAL crash recovery (live only)
-      3. safety_check        — circuit breaker, daily loss, cooldown
-      4. scan_markets        — Gamma API → filter crypto/weather
-      5. check_positions     — sync positions + USDC balance
-      6. manage_positions    — exit triggers (drift, PnL, expiry)
-      7. find_edge           — Claude API probability assessment
-      8. generate_signals    — edge > threshold → PolySignal
-      9. size_positions      — half Kelly criterion
-     10. execute_trades      — place orders on Polymarket
-     11. write_state         — update POLYMARKET_STATE.json
-     12. send_reports        — Telegram notification
+      1.   read_state          — POLYMARKET_STATE.json
+      2.   replay_wal          — WAL crash recovery (live only)
+      3.   safety_check        — circuit breaker, daily loss, cooldown
+      4.   scan_markets        — Gamma API → filter crypto/weather
+      5.   check_positions     — sync positions + USDC balance
+      6.   manage_positions    — exit triggers (drift, PnL, expiry)
+      7.   find_edge           — Claude API probability assessment
+      7.5  gto_filter          — GTO: adverse selection, Nash eq, fill quality
+      8.   generate_signals    — edge > threshold → PolySignal (skips GTO-blocked)
+      9.   size_positions      — half Kelly (scaled by unexploitability)
+     10.   execute_trades      — place orders on Polymarket
+     11.   write_state         — update POLYMARKET_STATE.json
+     12.   send_reports        — Telegram notification
     """
     pipeline = Pipeline()
     pipeline.add_step(ReadStateStep())         # 1
@@ -559,6 +644,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(CheckPositionsStep())    # 5
     pipeline.add_step(ManagePositionsStep())   # 6
     pipeline.add_step(FindEdgeStep())          # 7
+    pipeline.add_step(GTOFilterStep())         # 7.5
     pipeline.add_step(GenerateSignalsStep())   # 8
     pipeline.add_step(SizePositionsStep())     # 9
     pipeline.add_step(ExecuteTradesStep())     # 10

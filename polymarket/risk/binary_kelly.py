@@ -32,6 +32,28 @@ from ..core.context import PolySignal, PolyPosition
 logger = logging.getLogger(__name__)
 
 
+def _gto_kelly_scale(signal: PolySignal) -> float:
+    """Scale Kelly fraction by GTO unexploitability [0.3, 1.0].
+
+    Dominant strategy → full Kelly (1.0).
+    Otherwise: max(0.30, unexploitability_score).
+    Disabled if GTO_KELLY_SCALE_ENABLED is False.
+    """
+    from ..config.settings import GTO_KELLY_SCALE_ENABLED
+    if not GTO_KELLY_SCALE_ENABLED:
+        return 1.0
+
+    # Dominant strategies get full Kelly — always profitable in expectation
+    if getattr(signal, "is_dominant_strategy", False):
+        return 1.0
+
+    unexploit = getattr(signal, "unexploitability_score", 0.0)
+    if unexploit <= 0:
+        return 0.50  # no GTO data → conservative default (half scale)
+
+    return max(0.30, min(1.0, unexploit))
+
+
 def compute_kelly_bet(
     signal: PolySignal,
     bankroll: float,
@@ -92,6 +114,10 @@ def compute_kelly_bet(
     confidence_factor = max(0.3, min(1.0, signal.confidence))
     f *= confidence_factor
 
+    # GTO adjustment: scale by unexploitability (if enabled)
+    gto_scale = _gto_kelly_scale(signal)
+    f *= gto_scale
+
     # Convert to USDC
     bet = f * bankroll
 
@@ -115,8 +141,8 @@ def compute_kelly_bet(
         return 0.0  # too small to bother
 
     logger.info(
-        "Kelly: %s %s p=%.3f b=%.2f f*=%.4f half=%.4f conf=%.2f → $%.2f",
-        signal.side, signal.title[:30], p, b, f_star, f, signal.confidence, bet,
+        "Kelly: %s %s p=%.3f b=%.2f f*=%.4f half=%.4f conf=%.2f gto=%.2f → $%.2f",
+        signal.side, signal.title[:30], p, b, f_star, f, signal.confidence, gto_scale, bet,
     )
     return round(bet, 2)
 

@@ -17,8 +17,9 @@ import os
 import re
 import urllib.request
 import urllib.error
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -26,6 +27,7 @@ from ..config.categories import WEATHER_CITIES
 from ..config.settings import (
     AXC_HOME, SECRETS_PATH, AI_MODEL, AI_MAX_TOKENS, AI_TEMPERATURE,
     WEATHER_SIGMA_BY_LEAD, WEATHER_CONFIDENCE_BY_LEAD, OWM_BASE, OWM_API_KEY,
+    WEATHER_MAX_LEAD_DAYS, WEATHER_ENTRY_PRICE_CAP, LOG_DIR,
 )
 from ..core.context import PolyMarket, EdgeAssessment
 
@@ -36,6 +38,67 @@ load_dotenv(SECRETS_PATH)
 _PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 _PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 _API_TIMEOUT = 60  # seconds per call
+
+# ─── Edge Prediction Logging (Phase 2 calibration) ───
+_EDGE_PREDICTION_LOG = os.path.join(LOG_DIR, "weather_edge_predictions.jsonl")
+_HKT = ZoneInfo("Asia/Hong_Kong")
+
+
+def _log_edge_prediction(
+    *,
+    city: str,
+    target_date: str,
+    lead_days: int,
+    om_temp: float | None,
+    owm_temp: float | None,
+    avg_temp: float,
+    sources: list[str],
+    ai_prob: float,
+    market_price: float,
+    side: str,
+    edge_pct: float,
+    sigma: float,
+    bucket_type: str,
+    threshold_low: float | None,
+    threshold_high: float | None,
+    fahrenheit: bool,
+) -> None:
+    """Append edge prediction record to JSONL for Phase 2 calibration.
+
+    獨立於 weather_tracker 嘅 ensemble log — 呢個記錄 production path 嘅
+    Open-Meteo + OWM 雙源各自值，用嚟日後計 per-source accuracy + optimal weight。
+    """
+    record = {
+        "ts": datetime.now(tz=_HKT).isoformat(),
+        "city": city,
+        "target_date": target_date,
+        "lead_days": lead_days,
+        "om_temp": round(om_temp, 2) if om_temp is not None else None,
+        "owm_temp": round(owm_temp, 2) if owm_temp is not None else None,
+        "avg_temp": round(avg_temp, 2),
+        "sources": sources,
+        "sigma": round(sigma, 2),
+        "bucket_type": bucket_type,
+        "threshold_low": threshold_low,
+        "threshold_high": threshold_high,
+        "unit": "F" if fahrenheit else "C",
+        "ai_prob": round(ai_prob, 4),
+        "market_price": round(market_price, 4),
+        "side": side,
+        "edge_pct": round(edge_pct, 4),
+    }
+    try:
+        os.makedirs(os.path.dirname(_EDGE_PREDICTION_LOG), exist_ok=True)
+        # Atomic write: tempfile + os.replace is overkill for append-only JSONL,
+        # but we still open-append which is safe for single-writer
+        with open(_EDGE_PREDICTION_LOG, "a") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.info(
+            "Logged edge prediction: %s %s lead=%dd prob=%.3f mkt=%.3f edge=%+.1f%%",
+            city, target_date, lead_days, ai_prob, market_price, edge_pct * 100,
+        )
+    except IOError as e:
+        logger.warning("Edge prediction log write failed: %s", e)
 
 
 # ─── System Prompt ───
@@ -396,11 +459,12 @@ def _fetch_owm_forecast(lat: float, lon: float, target_date: str,
 
 def _fetch_multi_source_forecast(
     lat: float, lon: float, target_date: str, fahrenheit: bool = False,
-) -> tuple[float | None, list[str]]:
+) -> tuple[float | None, list[str], float | None, float | None]:
     """Fetch forecast from Open-Meteo + OWM, average when both available.
 
-    Returns (forecast_temp, data_sources).
+    Returns (forecast_temp, data_sources, om_temp, owm_temp).
     雙源平均減少單一來源誤差；任一失敗自動 fallback 到另一個。
+    Per-source temps returned for calibration logging（Phase 2）。
     """
     om_temp = _fetch_open_meteo_forecast(lat, lon, target_date, fahrenheit)
     owm_temp = _fetch_owm_forecast(lat, lon, target_date, fahrenheit)
@@ -411,16 +475,16 @@ def _fetch_multi_source_forecast(
             "Multi-source forecast: Open-Meteo=%.1f, OWM=%.1f, avg=%.1f",
             om_temp, owm_temp, avg,
         )
-        return avg, ["open-meteo", "owm"]
+        return avg, ["open-meteo", "owm"], om_temp, owm_temp
     elif om_temp is not None:
         logger.info("OWM unavailable, using Open-Meteo only: %.1f", om_temp)
-        return om_temp, ["open-meteo-only"]
+        return om_temp, ["open-meteo-only"], om_temp, None
     elif owm_temp is not None:
         logger.info("Open-Meteo unavailable, using OWM only: %.1f", owm_temp)
-        return owm_temp, ["owm-only"]
+        return owm_temp, ["owm-only"], None, owm_temp
     else:
         logger.warning("Both Open-Meteo and OWM failed for %s", target_date)
-        return None, []
+        return None, [], None, None
 
 
 def _get_forecast_sigma(lead_days: int) -> float:
@@ -479,9 +543,14 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         logger.info("Weather market date in past: %s", parsed["date"])
         return None
 
+    if lead_days > WEATHER_MAX_LEAD_DAYS:
+        logger.info("Weather lead %dd > %dd cap, skipping: %s",
+                     lead_days, WEATHER_MAX_LEAD_DAYS, market.title[:50])
+        return None
+
     # Fetch forecast from multiple sources (°F for US cities, °C otherwise)
     fahrenheit = parsed["unit"] == "F"
-    forecast_temp, sources = _fetch_multi_source_forecast(
+    forecast_temp, sources, om_temp, owm_temp = _fetch_multi_source_forecast(
         parsed["lat"], parsed["lon"], parsed["date"], fahrenheit=fahrenheit,
     )
     if forecast_temp is None:
@@ -502,6 +571,16 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     lead_clamped = max(1, min(lead_days, 7))
     confidence = WEATHER_CONFIDENCE_BY_LEAD.get(lead_clamped, 0.40)
 
+    # Entry price cap — high price = bad odds, one miss wipes gains
+    entry_price = market.yes_price
+    if entry_price > WEATHER_ENTRY_PRICE_CAP and ai_prob > 0.5:
+        logger.info("Weather entry price %.2f > cap %.2f, skipping YES: %s",
+                     entry_price, WEATHER_ENTRY_PRICE_CAP, market.title[:50])
+        # Still allow NO side (buying NO at 1-price which is cheap)
+    if (1 - entry_price) > WEATHER_ENTRY_PRICE_CAP and ai_prob < 0.5:
+        logger.info("Weather NO price %.2f > cap %.2f, skipping NO: %s",
+                     1 - entry_price, WEATHER_ENTRY_PRICE_CAP, market.title[:50])
+
     # Edge calculation (same logic as AI path)
     raw_edge = ai_prob - market.yes_price
     if raw_edge > 0:
@@ -511,12 +590,38 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         side = "NO"
         edge_pct = -raw_edge
 
+    # Enforce entry price cap — skip if our side is too expensive
+    if side == "YES" and entry_price > WEATHER_ENTRY_PRICE_CAP:
+        return None
+    if side == "NO" and (1 - entry_price) > WEATHER_ENTRY_PRICE_CAP:
+        return None
+
     reasoning = (
         f"Forecast: {forecast_temp:.1f}°{'F' if fahrenheit else 'C'} "
         f"(lead {lead_days}d, σ={sigma:.1f}). "
         f"Bucket [{parsed['threshold_low']}, {parsed['threshold_high']}] "
         f"({parsed['bucket_type']}). "
         f"P={ai_prob:.3f} vs market={market.yes_price:.3f}"
+    )
+
+    # Phase 2: Log per-source prediction for calibration
+    _log_edge_prediction(
+        city=parsed["city"],
+        target_date=parsed["date"],
+        lead_days=lead_days,
+        om_temp=om_temp,
+        owm_temp=owm_temp,
+        avg_temp=forecast_temp,
+        sources=sources,
+        ai_prob=ai_prob,
+        market_price=market.yes_price,
+        side=side,
+        edge_pct=edge_pct,
+        sigma=sigma,
+        bucket_type=parsed["bucket_type"],
+        threshold_low=parsed["threshold_low"],
+        threshold_high=parsed["threshold_high"],
+        fahrenheit=fahrenheit,
     )
 
     return EdgeAssessment(
@@ -636,6 +741,8 @@ RELEVANT DATA:
 
 Estimate the TRUE probability of the FIRST outcome. Do NOT anchor to the market price of {market.yes_price:.4f}. Form your own independent assessment based on the data provided.
 
+IMPORTANT: If the price differs significantly from your estimate, ask yourself: WHY hasn't arbitrage corrected it? Consider who would be on the other side of this trade.
+
 Remember: output ONLY valid JSON."""
 
 
@@ -735,13 +842,21 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
 
 def assess_markets(markets: list[PolyMarket], max_assessments: int = 5,
                    verbose: bool = False) -> list[EdgeAssessment]:
-    """Assess multiple markets. Respects max_assessments limit.
+    """Assess multiple markets. Weather gets separate higher limit (zero AI cost).
 
     Markets sorted by liquidity before assessment — high liquidity first.
     """
-    # Sort by liquidity (best markets first, since we have an API call budget)
-    sorted_markets = sorted(markets, key=lambda m: m.liquidity, reverse=True)
-    candidates = sorted_markets[:max_assessments]
+    from ..config.settings import WEATHER_MAX_ASSESSMENTS
+
+    # Split: weather = zero cost (deterministic), others = AI cost
+    weather = [m for m in markets if m.category == "weather"]
+    others = [m for m in markets if m.category != "weather"]
+
+    weather_sorted = sorted(weather, key=lambda m: m.liquidity, reverse=True)
+    others_sorted = sorted(others, key=lambda m: m.liquidity, reverse=True)
+
+    candidates = (weather_sorted[:WEATHER_MAX_ASSESSMENTS]
+                  + others_sorted[:max_assessments])
 
     assessments = []
     for i, market in enumerate(candidates):

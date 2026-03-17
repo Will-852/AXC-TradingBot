@@ -53,6 +53,17 @@ class EdgeAssessment:
     side: str = ""                  # "YES" or "NO"
     reasoning: str = ""             # AI 解釋
     data_sources: list[str] = field(default_factory=list)  # what data informed the assessment
+    # ─── GTO fields (populated by GTOFilterStep) ───
+    gto_type: str = ""
+    adverse_selection_score: float = 0.0
+    nash_equilibrium_score: float = 0.0
+    unexploitability_score: float = 0.0
+    fill_quality: str = ""
+    gto_approved: bool = True
+    gto_order_type: str = "LIMIT"
+    gto_limit_offset: float = 0.0
+    gto_reasoning: str = ""
+    is_dominant_strategy: bool = False
 
 
 @dataclass
@@ -69,6 +80,13 @@ class PolySignal:
     bet_size_usdc: float = 0.0      # Kelly-sized bet in USDC
     kelly_fraction: float = 0.0     # raw Kelly fraction before sizing
     reasoning: str = ""
+    # ─── GTO fields (populated by GTOFilterStep) ───
+    gto_type: str = ""
+    adverse_selection_score: float = 0.0
+    unexploitability_score: float = 0.0
+    gto_order_type: str = "LIMIT"
+    gto_limit_offset: float = 0.0
+    is_dominant_strategy: bool = False
 
 
 @dataclass
@@ -151,6 +169,10 @@ class PolyContext:
 
     # ─── WAL ───
     wal: Any = None                   # WriteAheadLog instance
+
+    # ─── GTO ───
+    gto_assessments: dict = field(default_factory=dict)  # condition_id → GTOAssessment
+    gto_blocked_count: int = 0
 
     # ─── Error Tracking ───
     errors: list[str] = field(default_factory=list)
