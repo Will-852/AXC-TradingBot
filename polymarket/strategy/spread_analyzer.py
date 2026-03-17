@@ -12,9 +12,8 @@ Before trading, check that:
 """
 
 import logging
-from typing import Optional
 
-from ..core.context import PolyMarket, PolySignal
+from ..core.context import PolyMarket
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,12 @@ def analyze_spread(
     exchange_client=None,
     max_spread_pct: float = 0.08,
     min_book_depth: float = 500.0,
+    side: str = "YES",
 ) -> dict:
     """Analyze order book spread and depth for a market.
+
+    Args:
+        side: "YES" or "NO" — determines which token's order book to check.
 
     Returns dict with:
         - spread: float (bid-ask spread)
@@ -37,7 +40,7 @@ def analyze_spread(
         - tradeable: bool (spread_ok AND depth_ok)
         - reason: str (if not tradeable)
     """
-    token_id = market.yes_token_id
+    token_id = market.yes_token_id if side == "YES" else market.no_token_id
     if not token_id:
         return {
             "spread": 1.0, "spread_ok": False,
@@ -56,7 +59,7 @@ def analyze_spread(
             logger.warning("Live book fetch failed for %s: %s", token_id[:16], e)
 
     # Fallback: estimate from Gamma API metadata
-    return _estimate_from_metadata(market, max_spread_pct, min_book_depth)
+    return _estimate_from_metadata(market, max_spread_pct, min_book_depth, side)
 
 
 def _analyze_live_book(
@@ -108,6 +111,7 @@ def _estimate_from_metadata(
     market: PolyMarket,
     max_spread_pct: float,
     min_book_depth: float,
+    side: str = "YES",
 ) -> dict:
     """Estimate spread/depth from Gamma API metadata (no live book).
 
@@ -133,28 +137,16 @@ def _estimate_from_metadata(
     if not depth_ok:
         reason += f"{'; ' if reason else ''}Liq ${market.liquidity:.0f} < ${min_book_depth:.0f}"
 
+    ref_price = market.yes_price if side == "YES" else market.no_price
     return {
         "spread": spread_est,
         "spread_ok": spread_ok,
         "depth": market.liquidity,
         "depth_ok": depth_ok,
-        "best_bid": market.yes_price - spread_est / 2,
-        "best_ask": market.yes_price + spread_est / 2,
+        "best_bid": ref_price - spread_est / 2,
+        "best_ask": ref_price + spread_est / 2,
         "tradeable": tradeable,
         "reason": reason,
     }
 
 
-def check_signal_tradeable(
-    signal: PolySignal,
-    market: PolyMarket,
-    exchange_client=None,
-    max_spread_pct: float = 0.08,
-    min_book_depth: float = 500.0,
-) -> tuple[bool, str]:
-    """Quick check if a signal's market is tradeable.
-
-    Returns (tradeable, reason).
-    """
-    analysis = analyze_spread(market, exchange_client, max_spread_pct, min_book_depth)
-    return analysis["tradeable"], analysis.get("reason", "")

@@ -571,17 +571,8 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     lead_clamped = max(1, min(lead_days, 7))
     confidence = WEATHER_CONFIDENCE_BY_LEAD.get(lead_clamped, 0.40)
 
-    # Entry price cap — high price = bad odds, one miss wipes gains
-    entry_price = market.yes_price
-    if entry_price > WEATHER_ENTRY_PRICE_CAP and ai_prob > 0.5:
-        logger.info("Weather entry price %.2f > cap %.2f, skipping YES: %s",
-                     entry_price, WEATHER_ENTRY_PRICE_CAP, market.title[:50])
-        # Still allow NO side (buying NO at 1-price which is cheap)
-    if (1 - entry_price) > WEATHER_ENTRY_PRICE_CAP and ai_prob < 0.5:
-        logger.info("Weather NO price %.2f > cap %.2f, skipping NO: %s",
-                     1 - entry_price, WEATHER_ENTRY_PRICE_CAP, market.title[:50])
-
     # Edge calculation (same logic as AI path)
+    entry_price = market.yes_price
     raw_edge = ai_prob - market.yes_price
     if raw_edge > 0:
         side = "YES"
@@ -759,14 +750,17 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
         from .crypto_15m import (
             assess_crypto_15m_edge, build_15m_ai_context,
             _fetch_15m_indicators, _gather_btc_context,
+            parse_crypto_15m_market,
         )
         result = assess_crypto_15m_edge(market)
         if result is not None:
             return result
         logger.info("15M deterministic below threshold, using AI: %s",
                      market.title[:50])
-        # Prepare rich context for AI fallback
-        indicators = _fetch_15m_indicators("BTCUSDT")
+        # Prepare rich context for AI fallback — use parsed symbol, not hardcoded BTC
+        parsed_15m = parse_crypto_15m_market(market.title)
+        symbol = parsed_15m["symbol"] if parsed_15m else "BTCUSDT"
+        indicators = _fetch_15m_indicators(symbol)
         btc_ctx = _gather_btc_context()
         context_data = build_15m_ai_context(market, indicators, btc_ctx)
         # Fall through to AI call below

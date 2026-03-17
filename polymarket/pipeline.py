@@ -285,6 +285,12 @@ class GTOFilterStep:
         for ea in ctx.edge_assessments:
             gto = gto_results.get(ea.condition_id)
             if not gto:
+                # Fail-open: no market match → pass through with visibility
+                ea.gto_approved = True
+                ea.gto_reasoning = "no GTO market match — pass-through"
+                logger.warning("GTO: %s — no market match, pass-through", ea.title[:50])
+                if ctx.verbose:
+                    print(f"      [no-match] {ea.title[:40]} — GTO pass-through")
                 continue
 
             ea.gto_type = gto.gto_type
@@ -368,7 +374,8 @@ class GenerateSignalsStep:
             # 15M markets use taker orders — skip spread/depth check
             if edge.category != "crypto_15m":
                 spread_info = analyze_spread(
-                    market, ctx.exchange_client, MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC
+                    market, ctx.exchange_client, MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
+                    side=edge.side,
                 )
                 if not spread_info["tradeable"]:
                     if ctx.verbose:
@@ -528,11 +535,18 @@ class ExecuteTradesStep:
                             platform="polymarket",
                         )
 
-                    # Execute buy via SDK
+                    # Execute buy via SDK — respect GTO order type
+                    # MARKET → price=0 (FOK taker); LIMIT → price=signal.price (GTC)
+                    exec_price = 0 if signal.gto_order_type == "MARKET" else signal.price
+                    if signal.gto_limit_offset and signal.gto_order_type == "LIMIT":
+                        logger.info(
+                            "GTO limit_offset=%.4f logged (orderbook mid TBD Phase 2)",
+                            signal.gto_limit_offset,
+                        )
                     result = ctx.exchange_client.buy_shares(
                         token_id=signal.token_id,
                         amount_usdc=signal.bet_size_usdc,
-                        price=signal.price,
+                        price=exec_price,
                     )
 
                     order_id = result.get("orderID", result.get("id", ""))

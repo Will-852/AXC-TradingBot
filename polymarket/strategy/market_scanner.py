@@ -75,6 +75,9 @@ def scan_markets(
             neg_risk=parsed.get("neg_risk", False),
             tick_size=parsed.get("tick_size", 0.01),
             min_order_size=parsed.get("min_order_size", 5),
+            spread=abs((parsed["yes_price"] + parsed["no_price"]) - 1.0)
+                   if parsed["yes_price"] > 0 and parsed["no_price"] > 0
+                   else 0.0,
         )
         scanned.append(market)
 

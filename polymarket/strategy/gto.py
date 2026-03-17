@@ -16,9 +16,8 @@ gto.py — Game Theory Optimal filter for Polymarket pipeline
 from __future__ import annotations
 
 import logging
-import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ..config.settings import (
     GTO_ADVERSE_BLOCK_THRESHOLD,
@@ -241,7 +240,6 @@ def compute_unexploitability(
 
 def estimate_fill_quality(
     market: PolyMarket,
-    edge: float,
     gto_type: str,
     adverse_score: float,
 ) -> dict:
@@ -266,7 +264,7 @@ def estimate_fill_quality(
     # Fill quality label
     if dumb_money_prob >= 0.60:
         quality = "good"
-    elif dumb_money_prob >= 0.40:
+    elif dumb_money_prob >= 0.35:
         quality = "neutral"
     else:
         quality = "bad"
@@ -395,7 +393,7 @@ def assess_gto(market: PolyMarket, edge_assessment: EdgeAssessment) -> GTOAssess
     )
 
     # 5. Fill quality
-    fill = estimate_fill_quality(market, edge, gto_type, adverse)
+    fill = estimate_fill_quality(market, gto_type, adverse)
 
     # 6. Dominant strategy
     dominant = is_dominant_strategy(edge, gto_type, market_price, confidence)
