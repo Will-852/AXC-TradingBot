@@ -1,0 +1,78 @@
+{
+  "symbol": "ETHUSDT",
+  "days": 720,
+  "n_trials": 300,
+  "shrinkage": 0.85,
+  "final_source": "shrunk",
+  "final_params": {
+    "conf_gate_range": 0.5558,
+    "conf_gate_trend": 0.4417,
+    "conf_gate_crash": 0.5708,
+    "mode_pen_trend_in_range": -0.3908,
+    "mode_pen_trend_in_crash": -0.0305,
+    "mode_pen_range_in_trend": -0.3962,
+    "mode_pen_range_in_crash": -0.3668,
+    "mode_pen_default_trend": -0.1078,
+    "mode_pen_default_range": -0.0457,
+    "persist_range": 6,
+    "persist_trend": 7,
+    "persist_crash": 1,
+    "cooldown": 15
+  },
+  "best_raw_params": {
+    "conf_gate_range": 0.5656611864346206,
+    "conf_gate_trend": 0.4314645280415679,
+    "conf_gate_crash": 0.5832386674144178,
+    "mode_pen_trend_in_range": -0.4067725938889343,
+    "mode_pen_trend_in_crash": -0.000644312842816951,
+    "mode_pen_range_in_trend": -0.4307870067877012,
+    "mode_pen_range_in_crash": -0.3786379723433178,
+    "mode_pen_default_trend": -0.08269417143071359,
+    "mode_pen_default_range": -0.03615602367330446,
+    "persist_range": 6,
+    "persist_trend": 7,
+    "persist_crash": 1,
+    "cooldown": 16
+  },
+  "baseline": {
+    "return_pct": -27.91,
+    "sharpe": -0.4802,
+    "pf": 0.8192,
+    "trades": 300,
+    "objective": 0.3053
+  },
+  "final": {
+    "return_pct": 10.38,
+    "sharpe": 0.38,
+    "pf": 1.09,
+    "trades": 171,
+    "objective": 1.7032,
+    "max_dd": 12.7,
+    "win_rate": 32.7
+  },
+  "walk_forward": {
+    "passed": true,
+    "is_avg": 0.6735,
+    "oos_avg": 1.1997,
+    "degradation_pct": -78.1,
+    "folds": [
+      {
+        "fold": 1,
+        "is_obj": 0.436,
+        "oos_obj": 1.351,
+        "is_trades": 40,
+        "oos_trades": 50,
+        "oos_return": 6.72
+      },
+      {
+        "fold": 2,
+        "is_obj": 0.911,
+        "oos_obj": 1.0485,
+        "is_trades": 112,
+        "oos_trades": 59,
+        "oos_return": 2.88
+      }
+    ]
+  },
+  "created_at": "2026-03-17T04:29:39.187537+00:00"
+}

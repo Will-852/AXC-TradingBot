@@ -1,0 +1,78 @@
+{
+  "symbol": "BTCUSDT",
+  "days": 720,
+  "n_trials": 300,
+  "shrinkage": 0.85,
+  "final_source": "mild_shrunk",
+  "final_params": {
+    "conf_gate_range": 0.5916,
+    "conf_gate_trend": 0.5892,
+    "conf_gate_crash": 0.576,
+    "mode_pen_trend_in_range": -0.1638,
+    "mode_pen_trend_in_crash": -0.1483,
+    "mode_pen_range_in_trend": -0.1252,
+    "mode_pen_range_in_crash": -0.2037,
+    "mode_pen_default_trend": -0.1336,
+    "mode_pen_default_range": -0.1685,
+    "persist_range": 4,
+    "persist_trend": 6,
+    "persist_crash": 0,
+    "cooldown": 11
+  },
+  "best_raw_params": {
+    "conf_gate_range": 0.6832760763383134,
+    "conf_gate_trend": 0.6783921392008764,
+    "conf_gate_crash": 0.6519347527602761,
+    "mode_pen_trend_in_range": -0.027568575344680386,
+    "mode_pen_trend_in_crash": -0.09667678295778924,
+    "mode_pen_range_in_trend": -0.050382415810891354,
+    "mode_pen_range_in_crash": -0.10739210124069758,
+    "mode_pen_default_trend": -0.017259675819771773,
+    "mode_pen_default_range": -0.23693151784658006,
+    "persist_range": 6,
+    "persist_trend": 7,
+    "persist_crash": 0,
+    "cooldown": 14
+  },
+  "baseline": {
+    "return_pct": -9.12,
+    "sharpe": -0.1185,
+    "pf": 0.9449,
+    "trades": 378,
+    "objective": 0.722
+  },
+  "final": {
+    "return_pct": 37.2,
+    "sharpe": 0.98,
+    "pf": 1.33,
+    "trades": 134,
+    "objective": 1.9904,
+    "max_dd": 15.3,
+    "win_rate": 44.0
+  },
+  "walk_forward": {
+    "passed": false,
+    "is_avg": 1.7582,
+    "oos_avg": -Infinity,
+    "degradation_pct": Infinity,
+    "folds": [
+      {
+        "fold": 1,
+        "is_obj": 2.855,
+        "oos_obj": -Infinity,
+        "is_trades": 22,
+        "oos_trades": 12,
+        "oos_return": -8.65
+      },
+      {
+        "fold": 2,
+        "is_obj": 0.6615,
+        "oos_obj": -Infinity,
+        "is_trades": 31,
+        "oos_trades": 13,
+        "oos_return": 41.58
+      }
+    ]
+  },
+  "created_at": "2026-03-17T04:29:42.722541+00:00"
+}

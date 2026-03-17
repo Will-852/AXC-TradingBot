@@ -1,0 +1,78 @@
+{
+  "symbol": "BTCUSDT",
+  "days": 180,
+  "n_trials": 300,
+  "shrinkage": 0.85,
+  "final_source": "defaults",
+  "final_params": {
+    "conf_gate_range": 0.5,
+    "conf_gate_trend": 0.5,
+    "conf_gate_crash": 0.5,
+    "mode_pen_trend_in_range": -0.3,
+    "mode_pen_trend_in_crash": -0.2,
+    "mode_pen_range_in_trend": -0.2,
+    "mode_pen_range_in_crash": -0.3,
+    "mode_pen_default_trend": -0.25,
+    "mode_pen_default_range": -0.1,
+    "persist_range": 3,
+    "persist_trend": 4,
+    "persist_crash": 1,
+    "cooldown": 8
+  },
+  "best_raw_params": {
+    "conf_gate_range": 0.5552175432192876,
+    "conf_gate_trend": 0.685796065402309,
+    "conf_gate_crash": 0.44215613212929206,
+    "mode_pen_trend_in_range": -0.017689525682870563,
+    "mode_pen_trend_in_crash": -0.34115875547333174,
+    "mode_pen_range_in_trend": -0.4119592591898512,
+    "mode_pen_range_in_crash": -0.41526045570059744,
+    "mode_pen_default_trend": -0.3967944580467671,
+    "mode_pen_default_range": -0.1089535450423138,
+    "persist_range": 6,
+    "persist_trend": 7,
+    "persist_crash": 2,
+    "cooldown": 13
+  },
+  "baseline": {
+    "return_pct": -6.45,
+    "sharpe": -0.7031,
+    "pf": 0.8545,
+    "trades": 85,
+    "objective": 0.3958
+  },
+  "final": {
+    "return_pct": -2.65,
+    "sharpe": -0.06,
+    "pf": 0.97,
+    "trades": 108,
+    "objective": 0.3958,
+    "max_dd": 18.2,
+    "win_rate": 34.3
+  },
+  "walk_forward": {
+    "passed": false,
+    "is_avg": -Infinity,
+    "oos_avg": -Infinity,
+    "degradation_pct": null,
+    "folds": [
+      {
+        "fold": 1,
+        "is_obj": -Infinity,
+        "oos_obj": -Infinity,
+        "is_trades": 3,
+        "oos_trades": 6,
+        "oos_return": -4.14
+      },
+      {
+        "fold": 2,
+        "is_obj": -Infinity,
+        "oos_obj": -Infinity,
+        "is_trades": 18,
+        "oos_trades": 7,
+        "oos_return": 7.73
+      }
+    ]
+  },
+  "created_at": "2026-03-17T04:49:34.023023+00:00"
+}

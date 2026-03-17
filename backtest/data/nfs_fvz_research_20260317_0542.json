@@ -1,0 +1,3413 @@
+{
+  "stage": 1,
+  "pairs": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "XRPUSDT"
+  ],
+  "grid_size": 162,
+  "elapsed_s": 29.7,
+  "timestamp": "2026-03-17T05:42:22.433469",
+  "results": [
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2879,
+        "profit_factor": 1.21,
+        "expectancy_r": 0.1396,
+        "max_dd_r": 16.046,
+        "fill_rate": 0.5932,
+        "score": 0.4941,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.2273,
+          "profit_factor": 0.864,
+          "expectancy_r": -0.1077,
+          "max_dd_r": 16.046,
+          "fill_rate": 0.6168,
+          "score": -1.0307,
+          "avg_pnl_r": -0.1077,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.3088,
+          "profit_factor": 1.321,
+          "expectancy_r": 0.2254,
+          "max_dd_r": 4.053,
+          "fill_rate": 0.6355,
+          "score": 1.5939,
+          "avg_pnl_r": 0.2254,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.3333,
+          "profit_factor": 1.478,
+          "expectancy_r": 0.3236,
+          "max_dd_r": 10.129,
+          "fill_rate": 0.5278,
+          "score": 0.9477,
+          "avg_pnl_r": 0.3236,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2827,
+        "profit_factor": 1.179,
+        "expectancy_r": 0.1188,
+        "max_dd_r": 16.023,
+        "fill_rate": 0.5932,
+        "score": 0.3723,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.2273,
+          "profit_factor": 0.864,
+          "expectancy_r": -0.1074,
+          "max_dd_r": 16.023,
+          "fill_rate": 0.6168,
+          "score": -1.0266,
+          "avg_pnl_r": -0.1074,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2941,
+          "profit_factor": 1.233,
+          "expectancy_r": 0.1665,
+          "max_dd_r": 5.312,
+          "fill_rate": 0.6355,
+          "score": 1.2474,
+          "avg_pnl_r": 0.1665,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.3333,
+          "profit_factor": 1.479,
+          "expectancy_r": 0.3237,
+          "max_dd_r": 10.129,
+          "fill_rate": 0.5278,
+          "score": 0.948,
+          "avg_pnl_r": 0.3237,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2877,
+        "profit_factor": 1.215,
+        "expectancy_r": 0.1392,
+        "max_dd_r": 20.137,
+        "fill_rate": 0.5506,
+        "score": 0.2088,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.2143,
+          "profit_factor": 0.801,
+          "expectancy_r": -0.16,
+          "max_dd_r": 20.137,
+          "fill_rate": 0.5556,
+          "score": -1.7663,
+          "avg_pnl_r": -0.16,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.3165,
+          "profit_factor": 1.37,
+          "expectancy_r": 0.2566,
+          "max_dd_r": 5.328,
+          "fill_rate": 0.6031,
+          "score": 1.4855,
+          "avg_pnl_r": 0.2566,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3333,
+          "profit_factor": 1.48,
+          "expectancy_r": 0.3245,
+          "max_dd_r": 11.096,
+          "fill_rate": 0.4922,
+          "score": 0.8024,
+          "avg_pnl_r": 0.3245,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.283,
+        "profit_factor": 1.186,
+        "expectancy_r": 0.1205,
+        "max_dd_r": 20.114,
+        "fill_rate": 0.5506,
+        "score": 0.0461,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.2143,
+          "profit_factor": 0.801,
+          "expectancy_r": -0.1597,
+          "max_dd_r": 20.114,
+          "fill_rate": 0.5556,
+          "score": -1.7623,
+          "avg_pnl_r": -0.1597,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.3038,
+          "profit_factor": 1.292,
+          "expectancy_r": 0.2059,
+          "max_dd_r": 7.341,
+          "fill_rate": 0.6031,
+          "score": 1.0449,
+          "avg_pnl_r": 0.2059,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3333,
+          "profit_factor": 1.481,
+          "expectancy_r": 0.3246,
+          "max_dd_r": 11.095,
+          "fill_rate": 0.4922,
+          "score": 0.803,
+          "avg_pnl_r": 0.3246,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2162,
+        "profit_factor": 1.089,
+        "expectancy_r": 0.0676,
+        "max_dd_r": 16.145,
+        "fill_rate": 0.5745,
+        "score": -0.0415,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.1912,
+          "profit_factor": 0.924,
+          "expectancy_r": -0.063,
+          "max_dd_r": 16.145,
+          "fill_rate": 0.6355,
+          "score": -0.9467,
+          "avg_pnl_r": -0.063,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2258,
+          "profit_factor": 1.15,
+          "expectancy_r": 0.1177,
+          "max_dd_r": 10.17,
+          "fill_rate": 0.5794,
+          "score": 0.3548,
+          "avg_pnl_r": 0.1177,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.2364,
+          "profit_factor": 1.223,
+          "expectancy_r": 0.1726,
+          "max_dd_r": 9.165,
+          "fill_rate": 0.5093,
+          "score": 0.6308,
+          "avg_pnl_r": 0.1726,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2162,
+        "profit_factor": 1.089,
+        "expectancy_r": 0.0674,
+        "max_dd_r": 16.156,
+        "fill_rate": 0.5745,
+        "score": -0.0425,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.1912,
+          "profit_factor": 0.924,
+          "expectancy_r": -0.0633,
+          "max_dd_r": 16.156,
+          "fill_rate": 0.6355,
+          "score": -0.9488,
+          "avg_pnl_r": -0.0633,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2258,
+          "profit_factor": 1.15,
+          "expectancy_r": 0.1176,
+          "max_dd_r": 10.171,
+          "fill_rate": 0.5794,
+          "score": 0.3545,
+          "avg_pnl_r": 0.1176,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.2364,
+          "profit_factor": 1.223,
+          "expectancy_r": 0.1725,
+          "max_dd_r": 9.165,
+          "fill_rate": 0.5093,
+          "score": 0.6305,
+          "avg_pnl_r": 0.1725,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3284,
+        "profit_factor": 0.968,
+        "expectancy_r": -0.0269,
+        "max_dd_r": 14.169,
+        "fill_rate": 0.5299,
+        "score": -0.0525,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.88,
+          "expectancy_r": -0.0851,
+          "max_dd_r": 14.169,
+          "fill_rate": 0.5873,
+          "score": -0.6993,
+          "avg_pnl_r": -0.0851,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.3056,
+          "profit_factor": 0.868,
+          "expectancy_r": -0.0932,
+          "max_dd_r": 10.427,
+          "fill_rate": 0.5496,
+          "score": -0.1638,
+          "avg_pnl_r": -0.0932,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.3793,
+          "profit_factor": 1.206,
+          "expectancy_r": 0.1296,
+          "max_dd_r": 7.225,
+          "fill_rate": 0.4531,
+          "score": 0.9109,
+          "avg_pnl_r": 0.1296,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2251,
+        "profit_factor": 1.155,
+        "expectancy_r": 0.1124,
+        "max_dd_r": 20.042,
+        "fill_rate": 0.5932,
+        "score": -0.0679,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.1765,
+          "profit_factor": 0.839,
+          "expectancy_r": -0.1354,
+          "max_dd_r": 20.042,
+          "fill_rate": 0.6355,
+          "score": -1.6874,
+          "avg_pnl_r": -0.1354,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.2615,
+          "profit_factor": 1.397,
+          "expectancy_r": 0.2974,
+          "max_dd_r": 8.276,
+          "fill_rate": 0.6075,
+          "score": 1.0846,
+          "avg_pnl_r": 0.2974,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.2414,
+          "profit_factor": 1.254,
+          "expectancy_r": 0.1957,
+          "max_dd_r": 10.164,
+          "fill_rate": 0.537,
+          "score": 0.5392,
+          "avg_pnl_r": 0.1957,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2251,
+        "profit_factor": 1.155,
+        "expectancy_r": 0.1123,
+        "max_dd_r": 20.058,
+        "fill_rate": 0.5932,
+        "score": -0.0692,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.1765,
+          "profit_factor": 0.839,
+          "expectancy_r": -0.1357,
+          "max_dd_r": 20.058,
+          "fill_rate": 0.6355,
+          "score": -1.6905,
+          "avg_pnl_r": -0.1357,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.2615,
+          "profit_factor": 1.397,
+          "expectancy_r": 0.2973,
+          "max_dd_r": 8.278,
+          "fill_rate": 0.6075,
+          "score": 1.0842,
+          "avg_pnl_r": 0.2973,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.2414,
+          "profit_factor": 1.254,
+          "expectancy_r": 0.1956,
+          "max_dd_r": 10.164,
+          "fill_rate": 0.537,
+          "score": 0.5389,
+          "avg_pnl_r": 0.1956,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3194,
+        "profit_factor": 0.928,
+        "expectancy_r": -0.0541,
+        "max_dd_r": 14.997,
+        "fill_rate": 0.5932,
+        "score": -0.1396,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2794,
+          "profit_factor": 0.759,
+          "expectancy_r": -0.1777,
+          "max_dd_r": 14.997,
+          "fill_rate": 0.6355,
+          "score": -1.0402,
+          "avg_pnl_r": -0.1777,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.3385,
+          "profit_factor": 1.009,
+          "expectancy_r": 0.0057,
+          "max_dd_r": 7.55,
+          "fill_rate": 0.6075,
+          "score": 0.5276,
+          "avg_pnl_r": 0.0057,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.3448,
+          "profit_factor": 1.036,
+          "expectancy_r": 0.0238,
+          "max_dd_r": 10.222,
+          "fill_rate": 0.537,
+          "score": 0.1686,
+          "avg_pnl_r": 0.0238,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 218,
+        "pairs": 3,
+        "win_rate": 0.25,
+        "profit_factor": 0.993,
+        "expectancy_r": -0.0138,
+        "max_dd_r": 17.862,
+        "fill_rate": 0.6422,
+        "score": -0.2425,
+        "conflict_pct": 0.0143
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 50,
+          "total_zones": 77,
+          "win_rate": 0.2,
+          "profit_factor": 0.733,
+          "expectancy_r": -0.218,
+          "max_dd_r": 17.862,
+          "fill_rate": 0.6494,
+          "score": -1.5405,
+          "avg_pnl_r": -0.218,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 49,
+          "total_zones": 74,
+          "win_rate": 0.2653,
+          "profit_factor": 1.066,
+          "expectancy_r": 0.0492,
+          "max_dd_r": 10.302,
+          "fill_rate": 0.6622,
+          "score": 0.2032,
+          "avg_pnl_r": 0.0492,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0408
+        },
+        "XRPUSDT": {
+          "n_trades": 41,
+          "total_zones": 67,
+          "win_rate": 0.2927,
+          "profit_factor": 1.222,
+          "expectancy_r": 0.1598,
+          "max_dd_r": 8.107,
+          "fill_rate": 0.6119,
+          "score": 0.8079,
+          "avg_pnl_r": 0.1598,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3235,
+        "profit_factor": 0.949,
+        "expectancy_r": -0.0415,
+        "max_dd_r": 14.158,
+        "fill_rate": 0.5299,
+        "score": -0.2464,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.88,
+          "expectancy_r": -0.0849,
+          "max_dd_r": 14.158,
+          "fill_rate": 0.5873,
+          "score": -0.6972,
+          "avg_pnl_r": -0.0849,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.2917,
+          "profit_factor": 0.812,
+          "expectancy_r": -0.1349,
+          "max_dd_r": 13.432,
+          "fill_rate": 0.5496,
+          "score": -0.7158,
+          "avg_pnl_r": -0.1349,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.3793,
+          "profit_factor": 1.206,
+          "expectancy_r": 0.1297,
+          "max_dd_r": 7.222,
+          "fill_rate": 0.4531,
+          "score": 0.9116,
+          "avg_pnl_r": 0.1297,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2199,
+        "profit_factor": 1.135,
+        "expectancy_r": 0.0868,
+        "max_dd_r": 21.047,
+        "fill_rate": 0.5932,
+        "score": -0.288,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.1667,
+          "profit_factor": 0.784,
+          "expectancy_r": -0.1838,
+          "max_dd_r": 21.047,
+          "fill_rate": 0.6168,
+          "score": -1.9422,
+          "avg_pnl_r": -0.1838,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2059,
+          "profit_factor": 1.023,
+          "expectancy_r": 0.0187,
+          "max_dd_r": 11.082,
+          "fill_rate": 0.6355,
+          "score": -0.0059,
+          "avg_pnl_r": 0.0187,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.2982,
+          "profit_factor": 1.676,
+          "expectancy_r": 0.4813,
+          "max_dd_r": 10.129,
+          "fill_rate": 0.5278,
+          "score": 1.291,
+          "avg_pnl_r": 0.4813,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2199,
+        "profit_factor": 1.135,
+        "expectancy_r": 0.0866,
+        "max_dd_r": 21.07,
+        "fill_rate": 0.5932,
+        "score": -0.2896,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.1667,
+          "profit_factor": 0.784,
+          "expectancy_r": -0.1841,
+          "max_dd_r": 21.07,
+          "fill_rate": 0.6168,
+          "score": -1.9463,
+          "avg_pnl_r": -0.1841,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2059,
+          "profit_factor": 1.023,
+          "expectancy_r": 0.0186,
+          "max_dd_r": 11.082,
+          "fill_rate": 0.6355,
+          "score": -0.0061,
+          "avg_pnl_r": 0.0186,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.2982,
+          "profit_factor": 1.676,
+          "expectancy_r": 0.4812,
+          "max_dd_r": 10.129,
+          "fill_rate": 0.5278,
+          "score": 1.2906,
+          "avg_pnl_r": 0.4812,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3246,
+        "profit_factor": 0.968,
+        "expectancy_r": -0.038,
+        "max_dd_r": 23.003,
+        "fill_rate": 0.5932,
+        "score": -0.2987,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.2424,
+          "profit_factor": 0.627,
+          "expectancy_r": -0.2889,
+          "max_dd_r": 23.003,
+          "fill_rate": 0.6168,
+          "score": -2.4893,
+          "avg_pnl_r": -0.2889,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.3676,
+          "profit_factor": 1.146,
+          "expectancy_r": 0.0935,
+          "max_dd_r": 5.178,
+          "fill_rate": 0.6355,
+          "score": 1.1299,
+          "avg_pnl_r": 0.0935,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.3684,
+          "profit_factor": 1.149,
+          "expectancy_r": 0.0957,
+          "max_dd_r": 9.126,
+          "fill_rate": 0.5278,
+          "score": 0.5334,
+          "avg_pnl_r": 0.0957,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3246,
+        "profit_factor": 0.967,
+        "expectancy_r": -0.0382,
+        "max_dd_r": 23.025,
+        "fill_rate": 0.5932,
+        "score": -0.3003,
+        "conflict_pct": 0.0366
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 66,
+          "total_zones": 107,
+          "win_rate": 0.2424,
+          "profit_factor": 0.626,
+          "expectancy_r": -0.2892,
+          "max_dd_r": 23.025,
+          "fill_rate": 0.6168,
+          "score": -2.4933,
+          "avg_pnl_r": -0.2892,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0303
+        },
+        "ETHUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.3676,
+          "profit_factor": 1.146,
+          "expectancy_r": 0.0934,
+          "max_dd_r": 5.18,
+          "fill_rate": 0.6355,
+          "score": 1.1296,
+          "avg_pnl_r": 0.0934,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0441
+        },
+        "XRPUSDT": {
+          "n_trades": 57,
+          "total_zones": 108,
+          "win_rate": 0.3684,
+          "profit_factor": 1.149,
+          "expectancy_r": 0.0956,
+          "max_dd_r": 9.126,
+          "fill_rate": 0.5278,
+          "score": 0.5331,
+          "avg_pnl_r": 0.0956,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0351
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.226,
+        "profit_factor": 1.165,
+        "expectancy_r": 0.1165,
+        "max_dd_r": 23.201,
+        "fill_rate": 0.5403,
+        "score": -0.3118,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.1667,
+          "profit_factor": 0.782,
+          "expectancy_r": -0.1859,
+          "max_dd_r": 23.201,
+          "fill_rate": 0.5714,
+          "score": -2.2735,
+          "avg_pnl_r": -0.1859,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.2667,
+          "profit_factor": 1.436,
+          "expectancy_r": 0.3238,
+          "max_dd_r": 10.345,
+          "fill_rate": 0.5725,
+          "score": 0.8394,
+          "avg_pnl_r": 0.3238,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.2459,
+          "profit_factor": 1.285,
+          "expectancy_r": 0.2184,
+          "max_dd_r": 10.17,
+          "fill_rate": 0.4766,
+          "score": 0.5881,
+          "avg_pnl_r": 0.2184,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0328
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.226,
+        "profit_factor": 1.165,
+        "expectancy_r": 0.1163,
+        "max_dd_r": 23.217,
+        "fill_rate": 0.5403,
+        "score": -0.3132,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.1667,
+          "profit_factor": 0.782,
+          "expectancy_r": -0.1862,
+          "max_dd_r": 23.217,
+          "fill_rate": 0.5714,
+          "score": -2.2765,
+          "avg_pnl_r": -0.1862,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.2667,
+          "profit_factor": 1.436,
+          "expectancy_r": 0.3237,
+          "max_dd_r": 10.348,
+          "fill_rate": 0.5725,
+          "score": 0.8387,
+          "avg_pnl_r": 0.3237,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.2459,
+          "profit_factor": 1.285,
+          "expectancy_r": 0.2183,
+          "max_dd_r": 10.171,
+          "fill_rate": 0.4766,
+          "score": 0.5878,
+          "avg_pnl_r": 0.2183,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0328
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 226,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3274,
+        "profit_factor": 0.969,
+        "expectancy_r": -0.0297,
+        "max_dd_r": 17.511,
+        "fill_rate": 0.587,
+        "score": -0.3209,
+        "conflict_pct": 0.0354
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.891,
+          "expectancy_r": -0.0757,
+          "max_dd_r": 12.275,
+          "fill_rate": 0.5873,
+          "score": -0.3941,
+          "avg_pnl_r": -0.0757,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.027
+        },
+        "ETHUSDT": {
+          "n_trades": 85,
+          "total_zones": 131,
+          "win_rate": 0.2941,
+          "profit_factor": 0.809,
+          "expectancy_r": -0.1389,
+          "max_dd_r": 17.511,
+          "fill_rate": 0.6489,
+          "score": -1.3233,
+          "avg_pnl_r": -0.1389,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0353
+        },
+        "XRPUSDT": {
+          "n_trades": 67,
+          "total_zones": 128,
+          "win_rate": 0.3881,
+          "profit_factor": 1.259,
+          "expectancy_r": 0.1596,
+          "max_dd_r": 7.078,
+          "fill_rate": 0.5234,
+          "score": 1.0318,
+          "avg_pnl_r": 0.1596,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.008,
+          "conflict_pct": 0.0448
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2157,
+        "profit_factor": 1.09,
+        "expectancy_r": 0.065,
+        "max_dd_r": 21.284,
+        "fill_rate": 0.5299,
+        "score": -0.3229,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.1757,
+          "profit_factor": 0.833,
+          "expectancy_r": -0.1412,
+          "max_dd_r": 21.284,
+          "fill_rate": 0.5873,
+          "score": -1.8904,
+          "avg_pnl_r": -0.1412,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.2361,
+          "profit_factor": 1.22,
+          "expectancy_r": 0.1701,
+          "max_dd_r": 10.181,
+          "fill_rate": 0.5496,
+          "score": 0.476,
+          "avg_pnl_r": 0.1701,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.2414,
+          "profit_factor": 1.258,
+          "expectancy_r": 0.1977,
+          "max_dd_r": 9.171,
+          "fill_rate": 0.4531,
+          "score": 0.6854,
+          "avg_pnl_r": 0.1977,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2157,
+        "profit_factor": 1.09,
+        "expectancy_r": 0.0649,
+        "max_dd_r": 21.295,
+        "fill_rate": 0.5299,
+        "score": -0.3238,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.1757,
+          "profit_factor": 0.832,
+          "expectancy_r": -0.1415,
+          "max_dd_r": 21.295,
+          "fill_rate": 0.5873,
+          "score": -1.8925,
+          "avg_pnl_r": -0.1415,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.2361,
+          "profit_factor": 1.22,
+          "expectancy_r": 0.1701,
+          "max_dd_r": 10.181,
+          "fill_rate": 0.5496,
+          "score": 0.4758,
+          "avg_pnl_r": 0.1701,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.2414,
+          "profit_factor": 1.257,
+          "expectancy_r": 0.1976,
+          "max_dd_r": 9.172,
+          "fill_rate": 0.4531,
+          "score": 0.6851,
+          "avg_pnl_r": 0.1976,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3221,
+        "profit_factor": 0.945,
+        "expectancy_r": -0.0459,
+        "max_dd_r": 19.175,
+        "fill_rate": 0.5403,
+        "score": -0.3308,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.2639,
+          "profit_factor": 0.7,
+          "expectancy_r": -0.2258,
+          "max_dd_r": 19.175,
+          "fill_rate": 0.5714,
+          "score": -1.7817,
+          "avg_pnl_r": -0.2258,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.3467,
+          "profit_factor": 1.047,
+          "expectancy_r": 0.0311,
+          "max_dd_r": 9.432,
+          "fill_rate": 0.5725,
+          "score": 0.3103,
+          "avg_pnl_r": 0.0311,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.3607,
+          "profit_factor": 1.11,
+          "expectancy_r": 0.0716,
+          "max_dd_r": 8.23,
+          "fill_rate": 0.4766,
+          "score": 0.5936,
+          "avg_pnl_r": 0.0716,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0328
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2618,
+        "profit_factor": 1.06,
+        "expectancy_r": 0.034,
+        "max_dd_r": 19.003,
+        "fill_rate": 0.5932,
+        "score": -0.3322,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2059,
+          "profit_factor": 0.761,
+          "expectancy_r": -0.1943,
+          "max_dd_r": 19.003,
+          "fill_rate": 0.6355,
+          "score": -1.6623,
+          "avg_pnl_r": -0.1943,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.2769,
+          "profit_factor": 1.133,
+          "expectancy_r": 0.0976,
+          "max_dd_r": 11.391,
+          "fill_rate": 0.6075,
+          "score": 0.1551,
+          "avg_pnl_r": 0.0976,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.3103,
+          "profit_factor": 1.329,
+          "expectancy_r": 0.2305,
+          "max_dd_r": 10.164,
+          "fill_rate": 0.537,
+          "score": 0.6811,
+          "avg_pnl_r": 0.2305,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2549,
+        "profit_factor": 1.019,
+        "expectancy_r": 0.0066,
+        "max_dd_r": 17.218,
+        "fill_rate": 0.5299,
+        "score": -0.3383,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.2297,
+          "profit_factor": 0.873,
+          "expectancy_r": -0.1001,
+          "max_dd_r": 17.218,
+          "fill_rate": 0.5873,
+          "score": -1.1919,
+          "avg_pnl_r": -0.1001,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.2361,
+          "profit_factor": 0.915,
+          "expectancy_r": -0.066,
+          "max_dd_r": 12.375,
+          "fill_rate": 0.5496,
+          "score": -0.3932,
+          "avg_pnl_r": -0.066,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.3103,
+          "profit_factor": 1.333,
+          "expectancy_r": 0.2327,
+          "max_dd_r": 9.235,
+          "fill_rate": 0.4531,
+          "score": 0.8191,
+          "avg_pnl_r": 0.2327,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2549,
+        "profit_factor": 1.019,
+        "expectancy_r": 0.0064,
+        "max_dd_r": 17.227,
+        "fill_rate": 0.5299,
+        "score": -0.3392,
+        "conflict_pct": 0.0245
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.2297,
+          "profit_factor": 0.873,
+          "expectancy_r": -0.1004,
+          "max_dd_r": 17.227,
+          "fill_rate": 0.5873,
+          "score": -1.1936,
+          "avg_pnl_r": -0.1004,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 72,
+          "total_zones": 131,
+          "win_rate": 0.2361,
+          "profit_factor": 0.915,
+          "expectancy_r": -0.066,
+          "max_dd_r": 12.378,
+          "fill_rate": 0.5496,
+          "score": -0.3937,
+          "avg_pnl_r": -0.066,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 128,
+          "win_rate": 0.3103,
+          "profit_factor": 1.333,
+          "expectancy_r": 0.2327,
+          "max_dd_r": 9.237,
+          "fill_rate": 0.4531,
+          "score": 0.8184,
+          "avg_pnl_r": 0.2327,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 220,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3182,
+        "profit_factor": 0.92,
+        "expectancy_r": -0.0578,
+        "max_dd_r": 14.543,
+        "fill_rate": 0.5714,
+        "score": -0.3393,
+        "conflict_pct": 0.0364
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 75,
+          "total_zones": 126,
+          "win_rate": 0.3067,
+          "profit_factor": 0.874,
+          "expectancy_r": -0.0882,
+          "max_dd_r": 11.526,
+          "fill_rate": 0.5952,
+          "score": -0.3121,
+          "avg_pnl_r": -0.0882,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0267
+        },
+        "ETHUSDT": {
+          "n_trades": 82,
+          "total_zones": 131,
+          "win_rate": 0.3049,
+          "profit_factor": 0.851,
+          "expectancy_r": -0.1071,
+          "max_dd_r": 14.543,
+          "fill_rate": 0.626,
+          "score": -0.8043,
+          "avg_pnl_r": -0.1071,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.031,
+          "conflict_pct": 0.0366
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3492,
+          "profit_factor": 1.065,
+          "expectancy_r": 0.0427,
+          "max_dd_r": 10.104,
+          "fill_rate": 0.4922,
+          "score": 0.2336,
+          "avg_pnl_r": 0.0427,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.007,
+          "conflict_pct": 0.0476
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 402,
+        "total_zones": 668,
+        "pairs": 3,
+        "win_rate": 0.2761,
+        "profit_factor": 1.122,
+        "expectancy_r": 0.0893,
+        "max_dd_r": 17.014,
+        "fill_rate": 0.6018,
+        "score": -0.3537,
+        "conflict_pct": 0.0398
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2835,
+          "profit_factor": 1.152,
+          "expectancy_r": 0.1125,
+          "max_dd_r": 17.014,
+          "fill_rate": 0.5935,
+          "score": -0.6539,
+          "avg_pnl_r": 0.1125,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0315
+        },
+        "ETHUSDT": {
+          "n_trades": 158,
+          "total_zones": 230,
+          "win_rate": 0.2848,
+          "profit_factor": 1.18,
+          "expectancy_r": 0.13,
+          "max_dd_r": 12.417,
+          "fill_rate": 0.687,
+          "score": 0.0921,
+          "avg_pnl_r": 0.13,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0506
+        },
+        "XRPUSDT": {
+          "n_trades": 117,
+          "total_zones": 224,
+          "win_rate": 0.2564,
+          "profit_factor": 1.012,
+          "expectancy_r": 0.0092,
+          "max_dd_r": 15.117,
+          "fill_rate": 0.5223,
+          "score": -0.6298,
+          "avg_pnl_r": 0.0092,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0342
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2565,
+        "profit_factor": 1.028,
+        "expectancy_r": 0.0133,
+        "max_dd_r": 18.989,
+        "fill_rate": 0.5932,
+        "score": -0.387,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2059,
+          "profit_factor": 0.761,
+          "expectancy_r": -0.194,
+          "max_dd_r": 18.989,
+          "fill_rate": 0.6355,
+          "score": -1.6596,
+          "avg_pnl_r": -0.194,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.2769,
+          "profit_factor": 1.133,
+          "expectancy_r": 0.0977,
+          "max_dd_r": 11.388,
+          "fill_rate": 0.6075,
+          "score": 0.1558,
+          "avg_pnl_r": 0.0977,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.2931,
+          "profit_factor": 1.225,
+          "expectancy_r": 0.1616,
+          "max_dd_r": 10.164,
+          "fill_rate": 0.537,
+          "score": 0.4968,
+          "avg_pnl_r": 0.1616,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3302,
+        "profit_factor": 1.004,
+        "expectancy_r": -0.0208,
+        "max_dd_r": 27.117,
+        "fill_rate": 0.5506,
+        "score": -0.398,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.2286,
+          "profit_factor": 0.58,
+          "expectancy_r": -0.3312,
+          "max_dd_r": 27.117,
+          "fill_rate": 0.5556,
+          "score": -3.2008,
+          "avg_pnl_r": -0.3312,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.3671,
+          "profit_factor": 1.144,
+          "expectancy_r": 0.0924,
+          "max_dd_r": 8.206,
+          "fill_rate": 0.6031,
+          "score": 0.6694,
+          "avg_pnl_r": 0.0924,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3968,
+          "profit_factor": 1.298,
+          "expectancy_r": 0.182,
+          "max_dd_r": 5.205,
+          "fill_rate": 0.4922,
+          "score": 1.3777,
+          "avg_pnl_r": 0.182,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 426,
+        "total_zones": 754,
+        "pairs": 3,
+        "win_rate": 0.2793,
+        "profit_factor": 1.139,
+        "expectancy_r": 0.1023,
+        "max_dd_r": 18.498,
+        "fill_rate": 0.565,
+        "score": -0.4106,
+        "conflict_pct": 0.0446
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 134,
+          "total_zones": 237,
+          "win_rate": 0.2761,
+          "profit_factor": 1.111,
+          "expectancy_r": 0.0828,
+          "max_dd_r": 18.498,
+          "fill_rate": 0.5654,
+          "score": -0.9535,
+          "avg_pnl_r": 0.0828,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0299
+        },
+        "ETHUSDT": {
+          "n_trades": 167,
+          "total_zones": 261,
+          "win_rate": 0.2814,
+          "profit_factor": 1.16,
+          "expectancy_r": 0.1164,
+          "max_dd_r": 14.573,
+          "fill_rate": 0.6398,
+          "score": -0.2709,
+          "avg_pnl_r": 0.1164,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0599
+        },
+        "XRPUSDT": {
+          "n_trades": 125,
+          "total_zones": 256,
+          "win_rate": 0.28,
+          "profit_factor": 1.142,
+          "expectancy_r": 0.1043,
+          "max_dd_r": 12.555,
+          "fill_rate": 0.4883,
+          "score": -0.0152,
+          "avg_pnl_r": 0.1043,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.04
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2541,
+        "profit_factor": 1.014,
+        "expectancy_r": 0.0031,
+        "max_dd_r": 17.947,
+        "fill_rate": 0.5745,
+        "score": -0.4349,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2353,
+          "profit_factor": 0.901,
+          "expectancy_r": -0.0773,
+          "max_dd_r": 17.947,
+          "fill_rate": 0.6355,
+          "score": -1.2447,
+          "avg_pnl_r": -0.0773,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2258,
+          "profit_factor": 0.862,
+          "expectancy_r": -0.1081,
+          "max_dd_r": 13.543,
+          "fill_rate": 0.5794,
+          "score": -0.6614,
+          "avg_pnl_r": -0.1081,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.3091,
+          "profit_factor": 1.326,
+          "expectancy_r": 0.2277,
+          "max_dd_r": 9.165,
+          "fill_rate": 0.5093,
+          "score": 0.8215,
+          "avg_pnl_r": 0.2277,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.2541,
+        "profit_factor": 1.014,
+        "expectancy_r": 0.0029,
+        "max_dd_r": 17.955,
+        "fill_rate": 0.5745,
+        "score": -0.4359,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2353,
+          "profit_factor": 0.901,
+          "expectancy_r": -0.0776,
+          "max_dd_r": 17.955,
+          "fill_rate": 0.6355,
+          "score": -1.2465,
+          "avg_pnl_r": -0.0776,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2258,
+          "profit_factor": 0.862,
+          "expectancy_r": -0.1082,
+          "max_dd_r": 13.547,
+          "fill_rate": 0.5794,
+          "score": -0.662,
+          "avg_pnl_r": -0.1082,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.3091,
+          "profit_factor": 1.325,
+          "expectancy_r": 0.2276,
+          "max_dd_r": 9.165,
+          "fill_rate": 0.5093,
+          "score": 0.8212,
+          "avg_pnl_r": 0.2276,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 218,
+        "pairs": 3,
+        "win_rate": 0.2429,
+        "profit_factor": 0.956,
+        "expectancy_r": -0.0423,
+        "max_dd_r": 17.846,
+        "fill_rate": 0.6422,
+        "score": -0.469,
+        "conflict_pct": 0.0143
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 50,
+          "total_zones": 77,
+          "win_rate": 0.2,
+          "profit_factor": 0.734,
+          "expectancy_r": -0.2177,
+          "max_dd_r": 17.846,
+          "fill_rate": 0.6494,
+          "score": -1.5374,
+          "avg_pnl_r": -0.2177,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 49,
+          "total_zones": 74,
+          "win_rate": 0.2449,
+          "profit_factor": 0.958,
+          "expectancy_r": -0.0326,
+          "max_dd_r": 13.332,
+          "fill_rate": 0.6622,
+          "score": -0.4475,
+          "avg_pnl_r": -0.0326,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0408
+        },
+        "XRPUSDT": {
+          "n_trades": 41,
+          "total_zones": 67,
+          "win_rate": 0.2927,
+          "profit_factor": 1.223,
+          "expectancy_r": 0.1599,
+          "max_dd_r": 8.107,
+          "fill_rate": 0.6119,
+          "score": 0.8082,
+          "avg_pnl_r": 0.1599,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3135,
+        "profit_factor": 0.904,
+        "expectancy_r": -0.0719,
+        "max_dd_r": 16.141,
+        "fill_rate": 0.5745,
+        "score": -0.5139,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2941,
+          "profit_factor": 0.813,
+          "expectancy_r": -0.1349,
+          "max_dd_r": 16.141,
+          "fill_rate": 0.6355,
+          "score": -1.1112,
+          "avg_pnl_r": -0.1349,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2903,
+          "profit_factor": 0.806,
+          "expectancy_r": -0.1398,
+          "max_dd_r": 13.54,
+          "fill_rate": 0.5794,
+          "score": -0.7404,
+          "avg_pnl_r": -0.1398,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.3636,
+          "profit_factor": 1.128,
+          "expectancy_r": 0.0824,
+          "max_dd_r": 9.217,
+          "fill_rate": 0.5093,
+          "score": 0.4799,
+          "avg_pnl_r": 0.0824,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3255,
+        "profit_factor": 0.979,
+        "expectancy_r": -0.0349,
+        "max_dd_r": 27.094,
+        "fill_rate": 0.5506,
+        "score": -0.5254,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.2286,
+          "profit_factor": 0.58,
+          "expectancy_r": -0.3308,
+          "max_dd_r": 27.094,
+          "fill_rate": 0.5556,
+          "score": -3.1969,
+          "avg_pnl_r": -0.3308,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.3671,
+          "profit_factor": 1.144,
+          "expectancy_r": 0.0924,
+          "max_dd_r": 8.204,
+          "fill_rate": 0.6031,
+          "score": 0.6697,
+          "avg_pnl_r": 0.0924,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.381,
+          "profit_factor": 1.214,
+          "expectancy_r": 0.1344,
+          "max_dd_r": 7.123,
+          "fill_rate": 0.4922,
+          "score": 0.9444,
+          "avg_pnl_r": 0.1344,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 191,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3089,
+        "profit_factor": 0.883,
+        "expectancy_r": -0.0854,
+        "max_dd_r": 14.978,
+        "fill_rate": 0.5932,
+        "score": -0.5257,
+        "conflict_pct": 0.0367
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2794,
+          "profit_factor": 0.759,
+          "expectancy_r": -0.1773,
+          "max_dd_r": 14.978,
+          "fill_rate": 0.6355,
+          "score": -1.0367,
+          "avg_pnl_r": -0.1773,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0294
+        },
+        "ETHUSDT": {
+          "n_trades": 65,
+          "total_zones": 107,
+          "win_rate": 0.3077,
+          "profit_factor": 0.877,
+          "expectancy_r": -0.0867,
+          "max_dd_r": 13.556,
+          "fill_rate": 0.6075,
+          "score": -0.6113,
+          "avg_pnl_r": -0.0867,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0462
+        },
+        "XRPUSDT": {
+          "n_trades": 58,
+          "total_zones": 108,
+          "win_rate": 0.3448,
+          "profit_factor": 1.036,
+          "expectancy_r": 0.0239,
+          "max_dd_r": 10.219,
+          "fill_rate": 0.537,
+          "score": 0.1693,
+          "avg_pnl_r": 0.0239,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0345
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 204,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3235,
+        "profit_factor": 0.955,
+        "expectancy_r": -0.0423,
+        "max_dd_r": 17.775,
+        "fill_rate": 0.6335,
+        "score": -0.5273,
+        "conflict_pct": 0.0343
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 107,
+          "win_rate": 0.3286,
+          "profit_factor": 0.967,
+          "expectancy_r": -0.0224,
+          "max_dd_r": 12.275,
+          "fill_rate": 0.6542,
+          "score": -0.2508,
+          "avg_pnl_r": -0.0224,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 74,
+          "total_zones": 107,
+          "win_rate": 0.2703,
+          "profit_factor": 0.717,
+          "expectancy_r": -0.2132,
+          "max_dd_r": 17.775,
+          "fill_rate": 0.6916,
+          "score": -1.5283,
+          "avg_pnl_r": -0.2132,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.033,
+          "conflict_pct": 0.0405
+        },
+        "XRPUSDT": {
+          "n_trades": 60,
+          "total_zones": 108,
+          "win_rate": 0.3833,
+          "profit_factor": 1.234,
+          "expectancy_r": 0.1453,
+          "max_dd_r": 11.122,
+          "fill_rate": 0.5556,
+          "score": 0.3846,
+          "avg_pnl_r": 0.1453,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.008,
+          "conflict_pct": 0.0333
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.217,
+        "profit_factor": 1.114,
+        "expectancy_r": 0.0727,
+        "max_dd_r": 25.139,
+        "fill_rate": 0.5506,
+        "score": -0.5724,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.1571,
+          "profit_factor": 0.731,
+          "expectancy_r": -0.2317,
+          "max_dd_r": 25.139,
+          "fill_rate": 0.5556,
+          "score": -2.6611,
+          "avg_pnl_r": -0.2317,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.2152,
+          "profit_factor": 1.083,
+          "expectancy_r": 0.0659,
+          "max_dd_r": 11.439,
+          "fill_rate": 0.6031,
+          "score": 0.0457,
+          "avg_pnl_r": 0.0659,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.2857,
+          "profit_factor": 1.58,
+          "expectancy_r": 0.4196,
+          "max_dd_r": 11.095,
+          "fill_rate": 0.4922,
+          "score": 0.9733,
+          "avg_pnl_r": 0.4196,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 212,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.217,
+        "profit_factor": 1.114,
+        "expectancy_r": 0.0725,
+        "max_dd_r": 25.161,
+        "fill_rate": 0.5506,
+        "score": -0.5742,
+        "conflict_pct": 0.033
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 126,
+          "win_rate": 0.1571,
+          "profit_factor": 0.73,
+          "expectancy_r": -0.2321,
+          "max_dd_r": 25.161,
+          "fill_rate": 0.5556,
+          "score": -2.665,
+          "avg_pnl_r": -0.2321,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.021,
+          "conflict_pct": 0.0286
+        },
+        "ETHUSDT": {
+          "n_trades": 79,
+          "total_zones": 131,
+          "win_rate": 0.2152,
+          "profit_factor": 1.083,
+          "expectancy_r": 0.0658,
+          "max_dd_r": 11.445,
+          "fill_rate": 0.6031,
+          "score": 0.0447,
+          "avg_pnl_r": 0.0658,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.038
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.2857,
+          "profit_factor": 1.58,
+          "expectancy_r": 0.4194,
+          "max_dd_r": 11.096,
+          "fill_rate": 0.4922,
+          "score": 0.9728,
+          "avg_pnl_r": 0.4194,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0317
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 220,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3136,
+        "profit_factor": 0.909,
+        "expectancy_r": -0.0714,
+        "max_dd_r": 19.506,
+        "fill_rate": 0.5714,
+        "score": -0.5839,
+        "conflict_pct": 0.0273
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 77,
+          "total_zones": 126,
+          "win_rate": 0.3377,
+          "profit_factor": 1.008,
+          "expectancy_r": 0.0055,
+          "max_dd_r": 11.465,
+          "fill_rate": 0.6111,
+          "score": -0.06,
+          "avg_pnl_r": 0.0055,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 80,
+          "total_zones": 131,
+          "win_rate": 0.2625,
+          "profit_factor": 0.691,
+          "expectancy_r": -0.2353,
+          "max_dd_r": 19.506,
+          "fill_rate": 0.6107,
+          "score": -1.8457,
+          "avg_pnl_r": -0.2353,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.031,
+          "conflict_pct": 0.0375
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3492,
+          "profit_factor": 1.065,
+          "expectancy_r": 0.0429,
+          "max_dd_r": 9.143,
+          "fill_rate": 0.4922,
+          "score": 0.3782,
+          "avg_pnl_r": 0.0429,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.007,
+          "conflict_pct": 0.0476
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 185,
+        "total_zones": 322,
+        "pairs": 3,
+        "win_rate": 0.3081,
+        "profit_factor": 0.884,
+        "expectancy_r": -0.0881,
+        "max_dd_r": 16.126,
+        "fill_rate": 0.5745,
+        "score": -0.6062,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.2941,
+          "profit_factor": 0.814,
+          "expectancy_r": -0.1347,
+          "max_dd_r": 16.126,
+          "fill_rate": 0.6355,
+          "score": -1.1085,
+          "avg_pnl_r": -0.1347,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 62,
+          "total_zones": 107,
+          "win_rate": 0.2742,
+          "profit_factor": 0.744,
+          "expectancy_r": -0.1882,
+          "max_dd_r": 14.645,
+          "fill_rate": 0.5794,
+          "score": -1.0194,
+          "avg_pnl_r": -0.1882,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0484
+        },
+        "XRPUSDT": {
+          "n_trades": 55,
+          "total_zones": 108,
+          "win_rate": 0.3636,
+          "profit_factor": 1.128,
+          "expectancy_r": 0.0825,
+          "max_dd_r": 9.214,
+          "fill_rate": 0.5093,
+          "score": 0.4806,
+          "avg_pnl_r": 0.0825,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0364
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 220,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2545,
+        "profit_factor": 1.019,
+        "expectancy_r": 0.0055,
+        "max_dd_r": 21.4,
+        "fill_rate": 0.5714,
+        "score": -0.6095,
+        "conflict_pct": 0.0273
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 77,
+          "total_zones": 126,
+          "win_rate": 0.2597,
+          "profit_factor": 1.041,
+          "expectancy_r": 0.0308,
+          "max_dd_r": 14.229,
+          "fill_rate": 0.6111,
+          "score": -0.436,
+          "avg_pnl_r": 0.0308,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 80,
+          "total_zones": 131,
+          "win_rate": 0.2125,
+          "profit_factor": 0.787,
+          "expectancy_r": -0.1731,
+          "max_dd_r": 21.4,
+          "fill_rate": 0.6107,
+          "score": -1.9766,
+          "avg_pnl_r": -0.1731,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.029,
+          "conflict_pct": 0.0375
+        },
+        "XRPUSDT": {
+          "n_trades": 63,
+          "total_zones": 128,
+          "win_rate": 0.3016,
+          "profit_factor": 1.286,
+          "expectancy_r": 0.2014,
+          "max_dd_r": 8.07,
+          "fill_rate": 0.4922,
+          "score": 0.9143,
+          "avg_pnl_r": 0.2014,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.007,
+          "conflict_pct": 0.0476
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 402,
+        "total_zones": 668,
+        "pairs": 3,
+        "win_rate": 0.2736,
+        "profit_factor": 1.108,
+        "expectancy_r": 0.0794,
+        "max_dd_r": 16.999,
+        "fill_rate": 0.6018,
+        "score": -0.6143,
+        "conflict_pct": 0.0398
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2835,
+          "profit_factor": 1.153,
+          "expectancy_r": 0.1126,
+          "max_dd_r": 16.999,
+          "fill_rate": 0.5935,
+          "score": -0.6513,
+          "avg_pnl_r": 0.1126,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0315
+        },
+        "ETHUSDT": {
+          "n_trades": 158,
+          "total_zones": 230,
+          "win_rate": 0.2785,
+          "profit_factor": 1.143,
+          "expectancy_r": 0.1047,
+          "max_dd_r": 16.424,
+          "fill_rate": 0.687,
+          "score": -0.5736,
+          "avg_pnl_r": 0.1047,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0506
+        },
+        "XRPUSDT": {
+          "n_trades": 117,
+          "total_zones": 224,
+          "win_rate": 0.2564,
+          "profit_factor": 1.012,
+          "expectancy_r": 0.0093,
+          "max_dd_r": 15.114,
+          "fill_rate": 0.5223,
+          "score": -0.6292,
+          "avg_pnl_r": 0.0093,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.0342
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2596,
+        "profit_factor": 1.052,
+        "expectancy_r": 0.0253,
+        "max_dd_r": 22.162,
+        "fill_rate": 0.5403,
+        "score": -0.6183,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.1944,
+          "profit_factor": 0.707,
+          "expectancy_r": -0.2415,
+          "max_dd_r": 22.162,
+          "fill_rate": 0.5714,
+          "score": -2.2423,
+          "avg_pnl_r": -0.2415,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.28,
+          "profit_factor": 1.152,
+          "expectancy_r": 0.1106,
+          "max_dd_r": 13.368,
+          "fill_rate": 0.5725,
+          "score": -0.1118,
+          "avg_pnl_r": 0.1106,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.3115,
+          "profit_factor": 1.336,
+          "expectancy_r": 0.2352,
+          "max_dd_r": 10.242,
+          "fill_rate": 0.4766,
+          "score": 0.6759,
+          "avg_pnl_r": 0.2352,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0328
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.2548,
+        "profit_factor": 1.023,
+        "expectancy_r": 0.0062,
+        "max_dd_r": 22.148,
+        "fill_rate": 0.5403,
+        "score": -0.6686,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.1944,
+          "profit_factor": 0.707,
+          "expectancy_r": -0.2412,
+          "max_dd_r": 22.148,
+          "fill_rate": 0.5714,
+          "score": -2.2396,
+          "avg_pnl_r": -0.2412,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.28,
+          "profit_factor": 1.152,
+          "expectancy_r": 0.1107,
+          "max_dd_r": 13.365,
+          "fill_rate": 0.5725,
+          "score": -0.1111,
+          "avg_pnl_r": 0.1107,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.2951,
+          "profit_factor": 1.237,
+          "expectancy_r": 0.1696,
+          "max_dd_r": 10.24,
+          "fill_rate": 0.4766,
+          "score": 0.5004,
+          "avg_pnl_r": 0.1696,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0328
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 426,
+        "total_zones": 754,
+        "pairs": 3,
+        "win_rate": 0.277,
+        "profit_factor": 1.126,
+        "expectancy_r": 0.093,
+        "max_dd_r": 18.58,
+        "fill_rate": 0.565,
+        "score": -0.669,
+        "conflict_pct": 0.0446
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 134,
+          "total_zones": 237,
+          "win_rate": 0.2761,
+          "profit_factor": 1.111,
+          "expectancy_r": 0.083,
+          "max_dd_r": 18.482,
+          "fill_rate": 0.5654,
+          "score": -0.9507,
+          "avg_pnl_r": 0.083,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0299
+        },
+        "ETHUSDT": {
+          "n_trades": 167,
+          "total_zones": 261,
+          "win_rate": 0.2754,
+          "profit_factor": 1.126,
+          "expectancy_r": 0.0925,
+          "max_dd_r": 18.58,
+          "fill_rate": 0.6398,
+          "score": -0.9328,
+          "avg_pnl_r": 0.0925,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0599
+        },
+        "XRPUSDT": {
+          "n_trades": 125,
+          "total_zones": 256,
+          "win_rate": 0.28,
+          "profit_factor": 1.142,
+          "expectancy_r": 0.1044,
+          "max_dd_r": 12.553,
+          "fill_rate": 0.4883,
+          "score": -0.0147,
+          "avg_pnl_r": 0.1044,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.022,
+          "conflict_pct": 0.04
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 141,
+        "total_zones": 218,
+        "pairs": 3,
+        "win_rate": 0.2978,
+        "profit_factor": 0.84,
+        "expectancy_r": -0.1194,
+        "max_dd_r": 16.517,
+        "fill_rate": 0.6468,
+        "score": -0.6922,
+        "conflict_pct": 0.0142
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 50,
+          "total_zones": 77,
+          "win_rate": 0.28,
+          "profit_factor": 0.76,
+          "expectancy_r": -0.1769,
+          "max_dd_r": 15.715,
+          "fill_rate": 0.6494,
+          "score": -1.1444,
+          "avg_pnl_r": -0.1769,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 48,
+          "total_zones": 74,
+          "win_rate": 0.2708,
+          "profit_factor": 0.731,
+          "expectancy_r": -0.1993,
+          "max_dd_r": 16.517,
+          "fill_rate": 0.6486,
+          "score": -1.3183,
+          "avg_pnl_r": -0.1993,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0417
+        },
+        "XRPUSDT": {
+          "n_trades": 43,
+          "total_zones": 67,
+          "win_rate": 0.3488,
+          "profit_factor": 1.055,
+          "expectancy_r": 0.0367,
+          "max_dd_r": 8.1,
+          "fill_rate": 0.6418,
+          "score": 0.5324,
+          "avg_pnl_r": 0.0367,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 428,
+        "total_zones": 668,
+        "pairs": 3,
+        "win_rate": 0.3388,
+        "profit_factor": 1.009,
+        "expectancy_r": 0.0009,
+        "max_dd_r": 23.37,
+        "fill_rate": 0.6407,
+        "score": -0.707,
+        "conflict_pct": 0.0397
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 137,
+          "total_zones": 214,
+          "win_rate": 0.365,
+          "profit_factor": 1.133,
+          "expectancy_r": 0.0859,
+          "max_dd_r": 11.276,
+          "fill_rate": 0.6402,
+          "score": 0.1941,
+          "avg_pnl_r": 0.0859,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0292
+        },
+        "ETHUSDT": {
+          "n_trades": 160,
+          "total_zones": 230,
+          "win_rate": 0.35,
+          "profit_factor": 1.067,
+          "expectancy_r": 0.0443,
+          "max_dd_r": 13.484,
+          "fill_rate": 0.6957,
+          "score": -0.2487,
+          "avg_pnl_r": 0.0443,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.009,
+          "conflict_pct": 0.05
+        },
+        "XRPUSDT": {
+          "n_trades": 131,
+          "total_zones": 224,
+          "win_rate": 0.2977,
+          "profit_factor": 0.809,
+          "expectancy_r": -0.141,
+          "max_dd_r": 23.37,
+          "fill_rate": 0.5848,
+          "score": -2.2091,
+          "avg_pnl_r": -0.141,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.049,
+          "conflict_pct": 0.0382
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 152,
+        "total_zones": 218,
+        "pairs": 3,
+        "win_rate": 0.3026,
+        "profit_factor": 0.884,
+        "expectancy_r": -0.1007,
+        "max_dd_r": 20.641,
+        "fill_rate": 0.6972,
+        "score": -0.7095,
+        "conflict_pct": 0.0131
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 54,
+          "total_zones": 77,
+          "win_rate": 0.3148,
+          "profit_factor": 0.908,
+          "expectancy_r": -0.064,
+          "max_dd_r": 12.207,
+          "fill_rate": 0.7013,
+          "score": -0.343,
+          "avg_pnl_r": -0.064,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0
+        },
+        "ETHUSDT": {
+          "n_trades": 54,
+          "total_zones": 74,
+          "win_rate": 0.2222,
+          "profit_factor": 0.563,
+          "expectancy_r": -0.3452,
+          "max_dd_r": 20.641,
+          "fill_rate": 0.7297,
+          "score": -2.2442,
+          "avg_pnl_r": -0.3452,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.015,
+          "conflict_pct": 0.037
+        },
+        "XRPUSDT": {
+          "n_trades": 44,
+          "total_zones": 67,
+          "win_rate": 0.3864,
+          "profit_factor": 1.249,
+          "expectancy_r": 0.1543,
+          "max_dd_r": 9.109,
+          "fill_rate": 0.6567,
+          "score": 0.7242,
+          "avg_pnl_r": 0.1543,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.008,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 208,
+        "total_zones": 385,
+        "pairs": 3,
+        "win_rate": 0.3125,
+        "profit_factor": 0.903,
+        "expectancy_r": -0.0747,
+        "max_dd_r": 19.155,
+        "fill_rate": 0.5403,
+        "score": -0.7306,
+        "conflict_pct": 0.0337
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 72,
+          "total_zones": 126,
+          "win_rate": 0.2639,
+          "profit_factor": 0.701,
+          "expectancy_r": -0.2255,
+          "max_dd_r": 19.155,
+          "fill_rate": 0.5714,
+          "score": -1.7782,
+          "avg_pnl_r": -0.2255,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0278
+        },
+        "ETHUSDT": {
+          "n_trades": 75,
+          "total_zones": 131,
+          "win_rate": 0.32,
+          "profit_factor": 0.929,
+          "expectancy_r": -0.049,
+          "max_dd_r": 15.44,
+          "fill_rate": 0.5725,
+          "score": -0.8026,
+          "avg_pnl_r": -0.049,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.04
+        },
+        "XRPUSDT": {
+          "n_trades": 61,
+          "total_zones": 128,
+          "win_rate": 0.3607,
+          "profit_factor": 1.11,
+          "expectancy_r": 0.0717,
+          "max_dd_r": 8.227,
+          "fill_rate": 0.4766,
+          "score": 0.5943,
+          "avg_pnl_r": 0.0717,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.016,
+          "conflict_pct": 0.0328
+        }
+      }
+    }
+  ]
+}

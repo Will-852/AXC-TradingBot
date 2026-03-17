@@ -440,6 +440,131 @@ def aggregate_multi_pair(results_by_pair: dict[str, dict]) -> dict:
 
 
 # ═══════════════════════════════════════════════════════
+# Single-run (for dashboard integration)
+# ═══════════════════════════════════════════════════════
+
+def run_single(
+    pair: str,
+    csv_path: str,
+    params: dict,
+    balance: float = 10000,
+    risk_pct: float = 0.02,
+) -> dict:
+    """
+    Run one NFS+FVZ backtest, return dashboard-compatible result dict.
+    Converts R-multiples to dollar PnL via fixed risk_pct per trade.
+    """
+    df = load_csv(csv_path)
+    atr_series = calc_atr_standalone(df, period=ATR_PERIOD)
+
+    try:
+        from scripts.indicator_calc_smc import calc_adx_series
+        adx_series = calc_adx_series(df)
+    except Exception:
+        adx_series = pd.Series(np.nan, index=df.index)
+
+    zones = precompute_zones(df, params, adx_series)
+    trades = simulate_trades(df, zones, params, pair, atr_series)
+    metrics = calc_metrics(trades, len(zones))
+
+    # ── Convert to dashboard format ──
+    risk_per_trade = balance * risk_pct
+    running_balance = balance
+    peak_balance = balance
+    max_dd_pct = 0.0
+    equity_curve = [{"time": str(df["timestamp"].iloc[0]), "equity": balance}]
+
+    sorted_trades = sorted(trades, key=lambda t: t.entry_idx)
+    dashboard_trades = []
+    winners = 0
+
+    for t in sorted_trades:
+        dollar_pnl = t.pnl_r * risk_per_trade - t.commission
+        running_balance += dollar_pnl
+        if running_balance > peak_balance:
+            peak_balance = running_balance
+        dd = (peak_balance - running_balance) / peak_balance * 100
+        if dd > max_dd_pct:
+            max_dd_pct = dd
+
+        if t.pnl_r > 0:
+            winners += 1
+
+        equity_curve.append({
+            "time": str(t.exit_time) if t.exit_time else "",
+            "equity": round(running_balance, 2),
+        })
+
+        dashboard_trades.append({
+            "symbol": t.pair,
+            "side": t.direction,
+            "entry": t.entry_price,
+            "exit": t.exit_price,
+            "pnl": round(dollar_pnl, 2),
+            "sl_price": t.sl_price,
+            "tp_price": t.tp_price,
+            "entry_time": str(t.entry_time) if t.entry_time else "",
+            "exit_time": str(t.exit_time) if t.exit_time else "",
+            "exit_reason": t.exit_reason,
+            "strategy": "nfs_fvz",
+        })
+
+    n = len(sorted_trades)
+    return_pct = (running_balance - balance) / balance * 100 if balance > 0 else 0
+    win_rate = (winners / n * 100) if n > 0 else 0
+    losers = n - winners
+
+    return {
+        "return_pct": round(return_pct, 2),
+        "win_rate": round(win_rate, 1),
+        "profit_factor": metrics["profit_factor"],
+        "max_drawdown_pct": round(max_dd_pct, 2),
+        "total_trades": n,
+        "winners": winners,
+        "losers": losers,
+        "final_balance": round(running_balance, 2),
+        "expectancy": round(metrics["expectancy_r"] * risk_per_trade, 2),
+        "sharpe_ratio": 0,  # not computed for R-based system
+        "max_win_streak": _calc_streak(sorted_trades, True),
+        "max_loss_streak": _calc_streak(sorted_trades, False),
+        "by_strategy": {
+            "nfs_fvz": {
+                "count": n, "wins": winners,
+                "win_rate": round(win_rate, 1),
+                "avg_pnl": round(sum(t.pnl_r * risk_per_trade - t.commission for t in sorted_trades) / n, 2) if n else 0,
+            }
+        },
+        "equity_curve": equity_curve,
+        "trades": dashboard_trades,
+        # NFS+FVZ specific
+        "nfs_fvz_metrics": {
+            "total_zones": metrics["total_zones"],
+            "fill_rate": metrics["fill_rate"],
+            "expectancy_r": metrics["expectancy_r"],
+            "max_dd_r": metrics["max_dd_r"],
+            "conflict_pct": metrics["conflict_pct"],
+            "score": metrics["score"],
+        },
+        "indicator_series": [],
+        "monthly_returns": {},
+    }
+
+
+def _calc_streak(trades: list, want_win: bool) -> int:
+    """Calculate max consecutive win/loss streak."""
+    max_streak = 0
+    current = 0
+    for t in trades:
+        is_win = t.pnl_r > 0
+        if is_win == want_win:
+            current += 1
+            max_streak = max(max_streak, current)
+        else:
+            current = 0
+    return max_streak
+
+
+# ═══════════════════════════════════════════════════════
 # Worker for ProcessPoolExecutor
 # ═══════════════════════════════════════════════════════
 

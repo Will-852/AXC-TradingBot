@@ -1,0 +1,2011 @@
+{
+  "stage": 1,
+  "pairs": [
+    "BTCUSDT"
+  ],
+  "grid_size": 162,
+  "elapsed_s": 10.1,
+  "timestamp": "2026-03-17T05:38:15.758199",
+  "results": [
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 121,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.3636,
+        "profit_factor": 1.127,
+        "expectancy_r": 0.0821,
+        "max_dd_r": 8.315,
+        "fill_rate": 0.7658,
+        "score": 0.64,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 121,
+          "total_zones": 158,
+          "win_rate": 0.3636,
+          "profit_factor": 1.127,
+          "expectancy_r": 0.0821,
+          "max_dd_r": 8.315,
+          "fill_rate": 0.7658,
+          "score": 0.64,
+          "avg_pnl_r": 0.0821,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 111,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2613,
+        "profit_factor": 1.354,
+        "expectancy_r": 0.2678,
+        "max_dd_r": 11.62,
+        "fill_rate": 0.7025,
+        "score": 0.517,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 111,
+          "total_zones": 158,
+          "win_rate": 0.2613,
+          "profit_factor": 1.354,
+          "expectancy_r": 0.2678,
+          "max_dd_r": 11.62,
+          "fill_rate": 0.7025,
+          "score": 0.517,
+          "avg_pnl_r": 0.2678,
+          "avg_win_r": 3.923,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 111,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2613,
+        "profit_factor": 1.354,
+        "expectancy_r": 0.2677,
+        "max_dd_r": 11.625,
+        "fill_rate": 0.7025,
+        "score": 0.5158,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 111,
+          "total_zones": 158,
+          "win_rate": 0.2613,
+          "profit_factor": 1.354,
+          "expectancy_r": 0.2677,
+          "max_dd_r": 11.625,
+          "fill_rate": 0.7025,
+          "score": 0.5158,
+          "avg_pnl_r": 0.2677,
+          "avg_win_r": 3.923,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.35,
+        "profit_factor": 1.063,
+        "expectancy_r": 0.0413,
+        "max_dd_r": 9.174,
+        "fill_rate": 0.6542,
+        "score": 0.3854,
+        "conflict_pct": 0.0143
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 140,
+          "total_zones": 214,
+          "win_rate": 0.35,
+          "profit_factor": 1.063,
+          "expectancy_r": 0.0413,
+          "max_dd_r": 9.174,
+          "fill_rate": 0.6542,
+          "score": 0.3854,
+          "avg_pnl_r": 0.0413,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0143
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 120,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.375,
+        "profit_factor": 1.183,
+        "expectancy_r": 0.116,
+        "max_dd_r": 11.32,
+        "fill_rate": 0.7595,
+        "score": 0.2867,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 120,
+          "total_zones": 158,
+          "win_rate": 0.375,
+          "profit_factor": 1.183,
+          "expectancy_r": 0.116,
+          "max_dd_r": 11.32,
+          "fill_rate": 0.7595,
+          "score": 0.2867,
+          "avg_pnl_r": 0.116,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 138,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.3551,
+        "profit_factor": 1.083,
+        "expectancy_r": 0.0542,
+        "max_dd_r": 10.36,
+        "fill_rate": 0.6449,
+        "score": 0.2425,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 138,
+          "total_zones": 214,
+          "win_rate": 0.3551,
+          "profit_factor": 1.083,
+          "expectancy_r": 0.0542,
+          "max_dd_r": 10.36,
+          "fill_rate": 0.6449,
+          "score": 0.2425,
+          "avg_pnl_r": 0.0542,
+          "avg_win_r": 1.994,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 71,
+        "total_zones": 107,
+        "pairs": 1,
+        "win_rate": 0.2676,
+        "profit_factor": 1.084,
+        "expectancy_r": 0.062,
+        "max_dd_r": 10.255,
+        "fill_rate": 0.6636,
+        "score": 0.2423,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 71,
+          "total_zones": 107,
+          "win_rate": 0.2676,
+          "profit_factor": 1.084,
+          "expectancy_r": 0.062,
+          "max_dd_r": 10.255,
+          "fill_rate": 0.6636,
+          "score": 0.2423,
+          "avg_pnl_r": 0.062,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 118,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.3644,
+        "profit_factor": 1.127,
+        "expectancy_r": 0.0818,
+        "max_dd_r": 11.227,
+        "fill_rate": 0.7468,
+        "score": 0.2005,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 118,
+          "total_zones": 158,
+          "win_rate": 0.3644,
+          "profit_factor": 1.127,
+          "expectancy_r": 0.0818,
+          "max_dd_r": 11.227,
+          "fill_rate": 0.7468,
+          "score": 0.2005,
+          "avg_pnl_r": 0.0818,
+          "avg_win_r": 1.994,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 137,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.365,
+        "profit_factor": 1.133,
+        "expectancy_r": 0.0859,
+        "max_dd_r": 11.276,
+        "fill_rate": 0.6402,
+        "score": 0.1941,
+        "conflict_pct": 0.0292
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 137,
+          "total_zones": 214,
+          "win_rate": 0.365,
+          "profit_factor": 1.133,
+          "expectancy_r": 0.0859,
+          "max_dd_r": 11.276,
+          "fill_rate": 0.6402,
+          "score": 0.1941,
+          "avg_pnl_r": 0.0859,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0292
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 148,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.3378,
+        "profit_factor": 1.007,
+        "expectancy_r": 0.0048,
+        "max_dd_r": 10.201,
+        "fill_rate": 0.6245,
+        "score": 0.1291,
+        "conflict_pct": 0.0135
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 148,
+          "total_zones": 237,
+          "win_rate": 0.3378,
+          "profit_factor": 1.007,
+          "expectancy_r": 0.0048,
+          "max_dd_r": 10.201,
+          "fill_rate": 0.6245,
+          "score": 0.1291,
+          "avg_pnl_r": 0.0048,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0135
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 149,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.3423,
+        "profit_factor": 1.024,
+        "expectancy_r": 0.0161,
+        "max_dd_r": 11.259,
+        "fill_rate": 0.6287,
+        "score": 0.0013,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 149,
+          "total_zones": 237,
+          "win_rate": 0.3423,
+          "profit_factor": 1.024,
+          "expectancy_r": 0.0161,
+          "max_dd_r": 11.259,
+          "fill_rate": 0.6287,
+          "score": 0.0013,
+          "avg_pnl_r": 0.0161,
+          "avg_win_r": 1.995,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 71,
+        "total_zones": 107,
+        "pairs": 1,
+        "win_rate": 0.3239,
+        "profit_factor": 0.947,
+        "expectancy_r": -0.0363,
+        "max_dd_r": 10.483,
+        "fill_rate": 0.6636,
+        "score": -0.0174,
+        "conflict_pct": 0.0282
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 71,
+          "total_zones": 107,
+          "win_rate": 0.3239,
+          "profit_factor": 0.947,
+          "expectancy_r": -0.0363,
+          "max_dd_r": 10.483,
+          "fill_rate": 0.6636,
+          "score": -0.0174,
+          "avg_pnl_r": -0.0363,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0282
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 53,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.3208,
+        "profit_factor": 0.933,
+        "expectancy_r": -0.0462,
+        "max_dd_r": 10.349,
+        "fill_rate": 0.6883,
+        "score": -0.0202,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 53,
+          "total_zones": 77,
+          "win_rate": 0.3208,
+          "profit_factor": 0.933,
+          "expectancy_r": -0.0462,
+          "max_dd_r": 10.349,
+          "fill_rate": 0.6883,
+          "score": -0.0202,
+          "avg_pnl_r": -0.0462,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 77,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.3377,
+        "profit_factor": 1.008,
+        "expectancy_r": 0.0055,
+        "max_dd_r": 11.465,
+        "fill_rate": 0.6111,
+        "score": -0.06,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 77,
+          "total_zones": 126,
+          "win_rate": 0.3377,
+          "profit_factor": 1.008,
+          "expectancy_r": 0.0055,
+          "max_dd_r": 11.465,
+          "fill_rate": 0.6111,
+          "score": -0.06,
+          "avg_pnl_r": 0.0055,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 109,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2844,
+        "profit_factor": 1.163,
+        "expectancy_r": 0.1195,
+        "max_dd_r": 13.376,
+        "fill_rate": 0.6899,
+        "score": -0.0801,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 109,
+          "total_zones": 158,
+          "win_rate": 0.2844,
+          "profit_factor": 1.163,
+          "expectancy_r": 0.1195,
+          "max_dd_r": 13.376,
+          "fill_rate": 0.6899,
+          "score": -0.0801,
+          "avg_pnl_r": 0.1195,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 109,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2844,
+        "profit_factor": 1.163,
+        "expectancy_r": 0.1194,
+        "max_dd_r": 13.39,
+        "fill_rate": 0.6899,
+        "score": -0.0827,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 109,
+          "total_zones": 158,
+          "win_rate": 0.2844,
+          "profit_factor": 1.163,
+          "expectancy_r": 0.1194,
+          "max_dd_r": 13.39,
+          "fill_rate": 0.6899,
+          "score": -0.0827,
+          "avg_pnl_r": 0.1194,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.026,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 118,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2966,
+        "profit_factor": 1.224,
+        "expectancy_r": 0.1599,
+        "max_dd_r": 14.198,
+        "fill_rate": 0.7468,
+        "score": -0.0887,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 118,
+          "total_zones": 158,
+          "win_rate": 0.2966,
+          "profit_factor": 1.224,
+          "expectancy_r": 0.1599,
+          "max_dd_r": 14.198,
+          "fill_rate": 0.7468,
+          "score": -0.0887,
+          "avg_pnl_r": 0.1599,
+          "avg_win_r": 2.944,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 71,
+        "total_zones": 107,
+        "pairs": 1,
+        "win_rate": 0.338,
+        "profit_factor": 1.01,
+        "expectancy_r": 0.0064,
+        "max_dd_r": 12.444,
+        "fill_rate": 0.6636,
+        "score": -0.1992,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 71,
+          "total_zones": 107,
+          "win_rate": 0.338,
+          "profit_factor": 1.01,
+          "expectancy_r": 0.0064,
+          "max_dd_r": 12.444,
+          "fill_rate": 0.6636,
+          "score": -0.1992,
+          "avg_pnl_r": 0.0064,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 138,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2826,
+        "profit_factor": 1.146,
+        "expectancy_r": 0.1064,
+        "max_dd_r": 14.159,
+        "fill_rate": 0.6449,
+        "score": -0.2319,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 138,
+          "total_zones": 214,
+          "win_rate": 0.2826,
+          "profit_factor": 1.146,
+          "expectancy_r": 0.1064,
+          "max_dd_r": 14.159,
+          "fill_rate": 0.6449,
+          "score": -0.2319,
+          "avg_pnl_r": 0.1064,
+          "avg_win_r": 2.95,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 70,
+        "total_zones": 107,
+        "pairs": 1,
+        "win_rate": 0.3286,
+        "profit_factor": 0.967,
+        "expectancy_r": -0.0224,
+        "max_dd_r": 12.275,
+        "fill_rate": 0.6542,
+        "score": -0.2508,
+        "conflict_pct": 0.0286
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 70,
+          "total_zones": 107,
+          "win_rate": 0.3286,
+          "profit_factor": 0.967,
+          "expectancy_r": -0.0224,
+          "max_dd_r": 12.275,
+          "fill_rate": 0.6542,
+          "score": -0.2508,
+          "avg_pnl_r": -0.0224,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0286
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 52,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.3269,
+        "profit_factor": 0.961,
+        "expectancy_r": -0.0269,
+        "max_dd_r": 12.326,
+        "fill_rate": 0.6753,
+        "score": -0.2683,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 52,
+          "total_zones": 77,
+          "win_rate": 0.3269,
+          "profit_factor": 0.961,
+          "expectancy_r": -0.0269,
+          "max_dd_r": 12.326,
+          "fill_rate": 0.6753,
+          "score": -0.2683,
+          "avg_pnl_r": -0.0269,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 75,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.3067,
+        "profit_factor": 0.874,
+        "expectancy_r": -0.0882,
+        "max_dd_r": 11.526,
+        "fill_rate": 0.5952,
+        "score": -0.3121,
+        "conflict_pct": 0.0267
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 75,
+          "total_zones": 126,
+          "win_rate": 0.3067,
+          "profit_factor": 0.874,
+          "expectancy_r": -0.0882,
+          "max_dd_r": 11.526,
+          "fill_rate": 0.5952,
+          "score": -0.3121,
+          "avg_pnl_r": -0.0882,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0267
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 54,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.3148,
+        "profit_factor": 0.908,
+        "expectancy_r": -0.064,
+        "max_dd_r": 12.207,
+        "fill_rate": 0.7013,
+        "score": -0.343,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 54,
+          "total_zones": 77,
+          "win_rate": 0.3148,
+          "profit_factor": 0.908,
+          "expectancy_r": -0.064,
+          "max_dd_r": 12.207,
+          "fill_rate": 0.7013,
+          "score": -0.343,
+          "avg_pnl_r": -0.064,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 74,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.3108,
+        "profit_factor": 0.891,
+        "expectancy_r": -0.0757,
+        "max_dd_r": 12.275,
+        "fill_rate": 0.5873,
+        "score": -0.3941,
+        "conflict_pct": 0.027
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.891,
+          "expectancy_r": -0.0757,
+          "max_dd_r": 12.275,
+          "fill_rate": 0.5873,
+          "score": -0.3941,
+          "avg_pnl_r": -0.0757,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.012,
+          "conflict_pct": 0.027
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 77,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.2597,
+        "profit_factor": 1.041,
+        "expectancy_r": 0.0308,
+        "max_dd_r": 14.229,
+        "fill_rate": 0.6111,
+        "score": -0.436,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 77,
+          "total_zones": 126,
+          "win_rate": 0.2597,
+          "profit_factor": 1.041,
+          "expectancy_r": 0.0308,
+          "max_dd_r": 14.229,
+          "fill_rate": 0.6111,
+          "score": -0.436,
+          "avg_pnl_r": 0.0308,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 118,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2288,
+        "profit_factor": 1.127,
+        "expectancy_r": 0.0997,
+        "max_dd_r": 15.414,
+        "fill_rate": 0.7468,
+        "score": -0.4541,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 118,
+          "total_zones": 158,
+          "win_rate": 0.2288,
+          "profit_factor": 1.127,
+          "expectancy_r": 0.0997,
+          "max_dd_r": 15.414,
+          "fill_rate": 0.7468,
+          "score": -0.4541,
+          "avg_pnl_r": 0.0997,
+          "avg_win_r": 3.853,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 137,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2701,
+        "profit_factor": 1.094,
+        "expectancy_r": 0.0699,
+        "max_dd_r": 15.345,
+        "fill_rate": 0.6402,
+        "score": -0.5042,
+        "conflict_pct": 0.0292
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 137,
+          "total_zones": 214,
+          "win_rate": 0.2701,
+          "profit_factor": 1.094,
+          "expectancy_r": 0.0699,
+          "max_dd_r": 15.345,
+          "fill_rate": 0.6402,
+          "score": -0.5042,
+          "avg_pnl_r": 0.0699,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0292
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 145,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.3517,
+        "profit_factor": 1.07,
+        "expectancy_r": 0.0462,
+        "max_dd_r": 15.308,
+        "fill_rate": 0.6118,
+        "score": -0.5254,
+        "conflict_pct": 0.0276
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 145,
+          "total_zones": 237,
+          "win_rate": 0.3517,
+          "profit_factor": 1.07,
+          "expectancy_r": 0.0462,
+          "max_dd_r": 15.308,
+          "fill_rate": 0.6118,
+          "score": -0.5254,
+          "avg_pnl_r": 0.0462,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0276
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 50,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.3,
+        "profit_factor": 0.838,
+        "expectancy_r": -0.1163,
+        "max_dd_r": 12.807,
+        "fill_rate": 0.6494,
+        "score": -0.5653,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 50,
+          "total_zones": 77,
+          "win_rate": 0.3,
+          "profit_factor": 0.838,
+          "expectancy_r": -0.1163,
+          "max_dd_r": 12.807,
+          "fill_rate": 0.6494,
+          "score": -0.5653,
+          "avg_pnl_r": -0.1163,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 50,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.3,
+        "profit_factor": 0.837,
+        "expectancy_r": -0.1165,
+        "max_dd_r": 12.818,
+        "fill_rate": 0.6494,
+        "score": -0.5674,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 50,
+          "total_zones": 77,
+          "win_rate": 0.3,
+          "profit_factor": 0.837,
+          "expectancy_r": -0.1165,
+          "max_dd_r": 12.818,
+          "fill_rate": 0.6494,
+          "score": -0.5674,
+          "avg_pnl_r": -0.1165,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "lower",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 145,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.2621,
+        "profit_factor": 1.051,
+        "expectancy_r": 0.038,
+        "max_dd_r": 15.371,
+        "fill_rate": 0.6118,
+        "score": -0.5895,
+        "conflict_pct": 0.0276
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 145,
+          "total_zones": 237,
+          "win_rate": 0.2621,
+          "profit_factor": 1.051,
+          "expectancy_r": 0.038,
+          "max_dd_r": 15.371,
+          "fill_rate": 0.6118,
+          "score": -0.5895,
+          "avg_pnl_r": 0.038,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0276
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 112,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2411,
+        "profit_factor": 1.234,
+        "expectancy_r": 0.1815,
+        "max_dd_r": 17.683,
+        "fill_rate": 0.7089,
+        "score": -0.6075,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 112,
+          "total_zones": 158,
+          "win_rate": 0.2411,
+          "profit_factor": 1.234,
+          "expectancy_r": 0.1815,
+          "max_dd_r": 17.683,
+          "fill_rate": 0.7089,
+          "score": -0.6075,
+          "avg_pnl_r": 0.1815,
+          "avg_win_r": 3.976,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 112,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2411,
+        "profit_factor": 1.233,
+        "expectancy_r": 0.1813,
+        "max_dd_r": 17.688,
+        "fill_rate": 0.7089,
+        "score": -0.6087,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 112,
+          "total_zones": 158,
+          "win_rate": 0.2411,
+          "profit_factor": 1.233,
+          "expectancy_r": 0.1813,
+          "max_dd_r": 17.688,
+          "fill_rate": 0.7089,
+          "score": -0.6087,
+          "avg_pnl_r": 0.1813,
+          "avg_win_r": 3.976,
+          "avg_loss_r": 1.024,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2714,
+        "profit_factor": 1.096,
+        "expectancy_r": 0.0711,
+        "max_dd_r": 16.174,
+        "fill_rate": 0.6542,
+        "score": -0.6236,
+        "conflict_pct": 0.0143
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 140,
+          "total_zones": 214,
+          "win_rate": 0.2714,
+          "profit_factor": 1.096,
+          "expectancy_r": 0.0711,
+          "max_dd_r": 16.174,
+          "fill_rate": 0.6542,
+          "score": -0.6236,
+          "avg_pnl_r": 0.0711,
+          "avg_win_r": 2.982,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0143
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 111,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2883,
+        "profit_factor": 1.178,
+        "expectancy_r": 0.1297,
+        "max_dd_r": 17.294,
+        "fill_rate": 0.7025,
+        "score": -0.6397,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 111,
+          "total_zones": 158,
+          "win_rate": 0.2883,
+          "profit_factor": 1.178,
+          "expectancy_r": 0.1297,
+          "max_dd_r": 17.294,
+          "fill_rate": 0.7025,
+          "score": -0.6397,
+          "avg_pnl_r": 0.1297,
+          "avg_win_r": 2.982,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 111,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2883,
+        "profit_factor": 1.178,
+        "expectancy_r": 0.1296,
+        "max_dd_r": 17.302,
+        "fill_rate": 0.7025,
+        "score": -0.6413,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 111,
+          "total_zones": 158,
+          "win_rate": 0.2883,
+          "profit_factor": 1.178,
+          "expectancy_r": 0.1296,
+          "max_dd_r": 17.302,
+          "fill_rate": 0.7025,
+          "score": -0.6413,
+          "avg_pnl_r": 0.1296,
+          "avg_win_r": 2.982,
+          "avg_loss_r": 1.026,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 127,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2835,
+        "profit_factor": 1.153,
+        "expectancy_r": 0.1126,
+        "max_dd_r": 16.999,
+        "fill_rate": 0.5935,
+        "score": -0.6513,
+        "conflict_pct": 0.0315
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2835,
+          "profit_factor": 1.153,
+          "expectancy_r": 0.1126,
+          "max_dd_r": 16.999,
+          "fill_rate": 0.5935,
+          "score": -0.6513,
+          "avg_pnl_r": 0.1126,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0315
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 127,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2835,
+        "profit_factor": 1.152,
+        "expectancy_r": 0.1125,
+        "max_dd_r": 17.014,
+        "fill_rate": 0.5935,
+        "score": -0.6539,
+        "conflict_pct": 0.0315
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2835,
+          "profit_factor": 1.152,
+          "expectancy_r": 0.1125,
+          "max_dd_r": 17.014,
+          "fill_rate": 0.5935,
+          "score": -0.6539,
+          "avg_pnl_r": 0.1125,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.03,
+          "conflict_pct": 0.0315
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 10,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 52,
+        "total_zones": 77,
+        "pairs": 1,
+        "win_rate": 0.25,
+        "profit_factor": 0.989,
+        "expectancy_r": -0.0084,
+        "max_dd_r": 15.202,
+        "fill_rate": 0.6753,
+        "score": -0.6699,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 52,
+          "total_zones": 77,
+          "win_rate": 0.25,
+          "profit_factor": 0.989,
+          "expectancy_r": -0.0084,
+          "max_dd_r": 15.202,
+          "fill_rate": 0.6753,
+          "score": -0.6699,
+          "avg_pnl_r": -0.0084,
+          "avg_win_r": 3.0,
+          "avg_loss_r": 1.011,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 10,
+        "fvz_entry": "mid",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 121,
+        "total_zones": 158,
+        "pairs": 1,
+        "win_rate": 0.2645,
+        "profit_factor": 1.056,
+        "expectancy_r": 0.0421,
+        "max_dd_r": 16.242,
+        "fill_rate": 0.7658,
+        "score": -0.6941,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 121,
+          "total_zones": 158,
+          "win_rate": 0.2645,
+          "profit_factor": 1.056,
+          "expectancy_r": 0.0421,
+          "max_dd_r": 16.242,
+          "fill_rate": 0.7658,
+          "score": -0.6941,
+          "avg_pnl_r": 0.0421,
+          "avg_win_r": 2.979,
+          "avg_loss_r": 1.014,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 74,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.3108,
+        "profit_factor": 0.88,
+        "expectancy_r": -0.0849,
+        "max_dd_r": 14.158,
+        "fill_rate": 0.5873,
+        "score": -0.6972,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.88,
+          "expectancy_r": -0.0849,
+          "max_dd_r": 14.158,
+          "fill_rate": 0.5873,
+          "score": -0.6972,
+          "avg_pnl_r": -0.0849,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 2.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 74,
+        "total_zones": 126,
+        "pairs": 1,
+        "win_rate": 0.3108,
+        "profit_factor": 0.88,
+        "expectancy_r": -0.0851,
+        "max_dd_r": 14.169,
+        "fill_rate": 0.5873,
+        "score": -0.6993,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 74,
+          "total_zones": 126,
+          "win_rate": 0.3108,
+          "profit_factor": 0.88,
+          "expectancy_r": -0.0851,
+          "max_dd_r": 14.169,
+          "fill_rate": 0.5873,
+          "score": -0.6993,
+          "avg_pnl_r": -0.0851,
+          "avg_win_r": 2.0,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 127,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2362,
+        "profit_factor": 1.203,
+        "expectancy_r": 0.1593,
+        "max_dd_r": 18.171,
+        "fill_rate": 0.5935,
+        "score": -0.7472,
+        "conflict_pct": 0.0315
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2362,
+          "profit_factor": 1.203,
+          "expectancy_r": 0.1593,
+          "max_dd_r": 18.171,
+          "fill_rate": 0.5935,
+          "score": -0.7472,
+          "avg_pnl_r": 0.1593,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.028,
+          "conflict_pct": 0.0315
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "lower",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 127,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2362,
+        "profit_factor": 1.203,
+        "expectancy_r": 0.1592,
+        "max_dd_r": 18.177,
+        "fill_rate": 0.5935,
+        "score": -0.7485,
+        "conflict_pct": 0.0315
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 127,
+          "total_zones": 214,
+          "win_rate": 0.2362,
+          "profit_factor": 1.203,
+          "expectancy_r": 0.1592,
+          "max_dd_r": 18.177,
+          "fill_rate": 0.5935,
+          "score": -0.7485,
+          "avg_pnl_r": 0.1592,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.029,
+          "conflict_pct": 0.0315
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 130,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2385,
+        "profit_factor": 1.174,
+        "expectancy_r": 0.1358,
+        "max_dd_r": 18.015,
+        "fill_rate": 0.6075,
+        "score": -0.7733,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 130,
+          "total_zones": 214,
+          "win_rate": 0.2385,
+          "profit_factor": 1.174,
+          "expectancy_r": 0.1358,
+          "max_dd_r": 18.015,
+          "fill_rate": 0.6075,
+          "score": -0.7733,
+          "avg_pnl_r": 0.1358,
+          "avg_win_r": 3.842,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.2786,
+        "profit_factor": 1.107,
+        "expectancy_r": 0.0794,
+        "max_dd_r": 17.408,
+        "fill_rate": 0.5907,
+        "score": -0.7938,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 140,
+          "total_zones": 237,
+          "win_rate": 0.2786,
+          "profit_factor": 1.107,
+          "expectancy_r": 0.0794,
+          "max_dd_r": 17.408,
+          "fill_rate": 0.5907,
+          "score": -0.7938,
+          "avg_pnl_r": 0.0794,
+          "avg_win_r": 2.943,
+          "avg_loss_r": 1.026,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 130,
+        "total_zones": 214,
+        "pairs": 1,
+        "win_rate": 0.2308,
+        "profit_factor": 1.149,
+        "expectancy_r": 0.1176,
+        "max_dd_r": 18.021,
+        "fill_rate": 0.6075,
+        "score": -0.8197,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 130,
+          "total_zones": 214,
+          "win_rate": 0.2308,
+          "profit_factor": 1.149,
+          "expectancy_r": 0.1176,
+          "max_dd_r": 18.021,
+          "fill_rate": 0.6075,
+          "score": -0.8197,
+          "avg_pnl_r": 0.1176,
+          "avg_win_r": 3.926,
+          "avg_loss_r": 1.025,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "hybrid",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 140,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.2714,
+        "profit_factor": 1.084,
+        "expectancy_r": 0.0625,
+        "max_dd_r": 17.415,
+        "fill_rate": 0.5907,
+        "score": -0.8381,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 140,
+          "total_zones": 237,
+          "win_rate": 0.2714,
+          "profit_factor": 1.084,
+          "expectancy_r": 0.0625,
+          "max_dd_r": 17.415,
+          "fill_rate": 0.5907,
+          "score": -0.8381,
+          "avg_pnl_r": 0.0625,
+          "avg_win_r": 2.984,
+          "avg_loss_r": 1.026,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 1,
+        "nfs_max_gap": 30,
+        "fvz_entry": "upper",
+        "stop_mode": "atr",
+        "min_rr": 3.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 149,
+        "total_zones": 237,
+        "pairs": 1,
+        "win_rate": 0.2752,
+        "profit_factor": 1.106,
+        "expectancy_r": 0.0779,
+        "max_dd_r": 18.187,
+        "fill_rate": 0.6287,
+        "score": -0.91,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 149,
+          "total_zones": 237,
+          "win_rate": 0.2752,
+          "profit_factor": 1.106,
+          "expectancy_r": 0.0779,
+          "max_dd_r": 18.187,
+          "fill_rate": 0.6287,
+          "score": -0.91,
+          "avg_pnl_r": 0.0779,
+          "avg_win_r": 2.952,
+          "avg_loss_r": 1.013,
+          "conflict_pct": 0.0
+        }
+      }
+    },
+    {
+      "params": {
+        "swing_lookback": 2,
+        "nfs_max_gap": 20,
+        "fvz_entry": "upper",
+        "stop_mode": "swing",
+        "min_rr": 4.0,
+        "zone_expiry": 40,
+        "regime_filter": "none",
+        "min_zone_width_pct": 0.001
+      },
+      "aggregate": {
+        "n_trades": 68,
+        "total_zones": 107,
+        "pairs": 1,
+        "win_rate": 0.1912,
+        "profit_factor": 0.924,
+        "expectancy_r": -0.063,
+        "max_dd_r": 16.145,
+        "fill_rate": 0.6355,
+        "score": -0.9467,
+        "conflict_pct": 0.0
+      },
+      "per_pair": {
+        "BTCUSDT": {
+          "n_trades": 68,
+          "total_zones": 107,
+          "win_rate": 0.1912,
+          "profit_factor": 0.924,
+          "expectancy_r": -0.063,
+          "max_dd_r": 16.145,
+          "fill_rate": 0.6355,
+          "score": -0.9467,
+          "avg_pnl_r": -0.063,
+          "avg_win_r": 4.0,
+          "avg_loss_r": 1.023,
+          "conflict_pct": 0.0
+        }
+      }
+    }
+  ]
+}
