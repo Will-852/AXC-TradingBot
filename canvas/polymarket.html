@@ -6,14 +6,15 @@
 <title>AXC Polymarket Dashboard</title>
 <style>
 :root {
-  --bg: #f6f8fa;
+  --bg: #f0f4f3;
   --card: #ffffff;
   --text: #1a1a2e;
   --muted: #6b7280;
   --pos: #0d9488;
   --neg: #e11d48;
-  --accent: #635bff;
-  --border: #e5e7eb;
+  --accent: #0d9488;
+  --accent2: #065f46;
+  --border: #d1ddd9;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,0.08);
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -23,16 +24,18 @@
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
 
 .header {
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #065f46 0%, #0d9488 100%);
   padding: 12px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #fff;
 }
-.header h1 { font-size: 18px; font-weight: 600; }
-.header h1 span { color: var(--accent); }
-.header .meta { color: var(--muted); font-size: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+.header h1 span { opacity: 0.7; }
+.header .meta { color: rgba(255,255,255,0.8); font-size: 12px; }
+.header a.back { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; margin-right: 16px; }
+.header a.back:hover { color: #fff; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
 .badge-live { background: #dcfce7; color: #166534; }
 .badge-dry { background: #fef3c7; color: #92400e; }
@@ -103,10 +106,14 @@ tr:hover { background: #f9fafb; }
 <body>
 
 <div class="header">
-  <h1><span>AXC</span> Polymarket</h1>
+  <div style="display:flex;align-items:center">
+    <a href="/" class="back"><i style="margin-right:4px">&#8592;</i>Dashboard</a>
+    <h1><span>AXC</span> Prediction Markets</h1>
+  </div>
   <div class="meta">
+    <span id="pipeline-status" style="margin-right:12px">Pipeline: --</span>
     <span id="last-update">Loading...</span>
-    <span id="mode-badge" class="badge badge-dry">DRY RUN</span>
+    <span id="mode-badge" class="badge badge-dry" onclick="toggleMode()" style="cursor:pointer" title="Click to toggle mode">DRY RUN</span>
   </div>
 </div>
 
@@ -153,10 +160,16 @@ tr:hover { background: #f9fafb; }
     </div>
   </div>
 
+  <!-- Category Breakdown -->
+  <div class="card" id="category-card" style="display:none">
+    <div class="card-header">Category Exposure</div>
+    <div id="category-body" style="padding:16px"></div>
+  </div>
+
   <div class="two-col">
-    <!-- Recent Signals -->
+    <!-- Edge Scan Summary -->
     <div class="card">
-      <div class="card-header">Last Signals</div>
+      <div class="card-header">Last Scan</div>
       <div id="signals-body">
         <div class="empty-state">No recent signals</div>
       </div>
@@ -275,14 +288,58 @@ function renderPositions(positions) {
   el.innerHTML = html;
 }
 
+function renderCategories(positions) {
+  const card = document.getElementById('category-card');
+  const el = document.getElementById('category-body');
+  if (!positions || !positions.length) { card.style.display = 'none'; return; }
+
+  card.style.display = '';
+  const cats = {};
+  for (const p of positions) {
+    const c = p.category || 'Other';
+    if (!cats[c]) cats[c] = { count: 0, value: 0 };
+    cats[c].count++;
+    cats[c].value += (p.market_value || p.cost_basis || 0);
+  }
+
+  const totalVal = Object.values(cats).reduce((s, v) => s + v.value, 0) || 1;
+  const colors = ['#0d9488','#635bff','#f59e0b','#e11d48','#3b82f6','#8b5cf6','#ec4899','#6b7280'];
+  const sorted = Object.entries(cats).sort((a, b) => b[1].value - a[1].value);
+
+  let html = '<div style="display:flex;gap:4px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:12px">';
+  sorted.forEach(([, v], i) => {
+    html += '<div style="flex:' + (v.value / totalVal) + ';background:' + colors[i % colors.length] + '"></div>';
+  });
+  html += '</div>';
+
+  html += '<div style="display:flex;flex-wrap:wrap;gap:16px">';
+  sorted.forEach(([name, v], i) => {
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:13px">';
+    html += '<span style="width:10px;height:10px;border-radius:2px;background:' + colors[i % colors.length] + ';display:inline-block"></span>';
+    html += '<span>' + name + '</span>';
+    html += '<span class="mono" style="color:var(--muted)">$' + v.value.toFixed(0) + ' (' + v.count + ')</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function renderSignals(scan) {
   const el = document.getElementById('signals-body');
-  const count = (scan && scan.signals) || 0;
-  if (!count) {
-    el.innerHTML = '<div class="empty-state">No recent signals</div>';
+  if (!scan || !scan.scanned) {
+    el.innerHTML = '<div class="empty-state">No recent scan data</div>';
     return;
   }
-  el.innerHTML = '<div class="signal-row"><div class="signal-title">' + count + ' signal(s) generated last cycle</div><div class="signal-meta">See trade log for details</div></div>';
+  let html = '';
+  html += '<div class="signal-row"><div class="signal-title">Scan Funnel</div>';
+  html += '<div class="signal-meta" style="margin-top:6px">';
+  html += '<span style="margin-right:12px">Scanned: <strong>' + (scan.scanned || 0) + '</strong></span>';
+  html += '<span style="margin-right:12px">Filtered: <strong>' + (scan.filtered || 0) + '</strong></span>';
+  html += '<span style="margin-right:12px">Assessed: <strong>' + (scan.assessments || 0) + '</strong></span>';
+  html += '<span style="margin-right:12px">Signals: <strong class="' + ((scan.signals || 0) > 0 ? 'pos' : '') + '">' + (scan.signals || 0) + '</strong></span>';
+  html += '<span>Executed: <strong class="' + ((scan.executed || 0) > 0 ? 'pos' : '') + '">' + (scan.executed || 0) + '</strong></span>';
+  html += '</div></div>';
+  el.innerHTML = html;
 }
 
 function renderRisk(D) {
@@ -430,10 +487,54 @@ async function refresh() {
 
   renderKPIs(state);
   renderPositions(state.positions);
+  renderCategories(state.positions);
   renderSignals(state.last_scan);
   renderRisk(state);
   renderTrades(trades);
   renderCalibration(calibration);
+
+  // Pipeline status
+  const pipeEl = document.getElementById('pipeline-status');
+  if (state.last_updated) {
+    pipeEl.textContent = 'Last cycle: ' + state.last_updated;
+    pipeEl.style.color = 'rgba(255,255,255,0.9)';
+  } else {
+    pipeEl.textContent = 'Pipeline: idle';
+    pipeEl.style.color = 'rgba(255,255,255,0.5)';
+  }
+}
+
+async function toggleMode() {
+  const badge = document.getElementById('mode-badge');
+  const currentlyDry = badge.textContent.trim() === 'DRY RUN';
+  const targetMode = currentlyDry ? 'live' : 'dry_run';
+
+  if (currentlyDry) {
+    const ok = confirm(
+      '⚠️  Switch to LIVE mode?\n\n'
+      + '• Pipeline will execute REAL trades with REAL money\n'
+      + '• Paper gate (48h) still enforced\n'
+      + '• CLI --live flag still overrides this setting\n\n'
+      + 'Continue?'
+    );
+    if (!ok) return;
+  }
+
+  badge.textContent = '...';
+  try {
+    const res = await fetch('/api/polymarket/set_mode', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode: targetMode}),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      alert('Failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Request failed: ' + e.message);
+  }
+  refresh();
 }
 
 refresh();

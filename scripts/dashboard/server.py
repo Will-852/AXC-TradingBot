@@ -38,7 +38,7 @@ from scripts.dashboard.paper_trading import (
     handle_paper_trading_status, handle_paper_trading_start,
     handle_paper_trading_stop,
 )
-from scripts.dashboard.polymarket import handle_polymarket_data
+from scripts.dashboard.polymarket import handle_polymarket_data, handle_polymarket_set_mode
 from scripts.dashboard.files import (
     handle_file_read, handle_open_folder, get_docs_list, serve_doc,
     generate_share_package,
@@ -85,7 +85,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
+        path = parsed.path.rstrip("/") or "/"
         qs = urllib.parse.parse_qs(parsed.query)
         if path == "/api/data":
             self._json_response(200, collect_data())
@@ -362,6 +362,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/paper-trading/stop":
             code, data = handle_paper_trading_stop()
+            self._json_response(code, data)
+        elif self.path == "/api/polymarket/set_mode":
+            code, data = handle_polymarket_set_mode(body)
             self._json_response(code, data)
         elif self.path == "/api/service/restart":
             data = handle_service_restart(body)

@@ -73,6 +73,7 @@ def build_state_snapshot(ctx) -> dict:
     state["exposure_pct"] = round(ctx.exposure_pct, 4)
     state["daily_pnl_pct"] = ctx.daily_pnl
     state["circuit_breaker_active"] = ctx.circuit_breaker_active
+    state["dry_run"] = ctx.dry_run
 
     # Positions
     state["positions"] = [

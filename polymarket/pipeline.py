@@ -606,6 +606,14 @@ def main():
                         help="Skip Telegram sending")
     args = parser.parse_args()
 
+    # ─── Resolve effective mode: CLI --live overrides state file ───
+    if args.live:
+        effective_dry_run = False
+    else:
+        from polymarket.state.poly_state import read_state as _read_mode_state
+        _mode_state = _read_mode_state()
+        effective_dry_run = _mode_state.get("dry_run", True)
+
     now = datetime.now(HKT)
     ts_str = now.strftime("%Y-%m-%d %H:%M")
 
@@ -618,13 +626,14 @@ def main():
         sys.exit(0)
 
     if args.verbose:
-        mode_str = "LIVE" if args.live else "DRY_RUN"
-        print(f"[{ts_str} UTC+8] Polymarket Cycle starting ({mode_str})...")
+        mode_str = "DRY_RUN" if effective_dry_run else "LIVE"
+        source = "CLI" if args.live else "state"
+        print(f"[{ts_str} UTC+8] Polymarket Cycle starting ({mode_str} via {source})...")
 
     # ─── Startup validation ───
     os.makedirs(LOG_DIR, exist_ok=True)
 
-    if args.live:
+    if not effective_dry_run:
         passed, msg = check_paper_gate()
         if not passed:
             print(f"  PAPER GATE: {msg}")
@@ -634,18 +643,18 @@ def main():
     ctx = PolyContext(
         timestamp=now,
         timestamp_str=ts_str,
-        dry_run=not args.live,
+        dry_run=effective_dry_run,
         verbose=args.verbose,
     )
 
     # ─── WAL (live only) ───
-    if args.live:
+    if not effective_dry_run:
         ctx.wal = WriteAheadLog(POLY_WAL_PATH)
         if args.verbose:
             print(f"  WAL initialized: {POLY_WAL_PATH}")
 
     # ─── Exchange client (live only) ───
-    if args.live:
+    if not effective_dry_run:
         try:
             from polymarket.exchange.polymarket_client import PolymarketClient
             ctx.exchange_client = PolymarketClient(dry_run=False)
