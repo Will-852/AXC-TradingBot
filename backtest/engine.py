@@ -76,6 +76,11 @@ _PROFILE_RISK = {"aggressive": 0.03, "balanced": 0.02, "conservative": 0.01}
 MIN_RISK_FLOOR = 0.005  # 0.5% absolute minimum risk
 TRADE_COOLDOWN_CANDLES = 8  # wait 8 candles (8h) after closing a position before entering another
 
+# ─── Regime SL/TP adjustment: recalibrate on vol regime change ───
+REGIME_ADJUST_ENABLED = True
+REGIME_ATR_EXPAND_THRESHOLD = 1.3   # ATR ratio > 1.3 = vol expanding >30%
+REGIME_ATR_CONTRACT_THRESHOLD = 0.7  # ATR ratio < 0.7 = vol contracting >30%
+
 # ─── Kelly: per-strategy min trade thresholds ───
 _KELLY_MIN_TRADES = {
     "range": KELLY_MIN_TRADES_RANGE,
@@ -121,6 +126,7 @@ class BTPosition:
     confidence: float = 0.0      # signal confidence at entry
     tp_source: str = "min_rr"    # TP calculation method: "bb_mid" / "atr_3.5" / "min_rr"
     atr_at_entry: float = 0.0   # ATR at entry time (for newarch trailing stop)
+    regime_adjusted: bool = False  # one-shot flag: SL/TP recalibrated on regime change
     hfe: float = 0.0            # highest favorable excursion in price units
 
 
@@ -618,10 +624,14 @@ class BacktestEngine:
             vol_regime = "HIGH"
             vol_confidence = hmm_confidence
 
-        # Update volatility regime state
+        # Update volatility regime state (direct assignment, no hysteresis)
+        prev_regime = self.volatility_regime
         self.volatility_regime = vol_regime
         self.vol_confidence = vol_confidence
         self.active_risk_profile = _VOL_PROFILE_MAP.get(vol_regime, "balanced")
+
+        # Regime SL/TP adjustment: recalibrate open positions on regime change
+        self._adjust_regime_sl_tp(prev_regime, hmm_crash_confirmed)
 
         # Mode tracking (for indicator_series / audit trail)
         self.current_mode = raw_mode if raw_mode != "UNKNOWN" else self.current_mode
@@ -630,6 +640,84 @@ class BacktestEngine:
 
         # CP update (every 4H candle, not just on trade execution)
         self._update_cp_backtest()
+
+    def _adjust_regime_sl_tp(self, prev_regime: str, crash_confirmed: bool):
+        """One-shot SL/TP recalibration when vol regime changes mid-trade.
+
+        Why: LOW vol entries use tight SL (low ATR). When vol expands, the tight SL
+        gets hit → big notional × small SL = outsized dollar loss. Recalibrate to
+        match the new vol environment.
+
+        Rules:
+          - Expanding (ATR ratio > 1.3): SL→breakeven if profitable, tighten TP
+          - Contracting (ATR ratio < 0.7): tighten both SL and TP
+          - SL only moves in protective direction (forward), never backward
+          - One-shot per position (regime_adjusted flag)
+          - CRASH override: skip — crash has its own handling
+        """
+        if not REGIME_ADJUST_ENABLED:
+            return
+        if self.volatility_regime == prev_regime:
+            return
+        if not self.positions:
+            return
+        # Skip CRASH — handled separately
+        if self.volatility_regime == "HIGH" and crash_confirmed:
+            return
+
+        current_atr = self._ind_4h.get("atr", 0.0)
+        if current_atr <= 0:
+            return
+
+        for pos in self.positions:
+            if pos.regime_adjusted:
+                continue
+            if pos.atr_at_entry <= 0:
+                continue
+
+            atr_ratio = current_atr / pos.atr_at_entry
+            entry = pos.entry_price
+
+            if atr_ratio > REGIME_ATR_EXPAND_THRESHOLD:
+                # EXPANDING: protect profits, tighten TP
+                if pos.direction == "LONG":
+                    current_price = float(self.df_1h.iloc[-1]["close"])
+                    if current_price > entry:
+                        pos.sl_price = max(pos.sl_price, entry)  # breakeven
+                    original_tp_dist = abs(pos.tp_price - entry)
+                    new_tp_dist = original_tp_dist / (atr_ratio ** 0.5)
+                    pos.tp_price = entry + new_tp_dist
+                else:  # SHORT
+                    current_price = float(self.df_1h.iloc[-1]["close"])
+                    if current_price < entry:
+                        pos.sl_price = min(pos.sl_price, entry)  # breakeven
+                    original_tp_dist = abs(entry - pos.tp_price)
+                    new_tp_dist = original_tp_dist / (atr_ratio ** 0.5)
+                    pos.tp_price = entry - new_tp_dist
+
+            elif atr_ratio < REGIME_ATR_CONTRACT_THRESHOLD:
+                # CONTRACTING: tighten both SL and TP
+                original_sl_dist = abs(entry - pos.sl_price)
+                new_sl_dist = original_sl_dist * atr_ratio
+                original_tp_dist = abs(pos.tp_price - entry)
+                new_tp_dist = original_tp_dist * atr_ratio
+                if pos.direction == "LONG":
+                    candidate_sl = entry - new_sl_dist
+                    pos.sl_price = max(pos.sl_price, candidate_sl)  # forward only
+                    pos.tp_price = entry + new_tp_dist
+                else:
+                    candidate_sl = entry + new_sl_dist
+                    pos.sl_price = min(pos.sl_price, candidate_sl)  # forward only
+                    pos.tp_price = entry - new_tp_dist
+
+            pos.regime_adjusted = True
+            log.info(
+                "Regime SL/TP adjust [%s %s]: %s→%s atr_ratio=%.2f "
+                "SL=%.4f TP=%.4f",
+                pos.direction, pos.strategy, prev_regime,
+                self.volatility_regime, atr_ratio,
+                pos.sl_price, pos.tp_price,
+            )
 
     def _update_cp_backtest(self):
         """Update CP calibration every 4H candle (not just on trade execution)."""
@@ -1053,7 +1141,7 @@ class BacktestEngine:
             market_mode=self.current_mode,
             confidence=sig.confidence,
             tp_source=tp_source,
-            atr_at_entry=sig.atr if sig.strategy == "newarch" else 0.0,
+            atr_at_entry=sig.atr if sig.atr else self._ind_4h.get("atr", 0.0),
         ))
 
     def _record_equity(self, candle):

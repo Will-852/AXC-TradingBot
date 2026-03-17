@@ -28,16 +28,18 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)                       # for shared_infra.*
 
 from polymarket.config.categories import WEATHER_CITIES
-from polymarket.config.settings import LOG_DIR
+from polymarket.config.settings import LOG_DIR, WEATHER_SIGMA_BY_LEAD
 from polymarket.exchange.gamma_client import GammaClient
 from polymarket.strategy.edge_finder import _parse_weather_market
 from polymarket.strategy.weather_tracker import (
     ENSEMBLE_MODELS,
     RESOLUTION_SOURCES,
+    _EDGE_PREDICTION_LOG,
     _RESOLUTION_LOG,
     _TRACKER_LOG,
     compute_brier_score,
     compute_bucket_probabilities,
+    compute_edge_calibration,
     fetch_ensemble_forecast,
     fetch_resolution,
     log_weather_prediction,
@@ -338,6 +340,111 @@ def _run_report() -> None:
         print(f"  Bias {bias:+.2f}°C = Acceptable")
 
 
+def _run_calibrate() -> None:
+    """Compute and print edge calibration report — per-source accuracy + σ table."""
+    result = compute_edge_calibration()
+
+    if "error" in result:
+        print(f"Error: {result['error']}")
+        if "edge_predictions_count" in result:
+            print(f"  Edge predictions: {result['edge_predictions_count']}")
+        print(f"\n  To generate data:")
+        print(f"  1. Run pipeline to accumulate weather_edge_predictions.jsonl")
+        print(f"  2. Wait for target dates to pass")
+        print(f"  3. Run --resolve to fetch actuals")
+        return
+
+    if result["matched"] == 0:
+        print("No matched prediction-resolution pairs yet.")
+        print(f"  Edge predictions: {result['edge_predictions_count']}")
+        print(f"  Resolutions: {result['resolutions_count']}")
+        return
+
+    print(f"\n{'='*65}")
+    print(f"  WEATHER EDGE CALIBRATION REPORT")
+    print(f"{'='*65}")
+    print(f"  Matched pairs: {result['matched']}")
+    print(f"  Edge predictions: {result['edge_predictions_count']}")
+    print(f"  Resolutions: {result['resolutions_count']}")
+
+    # ── Per-source accuracy ──
+    src = result["per_source_mae"]
+    print(f"\n  --- Per-Source MAE (lower = better) ---")
+    print(f"  {'Source':<15} {'MAE':>8} {'N':>5}")
+    print(f"  {'-'*28}")
+    if src["open_meteo"] is not None:
+        print(f"  {'Open-Meteo':<15} {src['open_meteo']:>8.2f} {src['n_om']:>5}")
+    if src["owm"] is not None:
+        print(f"  {'OWM':<15} {src['owm']:>8.2f} {src['n_owm']:>5}")
+    if src["average"] is not None:
+        print(f"  {'Average (curr)':<15} {src['average']:>8.2f} {result['matched']:>5}")
+
+    # ── Recommended source weights ──
+    sw = result.get("source_weights", {})
+    if sw:
+        print(f"\n  --- Recommended Source Weights (inverse MAE) ---")
+        print(f"  Open-Meteo: {sw['om_weight']:.3f}  |  OWM: {sw['owm_weight']:.3f}")
+        if sw["om_weight"] > 0.55:
+            print(f"  → Open-Meteo more accurate, increase its weight")
+        elif sw["owm_weight"] > 0.55:
+            print(f"  → OWM more accurate, increase its weight")
+        else:
+            print(f"  → Sources roughly equal, keep 50/50 average")
+
+    # ── Actual σ vs current σ table ──
+    sigma_cal = result.get("sigma_by_lead", {})
+    if sigma_cal:
+        print(f"\n  --- Actual σ vs Current Settings (side-by-side) ---")
+        print(f"  {'Lead':>6} {'Current σ':>12} {'Actual σ':>12} {'Bias':>8} {'N':>5} {'Action'}")
+        print(f"  {'-'*55}")
+        for lead_str, data in sorted(sigma_cal.items(), key=lambda x: int(x[0])):
+            lead_int = int(lead_str)
+            current_sigma = WEATHER_SIGMA_BY_LEAD.get(lead_int, 3.5)
+            actual_sigma = data["actual_sigma"]
+            bias = data["mean_bias"]
+            n = data["n"]
+            delta = actual_sigma - current_sigma
+            if abs(delta) > 0.3:
+                action = f"{'↑' if delta > 0 else '↓'} adjust {delta:+.1f}"
+            else:
+                action = "OK"
+            print(f"  {lead_str:>6}d {current_sigma:>12.1f} {actual_sigma:>12.2f} "
+                  f"{bias:>+8.2f} {n:>5} {action}")
+
+    # ── Per-city bias ──
+    city_bias = result.get("city_bias", {})
+    if city_bias:
+        print(f"\n  --- Per-City Bias (forecast - actual) ---")
+        print(f"  {'City':<18} {'Bias':>8} {'σ':>8} {'N':>5}")
+        print(f"  {'-'*39}")
+        for city, data in city_bias.items():
+            flag = " ⚠️" if abs(data["mean_bias"]) > 1.0 else ""
+            print(f"  {city:<18} {data['mean_bias']:>+8.2f} {data['std']:>8.2f} "
+                  f"{data['n']:>5}{flag}")
+
+    # ── Suggested settings ──
+    print(f"\n  --- Suggested Settings (copy-paste to polymarket_params.py) ---")
+    print(f"  # Auto-generated from {result['matched']} matched pairs")
+    if sw:
+        print(f"  # Source weights: OM={sw['om_weight']:.3f}, OWM={sw['owm_weight']:.3f}")
+    if sigma_cal:
+        parts = []
+        for lead_str in sorted(sigma_cal, key=int):
+            lead_int = int(lead_str)
+            actual_s = sigma_cal[lead_str]["actual_sigma"]
+            parts.append(f"{lead_int}: {actual_s}")
+        print(f"  # WEATHER_SIGMA_BY_LEAD = {{{', '.join(parts)}}}")
+    if city_bias:
+        biases = []
+        for city, data in city_bias.items():
+            if abs(data["mean_bias"]) > 0.5:
+                biases.append(f'"{city}": {data["mean_bias"]:+.1f}')
+        if biases:
+            print(f"  # WEATHER_CITY_BIAS = {{{', '.join(biases)}}}")
+
+    print(f"\n  ⚠️  Review before applying — do NOT auto-update settings.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Weather prediction paper tracker for Polymarket",
@@ -346,6 +453,8 @@ def main() -> None:
     group.add_argument("--predict", action="store_true", help="Fetch forecast + log prediction")
     group.add_argument("--resolve", action="store_true", help="Fetch actuals, match predictions")
     group.add_argument("--report", action="store_true", help="Brier score + bias report")
+    group.add_argument("--calibrate", action="store_true",
+                       help="Edge calibration: per-source accuracy + σ table")
     parser.add_argument("--dry-run", action="store_true", help="Print only, no log write")
 
     args = parser.parse_args()
@@ -356,6 +465,8 @@ def main() -> None:
         _run_resolve()
     elif args.report:
         _run_report()
+    elif args.calibrate:
+        _run_calibrate()
 
 
 if __name__ == "__main__":

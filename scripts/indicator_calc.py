@@ -119,6 +119,64 @@ def _detect_vol_spike(df: pd.DataFrame, vol_sma: pd.Series, idx: int) -> bool:
         return False
 
 
+def calc_robust_zscore(closes: pd.Series, lookback: int = 50) -> pd.Series:
+    """Robust Z-Score: (price - median) / (1.4826 * MAD).
+
+    MAD-based Z-Score 對 outlier 有抗性，適合 crypto 嘅 fat-tail 分佈。
+    1.4826 = consistency factor (使 MAD 與正態分佈 σ 等效)。
+    """
+    median = closes.rolling(lookback, min_periods=lookback).median()
+    mad = closes.rolling(lookback, min_periods=lookback).apply(
+        lambda x: np.median(np.abs(x - np.median(x))), raw=True
+    )
+    denom = 1.4826 * mad
+    # Avoid division by zero: if MAD=0 (flat market), z=0
+    return ((closes - median) / denom.replace(0, np.nan)).fillna(0.0)
+
+
+def calc_bb_width_pctl(bb_width_series: pd.Series, window: int = 100) -> pd.Series:
+    """BB Width percentile rank over rolling window.
+
+    Returns 0-100 value: current bb_width 在過去 N bars 中嘅百分位。
+    """
+    return bb_width_series.rolling(window, min_periods=window).apply(
+        lambda x: pd.Series(x).rank(pct=True).iloc[-1] * 100, raw=False
+    ).fillna(50.0)  # default to 50 during warmup
+
+
+def get_session_tag(timestamp_utc) -> str:
+    """Map UTC timestamp to trading session tag.
+
+    Based on §8 findings:
+    - US_PRE: 12-13:30 UTC (pre-market, highest vol impact)
+    - US_OPEN: 13:30-20 UTC (NYSE open)
+    - EU_OPEN: 07-12 UTC (London session)
+    - ASIA: 00-07 UTC (Tokyo/HK)
+    - WEEKEND: Saturday/Sunday
+    """
+    if hasattr(timestamp_utc, "weekday"):
+        if timestamp_utc.weekday() >= 5:  # Sat=5, Sun=6
+            return "WEEKEND"
+        hour = timestamp_utc.hour
+    else:
+        # pandas Timestamp
+        ts = pd.Timestamp(timestamp_utc, unit="ms", tz="UTC") if isinstance(timestamp_utc, (int, float)) else pd.Timestamp(timestamp_utc)
+        if ts.weekday() >= 5:
+            return "WEEKEND"
+        hour = ts.hour
+
+    if 0 <= hour < 7:
+        return "ASIA"
+    elif 7 <= hour < 12:
+        return "EU_OPEN"
+    elif 12 <= hour < 14:
+        return "US_PRE"
+    elif 14 <= hour < 20:
+        return "US_OPEN"
+    else:
+        return "ASIA"  # 20-24 UTC = late US / early Asia overlap
+
+
 def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
     """計算所有指標，返回最新一行嘅結果"""
     close = df["close"]
@@ -192,6 +250,12 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
     # Volume Spike
     vol_sma_series = tv.sma(df["volume"].astype(float), VOL_SPIKE_SMA) if len(df) >= VOL_SPIKE_SMA else pd.Series([None] * len(df))
 
+    # Robust Z-Score (MAD-based, outlier-resistant)
+    z_robust = calc_robust_zscore(close, lookback=50)
+
+    # BB Width Percentile (current BB width rank in rolling 100-bar window)
+    bb_width_pctl = calc_bb_width_pctl(bb_width, window=100)
+
     # 最新值
     i = len(df) - 1
 
@@ -257,6 +321,10 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         "vwap_lower": safe_val(vwap_lower, i),
         # Volume Spike
         "vol_spike": _detect_vol_spike(df, vol_sma_series, i),
+        # Robust Z-Score (MAD-based)
+        "z_robust": safe_val(z_robust, i),
+        # BB Width Percentile (0-100)
+        "bb_width_pctl": safe_val(bb_width_pctl, i),
     }
     return result
 

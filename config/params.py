@@ -216,6 +216,16 @@ HMM_MIN_CONFIDENCE = 0.6   # below this → HMM vote = UNKNOWN
 HMM_MIN_SAMPLES = 100      # cold start threshold
 HMM_CRASH_THRESHOLD = 0.7  # CRASH override needs higher confidence
 
+VOL_REGIME_CONFIRMATION = 1  # direct assignment (hysteresis removed — caused BTC negative)
+
+# ── Regime SL/TP Adjustment ──
+# When vol regime changes mid-trade, recalibrate SL/TP to match new environment.
+# Expanding vol (ratio>1.3): SL→breakeven if profitable, tighten TP by sqrt(ratio).
+# Contracting vol (ratio<0.7): tighten both SL and TP proportionally.
+REGIME_ADJUST_ENABLED = True
+REGIME_ATR_EXPAND_THRESHOLD = 1.3   # ATR ratio > 1.3 = vol expanding >30%
+REGIME_ATR_CONTRACT_THRESHOLD = 0.7  # ATR ratio < 0.7 = vol contracting >30%
+
 # ═══════════════════════════════════════
 # Section 11: CRASH Strategy
 # ═══════════════════════════════════════
@@ -295,25 +305,30 @@ REGIME_SIGNAL_RULES = {
     # XRP NORMAL×TREND×trend: Sharpe~-0.23, WR 23%, n=27
     ("XRPUSDT", "NORMAL", "TREND", "trend"): "BLOCK",
 
-    # ── LOW vol: blanket skip (handled in get_regime_rule) ──
-    # 180d data: LOW vol total +$1,778 across 47 trades, but edge is thin and
-    # unreliable (ETH +$2,487 from 4 trades carries it; XRP/SOL/BTC all negative).
-    # Decision: skip all LOW vol trades. Revisit when LOW vol edge is proven stable.
-    # See get_regime_rule() below — returns "BLOCK" for any LOW vol lookup.
-    #
-    # KEY FINDING (180d transition analysis, 2026-03-17):
-    #   - LOW vol median duration: 4-12h (short-lived compression)
-    #   - 48-64% of LOW exits flip BACK to LOW within 12h (HMM noisy at boundary)
-    #   - 50% of LOW exits jump directly to HIGH (regime shift, not gradual)
-    #   - BB width +19-39%, ADX +4-11% at transition (volatility expansion)
-    #   - FUTURE: consider regime transition hysteresis (require N stable 4H candles
-    #     before confirming regime change) to reduce HMM noise at LOW boundary
+    # ── LOW vol: blanket block except BTC LOW×RANGE×range ──
+    # 180d data: only BTC LOW×RANGE×range is positive (+$200, 67% WR, n=9).
+    # All others negative (XRP -$928, ETH -$252, crash 0% WR).
+    # Handled in get_regime_rule() — not per-cell rules.
 
     # ── BLOCK: NORMAL×RANGE×trend — trend-in-RANGE is a trap ──
     # ETH: 33% WR, n=3 | XRP: 14% WR, -$119/trade, n=7 | BTC: pattern consistent
+    # SOL: 0% WR, -$886, n=4 (180d dead zone)
     ("ETHUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
     ("XRPUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
     ("BTCUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
+    ("SOLUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
+
+    # ── BLOCK: HIGH×RANGE×range — range-in-RANGE high vol, negative EV ──
+    # BTC: 38% WR, -$579, n=26 (SL sweep 0.5-1.3 all PF<1)
+    ("BTCUSDT", "HIGH", "RANGE", "range"): "BLOCK",
+
+    # ── BLOCK: HIGH×CRASH×trend — XRP crash regime trend trap ──
+    # XRP: 0% WR, -$255, n=4
+    ("XRPUSDT", "HIGH", "CRASH", "trend"): "BLOCK",
+
+    # ── BLOCK: HIGH×TREND×crash — SOL crash-in-TREND trap ──
+    # SOL: 0% WR, -$211, n=3
+    ("SOLUSDT", "HIGH", "TREND", "crash"): "BLOCK",
 
     # ── BOOST: stable high-Sharpe edge — lower conf_gate to capture more ──
     # XRP NORMAL×RANGE×range: Sharpe~+0.48, WR 60%, n=31, calibrated
@@ -324,8 +339,8 @@ REGIME_SIGNAL_RULES = {
     # ── ALLOW with tighter gate: thin but stable edge ──
     # XRP HIGH×TREND×trend: Sharpe~+0.14, WR 36%, n=92, calibrated
     ("XRPUSDT", "HIGH", "TREND", "trend"): {"conf_gate": 0.55},
-    # ETH HIGH×RANGE×range: Sharpe~+0.11, WR 43%, n=47, calibrated (360d)
-    ("ETHUSDT", "HIGH", "RANGE", "range"): {"conf_gate": 0.50},
+    # ETH HIGH×RANGE×range: conf_gate 0.50 failed — still -$102, WR 42%, n=19 (180d)
+    ("ETHUSDT", "HIGH", "RANGE", "range"): "BLOCK",
     # BTC HIGH×CRASH×trend: Sharpe~+0.03, WR 32%, n=38, barely positive
     ("BTCUSDT", "HIGH", "CRASH", "trend"): {"conf_gate": 0.55},
 }
@@ -340,11 +355,12 @@ def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
         {"conf_gate": float} — use this conf_gate instead of default
         None — no rule, use defaults
 
-    Design: LOW vol is blanket-blocked for all pairs/modes/strategies.
-    Edge is thin (+$38/trade) and carried by 4 ETH trades. Not worth the risk.
-    Revisit if LOW vol edge becomes provably stable across multiple periods.
+    Design: LOW vol blanket-blocked except BTC LOW×RANGE×range (+$200, 67% WR).
+    Per-cell rules block additional proven bad cells (signal quality issues).
     """
     if vol_regime == "LOW":
+        if pair == "BTCUSDT" and market_mode == "RANGE" and strategy == "range":
+            return None  # only positive LOW cell — regime adjust protects it
         return "BLOCK"
     return REGIME_SIGNAL_RULES.get((pair, vol_regime, market_mode, strategy))
 

@@ -22,6 +22,7 @@ if _scripts not in sys.path:
 from trader_cycle.strategies.base import StrategyBase, PositionParams
 from trader_cycle.core.context import CycleContext, Signal
 
+from trader_cycle.config.settings import ENTRY_VOLUME_MIN
 from backtest.scoring import WeightedScorer, ScoringWeights
 
 HKT = timezone(timedelta(hours=8))
@@ -90,7 +91,7 @@ class BTTrendStrategy(StrategyBase):
 
     @property
     def entry_volume_min(self) -> float:
-        return self._entry.get("entry_volume_min", 0.8)
+        return self._entry.get("entry_volume_min", ENTRY_VOLUME_MIN)
 
     def evaluate(
         self, pair: str, indicators: dict[str, dict], ctx: CycleContext,

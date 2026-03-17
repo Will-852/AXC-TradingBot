@@ -1,11 +1,12 @@
 """
 adjust_positions.py — Step 8.5: AdjustPositionsStep
-Trailing SL, TP Extension, Early Exit, Re-Entry Eligibility.
+Regime SL/TP Adjustment, Trailing SL, TP Extension, Early Exit, Re-Entry.
 
 All pure math — zero LLM token consumption.
 Each operation is independent try/except — one failure won't block others.
 
 Operation order matters:
+  0. Regime SL/TP Adjust (one-shot recalibration on vol regime change)
   1. Trailing SL  (modify SL order)
   2. TP Extension (modify TP order)
   3. Early Exit   (close position + set re-entry)
@@ -42,6 +43,9 @@ from ..config.settings import (
     TP_EXTEND_ATR_MULT,
     TP_PROXIMITY_PCT,
     REENTRY_COOLDOWN_CYCLES,
+    REGIME_ADJUST_ENABLED,
+    REGIME_ATR_EXPAND_THRESHOLD,
+    REGIME_ATR_CONTRACT_THRESHOLD,
 )
 from ..core.context import CycleContext, ClosedPosition
 
@@ -71,6 +75,13 @@ class AdjustPositionsStep:
                 continue
 
             indicators = self._get_indicators(pos.pair, ctx)
+
+            # Operation 0: Regime SL/TP Adjustment (before other ops)
+            try:
+                self._regime_adjust(pos, atr, ctx)
+            except Exception as e:
+                ctx.warnings.append(f"RegimeAdjust error [{pos.pair}]: {e}")
+                logger.error("RegimeAdjust [%s]: %s", pos.pair, e)
 
             # Operation 1: Trailing SL
             try:
@@ -590,6 +601,163 @@ class AdjustPositionsStep:
                 f"    ReEntry: {ctx.reentry_pair} {ctx.reentry_direction} "
                 f"eligible ({cycles_remaining} cycles left)"
             )
+
+    # ──────────────────────────────────────────────
+    # Operation 0: Regime SL/TP Adjustment
+    # ──────────────────────────────────────────────
+
+    def _regime_adjust(self, pos, atr: float, ctx: CycleContext) -> None:
+        """One-shot SL/TP recalibration when vol regime changes mid-trade.
+
+        Why: LOW vol entries use tight SL. When vol expands, tight SL gets hit →
+        outsized dollar loss. Recalibrate SL/TP to match new vol environment.
+        Reads ENTRY_ATR/ENTRY_VOL_REGIME from trade_state, writes REGIME_ADJUSTED.
+        """
+        if not REGIME_ADJUST_ENABLED:
+            return
+
+        ts = ctx.trade_state
+        if ts.get("REGIME_ADJUSTED") == "YES":
+            return  # already adjusted
+
+        entry_atr = _parse_float(ts.get("ENTRY_ATR", 0))
+        entry_vol_regime = ts.get("ENTRY_VOL_REGIME") or ts.get("VOL_REGIME", "")
+        if entry_atr <= 0 or not entry_vol_regime:
+            return  # no entry ATR data (pre-upgrade trade)
+
+        current_regime = ctx.volatility_regime
+        if current_regime == entry_vol_regime:
+            return  # no regime change
+
+        # Skip CRASH — has its own handling
+        if current_regime == "HIGH" and ctx.market_mode == "CRASH":
+            return
+
+        atr_ratio = atr / entry_atr
+        entry_price = pos.entry_price
+        if entry_price <= 0:
+            return
+
+        sl_price = pos.sl_price
+        tp_price = _parse_float(ts.get("TP_PRICE", 0))
+        if tp_price <= 0:
+            tp_price = pos.tp_price
+        if sl_price <= 0 or tp_price <= 0:
+            return
+
+        new_sl = sl_price
+        new_tp = tp_price
+        adjust_label = ""
+
+        if atr_ratio > REGIME_ATR_EXPAND_THRESHOLD:
+            # EXPANDING: protect profits, tighten TP
+            if pos.direction == "LONG":
+                if pos.mark_price > entry_price:
+                    new_sl = max(sl_price, entry_price)  # breakeven
+                original_tp_dist = abs(tp_price - entry_price)
+                new_tp_dist = original_tp_dist / (atr_ratio ** 0.5)
+                new_tp = entry_price + new_tp_dist
+            else:  # SHORT
+                if pos.mark_price < entry_price:
+                    new_sl = min(sl_price, entry_price)  # breakeven
+                original_tp_dist = abs(entry_price - tp_price)
+                new_tp_dist = original_tp_dist / (atr_ratio ** 0.5)
+                new_tp = entry_price - new_tp_dist
+            adjust_label = f"expand(ratio={atr_ratio:.2f})"
+
+        elif atr_ratio < REGIME_ATR_CONTRACT_THRESHOLD:
+            # CONTRACTING: tighten both SL and TP
+            original_sl_dist = abs(entry_price - sl_price)
+            new_sl_dist = original_sl_dist * atr_ratio
+            original_tp_dist = abs(tp_price - entry_price)
+            new_tp_dist = original_tp_dist * atr_ratio
+            if pos.direction == "LONG":
+                candidate_sl = entry_price - new_sl_dist
+                new_sl = max(sl_price, candidate_sl)  # forward only
+                new_tp = entry_price + new_tp_dist
+            else:
+                candidate_sl = entry_price + new_sl_dist
+                new_sl = min(sl_price, candidate_sl)  # forward only
+                new_tp = entry_price - new_tp_dist
+            adjust_label = f"contract(ratio={atr_ratio:.2f})"
+        else:
+            # ATR ratio within normal range, no adjustment needed
+            return
+
+        if ctx.verbose:
+            print(
+                f"    RegimeAdjust [{pos.pair}]: {entry_vol_regime}→{current_regime} "
+                f"{adjust_label} SL {sl_price:.4f}→{new_sl:.4f} "
+                f"TP {tp_price:.4f}→{new_tp:.4f}"
+            )
+
+        # DRY_RUN: log only
+        if ctx.dry_run or not ctx.exchange_clients:
+            ctx.warnings.append(
+                f"[DRY_RUN] RegimeAdjust [{pos.pair}]: "
+                f"{adjust_label} SL→{new_sl:.4f} TP→{new_tp:.4f}"
+            )
+            ctx.trade_state_updates["REGIME_ADJUSTED"] = "YES"
+            return
+
+        # LIVE: cancel-and-replace SL + TP orders
+        client = ctx.exchange_clients.get(pos.platform, ctx.exchange_client)
+        exit_side = "SELL" if pos.direction == "LONG" else "BUY"
+
+        # Replace SL if changed
+        if new_sl != sl_price:
+            old_sl_orders = self._find_orders_by_type(client, pos.pair, "STOP_MARKET")
+            for order in old_sl_orders:
+                oid = str(order.get("orderId", ""))
+                try:
+                    client.cancel_order(pos.pair, oid)
+                except Exception as e:
+                    logger.warning("[%s] Cancel old SL %s: %s", pos.pair, oid, e)
+            try:
+                client.create_stop_market(
+                    pos.pair, exit_side, abs(pos.size), new_sl, reduce_only=True,
+                )
+                ctx.trade_state_updates["SL_PRICE"] = str(new_sl)
+            except Exception as e:
+                logger.error("[%s] Regime SL replace failed: %s", pos.pair, e)
+                ctx.errors.append(f"RegimeAdjust SL [{pos.pair}]: {e}")
+
+        # Replace TP if changed
+        if new_tp != tp_price:
+            old_tp_orders = self._find_orders_by_type(
+                client, pos.pair, "TAKE_PROFIT_MARKET"
+            )
+            for order in old_tp_orders:
+                oid = str(order.get("orderId", ""))
+                qty = float(order.get("origQty", 0))
+                try:
+                    client.cancel_order(pos.pair, oid)
+                except Exception as e:
+                    logger.warning("[%s] Cancel old TP %s: %s", pos.pair, oid, e)
+                # Replace each TP order with same quantity at new price
+                if qty > 0:
+                    try:
+                        client.create_take_profit_market(
+                            pos.pair, exit_side, qty, new_tp, reduce_only=True,
+                        )
+                    except Exception as e:
+                        logger.error("[%s] Regime TP replace failed: %s", pos.pair, e)
+                        ctx.errors.append(f"RegimeAdjust TP [{pos.pair}]: {e}")
+            ctx.trade_state_updates["TP_PRICE"] = str(new_tp)
+
+        ctx.trade_state_updates["REGIME_ADJUSTED"] = "YES"
+        ctx.telegram_messages.append(
+            f"<b>Regime SL/TP Adjust</b> [{pos.pair}]\n"
+            f"Vol regime: {entry_vol_regime} → {current_regime}\n"
+            f"ATR ratio: {atr_ratio:.2f} ({adjust_label})\n"
+            f"SL: {sl_price:.4f} → {new_sl:.4f}\n"
+            f"TP: {tp_price:.4f} → {new_tp:.4f}"
+        )
+        logger.info(
+            "[%s] Regime SL/TP adjusted: %s→%s %s SL=%.4f TP=%.4f",
+            pos.pair, entry_vol_regime, current_regime,
+            adjust_label, new_sl, new_tp,
+        )
 
     # ──────────────────────────────────────────────
     # Helpers

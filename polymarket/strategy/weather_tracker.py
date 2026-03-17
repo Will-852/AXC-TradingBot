@@ -28,6 +28,7 @@ _HKT = ZoneInfo("Asia/Hong_Kong")
 
 _TRACKER_LOG = os.path.join(LOG_DIR, "weather_predictions.jsonl")
 _RESOLUTION_LOG = os.path.join(LOG_DIR, "weather_resolutions.jsonl")
+_EDGE_PREDICTION_LOG = os.path.join(LOG_DIR, "weather_edge_predictions.jsonl")
 
 # Ensemble models available via Open-Meteo (free)
 # Total: GFS(31) + ECMWF(51) + ICON(40) = 122 members
@@ -423,4 +424,154 @@ def compute_brier_score(
             }
             for lead, scores in sorted(by_lead.items())
         },
+    }
+
+
+# ─── Function 6: Edge Calibration (Phase 2) ───
+
+def compute_edge_calibration(
+    edge_predictions_path: str | None = None,
+    resolutions_path: str | None = None,
+) -> dict:
+    """Join edge predictions + resolutions → per-source accuracy + σ calibration.
+
+    讀 weather_edge_predictions.jsonl（production path 雙源 log）+
+    weather_resolutions.jsonl → 計算：
+    1. Per-source MAE: |om_temp - actual| vs |owm_temp - actual|
+    2. Optimal source weight: inverse MAE weighting
+    3. Actual σ by lead day: std(forecast - actual) grouped by lead_days
+    4. Bias by city: mean(forecast - actual) per city
+    """
+    edge_path = edge_predictions_path or _EDGE_PREDICTION_LOG
+    res_path = resolutions_path or _RESOLUTION_LOG
+
+    # Load edge predictions: keyed by (city, date)
+    predictions: dict[tuple[str, str], dict] = {}
+    try:
+        with open(edge_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                key = (rec["city"], rec["target_date"])
+                # Keep latest prediction per key (pipeline may re-log)
+                predictions[key] = rec
+    except FileNotFoundError:
+        logger.warning("No edge predictions file: %s", edge_path)
+        return {"error": "no_edge_predictions"}
+
+    # Load resolutions: keyed by (city, date) → actual_max
+    resolutions: dict[tuple[str, str], float] = {}
+    try:
+        with open(res_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                key = (rec["city"], rec["target_date"])
+                resolutions[key] = rec["actual_max"]
+    except FileNotFoundError:
+        logger.warning("No resolutions file: %s", res_path)
+        return {"error": "no_resolutions", "edge_predictions_count": len(predictions)}
+
+    # ── Match and compute metrics ──
+    om_errors: list[float] = []      # |om_temp - actual|
+    owm_errors: list[float] = []     # |owm_temp - actual|
+    avg_errors: list[float] = []     # |avg_temp - actual|
+
+    # σ calibration: grouped by lead_days
+    errors_by_lead: dict[int, list[float]] = {}
+
+    # Bias by city
+    bias_by_city: dict[str, list[float]] = {}
+
+    # Per-prediction detail for audit
+    matched_count = 0
+
+    for key, pred in predictions.items():
+        if key not in resolutions:
+            continue
+
+        actual = resolutions[key]
+        city = pred["city"]
+        lead = pred["lead_days"]
+        avg_temp = pred["avg_temp"]
+        matched_count += 1
+
+        # Per-source absolute errors
+        if pred.get("om_temp") is not None:
+            om_errors.append(abs(pred["om_temp"] - actual))
+        if pred.get("owm_temp") is not None:
+            owm_errors.append(abs(pred["owm_temp"] - actual))
+        avg_errors.append(abs(avg_temp - actual))
+
+        # Signed error for σ calibration (forecast - actual)
+        signed_err = avg_temp - actual
+        errors_by_lead.setdefault(lead, []).append(signed_err)
+        bias_by_city.setdefault(city, []).append(signed_err)
+
+    if matched_count == 0:
+        return {
+            "matched": 0,
+            "edge_predictions_count": len(predictions),
+            "resolutions_count": len(resolutions),
+        }
+
+    # ── Per-source MAE ──
+    om_mae = round(statistics.mean(om_errors), 2) if om_errors else None
+    owm_mae = round(statistics.mean(owm_errors), 2) if owm_errors else None
+    avg_mae = round(statistics.mean(avg_errors), 2) if avg_errors else None
+
+    # ── Optimal source weight (inverse MAE) ──
+    source_weights = {}
+    if om_mae is not None and owm_mae is not None and om_mae > 0 and owm_mae > 0:
+        inv_om = 1.0 / om_mae
+        inv_owm = 1.0 / owm_mae
+        total_inv = inv_om + inv_owm
+        source_weights = {
+            "om_weight": round(inv_om / total_inv, 3),
+            "owm_weight": round(inv_owm / total_inv, 3),
+        }
+
+    # ── Actual σ by lead day ──
+    sigma_by_lead = {}
+    for lead, errors in sorted(errors_by_lead.items()):
+        if len(errors) >= 2:
+            sigma_by_lead[lead] = {
+                "actual_sigma": round(statistics.stdev(errors), 2),
+                "mean_bias": round(statistics.mean(errors), 2),
+                "n": len(errors),
+            }
+        else:
+            sigma_by_lead[lead] = {
+                "actual_sigma": round(abs(errors[0]), 2),
+                "mean_bias": round(errors[0], 2),
+                "n": 1,
+            }
+
+    # ── Bias by city ──
+    city_bias = {}
+    for city, errors in sorted(bias_by_city.items()):
+        city_bias[city] = {
+            "mean_bias": round(statistics.mean(errors), 2),
+            "std": round(statistics.stdev(errors), 2) if len(errors) > 1 else 0.0,
+            "n": len(errors),
+        }
+
+    return {
+        "matched": matched_count,
+        "edge_predictions_count": len(predictions),
+        "resolutions_count": len(resolutions),
+        "per_source_mae": {
+            "open_meteo": om_mae,
+            "owm": owm_mae,
+            "average": avg_mae,
+            "n_om": len(om_errors),
+            "n_owm": len(owm_errors),
+        },
+        "source_weights": source_weights,
+        "sigma_by_lead": {str(k): v for k, v in sigma_by_lead.items()},
+        "city_bias": city_bias,
     }

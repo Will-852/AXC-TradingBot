@@ -1,0 +1,505 @@
+#!/usr/bin/env python3
+"""
+cvd_backtest.py — CVD Divergence Backtest for BTC 5-min Up/Down
+
+設計決定：
+- 用 Binance aggTrades 計 CVD，1m klines 做 price reference
+- Ground truth: 5-min close > open = UP
+- 三個 model 對比：Indicator-only, CVD-only, Combined
+- Brier score 為主要指標（0.25 = random baseline，越低越好）
+- funding/sentiment 歷史冇數據 → neutral fallback
+- Look-ahead 防護：CVD/price reference 用 candle open 前一分鐘 (ref_ts = ts - 60s)
+- Dollar imbalance 用前一個完成嘅 5m candle，唔係當前（未完成）
+
+用法:
+    cd ~/projects/axc-trading
+    PYTHONPATH=.:scripts python3 polymarket/backtest/cvd_backtest.py --days 14
+"""
+
+import argparse
+import json
+import logging
+import math
+import os
+import sys
+import tempfile
+import time
+from datetime import datetime, timezone, timedelta
+
+import numpy as np
+import pandas as pd
+
+# ─── Path setup (same pattern as other polymarket scripts) ───
+_PROJECT_ROOT = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+for p in [_PROJECT_ROOT, os.path.join(_PROJECT_ROOT, "scripts")]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+from backtest.fetch_agg_trades import (
+    fetch_agg_trades_range, aggregate_cvd, aggregate_delta_volume,
+)
+from backtest.fetch_historical import fetch_klines_range
+from polymarket.strategy.crypto_15m import _score_direction
+
+logger = logging.getLogger(__name__)
+
+# ─── Constants ───
+SYMBOL = "BTCUSDT"
+LOG_DIR = os.path.join(_PROJECT_ROOT, "polymarket", "logs")
+FIVE_MIN_MS = 300_000
+FIFTEEN_MIN_MS = 900_000
+ONE_MIN_MS = 60_000
+
+# CVD divergence lookback windows
+LOOKBACK_WINDOWS = {
+    "1m": ONE_MIN_MS, "3m": 3 * ONE_MIN_MS, "5m": FIVE_MIN_MS,
+    "10m": 10 * ONE_MIN_MS, "15m": FIFTEEN_MIN_MS,
+}
+MIN_PRICE_CHANGE_USD = 5.0    # BTC noise filter
+
+# CVD → P(Up) mapping
+CVD_STRENGTH_SCALE = 2.0      # tanh scaling
+
+# Combined model weights
+W_INDICATOR = 0.5
+W_CVD = 0.5
+
+# Edge buckets for calibration
+EDGE_BUCKETS = [
+    (0.00, 0.05, "< 5%"), (0.05, 0.10, "5-10%"), (0.10, 0.15, "10-15%"),
+    (0.15, 0.20, "15-20%"), (0.20, 1.00, "> 20%"),
+]
+
+
+# ═══════════════════════════════════════
+#  Technical Indicator Computation
+# ═══════════════════════════════════════
+
+def _ema(data: np.ndarray, period: int) -> np.ndarray:
+    out = np.full_like(data, np.nan, dtype=float)
+    if len(data) < period:
+        return out
+    out[period - 1] = np.nanmean(data[:period])
+    k = 2.0 / (period + 1)
+    for i in range(period, len(data)):
+        out[i] = data[i] * k + out[i - 1] * (1 - k)
+    return out
+
+
+def _rolling_std(data: np.ndarray, period: int) -> np.ndarray:
+    out = np.full_like(data, np.nan, dtype=float)
+    for i in range(period - 1, len(data)):
+        out[i] = np.std(data[i - period + 1: i + 1], ddof=0)
+    return out
+
+
+def compute_indicators(klines_5m: pd.DataFrame) -> list[dict]:
+    """Compute RSI, MACD, BB, EMA, Stoch, VWAP from 5m klines.
+
+    設計決定：直接 vectorized 計算（唔 subprocess call indicator_calc.py），
+    因為 backtest 需要全量歷史，唔係即時一次。
+    """
+    c = klines_5m["close"].values.astype(float)
+    h = klines_5m["high"].values.astype(float)
+    lo = klines_5m["low"].values.astype(float)
+    vol = klines_5m["volume"].values.astype(float)
+    n = len(c)
+
+    # RSI-14
+    rsi = np.full(n, np.nan)
+    if n > 14:
+        d = np.diff(c)
+        gain = np.where(d > 0, d, 0.0)
+        loss = np.where(d < 0, -d, 0.0)
+        ag = np.zeros(n - 1)
+        al = np.zeros(n - 1)
+        ag[13] = gain[:14].mean()
+        al[13] = loss[:14].mean()
+        for i in range(14, n - 1):
+            ag[i] = (ag[i - 1] * 13 + gain[i]) / 14
+            al[i] = (al[i - 1] * 13 + loss[i]) / 14
+        for i in range(13, n - 1):
+            rsi[i + 1] = 100 if al[i] == 0 else 100 - 100 / (1 + ag[i] / al[i])
+
+    # MACD (12, 26, 9)
+    ema12 = _ema(c, 12)
+    ema26 = _ema(c, 26)
+    macd_line = ema12 - ema26
+    macd_hist = macd_line - _ema(macd_line, 9)
+
+    # Bollinger Bands (20, 2)
+    bb_basis = np.full(n, np.nan)
+    bb_std = _rolling_std(c, 20)
+    for i in range(19, n):
+        bb_basis[i] = c[i - 19: i + 1].mean()
+    bb_upper = bb_basis + 2 * bb_std
+    bb_lower = bb_basis - 2 * bb_std
+
+    # EMA fast(9) / slow(21)
+    ema_f = _ema(c, 9)
+    ema_s = _ema(c, 21)
+
+    # Stochastic (14, 3)
+    stoch_k = np.full(n, np.nan)
+    for i in range(13, n):
+        hi = h[i - 13: i + 1].max()
+        li = lo[i - 13: i + 1].min()
+        stoch_k[i] = 100 * (c[i] - li) / (hi - li) if hi != li else 50.0
+    stoch_d = np.full(n, np.nan)
+    for i in range(15, n):
+        vals = stoch_k[i - 2: i + 1]
+        if np.all(~np.isnan(vals)):
+            stoch_d[i] = vals.mean()
+
+    # VWAP (cumulative — OK for relative comparison within backtest)
+    tp = (h + lo + c) / 3
+    cum_tpv = np.cumsum(tp * vol)
+    cum_v = np.cumsum(vol)
+    vwap = np.where(cum_v > 0, cum_tpv / cum_v, c)
+
+    def _v(arr, idx):
+        v = arr[idx]
+        return float(v) if not np.isnan(v) else None
+
+    indicators = []
+    for i in range(n):
+        indicators.append({
+            "price": float(c[i]),
+            "rsi": _v(rsi, i),
+            "macd_hist": _v(macd_hist, i),
+            "macd_hist_prev": _v(macd_hist, i - 1) if i > 0 else None,
+            "bb_upper": _v(bb_upper, i), "bb_lower": _v(bb_lower, i),
+            "bb_basis": _v(bb_basis, i),
+            "ema_fast": _v(ema_f, i), "ema_slow": _v(ema_s, i),
+            "stoch_k": _v(stoch_k, i), "stoch_d": _v(stoch_d, i),
+            "vwap": _v(vwap, i),
+        })
+    return indicators
+
+
+# ═══════════════════════════════════════
+#  CVD Divergence Detection
+# ═══════════════════════════════════════
+
+def detect_cvd_divergence(
+    price_by_ts: dict[int, float],
+    cvd_by_ts: dict[int, float],
+    ref_ts: int,
+) -> dict:
+    """Detect CVD divergence across lookback windows from a reference point.
+
+    Bullish div: price down + CVD up → buying pressure despite drop → predict UP
+    Bearish div: price up + CVD down → selling pressure despite rise → predict DOWN
+
+    ref_ts should be the 1m timestamp BEFORE the 5m candle (avoids look-ahead).
+    """
+    cur_price = price_by_ts.get(ref_ts)
+    cur_cvd = cvd_by_ts.get(ref_ts)
+    if cur_price is None or cur_cvd is None:
+        return {"bullish": 0, "bearish": 0, "score": 0.0}
+
+    bullish = 0
+    bearish = 0
+    for _name, lb_ms in LOOKBACK_WINDOWS.items():
+        lb_ts = ref_ts - lb_ms
+        lb_price = price_by_ts.get(lb_ts)
+        lb_cvd = cvd_by_ts.get(lb_ts)
+        if lb_price is None or lb_cvd is None:
+            continue
+
+        dp = cur_price - lb_price
+        dc = cur_cvd - lb_cvd
+        if abs(dp) < MIN_PRICE_CHANGE_USD:
+            continue
+
+        if dp < 0 and dc > 0:
+            bullish += 1
+        elif dp > 0 and dc < 0:
+            bearish += 1
+
+    net = bullish - bearish
+    return {"bullish": bullish, "bearish": bearish, "score": float(net)}
+
+
+def cvd_to_prob(div_result: dict, dollar_imbalance: float = 0.0) -> float:
+    """Map CVD divergence → P(Up) in [0.15, 0.85].
+
+    Same tanh + clamp as _score_direction() for comparable P(Up) scales.
+    """
+    score = div_result["score"]
+    if score == 0:
+        return 0.5
+
+    # Normalize: score in [-5, +5] → [-1, +1]
+    norm = score / len(LOOKBACK_WINDOWS)
+
+    # Dollar imbalance confirmation (same direction boosts signal)
+    if abs(dollar_imbalance) > 0.05:
+        if (norm > 0 and dollar_imbalance > 0) or (norm < 0 and dollar_imbalance < 0):
+            norm *= 1.3
+
+    p_up = 0.5 + 0.3 * math.tanh(norm * CVD_STRENGTH_SCALE)
+    return max(0.15, min(0.85, p_up))
+
+
+def compute_dollar_imbalance(dv_5m: dict, dv_15m: dict, prev_5m_ts: int) -> float:
+    """5m buy_ratio - 15m buy_ratio for the PREVIOUS completed 5m candle.
+
+    Positive = short-term more bullish than longer-term context.
+    """
+    d5 = dv_5m.get(str(prev_5m_ts))
+    if not d5:
+        return 0.0
+    total5 = d5["buy_usd"] + d5["sell_usd"]
+    if total5 == 0:
+        return 0.0
+    r5 = d5["buy_usd"] / total5
+
+    ts_15 = prev_5m_ts - (prev_5m_ts % FIFTEEN_MIN_MS)
+    d15 = dv_15m.get(str(ts_15))
+    if not d15:
+        return 0.0
+    total15 = d15["buy_usd"] + d15["sell_usd"]
+    if total15 == 0:
+        return 0.0
+    r15 = d15["buy_usd"] / total15
+
+    return r5 - r15
+
+
+# ═══════════════════════════════════════
+#  Main Backtest
+# ═══════════════════════════════════════
+
+def run_backtest(days: int = 14) -> dict:
+    """Run CVD backtest: indicator-only vs CVD-only vs combined.
+
+    Returns result dict saved to polymarket/logs/cvd_backtest_results.json.
+    """
+    now = datetime.now(timezone.utc)
+    end_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_dt = end_dt - timedelta(days=days)
+    start_ms = int(start_dt.timestamp() * 1000)
+    end_ms = int(end_dt.timestamp() * 1000) - 1
+
+    print(f"╔══ CVD Backtest ══════════════════════════╗")
+    print(f"║ {start_dt:%Y-%m-%d} → {end_dt:%Y-%m-%d} ({days}d)")
+    print(f"║ Symbol: {SYMBOL}")
+    print(f"╚══════════════════════════════════════════╝\n")
+
+    # ── 1. Fetch data ──
+    print("[1/5] Fetching data...")
+    t0 = time.time()
+
+    klines_1m = fetch_klines_range(SYMBOL, "1m", start_ms, end_ms)
+    print(f"  1m klines: {len(klines_1m)}")
+
+    klines_5m = fetch_klines_range(SYMBOL, "5m", start_ms, end_ms)
+    print(f"  5m klines: {len(klines_5m)}")
+
+    klines_15m = fetch_klines_range(SYMBOL, "15m", start_ms, end_ms)
+    print(f"  15m klines: {len(klines_15m)}")
+
+    print("  Fetching aggTrades (cached per-day, first run may be slow)...")
+    trades_df = fetch_agg_trades_range(SYMBOL, start_ms, end_ms)
+    print(f"  aggTrades: {len(trades_df):,}")
+    print(f"  Fetch time: {time.time() - t0:.0f}s")
+
+    # ── 2. Pre-compute CVD + delta volume ──
+    print("\n[2/5] Computing CVD + delta volume...")
+    ts_1m = klines_1m["open_time"].astype(int).tolist()
+    minute_cvd_raw = aggregate_cvd(trades_df, ts_1m, ONE_MIN_MS)
+
+    # Fast lookup dicts (O(1) per candle)
+    price_by_ts = dict(zip(
+        klines_1m["open_time"].astype(int),
+        klines_1m["close"].astype(float),
+    ))
+    cvd_by_ts = {int(k): v["cvd"] for k, v in minute_cvd_raw.items()}
+
+    ts_5m = klines_5m["open_time"].astype(int).tolist()
+    dv_5m = aggregate_delta_volume(trades_df, ts_5m, FIVE_MIN_MS)
+    ts_15m = klines_15m["open_time"].astype(int).tolist()
+    dv_15m = aggregate_delta_volume(trades_df, ts_15m, FIFTEEN_MIN_MS)
+    print(f"  1m CVD: {len(minute_cvd_raw)} | 5m DV: {len(dv_5m)} | 15m DV: {len(dv_15m)}")
+
+    # ── 3. Compute indicators ──
+    print("\n[3/5] Computing indicators from 5m klines...")
+    ind_list = compute_indicators(klines_5m)
+    print(f"  {len(ind_list)} indicator snapshots")
+
+    # ── 4. Backtest loop ──
+    print("\n[4/5] Running backtest...")
+    btc_ctx_neutral = {
+        "price": None, "atr": None, "support": None, "resistance": None,
+        "funding": None, "sentiment": None, "market_mode": None,
+    }
+
+    models = {name: {"correct": 0, "total": 0, "brier": 0.0}
+              for name in ["indicator", "cvd", "combined"]}
+    cvd_signal_only = {"correct": 0, "total": 0}
+    signal_types = {"BULLISH_DIV": {"c": 0, "t": 0}, "BEARISH_DIV": {"c": 0, "t": 0}}
+    edge_buckets = {label: {"c": 0, "t": 0} for _, _, label in EDGE_BUCKETS}
+
+    warmup = 26  # EMA-26 needs 26 candles
+    for i in range(warmup, len(klines_5m)):
+        row = klines_5m.iloc[i]
+        actual = 1.0 if float(row["close"]) > float(row["open"]) else 0.0
+        ts = int(row["open_time"])
+
+        # ── Model A: Indicator-only ──
+        ind = ind_list[i]
+        p_ind = _score_direction(ind, btc_ctx_neutral)[0] if ind["rsi"] is not None else 0.5
+
+        # ── Model B: CVD-only ──
+        # ref_ts = 1 minute BEFORE candle open (avoid look-ahead)
+        ref_ts = ts - ONE_MIN_MS
+        div_result = detect_cvd_divergence(price_by_ts, cvd_by_ts, ref_ts)
+        # Dollar imbalance from PREVIOUS completed 5m candle
+        imbalance = compute_dollar_imbalance(dv_5m, dv_15m, ts - FIVE_MIN_MS)
+        p_cvd = cvd_to_prob(div_result, imbalance)
+
+        # ── Model C: Combined ──
+        p_comb = max(0.15, min(0.85, W_INDICATOR * p_ind + W_CVD * p_cvd))
+
+        # ── Record metrics ──
+        for name, p in [("indicator", p_ind), ("cvd", p_cvd), ("combined", p_comb)]:
+            m = models[name]
+            m["total"] += 1
+            m["brier"] += (p - actual) ** 2
+            if (p > 0.5 and actual == 1.0) or (p < 0.5 and actual == 0.0):
+                m["correct"] += 1
+
+        # CVD signal-only (skip no-signal candles for dedicated accuracy)
+        if p_cvd != 0.5:
+            cvd_signal_only["total"] += 1
+            if (p_cvd > 0.5 and actual == 1.0) or (p_cvd < 0.5 and actual == 0.0):
+                cvd_signal_only["correct"] += 1
+            st = "BULLISH_DIV" if div_result["bullish"] > div_result["bearish"] else "BEARISH_DIV"
+            signal_types[st]["t"] += 1
+            if (p_cvd > 0.5) == (actual == 1.0):
+                signal_types[st]["c"] += 1
+
+        # Edge bucket (CVD model)
+        edge = abs(p_cvd - 0.5)
+        for lo_b, hi_b, label in EDGE_BUCKETS:
+            if lo_b <= edge < hi_b:
+                edge_buckets[label]["t"] += 1
+                if (p_cvd > 0.5 and actual == 1.0) or (p_cvd < 0.5 and actual == 0.0):
+                    edge_buckets[label]["c"] += 1
+                break
+
+    # ── 5. Report ──
+    print("\n[5/5] Results")
+    print("=" * 65)
+
+    print(f"\n{'Model':<15} {'Accuracy':>10} {'Brier':>10} {'N':>8}")
+    print("-" * 45)
+    for name in ["indicator", "cvd", "combined"]:
+        m = models[name]
+        n = m["total"]
+        acc = m["correct"] / n if n else 0
+        brier = m["brier"] / n if n else 0
+        print(f"  {name:<13} {acc:>9.1%} {brier:>10.4f} {n:>8}")
+    print(f"  {'random':<13} {'50.0%':>10} {'0.2500':>10}")
+
+    # CVD signal-only
+    so = cvd_signal_only
+    print(f"\nCVD signal-only (candles with divergence):")
+    if so["total"]:
+        pct = so["total"] / models["cvd"]["total"] * 100
+        print(f"  Accuracy: {so['correct']/so['total']:.1%}  "
+              f"({so['total']} signals / {models['cvd']['total']} candles = {pct:.1f}%)")
+    else:
+        print("  No CVD signals detected")
+
+    # Signal type breakdown
+    print(f"\n{'Signal Type':<18} {'Accuracy':>10} {'Count':>8}")
+    print("-" * 38)
+    for st, d in signal_types.items():
+        if d["t"] > 0:
+            print(f"  {st:<16} {d['c']/d['t']:>9.1%} {d['t']:>8}")
+        else:
+            print(f"  {st:<16} {'N/A':>10} {0:>8}")
+
+    # Edge buckets
+    print(f"\nCVD Edge-Bucketed Accuracy:")
+    print(f"  {'Edge':>8} {'Accuracy':>10} {'Count':>8}")
+    print(f"  {'-' * 28}")
+    for _, _, label in EDGE_BUCKETS:
+        d = edge_buckets[label]
+        if d["t"] > 0:
+            print(f"  {label:>8} {d['c']/d['t']:>9.1%} {d['t']:>8}")
+        else:
+            print(f"  {label:>8} {'N/A':>10} {d['t']:>8}")
+
+    # ── Save results (atomic write) ──
+    os.makedirs(LOG_DIR, exist_ok=True)
+    result_file = os.path.join(LOG_DIR, "cvd_backtest_results.json")
+    output = {
+        "run_time": datetime.now(timezone.utc).isoformat(),
+        "period": f"{start_dt:%Y-%m-%d} → {end_dt:%Y-%m-%d}",
+        "days": days,
+        "symbol": SYMBOL,
+        "models": {
+            name: {
+                "accuracy": m["correct"] / m["total"] if m["total"] else 0,
+                "brier_score": m["brier"] / m["total"] if m["total"] else 0,
+                "total": m["total"],
+                "correct": m["correct"],
+            }
+            for name, m in models.items()
+        },
+        "cvd_signal_only": {
+            "accuracy": so["correct"] / so["total"] if so["total"] else None,
+            "total": so["total"],
+            "correct": so["correct"],
+        },
+        "signal_types": {
+            st: {
+                "accuracy": d["c"] / d["t"] if d["t"] else None,
+                "total": d["t"],
+                "correct": d["c"],
+            }
+            for st, d in signal_types.items()
+        },
+        "edge_buckets": {
+            label: {
+                "accuracy": edge_buckets[label]["c"] / edge_buckets[label]["t"]
+                if edge_buckets[label]["t"] else None,
+                "total": edge_buckets[label]["t"],
+                "correct": edge_buckets[label]["c"],
+            }
+            for _, _, label in EDGE_BUCKETS
+        },
+    }
+
+    fd, tmp_path = tempfile.mkstemp(dir=LOG_DIR, suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, result_file)
+        print(f"\nResults saved → {result_file}")
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+    return output
+
+
+def main():
+    parser = argparse.ArgumentParser(description="CVD Divergence Backtest")
+    parser.add_argument("--days", type=int, default=14, help="Days of history (default: 14)")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    )
+    run_backtest(days=args.days)
+
+
+if __name__ == "__main__":
+    main()

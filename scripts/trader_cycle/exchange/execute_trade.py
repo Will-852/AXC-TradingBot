@@ -274,6 +274,10 @@ class ExecuteTradeStep:
                         logger.warning(f"[{pair}] TP2 failed: {tp2_err} (SL protecting)")
 
             # ⑦ Update trade state (keys must match TRADE_STATE.md format)
+            # Get entry ATR for regime SL/TP adjustment later
+            _entry_atr = 0.0
+            if pair in ctx.indicators:
+                _entry_atr = ctx.indicators[pair].get("4h", {}).get("atr", 0.0) or 0.0
             ctx.trade_state_updates.update({
                 "POSITION_OPEN": "YES",
                 "PAIR": pair,
@@ -284,6 +288,9 @@ class ExecuteTradeStep:
                 "TP_PRICE": str(signal.tp1_price),
                 "TP2_PRICE": str(signal.tp2_price or 0),
                 "LAST_TRADE_TIME": ctx.timestamp_str,
+                "ENTRY_ATR": str(_entry_atr),
+                "ENTRY_VOL_REGIME": ctx.volatility_regime,
+                "REGIME_ADJUSTED": "NO",
             })
 
             # Trade log entry (with fee + slippage)

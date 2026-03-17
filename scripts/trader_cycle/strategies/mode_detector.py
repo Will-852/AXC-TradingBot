@@ -351,7 +351,7 @@ class DetectModeStep:
                 trend_voters, old_regime, vol_regime,
             )
 
-        # ─── 5. Set context ───
+        # ─── 5. Set context (direct assignment, no hysteresis) ───
         # Backward compat: set market_mode from HMM regime (informational)
         if hmm_regime in ("RANGE", "TREND", "CRASH"):
             ctx.market_mode = hmm_regime
