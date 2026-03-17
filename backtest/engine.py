@@ -105,6 +105,9 @@ class BTPosition:
     notional: float     # position size in USDT
     entry_time: str
     strategy: str       # "range", "trend", "crash", or "burst"
+    vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
+    market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
+    confidence: float = 0.0      # signal confidence at entry
 
 
 @dataclass
@@ -121,9 +124,12 @@ class BTTrade:
     exit_time: str
     exit_reason: str    # "SL", "TP", or "END"
     strategy: str
+    vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
+    market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
+    confidence: float = 0.0      # signal confidence at entry
 
     def to_dict(self) -> dict:
-        """Serialize all 11 fields for dashboard API."""
+        """Serialize all fields for dashboard API and analysis."""
         return {
             "symbol": self.symbol,
             "side": self.side,
@@ -136,10 +142,13 @@ class BTTrade:
             "exit_time": self.exit_time,
             "exit_reason": self.exit_reason,
             "strategy": self.strategy,
+            "vol_regime": self.vol_regime,
+            "market_mode": self.market_mode,
+            "confidence": round(self.confidence, 4),
         }
 
     def to_jsonl(self) -> str:
-        """Format matching metrics.py _load_trades() schema."""
+        """Format for analysis: full trade record including regime context."""
         return json.dumps({
             "symbol": self.symbol,
             "side": self.side,
@@ -147,6 +156,14 @@ class BTTrade:
             "exit": round(self.exit, 6),
             "pnl": round(self.pnl, 2),
             "sl_price": round(self.sl_price, 6),
+            "tp_price": round(self.tp_price, 6),
+            "entry_time": self.entry_time,
+            "exit_time": self.exit_time,
+            "exit_reason": self.exit_reason,
+            "strategy": self.strategy,
+            "vol_regime": self.vol_regime,
+            "market_mode": self.market_mode,
+            "confidence": round(self.confidence, 4),
             "ts": self.entry_time,
             "closed": True,
         }, ensure_ascii=False)
@@ -660,6 +677,9 @@ class BacktestEngine:
             exit_time=exit_time,
             exit_reason=reason,
             strategy=pos.strategy,
+            vol_regime=pos.vol_regime,
+            market_mode=pos.market_mode,
+            confidence=pos.confidence,
         ))
 
     def _try_signal(self, ind_1h: dict, candle, candle_time: str):
@@ -820,6 +840,9 @@ class BacktestEngine:
             notional=notional,
             entry_time=candle_time,
             strategy=sig.strategy,
+            vol_regime=self.volatility_regime,
+            market_mode=self.current_mode,
+            confidence=sig.confidence,
         ))
 
     def _record_equity(self, candle):

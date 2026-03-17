@@ -258,12 +258,13 @@ CP_MAX_SCORES = 200                # 每個 bank 最多存幾多
 CP_INFLATION_FACTOR = 1.5          # cold start inflation
 
 # ═══════════════════════════════════════
-# Section 15: Signal Filter (Backtest-to-Live Bridge)
+# Section 15: Signal Filter — Regime-Conditional
 # ═══════════════════════════════════════
-# 對應 backtest/engine.py 嘅 conf_gate / mode_pen / persist / cooldown。
-# v5 defaults 同 backtest/engine.py line 66-85 完全一致。
-# Per-asset overrides: 只有 WF PASS 嘅 asset 先有 entry。
+# Data source: backtest/regime_analysis.py on 180d + 360d
+# Cross-period stability test: only cells stable across BOTH periods get rules.
+# Philosophy: 唔好每個 regime 都 trade。只做有 edge 嘅 deal。
 
+# ── Defaults (v5 engine baseline) ──
 SIGNAL_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50}
 
 SIGNAL_MODE_AFFINITY = {
@@ -275,76 +276,57 @@ SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0}
 
 SIGNAL_PERSISTENCE = {"range": 3, "trend": 4, "crash": 1}
 
-SIGNAL_COOLDOWN_HOURS = 8  # post-trade cooldown (backtest: 8 candles × 1H = 8H)
+SIGNAL_COOLDOWN_HOURS = 8
 
-# Per-asset overrides (WF PASS only)
-# BTC/ETH: WF FAIL → not listed → defaults apply
-PER_ASSET_SIGNAL_OVERRIDES = {
-    "XRPUSDT": {
-        "conf_gate_range": 0.3975,
-        "conf_gate_trend": 0.4776,
-        "conf_gate_crash": 0.3318,
-        "mode_pen_trend_in_range": -0.4186,
-        "mode_pen_trend_in_crash": -0.0834,
-        "mode_pen_range_in_trend": -0.2348,
-        "mode_pen_range_in_crash": -0.301,
-        "mode_pen_default_trend": -0.181,
-        "mode_pen_default_range": -0.1988,
-        "persist_range": 3,
-        "persist_trend": 1,
-        "persist_crash": 2,
-        "cooldown_hours": 12,
-        # Source: backtest/data/opt_XRPUSDT_180d.json (2026-03-17)
-        # WF: PASS (degradation 37.2%)
-        # Baseline: -5.57% → Final: +5.92%, Sharpe 0.48
-    },
+# ── Regime-Conditional Rules ──
+# Key: (pair, vol_regime, market_mode, strategy)
+# Value: "BLOCK" | {"conf_gate": float}
+# Missing key → use defaults above (no opinion = conservative)
+#
+# Data evidence format: Sharpe~, WR, n (180d+360d combined)
+# Only rules backed by BOTH 180d AND 360d stability
+
+REGIME_SIGNAL_RULES = {
+    # ── BLOCK: stable negative expectancy across both periods ──
+    # BTC HIGH×TREND×trend: Sharpe~-0.10, WR 28%, n=61
+    ("BTCUSDT", "HIGH", "TREND", "trend"): "BLOCK",
+    # BTC NORMAL×RANGE×range: Sharpe~-0.10, WR 40%, n=42
+    ("BTCUSDT", "NORMAL", "RANGE", "range"): "BLOCK",
+    # XRP NORMAL×TREND×trend: Sharpe~-0.23, WR 23%, n=27
+    ("XRPUSDT", "NORMAL", "TREND", "trend"): "BLOCK",
+
+    # ── BLOCK: 360d strong negative (LOW vol is a trap) ──
+    # LOW vol×RANGE: negative for all pairs in 360d, E[PnL] -67 to -132
+    ("XRPUSDT", "LOW", "RANGE", "trend"): "BLOCK",
+    ("ETHUSDT", "LOW", "RANGE", "range"): "BLOCK",
+    ("ETHUSDT", "LOW", "RANGE", "trend"): "BLOCK",
+
+    # ── BOOST: stable high-Sharpe edge — lower conf_gate to capture more ──
+    # XRP NORMAL×RANGE×range: Sharpe~+0.48, WR 60%, n=31, calibrated
+    ("XRPUSDT", "NORMAL", "RANGE", "range"): {"conf_gate": 0.35},
+    # ETH HIGH×CRASH×trend: Sharpe~+0.80, WR 54%, n=30, calibrated
+    ("ETHUSDT", "HIGH", "CRASH", "trend"): {"conf_gate": 0.35},
+
+    # ── ALLOW with tighter gate: thin but stable edge ──
+    # XRP HIGH×TREND×trend: Sharpe~+0.14, WR 36%, n=92, calibrated
+    ("XRPUSDT", "HIGH", "TREND", "trend"): {"conf_gate": 0.55},
+    # ETH HIGH×RANGE×range: Sharpe~+0.11, WR 43%, n=47, calibrated (360d)
+    ("ETHUSDT", "HIGH", "RANGE", "range"): {"conf_gate": 0.50},
+    # BTC HIGH×CRASH×trend: Sharpe~+0.03, WR 32%, n=38, barely positive
+    ("BTCUSDT", "HIGH", "CRASH", "trend"): {"conf_gate": 0.55},
 }
 
 
-def get_signal_filter_params(symbol: str) -> dict:
-    """Resolve signal filter params for a symbol, with per-asset overrides."""
-    ov = PER_ASSET_SIGNAL_OVERRIDES.get(symbol, {})
-    return {
-        "conf_gate": {
-            "range": ov.get("conf_gate_range", SIGNAL_CONF_GATE["range"]),
-            "trend": ov.get("conf_gate_trend", SIGNAL_CONF_GATE["trend"]),
-            "crash": ov.get("conf_gate_crash", SIGNAL_CONF_GATE["crash"]),
-        },
-        "mode_affinity": {
-            "TREND": {
-                "trend": 0.0,
-                "range": ov.get("mode_pen_range_in_trend",
-                                SIGNAL_MODE_AFFINITY["TREND"]["range"]),
-                "crash": 0.0,
-            },
-            "RANGE": {
-                "range": 0.0,
-                "trend": ov.get("mode_pen_trend_in_range",
-                                SIGNAL_MODE_AFFINITY["RANGE"]["trend"]),
-                "crash": 0.0,
-            },
-            "CRASH": {
-                "crash": 0.0,
-                "trend": ov.get("mode_pen_trend_in_crash",
-                                SIGNAL_MODE_AFFINITY["CRASH"]["trend"]),
-                "range": ov.get("mode_pen_range_in_crash",
-                                SIGNAL_MODE_AFFINITY["CRASH"]["range"]),
-            },
-        },
-        "mode_default_penalty": {
-            "trend": ov.get("mode_pen_default_trend",
-                            SIGNAL_MODE_DEFAULT_PENALTY["trend"]),
-            "range": ov.get("mode_pen_default_range",
-                            SIGNAL_MODE_DEFAULT_PENALTY["range"]),
-            "crash": 0.0,
-        },
-        "persistence": {
-            "range": ov.get("persist_range", SIGNAL_PERSISTENCE["range"]),
-            "trend": ov.get("persist_trend", SIGNAL_PERSISTENCE["trend"]),
-            "crash": ov.get("persist_crash", SIGNAL_PERSISTENCE["crash"]),
-        },
-        "cooldown_hours": ov.get("cooldown_hours", SIGNAL_COOLDOWN_HOURS),
-    }
+def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
+                    strategy: str) -> str | dict | None:
+    """Lookup regime-conditional rule for a specific cell.
+
+    Returns:
+        "BLOCK" — don't trade this cell
+        {"conf_gate": float} — use this conf_gate instead of default
+        None — no rule, use defaults
+    """
+    return REGIME_SIGNAL_RULES.get((pair, vol_regime, market_mode, strategy))
 
 
 # ═══════════════════════════════════════
