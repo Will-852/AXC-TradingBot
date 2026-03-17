@@ -300,6 +300,14 @@ REGIME_SIGNAL_RULES = {
     # unreliable (ETH +$2,487 from 4 trades carries it; XRP/SOL/BTC all negative).
     # Decision: skip all LOW vol trades. Revisit when LOW vol edge is proven stable.
     # See get_regime_rule() below — returns "BLOCK" for any LOW vol lookup.
+    #
+    # KEY FINDING (180d transition analysis, 2026-03-17):
+    #   - LOW vol median duration: 4-12h (short-lived compression)
+    #   - 48-64% of LOW exits flip BACK to LOW within 12h (HMM noisy at boundary)
+    #   - 50% of LOW exits jump directly to HIGH (regime shift, not gradual)
+    #   - BB width +19-39%, ADX +4-11% at transition (volatility expansion)
+    #   - FUTURE: consider regime transition hysteresis (require N stable 4H candles
+    #     before confirming regime change) to reduce HMM noise at LOW boundary
 
     # ── BLOCK: NORMAL×RANGE×trend — trend-in-RANGE is a trap ──
     # ETH: 33% WR, n=3 | XRP: 14% WR, -$119/trade, n=7 | BTC: pattern consistent
