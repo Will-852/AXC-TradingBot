@@ -15,6 +15,7 @@ import math
 import os
 import re
 import subprocess
+import tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -259,12 +260,11 @@ def _gather_btc_context() -> dict:
 
 # ─── Scoring ───
 
-def _score_direction(indicators: dict, btc_ctx: dict) -> tuple[float, str, list[str]]:
+def _score_direction(indicators: dict, btc_ctx: dict) -> tuple[float, list[str]]:
     """Core scoring: indicators → P(Up).
 
-    Returns (p_up, side, reasons) where:
+    Returns (p_up, reasons) where:
     - p_up: probability of Up [0.15, 0.85]
-    - side: "YES" (buy Up) or "NO" (buy Down)
     - reasons: list of factor explanations
     """
     score = 0.0  # positive = bullish, negative = bearish
@@ -392,6 +392,70 @@ def _score_direction(indicators: dict, btc_ctx: dict) -> tuple[float, str, list[
     return p_up, reasons
 
 
+# ─── Prediction Logger ───
+
+_PREDICTION_LOG_PATH = os.path.join(
+    os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")),
+    "logs", "poly_15m_predictions.jsonl",
+)
+_HKT_TZ = ZoneInfo("Asia/Hong_Kong")
+
+
+def log_15m_prediction(
+    *,
+    p_up: float,
+    market_price: float,
+    edge_pct: float,
+    confidence: float,
+    acted: bool,
+    skip_reason: str | None,
+    source: str,
+    title: str,
+    condition_id: str,
+    coin: str,
+    window_start: str,
+    window_end: str,
+    indicators: dict,
+    market_mode: str | None,
+) -> None:
+    """Append prediction record to JSONL for calibration tracking.
+
+    Logs every scored 15M market (acted or not) so paper-trade
+    calibration data accumulates before going live.
+    Atomic write: tempfile + os.replace() not needed for append-only JSONL,
+    but we catch IOError to avoid crashing the pipeline.
+    """
+    now = datetime.now(tz=_HKT_TZ)
+    side = "YES" if p_up > market_price else "NO"
+
+    record = {
+        "ts": now.isoformat(),
+        "condition_id": condition_id,
+        "title": title,
+        "coin": coin,
+        "window_start": window_start,
+        "window_end": window_end,
+        "p_up": round(p_up, 4),
+        "side": side,
+        "market_price": round(market_price, 4),
+        "edge_pct": round(edge_pct, 4),
+        "confidence": round(confidence, 4),
+        "acted": acted,
+        "skip_reason": skip_reason,
+        "source": source,
+        "indicators": {k: round(v, 2) if isinstance(v, float) else v
+                       for k, v in indicators.items()},
+        "market_mode": market_mode,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(_PREDICTION_LOG_PATH), exist_ok=True)
+        with open(_PREDICTION_LOG_PATH, "a") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except IOError as e:
+        logger.warning("15M prediction log write failed: %s", e)
+
+
 # ─── Main Entry ───
 
 def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
@@ -406,13 +470,15 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
         logger.info("15M parse failed: %s", market.title[:60])
         return None
 
-    # Outcome safety check — "Up" must be first outcome
-    if market.outcomes:
-        first = market.outcomes[0].lower()
-        if first not in ("up", "yes"):
-            logger.warning("15M outcomes[0]='%s' not 'Up'/'Yes' — skipping: %s",
-                           market.outcomes[0], market.title[:50])
-            return None
+    # Outcome safety check — "Up"/"Yes" must be first outcome
+    if not market.outcomes:
+        logger.warning("15M no outcomes — skipping: %s", market.title[:50])
+        return None
+    first = market.outcomes[0].lower()
+    if first not in ("up", "yes"):
+        logger.warning("15M outcomes[0]='%s' not 'Up'/'Yes' — skipping: %s",
+                       market.outcomes[0], market.title[:50])
+        return None
 
     # Fetch indicators
     indicators = _fetch_15m_indicators(parsed["symbol"])
@@ -426,11 +492,25 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
     # Score
     p_up, reasons = _score_direction(indicators, btc_ctx)
 
+    # Common kwargs for prediction logger
+    _log_kw = dict(
+        title=market.title, condition_id=market.condition_id,
+        coin=parsed["coin"], window_start=parsed["start_time"],
+        window_end=parsed["end_time"], source="deterministic",
+        market_price=market.yes_price,
+        indicators={k: indicators.get(k) for k in ("rsi", "macd_hist") if indicators.get(k) is not None},
+        market_mode=btc_ctx.get("market_mode"),
+    )
+
     # Check threshold — P(Up) needs to be sufficiently far from 0.5
     deviation = abs(p_up - 0.5)
     if deviation < (CRYPTO_15M_INDICATOR_THRESHOLD - 0.5):
         logger.info("15M score too weak: P(Up)=%.3f, deviation=%.3f < %.3f",
                      p_up, deviation, CRYPTO_15M_INDICATOR_THRESHOLD - 0.5)
+        log_15m_prediction(p_up=p_up, edge_pct=deviation, confidence=0.0,
+                           acted=False,
+                           skip_reason=f"deviation {deviation:.2f} < {CRYPTO_15M_INDICATOR_THRESHOLD - 0.5:.2f}",
+                           **_log_kw)
         return None
 
     # Calculate edge vs market price — side determined by edge direction
@@ -445,6 +525,10 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
 
     if edge_pct < CRYPTO_15M_MIN_EDGE_PCT:
         logger.info("15M edge too small: %.3f < %.3f", edge_pct, CRYPTO_15M_MIN_EDGE_PCT)
+        log_15m_prediction(p_up=p_up, edge_pct=edge_pct, confidence=0.0,
+                           acted=False,
+                           skip_reason=f"edge {edge_pct:.3f} < {CRYPTO_15M_MIN_EDGE_PCT}",
+                           **_log_kw)
         return None
 
     # Confidence: based on how many indicators contributed + lead time
@@ -457,6 +541,9 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
         f"Lead {parsed['lead_minutes']:.0f}min. "
         f"Factors: {'; '.join(reasons[:5])}"
     )
+
+    log_15m_prediction(p_up=p_up, edge_pct=edge_pct, confidence=conf_base,
+                       acted=True, skip_reason=None, **_log_kw)
 
     return EdgeAssessment(
         condition_id=market.condition_id,
