@@ -10,7 +10,7 @@ from datetime import timezone, timedelta
 AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
 SECRETS_PATH = os.path.join(AXC_HOME, "secrets", ".env")
 _SHARED = os.path.join(AXC_HOME, "shared")
-LOG_DIR = os.path.join(AXC_HOME, "logs")
+LOG_DIR = os.path.join(AXC_HOME, "polymarket", "logs")
 
 # Polymarket-specific state files
 POLY_STATE_PATH = os.path.join(_SHARED, "POLYMARKET_STATE.json")
@@ -87,6 +87,8 @@ COOLDOWN_AFTER_CIRCUIT_MIN = 360  # 熔斷後冷卻 6 小時
 
 # ─── Weather Data ───
 OPEN_METEO_BASE = "https://api.open-meteo.com/v1"
+OWM_BASE = "https://api.openweathermap.org/data/2.5"
+OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
 
 # Forecast uncertainty σ (°C) by lead days — conservative estimates
 # Higher σ → flatter distribution → more conservative probability
@@ -116,7 +118,7 @@ _log = _logging.getLogger(__name__)
 try:
     import importlib.util as _ilu
     _spec = _ilu.spec_from_file_location(
-        "_poly_params", os.path.join(AXC_HOME, "config", "polymarket_params.py")
+        "_poly_params", os.path.join(AXC_HOME, "polymarket", "config", "params.py")
     )
     if _spec and _spec.loader:
         _mod = _ilu.module_from_spec(_spec)

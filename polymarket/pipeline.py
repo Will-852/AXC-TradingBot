@@ -10,8 +10,8 @@ Independent from trader_cycle — shared infra lives in shared_infra/:
 - Exchange exceptions + retry_quadratic
 
 Usage:
-  python3 scripts/polymarket_cycle/main.py --dry-run --verbose
-  python3 scripts/polymarket_cycle/main.py --live --verbose
+  PYTHONPATH=.:scripts python3 polymarket/pipeline.py --dry-run --verbose
+  PYTHONPATH=.:scripts python3 polymarket/pipeline.py --live --verbose
 
 Exit codes: 0 = ok, 1 = signal found, 2 = error
 """
@@ -26,15 +26,18 @@ import traceback
 from datetime import datetime
 
 # ─── Setup import paths ───
-_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_AXC = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+if _AXC not in sys.path:
+    sys.path.insert(0, _AXC)                          # for polymarket.*
+_scripts_dir = os.path.join(_AXC, "scripts")
 if _scripts_dir not in sys.path:
-    sys.path.insert(0, _scripts_dir)
+    sys.path.insert(0, _scripts_dir)                   # for shared_infra.*
 
-from polymarket_cycle.config.settings import (
+from polymarket.config.settings import (
     HKT, POLY_STATE_PATH, POLY_WAL_PATH, POLY_PIPELINE_LOCK_PATH,
     LOG_DIR, POLY_PAPER_GATE_HOURS, POLY_PAPER_GATE_FILE,
 )
-from polymarket_cycle.core.context import PolyContext
+from polymarket.core.context import PolyContext
 from shared_infra.pipeline import Pipeline, CriticalError, RecoverableError
 from shared_infra.file_lock import FileLock
 from shared_infra.wal import WriteAheadLog
@@ -51,7 +54,7 @@ class ReadStateStep:
     name = "read_state"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.state.poly_state import read_state
+        from polymarket.state.poly_state import read_state
         ctx.state = read_state()
         if ctx.verbose:
             print(f"    State loaded: {len(ctx.state)} keys")
@@ -89,7 +92,7 @@ class SafetyCheckStep:
     name = "safety_check"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.risk.risk_manager import check_safety
+        from polymarket.risk.risk_manager import check_safety
         ctx = check_safety(ctx)
         if ctx.risk_blocked and ctx.verbose:
             print(f"    BLOCKED: {'; '.join(ctx.risk_reasons[:3])}")
@@ -101,8 +104,8 @@ class ScanMarketsStep:
     name = "scan_markets"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.exchange.gamma_client import GammaClient
-        from polymarket_cycle.strategy.market_scanner import scan_markets
+        from polymarket.exchange.gamma_client import GammaClient
+        from polymarket.strategy.market_scanner import scan_markets
 
         gamma = ctx.gamma_client or GammaClient()
         ctx.gamma_client = gamma
@@ -128,7 +131,7 @@ class CheckPositionsStep:
     name = "check_positions"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.core.context import PolyPosition
+        from polymarket.core.context import PolyPosition
 
         # Load positions from state (dry-run or state-based tracking)
         stored_positions = ctx.state.get("positions", [])
@@ -189,7 +192,7 @@ class ManagePositionsStep:
     name = "manage_positions"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.risk.position_manager import evaluate_positions
+        from polymarket.risk.position_manager import evaluate_positions
 
         if not ctx.open_positions:
             return ctx
@@ -218,8 +221,8 @@ class FindEdgeStep:
     name = "find_edge"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.config.settings import MAX_MARKETS_FOR_AI
-        from polymarket_cycle.strategy.edge_finder import assess_markets
+        from polymarket.config.settings import MAX_MARKETS_FOR_AI
+        from polymarket.strategy.edge_finder import assess_markets
 
         if ctx.risk_blocked:
             if ctx.verbose:
@@ -257,13 +260,13 @@ class GenerateSignalsStep:
     name = "generate_signals"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.config.settings import (
+        from polymarket.config.settings import (
             MIN_EDGE_PCT, EDGE_CONFIDENCE_THRESHOLD, MAX_SIGNALS_PER_CYCLE,
             MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
             CRYPTO_15M_MIN_EDGE_PCT, CRYPTO_15M_CONFIDENCE_THRESHOLD,
         )
-        from polymarket_cycle.core.context import PolySignal
-        from polymarket_cycle.strategy.spread_analyzer import analyze_spread
+        from polymarket.core.context import PolySignal
+        from polymarket.strategy.spread_analyzer import analyze_spread
 
         if ctx.risk_blocked:
             return ctx
@@ -324,7 +327,7 @@ class GenerateSignalsStep:
 
         # Risk filter: remove duplicates + category limits
         # Note: bet_size not checked here (signals not sized yet — SizePositionsStep is next)
-        from polymarket_cycle.risk.risk_manager import filter_signals
+        from polymarket.risk.risk_manager import filter_signals
         ctx.signals = filter_signals(ctx)
 
         if ctx.verbose:
@@ -340,7 +343,7 @@ class SizePositionsStep:
     name = "size_positions"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.risk.binary_kelly import size_signals
+        from polymarket.risk.binary_kelly import size_signals
 
         if not ctx.signals:
             return ctx
@@ -364,8 +367,8 @@ class ExecuteTradesStep:
     name = "execute_trades"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.state.trade_log import log_trade
-        from polymarket_cycle.core.context import PolyPosition
+        from polymarket.state.trade_log import log_trade
+        from polymarket.core.context import PolyPosition
 
         if not ctx.signals:
             return ctx
@@ -497,7 +500,7 @@ class WriteStateStep:
     name = "write_state"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.state.poly_state import build_state_snapshot, write_state
+        from polymarket.state.poly_state import build_state_snapshot, write_state
 
         state = build_state_snapshot(ctx)
         ok = write_state(state)
@@ -515,7 +518,7 @@ class SendReportsStep:
     name = "send_reports"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket_cycle.notify.telegram import send_poly_report, format_cycle_report
+        from polymarket.notify.telegram import send_poly_report, format_cycle_report
 
         # Print report to console in verbose mode
         if ctx.verbose:
@@ -644,7 +647,7 @@ def main():
     # ─── Exchange client (live only) ───
     if args.live:
         try:
-            from polymarket_cycle.exchange.polymarket_client import PolymarketClient
+            from polymarket.exchange.polymarket_client import PolymarketClient
             ctx.exchange_client = PolymarketClient(dry_run=False)
             if args.verbose:
                 bal = ctx.exchange_client.get_usdc_balance()

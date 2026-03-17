@@ -229,9 +229,14 @@ class PolymarketClient:
 
     @retry_quadratic()
     def get_midpoint(self, token_id: str) -> float:
-        """Get mid price for a token."""
+        """Get mid price for a token.
+
+        SDK returns dict {"mid": "0.725"} — extract and convert.
+        """
         try:
             mid = self.client.get_midpoint(token_id)
+            if isinstance(mid, dict):
+                return float(mid.get("mid", 0))
             return float(mid) if mid else 0.0
         except Exception as e:
             self._wrap_error(e, "get_midpoint")

@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from ..config.categories import WEATHER_CITIES
 from ..config.settings import (
     AXC_HOME, SECRETS_PATH, AI_MODEL, AI_MAX_TOKENS, AI_TEMPERATURE,
-    WEATHER_SIGMA_BY_LEAD, WEATHER_CONFIDENCE_BY_LEAD,
+    WEATHER_SIGMA_BY_LEAD, WEATHER_CONFIDENCE_BY_LEAD, OWM_BASE, OWM_API_KEY,
 )
 from ..core.context import PolyMarket, EdgeAssessment
 
@@ -311,8 +311,8 @@ def _parse_weather_market(title: str) -> dict | None:
     }
 
 
-def _fetch_forecast(lat: float, lon: float, target_date: str,
-                    fahrenheit: bool = False) -> float | None:
+def _fetch_open_meteo_forecast(lat: float, lon: float, target_date: str,
+                               fahrenheit: bool = False) -> float | None:
     """Fetch temperature_2m_max from Open-Meteo free API.
 
     Returns forecast high temp for target_date, or None on failure.
@@ -346,6 +346,81 @@ def _fetch_forecast(lat: float, lon: float, target_date: str,
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as e:
         logger.warning("Open-Meteo fetch error: %s", e)
         return None
+
+
+def _fetch_owm_forecast(lat: float, lon: float, target_date: str,
+                        fahrenheit: bool = False) -> float | None:
+    """Fetch daily high from OWM 5-day/3h forecast API.
+
+    OWM 返回 3h 間隔 → filter 到 target_date → 取當日所有 temp_max 嘅最大值。
+    需要 OWM_API_KEY；冇 key 或 API 失敗 → return None（graceful fallback）。
+    """
+    if not OWM_API_KEY:
+        return None
+
+    units = "imperial" if fahrenheit else "metric"
+    url = (
+        f"{OWM_BASE}/forecast?"
+        f"lat={lat}&lon={lon}"
+        f"&units={units}&appid={OWM_API_KEY}"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AXC-Trading/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        # OWM forecast list: each entry has dt_txt "YYYY-MM-DD HH:MM:SS"
+        day_maxes = []
+        for entry in data.get("list", []):
+            dt_txt = entry.get("dt_txt", "")
+            if dt_txt.startswith(target_date):
+                temp_max = entry.get("main", {}).get("temp_max")
+                if temp_max is not None:
+                    day_maxes.append(float(temp_max))
+
+        if day_maxes:
+            return max(day_maxes)
+
+        logger.info("Target date %s not in OWM response", target_date)
+        return None
+
+    except urllib.error.HTTPError as e:
+        logger.warning("OWM HTTP %d: %s", e.code,
+                       "bad API key" if e.code == 401 else
+                       "rate limited" if e.code == 429 else e.reason)
+        return None
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as e:
+        logger.warning("OWM fetch error: %s", e)
+        return None
+
+
+def _fetch_multi_source_forecast(
+    lat: float, lon: float, target_date: str, fahrenheit: bool = False,
+) -> tuple[float | None, list[str]]:
+    """Fetch forecast from Open-Meteo + OWM, average when both available.
+
+    Returns (forecast_temp, data_sources).
+    雙源平均減少單一來源誤差；任一失敗自動 fallback 到另一個。
+    """
+    om_temp = _fetch_open_meteo_forecast(lat, lon, target_date, fahrenheit)
+    owm_temp = _fetch_owm_forecast(lat, lon, target_date, fahrenheit)
+
+    if om_temp is not None and owm_temp is not None:
+        avg = (om_temp + owm_temp) / 2.0
+        logger.info(
+            "Multi-source forecast: Open-Meteo=%.1f, OWM=%.1f, avg=%.1f",
+            om_temp, owm_temp, avg,
+        )
+        return avg, ["open-meteo", "owm"]
+    elif om_temp is not None:
+        logger.info("OWM unavailable, using Open-Meteo only: %.1f", om_temp)
+        return om_temp, ["open-meteo-only"]
+    elif owm_temp is not None:
+        logger.info("Open-Meteo unavailable, using OWM only: %.1f", owm_temp)
+        return owm_temp, ["owm-only"]
+    else:
+        logger.warning("Both Open-Meteo and OWM failed for %s", target_date)
+        return None, []
 
 
 def _get_forecast_sigma(lead_days: int) -> float:
@@ -404,9 +479,9 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         logger.info("Weather market date in past: %s", parsed["date"])
         return None
 
-    # Fetch forecast (°F for US cities, °C otherwise)
+    # Fetch forecast from multiple sources (°F for US cities, °C otherwise)
     fahrenheit = parsed["unit"] == "F"
-    forecast_temp = _fetch_forecast(
+    forecast_temp, sources = _fetch_multi_source_forecast(
         parsed["lat"], parsed["lon"], parsed["date"], fahrenheit=fahrenheit,
     )
     if forecast_temp is None:
@@ -455,7 +530,7 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         confidence=confidence,
         side=side,
         reasoning=reasoning,
-        data_sources=["open-meteo-forecast", f"lead_{lead_days}d"],
+        data_sources=sources + [f"lead_{lead_days}d"],
     )
 
 
@@ -477,6 +552,9 @@ def _get_weather_context(title: str) -> str:
     if lat is None:
         return "Could not determine city for weather forecast."
 
+    parts = []
+
+    # Open-Meteo 7-day forecast
     try:
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
@@ -494,18 +572,51 @@ def _get_weather_context(title: str) -> str:
         mins = daily.get("temperature_2m_min", [])
         precip = daily.get("precipitation_sum", [])
 
-        lines = [f"Weather forecast for {city_name} (next 7 days):"]
+        lines = [f"[Open-Meteo] Weather forecast for {city_name} (next 7 days):"]
         for i, d in enumerate(dates):
             hi = maxes[i] if i < len(maxes) else "?"
             lo = mins[i] if i < len(mins) else "?"
             rain = precip[i] if i < len(precip) else "?"
             lines.append(f"  {d}: High {hi}°C, Low {lo}°C, Precip {rain}mm")
+        parts.append("\n".join(lines))
 
-        return "\n".join(lines)
-
-    except Exception as e:
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
         logger.warning("Open-Meteo fetch error for %s: %s", city_name, e)
-        return f"Weather data unavailable for {city_name}: {e}"
+
+    # OWM 5-day/3h forecast
+    if OWM_API_KEY:
+        try:
+            owm_url = (
+                f"{OWM_BASE}/forecast?"
+                f"lat={lat}&lon={lon}&units=metric&appid={OWM_API_KEY}"
+            )
+            req = urllib.request.Request(owm_url, headers={"User-Agent": "AXC-Trading/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                owm_data = json.loads(resp.read().decode())
+
+            # Group by date, extract daily high/low
+            daily_temps: dict[str, list[float]] = {}
+            for entry in owm_data.get("list", []):
+                dt_txt = entry.get("dt_txt", "")
+                day = dt_txt[:10]
+                temp = entry.get("main", {}).get("temp")
+                if day and temp is not None:
+                    daily_temps.setdefault(day, []).append(float(temp))
+
+            if daily_temps:
+                lines = [f"[OWM] Weather forecast for {city_name} (5-day):"]
+                for day in sorted(daily_temps):
+                    temps = daily_temps[day]
+                    lines.append(f"  {day}: High {max(temps):.1f}°C, Low {min(temps):.1f}°C")
+                parts.append("\n".join(lines))
+
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            logger.warning("OWM fetch error for %s: %s", city_name, e)
+
+    if not parts:
+        return f"Weather data unavailable for {city_name}."
+
+    return "\n\n".join(parts)
 
 
 def _build_user_prompt(market: PolyMarket, context_data: str) -> str:
