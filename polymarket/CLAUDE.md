@@ -1,0 +1,126 @@
+# Polymarket — Claude Code 入口
+> ⚠️ 此文件上限 150 行。Claude Code 自動載入。
+> 最後更新：2026-03-18
+
+## 身份
+獨立預測市場交易子系統，寄生於 AXC shared_infra 但邏輯完全獨立。
+詳細業務規則 → `polymarket/CORE.md`（必讀）
+
+## Current Phase: 🟡 Paper Only
+- 所有策略仲係 paper trade，未有 live
+- Paper gate: 需要 48h dry-run 先可以上 live
+- BTC 15M + Weather 兩條 paper tracker 獨立運行中
+
+## 業務範圍
+| 策略 | 狀態 | AI 成本 |
+|------|------|---------|
+| Crypto 15M | Paper | 低（deterministic 指標優先，AI fallback） |
+| Weather | Paper | 零（ensemble forecast + CDF，無 AI） |
+| Crypto（一般） | Paper | 有（Claude sonnet 估概率） |
+
+**Weather 正式範圍：亞洲**（Tokyo, HK, Shanghai 為主）。
+categories.py 有 21 城市含 US — US 係 paper testing，唔係正式 scope。
+
+## 架構：13-Step Pipeline
+```
+pipeline.py (818 行) — 主循環入口
+1  ReadState        → POLYMARKET_STATE.json
+2  ReplayWAL        → crash recovery
+3  SafetyCheck      → circuit breaker / daily loss / cooldown
+4  ScanMarkets      → Gamma API → match categories
+5  CheckPositions   → sync 持倉 + PnL
+6  ManagePositions  → exit triggers (drift/profit/loss/expiry)
+7  FindEdge         → AI 或 deterministic 概率評估
+7.5 GTOFilter       → adverse selection + Nash eq（零 AI）
+8  GenerateSignals  → edge > threshold → PolySignal
+9  SizePositions    → binary Kelly (half Kelly × confidence × GTO)
+10 ExecuteTrades    → dry-run log / live WAL → CLOB SDK
+11 WriteState       → atomic write state
+12 SendReports      → Telegram
+```
+
+## 獨立入口（唔經 pipeline）
+| Script | 用途 | 跑法 |
+|--------|------|------|
+| `run_btc_paper.py` | BTC 15M paper tracker | `--predict` / `--resolve` / `--report` |
+| `run_weather_paper.py` | Weather paper tracker | `--predict` / `--resolve` / `--report` / `--calibrate` |
+
+## 文件索引
+```
+polymarket/
+├── CORE.md              ← 業務規則（GTO、落注、架構原則）★ 必讀
+├── CLAUDE.md            ← 你而家睇緊嘅嘢
+├── pipeline.py          ← 主入口
+├── config/
+│   ├── settings.py      ← 所有常數、路徑、閾值
+│   ├── params.py        ← $100 bankroll override（獨立於 AXC params.py）
+│   └── categories.py    ← 市場分類 + weather cities + blocklist
+├── core/context.py      ← dataclasses: PolyMarket, EdgeAssessment, PolySignal...
+├── exchange/
+│   ├── gamma_client.py  ← Gamma API（公開，免 auth）
+│   └── polymarket_client.py ← CLOB SDK（需 POLY_PRIVATE_KEY）
+├── strategy/
+│   ├── market_scanner.py    ← scan + filter
+│   ├── edge_finder.py       ← 核心 edge 偵測（weather=CDF, crypto=AI）
+│   ├── crypto_15m.py        ← BTC 15M 指標 pipeline
+│   ├── weather_tracker.py   ← multi-model ensemble paper
+│   ├── gto.py               ← GTO filter（純數學）
+│   └── spread_analyzer.py   ← order book 分析
+├── risk/
+│   ├── risk_manager.py      ← circuit breaker, exposure limits
+│   ├── position_manager.py  ← exit triggers
+│   └── binary_kelly.py      ← Kelly sizing
+├── state/
+│   ├── poly_state.py        ← POLYMARKET_STATE.json（atomic write）
+│   └── trade_log.py         ← poly_trades.jsonl（canonical: polymarket/logs/）
+├── notify/telegram.py       ← Telegram reports（HTML, 廣東話）
+└── logs/                    ← 所有 log + paper trade records
+```
+
+## 依賴關係（隔離規則）
+```
+polymarket → shared_infra   ✅ 允許（pipeline, retry, WAL, telegram, file_lock）
+polymarket → shared/ files  ✅ 允許 READ-ONLY（SCAN_CONFIG.md, news_sentiment.json, TRADE_STATE.json）
+polymarket → trader_cycle   ❌ 禁止
+AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab，try/except lazy import）
+```
+
+**Hard coupling（已知，暫時接受）：**
+- `crypto_15m.py:154` subprocess 呼叫 `scripts/indicator_calc.py`
+- 所有入口用 `sys.path` hack 注入 `scripts/` 目錄
+
+## 落注規則速查
+- Bankroll: **$100 USDC** | Max per bet: **$10** | Max exposure: **30%**
+- P(direction) < 55% → SKIP | Entry price > 0.55 → SKIP
+- Kelly: half Kelly × confidence × GTO unexploitability
+- Daily loss > 15% → circuit breaker（6h cooldown）
+- 3 consecutive losses → circuit breaker
+
+## 跑法
+```bash
+cd ~/projects/axc-trading
+# Pipeline (dry-run)
+PYTHONPATH=.:scripts python3 polymarket/pipeline.py --dry-run --verbose
+# BTC paper
+PYTHONPATH=.:scripts python3 polymarket/run_btc_paper.py --predict
+PYTHONPATH=.:scripts python3 polymarket/run_btc_paper.py --resolve --report
+# Weather paper
+PYTHONPATH=.:scripts python3 polymarket/run_weather_paper.py --predict
+PYTHONPATH=.:scripts python3 polymarket/run_weather_paper.py --resolve --report --calibrate
+```
+
+## ⚠️ Known Issues
+1. ~~Trade log 路徑~~ — ✅ 已修（2026-03-18）：settings.py + trade_log.py 統一指向 `polymarket/logs/`
+2. **CORE.md weather scope 過時**：寫「亞洲 only」但 code 已有 US cities（paper testing）
+3. **indicator_calc.py 硬編碼**：`/opt/homebrew/bin/python3.11` subprocess（換機要改）
+
+## Gotchas
+- Gamma API `search_markets()` 先搵到 15M 市場，`get_markets()` by-liquidity 排唔到（volume 太低 ~$15K）
+- Weather ensemble 用 Open-Meteo（GFS+ECMWF+ICON = 122 members），唔係 normal CDF
+- GTO live_event = 永遠 BLOCK（場內有人睇住比分，你永遠係 dumb money）
+- `_SHORT_KEYWORD_LEN=4`：短 keyword 用 word boundary regex（防 "sol" match "resolve"）
+- State file 喺 `shared/POLYMARKET_STATE.json`，唔係 polymarket/ 內（dashboard 要讀）
+
+## Proxy
+- AI model: `claude-sonnet-4-6` via `PROXY_BASE_URL`（同 AXC 共用 proxy）
+- Temperature: 0.3（低 = 穩定概率估計）

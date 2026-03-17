@@ -15,7 +15,7 @@ LOG_DIR = os.path.join(AXC_HOME, "polymarket", "logs")
 # Polymarket-specific state files
 POLY_STATE_PATH = os.path.join(_SHARED, "POLYMARKET_STATE.json")
 POLY_MARKETS_CACHE_PATH = os.path.join(_SHARED, "polymarket_markets.json")
-POLY_TRADE_LOG_PATH = os.path.join(_SHARED, "poly_trades.jsonl")
+POLY_TRADE_LOG_PATH = os.path.join(LOG_DIR, "poly_trades.jsonl")
 POLY_WAL_PATH = os.path.join(_SHARED, ".poly_wal.jsonl")
 POLY_PIPELINE_LOCK_PATH = os.path.join(_SHARED, ".poly_pipeline")
 POLY_CREDS_CACHE_PATH = os.path.join(AXC_HOME, "secrets", ".poly_api_creds.json")
