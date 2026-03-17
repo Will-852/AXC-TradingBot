@@ -38,6 +38,7 @@ from scripts.dashboard.paper_trading import (
     handle_paper_trading_status, handle_paper_trading_start,
     handle_paper_trading_stop,
 )
+from scripts.dashboard.polymarket import handle_polymarket_data
 from scripts.dashboard.files import (
     handle_file_read, handle_open_folder, get_docs_list, serve_doc,
     generate_share_package,
@@ -219,6 +220,22 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
+        elif path == "/polymarket":
+            poly_path = os.path.join(HOME, "canvas/polymarket.html")
+            try:
+                with open(poly_path, "rb") as f:
+                    html = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html)
+            except FileNotFoundError:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"canvas/polymarket.html not found")
+        elif path == "/api/polymarket/data":
+            code, data = handle_polymarket_data()
+            self._json_response(code, data)
         elif path == "/api/paper-trading":
             code, data = handle_paper_trading_status()
             self._json_response(code, data)

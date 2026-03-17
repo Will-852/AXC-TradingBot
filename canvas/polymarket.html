@@ -178,37 +178,26 @@ tr:hover { background: #f9fafb; }
       <div class="empty-state">No trades yet</div>
     </div>
   </div>
+
+  <!-- Weather Calibration -->
+  <div class="card" id="calibration-card" style="display:none">
+    <div class="card-header">Weather Calibration</div>
+    <div id="calibration-body"></div>
+  </div>
 </div>
 
 <script>
-const STATE_PATH = '../shared/POLYMARKET_STATE.json';
-const TRADES_PATH = '../logs/poly_trades.jsonl';
-const REFRESH_MS = 30000; // 30s — poly cycle is 60min, no need for fast refresh
+const API_URL = '/api/polymarket/data';
+const REFRESH_MS = 30000;
 
-async function fetchState() {
+async function fetchData() {
   try {
-    const res = await fetch(STATE_PATH + '?t=' + Date.now());
-    if (!res.ok) throw new Error('State file not found');
+    const res = await fetch(API_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('API error ' + res.status);
     return await res.json();
   } catch (e) {
-    console.warn('State fetch error:', e);
+    console.warn('Data fetch error:', e);
     return null;
-  }
-}
-
-async function fetchTrades() {
-  try {
-    const res = await fetch(TRADES_PATH + '?t=' + Date.now());
-    if (!res.ok) return [];
-    const text = await res.text();
-    return text.trim().split('\n')
-      .filter(l => l.trim())
-      .map(l => { try { return JSON.parse(l); } catch { return null; } })
-      .filter(Boolean)
-      .reverse()
-      .slice(0, 20);
-  } catch {
-    return [];
   }
 }
 
@@ -346,22 +335,105 @@ function renderTrades(trades) {
   el.innerHTML = html;
 }
 
+function renderCalibration(cal) {
+  const card = document.getElementById('calibration-card');
+  const el = document.getElementById('calibration-body');
+  if (!cal) { card.style.display = 'none'; return; }
+
+  const brier = cal.brier || {};
+  const edge = cal.edge || {};
+  const brierOk = brier.matched && !brier.error;
+  const edgeOk = edge.per_source_mae && !edge.error;
+  if (!brierOk && !edgeOk) { card.style.display = 'none'; return; }
+
+  card.style.display = '';
+  let html = '<div style="padding:16px;display:grid;gap:16px">';
+
+  // ── Brier Score ──
+  if (brier && !brier.error && brier.matched) {
+    html += '<div>';
+    html += '<h4 style="margin-bottom:8px">Brier Score</h4>';
+    html += '<div style="display:flex;gap:24px;margin-bottom:8px">';
+    html += '<span>Matched: <strong>' + brier.matched + '</strong></span>';
+    html += '<span>Overall: <strong class="mono">' + (brier.brier_overall || 0).toFixed(4) + '</strong></span>';
+    html += '<span>Bias: <strong class="mono">' + ((brier.bias_overall || 0) >= 0 ? '+' : '') + (brier.bias_overall || 0).toFixed(4) + '</strong></span>';
+    html += '</div>';
+
+    // By city table
+    const byCity = brier.by_city || {};
+    const cities = Object.keys(byCity);
+    if (cities.length) {
+      html += '<table><thead><tr><th>City</th><th>N</th><th>Brier</th><th>Bias</th></tr></thead><tbody>';
+      for (const c of cities) {
+        const d = byCity[c];
+        html += '<tr><td>' + c + '</td><td class="mono">' + (d.n || 0) + '</td>';
+        html += '<td class="mono">' + (d.brier || 0).toFixed(4) + '</td>';
+        html += '<td class="mono">' + ((d.bias || 0) >= 0 ? '+' : '') + (d.bias || 0).toFixed(4) + '</td></tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+  }
+
+  // ── Source Accuracy (MAE) ──
+  if (edge && !edge.error && edge.per_source_mae) {
+    html += '<div>';
+    html += '<h4 style="margin-bottom:8px">Source Accuracy (MAE)</h4>';
+    html += '<div style="margin-bottom:8px"><span>Matched: <strong>' + (edge.matched || 0) + '</strong></span></div>';
+    const mae = edge.per_source_mae || {};
+    const sources = Object.keys(mae);
+    if (sources.length) {
+      html += '<table><thead><tr><th>Source</th><th>MAE</th></tr></thead><tbody>';
+      for (const s of sources) {
+        html += '<tr><td>' + s + '</td><td class="mono">' + (mae[s] || 0).toFixed(4) + '</td></tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    // σ by Lead Day
+    const sigma = edge.sigma_by_lead || {};
+    const leads = Object.keys(sigma);
+    if (leads.length) {
+      html += '<div>';
+      html += '<h4 style="margin-bottom:8px">\u03c3 by Lead Day</h4>';
+      html += '<table><thead><tr><th>Lead</th><th>Actual \u03c3</th><th>Bias</th></tr></thead><tbody>';
+      for (const ld of leads) {
+        const d = sigma[ld];
+        html += '<tr><td>' + ld + 'd</td>';
+        html += '<td class="mono">' + (d.sigma || d.actual_sigma || 0).toFixed(3) + '</td>';
+        html += '<td class="mono">' + ((d.bias || 0) >= 0 ? '+' : '') + (d.bias || 0).toFixed(3) + '</td></tr>';
+      }
+      html += '</tbody></table>';
+      html += '</div>';
+    }
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 async function refresh() {
-  const [state, trades] = await Promise.all([fetchState(), fetchTrades()]);
+  const data = await fetchData();
   const errBanner = document.getElementById('error-banner');
 
-  if (!state) {
+  if (!data) {
     errBanner.style.display = 'block';
-    errBanner.textContent = 'Cannot load POLYMARKET_STATE.json — is the pipeline running?';
+    errBanner.textContent = 'Cannot reach /api/polymarket/data — is the dashboard running?';
     return;
   }
   errBanner.style.display = 'none';
+
+  const state = data.state || {};
+  const trades = data.trades || [];
+  const calibration = data.calibration || {};
 
   renderKPIs(state);
   renderPositions(state.positions);
   renderSignals(state.last_scan);
   renderRisk(state);
   renderTrades(trades);
+  renderCalibration(calibration);
 }
 
 refresh();
