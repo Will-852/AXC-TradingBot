@@ -1,0 +1,78 @@
+{
+  "symbol": "BTCUSDT",
+  "days": 360,
+  "n_trials": 200,
+  "shrinkage": 0.7,
+  "final_source": "mild_shrunk",
+  "final_params": {
+    "conf_gate_range": 0.5855,
+    "conf_gate_trend": 0.5748,
+    "conf_gate_crash": 0.5469,
+    "mode_pen_trend_in_range": -0.2694,
+    "mode_pen_trend_in_crash": -0.1003,
+    "mode_pen_range_in_trend": -0.3122,
+    "mode_pen_range_in_crash": -0.2422,
+    "mode_pen_default_trend": -0.1431,
+    "mode_pen_default_range": -0.1151,
+    "persist_range": 4,
+    "persist_trend": 6,
+    "persist_crash": 2,
+    "cooldown": 10
+  },
+  "best_raw_params": {
+    "conf_gate_range": 0.670970944755195,
+    "conf_gate_trend": 0.6495437634657327,
+    "conf_gate_crash": 0.5938293692220453,
+    "mode_pen_trend_in_range": -0.23871979844755833,
+    "mode_pen_trend_in_crash": -0.0006383001052388398,
+    "mode_pen_range_in_trend": -0.4244937091069832,
+    "mode_pen_range_in_crash": -0.18433140729814412,
+    "mode_pen_default_trend": -0.03625792934510744,
+    "mode_pen_default_range": -0.13024039892530054,
+    "persist_range": 5,
+    "persist_trend": 7,
+    "persist_crash": 3,
+    "cooldown": 13
+  },
+  "baseline": {
+    "return_pct": -3.45,
+    "sharpe": -0.1221,
+    "pf": 0.9583,
+    "trades": 200,
+    "objective": 0.7788
+  },
+  "final": {
+    "return_pct": 18.1,
+    "sharpe": 1.14,
+    "pf": 1.38,
+    "trades": 66,
+    "objective": 2.201,
+    "max_dd": 9.7,
+    "win_rate": 45.5
+  },
+  "walk_forward": {
+    "passed": false,
+    "is_avg": 0.2588,
+    "oos_avg": -Infinity,
+    "degradation_pct": Infinity,
+    "folds": [
+      {
+        "fold": 1,
+        "is_obj": -0.381,
+        "oos_obj": -Infinity,
+        "is_trades": 22,
+        "oos_trades": 15,
+        "oos_return": 2.63
+      },
+      {
+        "fold": 2,
+        "is_obj": 0.8985,
+        "oos_obj": -Infinity,
+        "is_trades": 28,
+        "oos_trades": 19,
+        "oos_return": 14.05
+      }
+    ]
+  },
+  "created_at": "2026-03-16T21:14:21.571837+00:00"
+}

@@ -92,11 +92,21 @@ def _print_results(result: dict, args):
         print(f"  CAGR:           {cagr:>+11.2f}%")
 
         # Per-strategy breakdown
-        for strat in ("range", "trend", "crash"):
+        for strat in ("range", "trend", "crash", "burst"):
             strat_t = [t for t in result["trades"] if t.strategy == strat]
             if strat_t:
                 sw = sum(1 for t in strat_t if t.pnl > 0)
                 print(f"  {strat.title():14s}  {sw}W / {len(strat_t) - sw}L")
+
+        # Confidence distribution
+        conf_dist = result.get("confidence_dist", {})
+        if conf_dist:
+            print(f"\n  Confidence Distribution:")
+            for strat, stats in sorted(conf_dist.items()):
+                print(f"    {strat:6s}  n={stats['count']:>3}  "
+                      f"min={stats['min']:.2f}  p25={stats['p25']:.2f}  "
+                      f"med={stats['median']:.2f}  p75={stats['p75']:.2f}  "
+                      f"max={stats['max']:.2f}")
 
         # Top drawdown periods
         dd_periods = result.get("drawdown_periods", [])

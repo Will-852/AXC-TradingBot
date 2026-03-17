@@ -1,13 +1,15 @@
 """
 crash_strategy.py — CRASH mode 策略（高波動防守型）
 
-設計決定：
-  - 只做 SHORT（crash = 跌市，唔追反彈）
-  - 更闊 SL（ATR × 2.0，因為波動大）
-  - 更保守 risk（1% instead of 2%）
-  - 更低槓桿（5x instead of 7-8x）
-  - 需要更強信號（RSI > 75 + MACD bearish + volume spike）
-  - R:R ≥ 1.5（較低門檻，因為 crash 環境利潤空間大）
+Phase 1 重構：
+  - Binary 2-of-3 → weighted confidence scoring (0-1)
+  - SHORT-only 保留
+  - 閾值 0.3
+
+Sub-score weights:
+  RSI exhaustion  0.40 — relief rally overbought
+  MACD bearish    0.30 — 下跌動量
+  Volume spike    0.30 — 恐慌成交量
 """
 
 from __future__ import annotations
@@ -19,16 +21,49 @@ from ..config.settings import (
 from .base import StrategyBase, PositionParams
 from ..core.context import CycleContext, Signal
 
+# ─── Confidence weights ───
+W_RSI = 0.40
+W_MACD = 0.30
+W_VOLUME = 0.30
+
+CONFIDENCE_THRESHOLD = 0.30
+
+
+def _score_rsi_exhaustion(rsi: float, threshold: float = 60.0) -> float:
+    """RSI overbought in crash = relief rally exhaustion.
+
+    RSI > threshold → starts scoring. RSI > 80 → 1.0.
+    Low threshold (60) because in crash, even RSI 65 is stretched.
+    """
+    if rsi is None or rsi <= threshold:
+        return 0.0
+    return min((rsi - threshold) / (80.0 - threshold), 1.0)
+
+
+def _score_macd_bearish(macd_hist: float) -> float:
+    """MACD histogram < 0 and magnitude → bearish momentum score.
+
+    hist < 0 → starts scoring. More negative → higher score.
+    Scaled by typical crash histogram magnitude.
+    """
+    if macd_hist is None or macd_hist >= 0:
+        return 0.0
+    # Magnitude scoring: |hist| 0.001→0.2, 0.005→0.5, 0.01→1.0
+    return min(abs(macd_hist) / 0.01, 1.0)
+
+
+def _score_volume_spike(volume_ratio: float, min_ratio: float = 1.5) -> float:
+    """Volume spike: high volume confirms panic selling.
+
+    ratio < min_ratio → 0. ratio 1.5→0.0, 3.0→0.5, 5.0→1.0
+    """
+    if volume_ratio is None or volume_ratio < min_ratio:
+        return 0.0
+    return min((volume_ratio - min_ratio) / (5.0 - min_ratio), 1.0)
+
 
 class CrashStrategy(StrategyBase):
-    """SHORT-only strategy for CRASH regime (HMM state=2).
-
-    Entry requires 2-of-3 conditions (RSI + MACD/Volume naturally anti-correlate
-    in crash — requiring all 3 simultaneously produces zero signals):
-      1. RSI > CRASH_RSI_ENTRY (60) — relief rally exhaustion
-      2. MACD histogram < 0 — bearish momentum
-      3. volume_ratio > CRASH_VOLUME_MIN (1.5) — volume spike confirming panic
-    """
+    """SHORT-only strategy for CRASH regime with confidence scoring."""
 
     name = "crash"
     mode = "CRASH"
@@ -50,40 +85,41 @@ class CrashStrategy(StrategyBase):
         if any(v is None for v in [rsi, macd_hist, price]):
             return None
 
-        # ─── Entry conditions: all 3 must pass ───
-        conditions = {
-            "RSI_overbought": rsi > CRASH_RSI_ENTRY,
-            "MACD_bearish": macd_hist < 0,
-            "Volume_spike": volume_ratio > CRASH_VOLUME_MIN,
-        }
+        # ─── Sub-scores ───
+        rsi_score = _score_rsi_exhaustion(rsi, CRASH_RSI_ENTRY)
+        macd_score = _score_macd_bearish(macd_hist)
+        vol_score = _score_volume_spike(volume_ratio, CRASH_VOLUME_MIN)
 
-        # 2-of-3 gate: RSI + MACD/Volume naturally anti-correlate in crash
-        # (relief rallies = high RSI + low volume; panic = low RSI + high volume)
-        if sum(conditions.values()) < 2:
+        # ─── Weighted confidence ───
+        confidence = (
+            W_RSI * rsi_score
+            + W_MACD * macd_score
+            + W_VOLUME * vol_score
+        )
+
+        if confidence < CONFIDENCE_THRESHOLD:
             return None
 
-        # ─── Only SHORT in crash ───
-        reasons = [f"CRASH_SHORT: RSI={rsi:.1f} MACD_h={macd_hist:.4f} Vol={volume_ratio:.1f}x"]
-        for k, v in conditions.items():
-            reasons.append(f"  {k}: {'PASS' if v else 'FAIL'}")
+        # ─── Build signal (SHORT only) ───
+        strength = "STRONG" if confidence >= 0.7 else "WEAK"
+        reasons = [
+            f"CRASH_SHORT: conf={confidence:.2f}",
+            f"  RSI_exhaust={rsi_score:.2f}(w={W_RSI}) rsi={rsi:.1f}",
+            f"  MACD_bear={macd_score:.2f}(w={W_MACD}) hist={macd_hist:.4f}",
+            f"  Vol_spike={vol_score:.2f}(w={W_VOLUME}) ratio={volume_ratio:.1f}x",
+        ]
 
-        # Score based on how extreme conditions are
-        score = 3.0
-        if rsi > 80:
-            score += 0.5
-        if volume_ratio > 3.0:
-            score += 0.5
-        if abs(macd_hist) > 0.01:
-            score += 0.5
+        score = 3.0 + confidence * 2.0
 
         return Signal(
             pair=pair,
             direction="SHORT",
             strategy=self.name,
-            strength="STRONG" if score >= 4.0 else "WEAK",
+            strength=strength,
             entry_price=price,
             reasons=reasons,
             score=score,
+            confidence=confidence,
         )
 
     def get_position_params(self) -> PositionParams:

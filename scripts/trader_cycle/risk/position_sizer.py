@@ -1,13 +1,13 @@
 """
 position_sizer.py — Position sizing, SL/TP calculation, funding cost adjustment
 
-Implements:
-  - Per-regime Kelly sizing when sufficient data exists, fixed fallback otherwise
-  - ATR-based stop loss
-  - Strategy-specific take profit (BB bands for range, S/R for trend)
-  - R:R validation
-  - Funding cost impact on TP (user feedback: XAG +0.214%/8h)
-  - Re-entry size reduction after losses
+Phase 1 重構：
+  - Gate + size_tier（唔再乘法堆疊）
+  - base_risk = profile.risk_per_trade_pct（由 volatility regime 決定）
+  - size_tier: confidence >= 0.7 → 1.0×, >= 0.5 → 0.7×, >= 0.3 → 0.5×
+  - MIN_RISK_FLOOR = 0.5%（保證最低可執行倉位）
+  - Kelly: 有數據時做上限，唔做 base
+  - SL/TP 計算保持不變
 """
 
 from __future__ import annotations
@@ -15,9 +15,7 @@ from __future__ import annotations
 from ..config.settings import (
     PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME,
     REENTRY_SIZE_REDUCTION,
-    CONFIDENCE_RISK_HIGH, CONFIDENCE_RISK_NORMAL, CONFIDENCE_RISK_LOW,
-    CONFIDENCE_RISK_CAP, HMM_ENABLED, HMM_MIN_CONFIDENCE,
-    REGIME_ENGINE, CP_ENABLED,
+    CP_ENABLED,
     RANGE_TP_MID_FRACTION,
     KELLY_NO_EDGE,
 )
@@ -32,9 +30,43 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# ─── Size tier based on signal confidence (replaces multiplicative stacking) ───
+MIN_RISK_FLOOR = 0.005  # 0.5% absolute minimum risk
+
 # Estimated holding periods (in 8h funding intervals)
 FUNDING_PERIODS_RANGE = 3    # ~24h for range trades
 FUNDING_PERIODS_TREND = 6    # ~48h for trend trades
+
+
+def _get_size_tier(confidence: float) -> float:
+    """Map confidence to position size tier.
+
+    設計決定：用離散 tier 取代連續乘法，防止倉位消失。
+      confidence >= 0.7 → 全倉 (1.0×)
+      confidence >= 0.5 → 七成倉 (0.7×)
+      confidence >= 0.3 → 半倉 (0.5×)
+      confidence < 0.3  → 唔應該到呢度（evaluate 已過濾）
+    """
+    if confidence >= 0.7:
+        return 1.0
+    elif confidence >= 0.5:
+        return 0.7
+    else:
+        return 0.5
+
+
+def _load_profile_risk(profile_name: str) -> float:
+    """Load risk_per_trade_pct from named profile.
+
+    Fallback to 0.02 (2%) if profile load fails.
+    """
+    try:
+        from config.profiles.loader import load_profile
+        profile = load_profile(profile_name)
+        return profile.get("risk_per_trade_pct", 0.02)
+    except Exception as e:
+        log.warning("Failed to load profile '%s': %s, using 2%%", profile_name, e)
+        return 0.02
 
 
 class SizePositionStep:
@@ -50,10 +82,15 @@ class SizePositionStep:
             return ctx
 
         signal = ctx.selected_signal
-        strategy = StrategyRegistry.get(ctx.market_mode)
 
+        # ─── Find strategy by signal name (not market mode) ───
+        strategy = None
+        for s in StrategyRegistry.all_strategies().values():
+            if s.name == signal.strategy:
+                strategy = s
+                break
         if not strategy:
-            ctx.warnings.append(f"No strategy for mode {ctx.market_mode}, cannot size")
+            ctx.warnings.append(f"No strategy '{signal.strategy}', cannot size")
             ctx.selected_signal = None
             return ctx
 
@@ -78,8 +115,6 @@ class SizePositionStep:
 
         # ─── SL Calculation ───
         sl_atr_mult = params.sl_atr_mult
-
-        # Pair-specific SL override (e.g., XRP uses 1.0x instead of 1.2x)
         try:
             pair_cfg = get_pair(signal.pair)
             if pair_cfg.sl_mult_override is not None:
@@ -88,7 +123,6 @@ class SizePositionStep:
             pair_cfg = None
 
         # Conformal Prediction: widen SL with uncertainty estimate
-        # (calibration updated in DetectModeStep every 4H candle)
         atr_for_sl = atr
         if CP_ENABLED:
             try:
@@ -119,7 +153,6 @@ class SizePositionStep:
             reward = abs(tp1_price - entry_price)
             risk = sl_distance
             rr_ratio = reward / risk if risk > 0 else 0
-
             if rr_ratio < params.min_rr:
                 ctx.warnings.append(
                     f"R:R rejected: {signal.pair} {signal.direction} "
@@ -128,57 +161,40 @@ class SizePositionStep:
                 ctx.selected_signal = None
                 return ctx
 
-        # ─── Position Size ───
+        # ─── Position Size: Gate + Size Tier (Phase 1 refactor) ───
         balance = ctx.account_balance if ctx.account_balance > 0 else 100.0
 
-        # ─── Base Risk: Kelly or Fixed ───
-        # Kelly activates when sufficient per-regime trade history exists.
-        # KELLY_NO_EDGE (-1.0) == comparison is intentional: direct constant return,
-        # not a computed float — see kelly.py docstring.
-        kelly_risk = compute_kelly_base_risk(ctx.market_mode)
+        # 1. Base risk from active profile
+        base_risk = _load_profile_risk(ctx.active_risk_profile)
 
+        # 2. Size tier from signal confidence
+        size_tier = _get_size_tier(signal.confidence)
+
+        # 3. Loss reduction (re-entry after consecutive losses)
+        consecutive_losses = _parse_int(ctx.trade_state.get("CONSECUTIVE_LOSSES", 0))
+        loss_mult = (1 - REENTRY_SIZE_REDUCTION) ** consecutive_losses if consecutive_losses > 0 else 1.0
+
+        # 4. Final risk = base × size_tier × loss_reduction
+        final_risk = base_risk * size_tier * loss_mult
+
+        # 5. MIN_RISK_FLOOR: guarantee minimum executable position
+        final_risk = max(final_risk, MIN_RISK_FLOOR)
+
+        # 6. Kelly cap: if Kelly has data, use as upper limit (not base)
+        kelly_risk = compute_kelly_base_risk(ctx.market_mode)
+        kelly_capped = False
         if kelly_risk == KELLY_NO_EDGE:
+            # No statistical edge → block signal
             ctx.warnings.append(
                 f"Kelly: no statistical edge in {ctx.market_mode} regime → signal blocked"
             )
             ctx.selected_signal = None
             return ctx
+        if kelly_risk is not None and final_risk > kelly_risk:
+            final_risk = kelly_risk
+            kelly_capped = True
 
-        base_risk = kelly_risk if kelly_risk is not None else params.risk_pct
-
-        # ─── Signal confidence → risk adjustment (Yunis Collection) ───
-        # Use original_score (pre-boost) to prevent re-entry boost inflating size
-        sizing_score = signal.original_score if signal.original_score != 0.0 else signal.score
-        if sizing_score >= 4.5:
-            adjusted_risk = base_risk * CONFIDENCE_RISK_HIGH
-        elif sizing_score >= 3.0:
-            adjusted_risk = base_risk * CONFIDENCE_RISK_NORMAL
-        else:
-            adjusted_risk = base_risk * CONFIDENCE_RISK_LOW
-        adjusted_risk = min(adjusted_risk, CONFIDENCE_RISK_CAP)
-
-        # ─── HMM confidence → risk adjustment ───
-        # Higher HMM confidence = more conviction = keep full size
-        # Lower confidence (but above threshold) = scale down proportionally
-        # Skip for CRASH mode — already has conservative 1% risk, double-penalize 唔好
-        if (HMM_ENABLED or REGIME_ENGINE == "bocpd_cp") and ctx.market_mode != "CRASH":
-            hmm_conf_str = ctx.scan_config_updates.get("HMM_CONFIDENCE", "0.0")
-            try:
-                hmm_conf = float(hmm_conf_str)
-            except (TypeError, ValueError):
-                hmm_conf = 0.0
-            if hmm_conf > HMM_MIN_CONFIDENCE:
-                adjusted_risk *= hmm_conf  # e.g., 0.8 conf → 80% of risk
-                if ctx.verbose:
-                    print(f"      HMM confidence: {hmm_conf:.0%} → risk scaled to {adjusted_risk:.2%}")
-
-        risk_amount = balance * adjusted_risk
-
-        # Re-entry size reduction after losses — 遞減：每次連虧再縮 30%
-        # 1 loss: ×0.7, 2 losses: ×0.49, 3 losses: ×0.343
-        consecutive_losses = _parse_int(ctx.trade_state.get("CONSECUTIVE_LOSSES", 0))
-        if consecutive_losses > 0:
-            risk_amount *= (1 - REENTRY_SIZE_REDUCTION) ** consecutive_losses
+        risk_amount = balance * final_risk
 
         # Position size = risk_amount / (sl_distance / entry_price)
         sl_pct = sl_distance / entry_price
@@ -192,7 +208,6 @@ class SizePositionStep:
         signal.tp1_price = round(tp1_price, prec) if tp1_price else 0.0
         signal.tp2_price = round(tp2_price, prec) if tp2_price else None
 
-        # ─── Store sizing on signal for ExecuteTradeStep (Phase 3) ───
         try:
             qty_prec = pair_cfg.qty_precision if pair_cfg else 3
         except (AttributeError, TypeError):
@@ -203,9 +218,12 @@ class SizePositionStep:
         signal.leverage = params.leverage
 
         if ctx.verbose:
-            kelly_src = "Kelly" if kelly_risk is not None else "fixed"
             print(f"    Position Sizing: {signal.pair} {signal.direction}")
-            print(f"      Base risk: {base_risk:.2%} ({kelly_src})")
+            print(f"      Profile: {ctx.active_risk_profile} → base_risk={base_risk:.2%}")
+            print(f"      Confidence: {signal.confidence:.2f} → size_tier={size_tier:.1f}×")
+            print(f"      Final risk: {final_risk:.2%} (floor={MIN_RISK_FLOOR:.2%})")
+            if kelly_capped:
+                print(f"      Kelly cap: {kelly_risk:.2%}")
             print(f"      Entry: {entry_price} | SL: {signal.sl_price} | TP1: {signal.tp1_price}")
             if signal.tp2_price:
                 print(f"      TP2: {signal.tp2_price}")
@@ -214,10 +232,8 @@ class SizePositionStep:
             if tp1_price:
                 rr = abs(tp1_price - entry_price) / sl_distance if sl_distance > 0 else 0
                 print(f"      R:R = 1:{rr:.1f} (min 1:{params.min_rr})")
-            if adjusted_risk != base_risk:
-                print(f"      Confidence: score={sizing_score:.1f} → risk {base_risk:.1%} × {adjusted_risk/base_risk:.2f} = {adjusted_risk:.1%}")
             if consecutive_losses > 0:
-                print(f"      Re-entry: {REENTRY_SIZE_REDUCTION:.0%} size reduction ({consecutive_losses} losses)")
+                print(f"      Loss reduction: ×{loss_mult:.2f} ({consecutive_losses} losses)")
 
         return ctx
 

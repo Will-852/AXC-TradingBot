@@ -35,6 +35,8 @@ class Signal:
     reasons: list[str] = field(default_factory=list)
     score: float = 0.0             # numeric strength for ranking (may include boosts)
     original_score: float = 0.0    # pre-boost score for position sizing
+    confidence: float = 0.0        # 0.0-1.0 weighted sub-score from strategy
+    normalized_rank: float = 0.0   # 0.0-1.0 percentile rank within own strategy
     # Phase 3 — populated by SizePositionStep for ExecuteTradeStep
     position_size_qty: float = 0.0  # quantity in base asset (e.g., 0.003 BTC)
     position_notional: float = 0.0  # notional value in USDT
@@ -137,6 +139,11 @@ class CycleContext:
     mode_confirmed: bool = False
     prev_mode: str = "UNKNOWN"
     prev_mode_cycles: int = 0
+
+    # ─── Volatility Regime (Phase 1 refactor) ───
+    volatility_regime: str = "NORMAL"       # "LOW" / "NORMAL" / "HIGH"
+    regime_confidence: float = 0.0          # HMM/BOCPD posterior confidence
+    active_risk_profile: str = "balanced"   # "aggressive" / "balanced" / "conservative"
 
     # ─── Risk ───
     risk_blocked: bool = False

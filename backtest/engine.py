@@ -37,6 +37,7 @@ from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
 from trader_cycle.strategies.regime_hmm import RegimeHMM
 from trader_cycle.strategies.regime_bocpd import RegimeBOCPD
+from backtest.strategies.bt_burst_strategy import BTBurstStrategy
 from trader_cycle.risk.atr_conformal import ATRConformal
 from trader_cycle.core.context import CycleContext
 from trader_cycle.config.settings import (
@@ -62,7 +63,36 @@ MAX_RISK_PCT = 0.05        # hard cap: never risk >5% per trade (防止 optimize
 # Persistence threshold: signal must appear N consecutive candles before acknowledged.
 # Different from signal_delay (delays execution of an already-acknowledged signal).
 # Per-strategy: crash=0 (immediate), range/trend=2 (need 2 consecutive same-direction signals).
-PERSISTENCE_THRESHOLD = {"range": 2, "trend": 2, "crash": 0}
+PERSISTENCE_THRESHOLD = {"range": 3, "trend": 4, "crash": 1, "burst": 1}
+
+# ─── New architecture: volatility regime → risk profile ───
+_VOL_PROFILE_MAP = {"LOW": "aggressive", "NORMAL": "balanced", "HIGH": "conservative"}
+_VOL_DOWNGRADE = {"LOW": "NORMAL", "NORMAL": "HIGH", "HIGH": "HIGH"}
+_PROFILE_RISK = {"aggressive": 0.03, "balanced": 0.02, "conservative": 0.01}
+MIN_RISK_FLOOR = 0.005  # 0.5% absolute minimum risk
+TRADE_COOLDOWN_CANDLES = 8  # wait 8 candles (8h) after closing a position before entering another
+
+# Per-strategy confidence gates
+_STRATEGY_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50, "burst": 0.35}
+
+# Soft mode penalty: when mode doesn't match strategy affinity, penalize confidence
+# Strong penalty for trend (most false-positive prone) to approximate mode gate filtering
+_MODE_AFFINITY = {
+    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0, "burst": -0.05},
+    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0, "burst": -0.05},
+    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30, "burst": -0.15},
+}
+_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0, "burst": -0.05}
+
+
+def _get_size_tier(confidence: float) -> float:
+    """Map confidence to position size tier (matches production position_sizer.py)."""
+    if confidence >= 0.7:
+        return 1.0
+    elif confidence >= 0.5:
+        return 0.7
+    else:
+        return 0.5
 
 
 @dataclass
@@ -74,7 +104,7 @@ class BTPosition:
     tp_price: float
     notional: float     # position size in USDT
     entry_time: str
-    strategy: str       # "range", "trend", or "crash"
+    strategy: str       # "range", "trend", "crash", or "burst"
 
 
 @dataclass
@@ -130,6 +160,7 @@ class _PendingSignal:
     atr: float
     signal_time: str
     score: float = 0.0        # signal score for confidence-based sizing + filtering
+    confidence: float = 0.0   # signal confidence (0-1) for size_tier calculation
     remaining_delay: int = 1  # candles until execution (1 = next candle = default)
 
 
@@ -160,6 +191,7 @@ class BacktestEngine:
         min_score: float = 0.0,
         scorer=None,
         quiet: bool = False,
+        tuning_params: dict | None = None,
     ):
         self.symbol = symbol.upper()
         self.df_1h = df_1h.reset_index(drop=True)
@@ -174,6 +206,48 @@ class BacktestEngine:
         self._scorer = scorer       # WeightedScorer for confidence-based sizing (optional)
         self.quiet = quiet
 
+        # ── Per-asset tuning params (optimizer injects these) ──
+        tp = tuning_params or {}
+        self._conf_gate = {
+            "range": tp.get("conf_gate_range", _STRATEGY_CONF_GATE["range"]),
+            "trend": tp.get("conf_gate_trend", _STRATEGY_CONF_GATE["trend"]),
+            "crash": tp.get("conf_gate_crash", _STRATEGY_CONF_GATE["crash"]),
+            "burst": tp.get("conf_gate_burst", _STRATEGY_CONF_GATE["burst"]),
+        }
+        self._mode_affinity = {
+            "TREND": {
+                "trend": 0.0,
+                "range": tp.get("mode_pen_range_in_trend", _MODE_AFFINITY["TREND"]["range"]),
+                "crash": 0.0,
+                "burst": tp.get("mode_pen_burst_in_trend", _MODE_AFFINITY["TREND"]["burst"]),
+            },
+            "RANGE": {
+                "range": 0.0,
+                "trend": tp.get("mode_pen_trend_in_range", _MODE_AFFINITY["RANGE"]["trend"]),
+                "crash": 0.0,
+                "burst": tp.get("mode_pen_burst_in_range", _MODE_AFFINITY["RANGE"]["burst"]),
+            },
+            "CRASH": {
+                "crash": 0.0,
+                "trend": tp.get("mode_pen_trend_in_crash", _MODE_AFFINITY["CRASH"]["trend"]),
+                "range": tp.get("mode_pen_range_in_crash", _MODE_AFFINITY["CRASH"]["range"]),
+                "burst": tp.get("mode_pen_burst_in_crash", _MODE_AFFINITY["CRASH"]["burst"]),
+            },
+        }
+        self._mode_default_penalty = {
+            "trend": tp.get("mode_pen_default_trend", _MODE_DEFAULT_PENALTY["trend"]),
+            "range": tp.get("mode_pen_default_range", _MODE_DEFAULT_PENALTY["range"]),
+            "crash": 0.0,
+            "burst": tp.get("mode_pen_default_burst", _MODE_DEFAULT_PENALTY["burst"]),
+        }
+        self._persistence = {
+            "range": tp.get("persist_range", PERSISTENCE_THRESHOLD["range"]),
+            "trend": tp.get("persist_trend", PERSISTENCE_THRESHOLD["trend"]),
+            "crash": tp.get("persist_crash", PERSISTENCE_THRESHOLD["crash"]),
+            "burst": tp.get("persist_burst", PERSISTENCE_THRESHOLD["burst"]),
+        }
+        self._cooldown = tp.get("cooldown", TRADE_COOLDOWN_CANDLES)
+
         # Indicator params with product overrides + backtest overrides
         self.param_overrides = param_overrides or {}
         self.params_1h = self._build_params("1h")
@@ -187,6 +261,10 @@ class BacktestEngine:
         self.range_strategy = strats.get("range", RangeStrategy())
         self.trend_strategy = strats.get("trend", TrendStrategy())
         self.crash_strategy = strats.get("crash", CrashStrategy())
+        # Burst strategy: disabled by default. Enable via strategy_overrides.
+        # Tested on XRP 360d: neither continuation nor fade improved results.
+        # Volume spikes on XRP don't carry reliable directional signal.
+        self.burst_strategy = strats.get("burst", None)
 
         # Regime engine (per-run independent instances, no persistence across backtests)
         self.regime_engine = REGIME_ENGINE
@@ -233,11 +311,22 @@ class BacktestEngine:
         self._persist_direction: str | None = None  # last signal's direction
         self._persist_count: int = 0                 # consecutive candles with same signal
 
+        # Trade cooldown: skip N candles after closing a position
+        self._cooldown_remaining: int = 0
+
+        # Diagnostic: track confidence of signals that led to trades
+        self._trade_confidences: list[tuple[str, float]] = []  # (strategy, confidence)
+
         # Mode tracking
         self.current_mode = "UNKNOWN"
         self.mode_confirmed = False
         self.prev_mode = "UNKNOWN"
         self.prev_mode_cycles = 0
+
+        # Volatility regime tracking (new architecture)
+        self.volatility_regime = "NORMAL"
+        self.vol_confidence = 0.0
+        self.active_risk_profile = "balanced"
 
         # 4H tracking
         self._last_4h_idx = -1
@@ -362,6 +451,12 @@ class BacktestEngine:
             else:
                 ind_1h["volume_ratio"] = 1.0
 
+            # prev_close: previous candle's close (for burst strategy price_change calc)
+            if len(slice_1h) >= 2:
+                ind_1h["prev_close"] = float(slice_1h["close"].iloc[-2])
+            else:
+                ind_1h["prev_close"] = None
+
             # ── Collect indicator snapshot for frontend ──
             self.indicator_series.append({
                 "time": candle_time,
@@ -385,21 +480,30 @@ class BacktestEngine:
                 "vwap_upper": ind_1h.get("vwap_upper"),
                 "vwap_lower": ind_1h.get("vwap_lower"),
                 "mode": self.current_mode,
+                "vol_regime": self.volatility_regime,
             })
 
+            # ── Burst strategy internal cooldown (separate from trade cooldown) ──
+            if self.burst_strategy is not None:
+                self.burst_strategy.tick_cooldown()
+
             # ── Step 5-6: Strategy evaluation → pending signal ──
-            mode_allowed = (
-                self.allowed_modes is None
-                or self.current_mode in self.allowed_modes
-            )
-            if (
-                self.mode_confirmed
-                and mode_allowed
-                and len(self.positions) < MAX_CRYPTO_POSITIONS
-                and self._ind_4h
-                and self._pending_signal is None  # don't overwrite pending
-            ):
-                self._try_signal(ind_1h, candle, candle_time)
+            # Cooldown: decrement and skip if still cooling down
+            if self._cooldown_remaining > 0:
+                self._cooldown_remaining -= 1
+            else:
+                mode_allowed = (
+                    self.allowed_modes is None
+                    or self.current_mode in self.allowed_modes
+                )
+                if (
+                    self.mode_confirmed
+                    and mode_allowed
+                    and len(self.positions) < MAX_CRYPTO_POSITIONS
+                    and self._ind_4h
+                    and self._pending_signal is None  # don't overwrite pending
+                ):
+                    self._try_signal(ind_1h, candle, candle_time)
 
             # ── Step 7: Record equity ──
             self._record_equity(candle)
@@ -429,59 +533,53 @@ class BacktestEngine:
         else:
             self._ind_4h["volume_ratio"] = 1.0
 
-        # Regime engine update
+        # ── Regime engine update + volatility regime ──
         hmm_regime = None
         hmm_confidence = 0.0
         hmm_crash_confirmed = False
+        vol_regime = "NORMAL"
+        vol_confidence = 0.0
+
         if self._bocpd is not None:
-            # BOCPD: direct regime output, skip voting
             try:
                 hmm_regime, hmm_confidence, hmm_crash_confirmed = self._bocpd.update(self._ind_4h)
+                vol_regime, vol_confidence = self._bocpd.get_volatility_regime()
             except Exception as e:
                 log.warning("BOCPD update failed in backtest: %s", e)
+        elif self._hmm is not None:
+            try:
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = self._hmm.update(self._ind_4h)
+                vol_regime, vol_confidence = self._hmm.get_volatility_regime()
+            except Exception as e:
+                log.warning("HMM update failed in backtest: %s", e)
 
-            if (
-                hmm_regime == "CRASH"
-                and hmm_crash_confirmed
-                and hmm_confidence >= HMM_CRASH_THRESHOLD
-            ):
-                raw_mode = "CRASH"
-            elif hmm_regime in ("RANGE", "TREND"):
-                raw_mode = hmm_regime
-            else:
-                raw_mode = "UNKNOWN"
-        else:
-            # votes_hmm path
-            if self._hmm is not None:
-                try:
-                    hmm_regime, hmm_confidence, hmm_crash_confirmed = self._hmm.update(self._ind_4h)
-                except Exception as e:
-                    log.warning("HMM update failed in backtest: %s", e)
+        # Voter brake check: run old voters, ≥3 TREND votes → downgrade one level
+        raw_mode, _votes = detect_mode_for_pair(
+            self._ind_4h, 0.0, hmm_regime, hmm_confidence, hmm_crash_confirmed
+        )
+        if _votes:
+            trend_voters = sum(1 for v in _votes.values() if v == "TREND")
+            if trend_voters >= 3 and vol_regime != "HIGH":
+                vol_regime = _VOL_DOWNGRADE[vol_regime]
 
-            raw_mode, _votes = detect_mode_for_pair(
-                self._ind_4h, 0.0, hmm_regime, hmm_confidence, hmm_crash_confirmed
-            )
+        # CRASH override: force HIGH regime
+        if (
+            hmm_regime == "CRASH"
+            and hmm_crash_confirmed
+            and hmm_confidence >= HMM_CRASH_THRESHOLD
+        ):
+            vol_regime = "HIGH"
+            vol_confidence = hmm_confidence
 
-        # CRASH mode: skip confirmation, immediately active
-        if raw_mode == "CRASH":
-            self.current_mode = "CRASH"
-            self.mode_confirmed = True
-            self._update_cp_backtest()
-            return
+        # Update volatility regime state
+        self.volatility_regime = vol_regime
+        self.vol_confidence = vol_confidence
+        self.active_risk_profile = _VOL_PROFILE_MAP.get(vol_regime, "balanced")
 
-        # Mode confirmation (mirrors DetectModeStep)
-        if raw_mode == "UNKNOWN":
-            self.current_mode = self.prev_mode
-            self.mode_confirmed = self.prev_mode_cycles >= self._mode_confirmation
-        elif raw_mode == self.prev_mode:
-            self.current_mode = raw_mode
-            self.prev_mode_cycles += 1
-            self.mode_confirmed = self.prev_mode_cycles >= self._mode_confirmation
-        else:
-            self.current_mode = raw_mode
-            self.mode_confirmed = False
-            self.prev_mode = raw_mode
-            self.prev_mode_cycles = 1
+        # Mode tracking (for indicator_series / audit trail)
+        self.current_mode = raw_mode if raw_mode != "UNKNOWN" else self.current_mode
+        # New architecture: mode_confirmed = always True except cold start
+        self.mode_confirmed = vol_confidence > 0
 
         # CP update (every 4H candle, not just on trade execution)
         self._update_cp_backtest()
@@ -547,6 +645,9 @@ class BacktestEngine:
         if pos in self.positions:
             self.positions.remove(pos)
 
+        # Trade cooldown: wait before next entry (prevent revenge trading)
+        self._cooldown_remaining = self._cooldown
+
         self.trades.append(BTTrade(
             symbol=self.symbol,
             side=pos.direction,
@@ -562,7 +663,7 @@ class BacktestEngine:
         ))
 
     def _try_signal(self, ind_1h: dict, candle, candle_time: str):
-        """Evaluate strategy. If signal, store as pending (execute next candle)."""
+        """Evaluate ALL strategies, pick best by confidence (no mode gate)."""
         indicators = {"4h": self._ind_4h, "1h": ind_1h}
 
         ts = candle["timestamp"]
@@ -575,27 +676,51 @@ class BacktestEngine:
             timestamp=ts,
             market_mode=self.current_mode,
             mode_confirmed=self.mode_confirmed,
+            volatility_regime=self.volatility_regime,
+            active_risk_profile=self.active_risk_profile,
         )
 
-        signal = None
-        if self.current_mode == "RANGE":
-            signal = self.range_strategy.evaluate(self.symbol, indicators, ctx)
-        elif self.current_mode == "TREND":
-            signal = self.trend_strategy.evaluate(self.symbol, indicators, ctx)
-        elif self.current_mode == "CRASH":
-            signal = self.crash_strategy.evaluate(self.symbol, indicators, ctx)
+        # ── Run ALL strategies (no mode gate) ──
+        candidates = []
+        all_strategies = [self.range_strategy, self.trend_strategy, self.crash_strategy]
+        if self.burst_strategy is not None:
+            all_strategies.append(self.burst_strategy)
+        for strategy in all_strategies:
+            sig = strategy.evaluate(self.symbol, indicators, ctx)
+            if sig:
+                # New architecture: soft mode penalty + per-strategy confidence gate
+                # Old architecture: BT strategies leave confidence=0.0, accept all
+                if sig.confidence > 0:
+                    # Soft mode penalty: penalize strategies that don't match current mode
+                    mode_penalties = self._mode_affinity.get(
+                        self.current_mode, self._mode_default_penalty
+                    )
+                    penalty = mode_penalties.get(sig.strategy, 0.0) if isinstance(mode_penalties, dict) else mode_penalties
+                    adjusted_conf = sig.confidence + penalty
+                    gate = self._conf_gate.get(sig.strategy, 0.50)
+                    if adjusted_conf < gate:
+                        continue
+                    sig.confidence = max(adjusted_conf, 0.0)
+                candidates.append(sig)
 
-        if not signal:
-            self._persist_count = 0  # reset persistence on no signal
+        if not candidates:
+            self._persist_count = 0
             return
 
-        # Score-based filtering: discard low-quality signals
+        # Pick best: prefer confidence if set, fallback to score
+        candidates.sort(
+            key=lambda s: (s.confidence, s.score) if s.confidence > 0 else (0, s.score),
+            reverse=True,
+        )
+        signal = candidates[0]
+
+        # Score-based filtering (relevant for old BT strategies with scorer)
         if signal.score < self.min_score:
             self._persist_count = 0
             return
 
         # Persistence threshold: same strategy+direction must persist N candles
-        threshold = PERSISTENCE_THRESHOLD.get(signal.strategy, 0)
+        threshold = self._persistence.get(signal.strategy, 0)
         if threshold > 0:
             if (signal.strategy == self._persist_strategy
                     and signal.direction == self._persist_direction):
@@ -618,8 +743,10 @@ class BacktestEngine:
                 atr=atr,
                 signal_time=candle_time,
                 score=signal.score,
+                confidence=signal.confidence,
                 remaining_delay=self.signal_delay,
             )
+            self._trade_confidences.append((signal.strategy, signal.confidence))
 
     def _execute_pending(self, candle, candle_time: str):
         """Execute pending signal at this candle's open price."""
@@ -635,6 +762,8 @@ class BacktestEngine:
             params = self.range_strategy.get_position_params()
         elif sig.strategy == "crash":
             params = self.crash_strategy.get_position_params()
+        elif sig.strategy == "burst" and self.burst_strategy is not None:
+            params = self.burst_strategy.get_position_params()
         else:
             params = self.trend_strategy.get_position_params()
 
@@ -657,14 +786,22 @@ class BacktestEngine:
             sl_price = entry_price + sl_dist
             tp_price = entry_price - tp_dist
 
-        # Position sizing (score-based confidence multiplier)
+        # Position sizing
         sl_dist_pct = sl_dist / entry_price
         if sl_dist_pct <= 0:
             return
 
-        risk_pct = params.risk_pct
-        if self._scorer is not None:
-            risk_pct *= self._scorer.risk_multiplier(sig.score)
+        if sig.confidence > 0:
+            # New architecture: profile risk × size_tier (production strategies)
+            base_risk = _PROFILE_RISK.get(self.active_risk_profile, 0.02)
+            size_tier = _get_size_tier(sig.confidence)
+            risk_pct = base_risk * size_tier
+            risk_pct = max(risk_pct, MIN_RISK_FLOOR)
+        else:
+            # Old architecture: scorer-based (BT strategies for optimizer)
+            risk_pct = params.risk_pct
+            if self._scorer is not None:
+                risk_pct *= self._scorer.risk_multiplier(sig.score)
         risk_pct = min(risk_pct, MAX_RISK_PCT)
 
         risk_amount = self.balance * risk_pct
@@ -701,6 +838,7 @@ class BacktestEngine:
             "balance": round(self.balance, 2),
             "positions": len(self.positions),
             "mode": self.current_mode,
+            "vol_regime": self.volatility_regime,
         })
 
     def _summary(self) -> dict:
@@ -724,6 +862,7 @@ class BacktestEngine:
             "drawdown_periods": [], "monthly_returns": {},
             "max_win_streak": 0, "max_loss_streak": 0,
             "by_strategy": {},
+            "vol_regime_dist": {},
         }
 
         if not self.trades:
@@ -892,6 +1031,13 @@ class BacktestEngine:
                     "avg_pnl": round(sum(t.pnl for t in strat_trades) / len(strat_trades), 2),
                 }
 
+        # Volatility regime distribution
+        vol_regime_dist: dict[str, int] = {}
+        if self.equity_curve:
+            for pt in self.equity_curve:
+                vr = pt.get("vol_regime", "NORMAL")
+                vol_regime_dist[vr] = vol_regime_dist.get(vr, 0) + 1
+
         # SQN = sqrt(N) × mean(R-multiples) / std(R-multiples)
         # R-multiple = PnL / risk_amount (approximated as avg_loss)
         sqn = 0.0
@@ -1004,8 +1150,33 @@ class BacktestEngine:
             "payoff_ratio": payoff_ratio,
             "drawdown_periods": drawdown_periods,
             "monthly_returns": monthly_returns,
+            "vol_regime_dist": vol_regime_dist,
+            "confidence_dist": self._summarize_confidences(),
         })
         return base
+
+    def _summarize_confidences(self) -> dict:
+        """Summarize confidence distribution of signals that led to trades."""
+        if not self._trade_confidences:
+            return {}
+        from collections import defaultdict
+        by_strat = defaultdict(list)
+        for strat, conf in self._trade_confidences:
+            by_strat[strat].append(conf)
+        result = {}
+        for strat, confs in by_strat.items():
+            confs.sort()
+            n = len(confs)
+            result[strat] = {
+                "count": n,
+                "min": round(confs[0], 3),
+                "p25": round(confs[n // 4], 3),
+                "median": round(confs[n // 2], 3),
+                "p75": round(confs[3 * n // 4], 3),
+                "max": round(confs[-1], 3),
+                "mean": round(sum(confs) / n, 3),
+            }
+        return result
 
     def _detect_clusters(self) -> list[list[BTTrade]]:
         """Find trade clusters: same pair+direction, < CLUSTER_GAP_HOURS apart."""

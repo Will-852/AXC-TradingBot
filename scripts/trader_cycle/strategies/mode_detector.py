@@ -1,9 +1,13 @@
 """
-mode_detector.py — 4H 6-indicator mode detection (RANGE/TREND/CRASH)
+mode_detector.py — HMM-dominant volatility regime detection + old voter brake check
 
-Original 5 indicators + HMM as 6th vote.
-CRASH override: HMM state=CRASH + confidence ≥ 0.7 → skip voting, force CRASH.
-Threshold: 4/6 majority (was 3/5).
+Phase 1 重構：
+  - HMM/BOCPD 做主導 → 輸出 volatility_regime (LOW/NORMAL/HIGH)
+  - 舊 5 voter (RSI, MACD, Volume, MA, Funding) 做 brake check
+  - ≥3 voter 投 TREND（反對 HMM 判定 vol 低）→ 降一級（更保守）
+  - 舊 voter 只有煞車權，冇油門權（唔會降低 vol regime）
+  - CRASH override 保留（HMM crash_confirmed + confidence ≥ threshold）
+  - mode_confirmed 永遠 True（除 cold start），解除策略閘門
 """
 
 from __future__ import annotations
@@ -231,120 +235,152 @@ def detect_mode_for_pair(
     return mode, votes
 
 
+    # ─── Volatility regime downgrade table (brake = more conservative) ───
+_VOL_DOWNGRADE = {"LOW": "NORMAL", "NORMAL": "HIGH", "HIGH": "HIGH"}
+# Voter weights for weighted composite (informational logging)
+_VOTER_WEIGHTS = {
+    "Volume": 0.30,
+    "MA": 0.25,
+    "MACD": 0.20,
+    "RSI": 0.15,
+    "Funding": 0.10,
+}
+
+
 class DetectModeStep:
     """
-    Step 6: Market mode detection.
-    Aggregates votes across all pairs (BTC has most weight).
-    Requires 2 consecutive same-mode for switch.
-    CRASH mode: HMM override, skips confirmation requirement.
+    Step 6: HMM-dominant volatility regime detection + old voter brake check.
+
+    1. HMM/BOCPD → volatility_regime (LOW/NORMAL/HIGH)
+    2. Old 5 voters → brake check (≥3 TREND votes when HMM says low vol → downgrade)
+    3. CRASH override preserved (HMM crash_confirmed + high confidence → force HIGH)
+    4. mode_confirmed = always True (except cold start) — 解除策略閘門
     """
     name = "detect_mode"
 
     def run(self, ctx: CycleContext) -> CycleContext:
-        # Use BTC as primary indicator (most reliable)
+        # ─── Find primary pair's 4H indicators ───
         primary = "BTCUSDT"
         if primary not in ctx.indicators or PRIMARY_TIMEFRAME not in ctx.indicators[primary]:
-            # Fallback: use first available
             for sym in ctx.indicators:
                 if PRIMARY_TIMEFRAME in ctx.indicators[sym]:
                     primary = sym
                     break
             else:
                 ctx.warnings.append("No 4H indicators available for mode detection")
-                ctx.market_mode = ctx.prev_mode  # keep previous
+                ctx.market_mode = ctx.prev_mode
+                ctx.volatility_regime = "NORMAL"
+                ctx.regime_confidence = 0.0
                 return ctx
 
         ind_4h = ctx.indicators[primary][PRIMARY_TIMEFRAME]
         funding = ctx.market_data.get(primary, None)
         funding_rate = funding.funding_rate if funding else 0.0
 
-        # Regime engine update
+        # ─── 1. Run HMM/BOCPD → regime label + confidence ───
         hmm_regime = None
         hmm_confidence = 0.0
         hmm_crash_confirmed = False
+        vol_regime = "NORMAL"  # fallback
+        vol_confidence = 0.0
 
         if REGIME_ENGINE == "bocpd_cp":
-            # BOCPD path: direct regime output, skip voting
             try:
                 bocpd = _get_bocpd()
                 hmm_regime, hmm_confidence, hmm_crash_confirmed = bocpd.update(ind_4h)
+                vol_regime, vol_confidence = bocpd.get_volatility_regime()
                 bocpd.save_state(BOCPD_STATE_PATH)
             except Exception as e:
                 log.warning("BOCPD update failed: %s", e)
+        elif HMM_ENABLED:
+            try:
+                hmm = _get_hmm()
+                hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
+                vol_regime, vol_confidence = hmm.get_volatility_regime()
+                hmm.save_state(HMM_STATE_PATH)
+            except Exception as e:
+                log.warning("HMM update failed: %s", e)
 
-            # Direct regime → no 6-way voting
-            if (
-                hmm_regime == "CRASH"
-                and hmm_crash_confirmed
-                and hmm_confidence >= HMM_CRASH_THRESHOLD
-            ):
-                raw_mode = "CRASH"
-            elif hmm_regime in ("RANGE", "TREND"):
-                raw_mode = hmm_regime
-            else:
-                raw_mode = "UNKNOWN"
-            votes = {"BOCPD": f"{hmm_regime or 'UNKNOWN'} (conf={hmm_confidence:.0%})"}
-        else:
-            # votes_hmm path: HMM as 6th vote (現有邏輯，零改動)
-            if HMM_ENABLED:
-                try:
-                    hmm = _get_hmm()
-                    hmm_regime, hmm_confidence, hmm_crash_confirmed = hmm.update(ind_4h)
-                    hmm.save_state(HMM_STATE_PATH)
-                except Exception as e:
-                    log.warning("HMM update failed: %s", e)
+        # ─── 2. CRASH override (preserved) ───
+        if (
+            hmm_regime == "CRASH"
+            and hmm_crash_confirmed
+            and hmm_confidence >= HMM_CRASH_THRESHOLD
+        ):
+            vol_regime = "HIGH"
+            vol_confidence = hmm_confidence
+            ctx.market_mode = "CRASH"
+            ctx.mode_confirmed = True
+            ctx.volatility_regime = vol_regime
+            ctx.regime_confidence = vol_confidence
+            ctx.mode_votes = {"HMM": f"CRASH (conf={hmm_confidence:.0%})"}
+            ctx.scan_config_updates["HMM_REGIME"] = hmm_regime
+            ctx.scan_config_updates["HMM_CONFIDENCE"] = f"{hmm_confidence:.3f}"
+            ctx.scan_config_updates["REGIME_ENGINE"] = REGIME_ENGINE
+            ctx.scan_config_updates["VOL_REGIME"] = vol_regime
+            self._update_cp(ind_4h, "CRASH", ctx)
+            if ctx.verbose:
+                print(f"    Mode: CRASH override → vol_regime=HIGH (conf={hmm_confidence:.0%})")
+            return ctx
 
-            raw_mode, votes = detect_mode_for_pair(
-                ind_4h, funding_rate, hmm_regime, hmm_confidence, hmm_crash_confirmed
+        # ─── 3. Run old 5 voters ───
+        votes = {
+            "RSI": _vote_rsi(ind_4h.get("rsi")),
+            "MACD": _vote_macd(
+                ind_4h.get("macd_hist"),
+                ind_4h.get("macd_hist_prev"),
+            ),
+            "Volume": _vote_volume(ind_4h.get("volume_ratio")),
+            "MA": _vote_ma(
+                ind_4h.get("price"),
+                ind_4h.get("ma50"),
+                ind_4h.get("ma200"),
+            ),
+            "Funding": _vote_funding(funding_rate),
+        }
+
+        # ─── 4. Brake check: ≥3 TREND voters when HMM says low/normal vol → downgrade ───
+        trend_voters = sum(1 for v in votes.values() if v == "TREND")
+        downgraded = False
+        if trend_voters >= 3 and vol_regime != "HIGH":
+            old_regime = vol_regime
+            vol_regime = _VOL_DOWNGRADE[vol_regime]
+            downgraded = True
+            log.info(
+                "Voter brake: %d/5 TREND votes, vol_regime %s → %s",
+                trend_voters, old_regime, vol_regime,
             )
+
+        # ─── 5. Set context ───
+        # Backward compat: set market_mode from HMM regime (informational)
+        if hmm_regime in ("RANGE", "TREND", "CRASH"):
+            ctx.market_mode = hmm_regime
+        else:
+            ctx.market_mode = ctx.prev_mode if ctx.prev_mode != "UNKNOWN" else "TREND"
+
+        # mode_confirmed = always True except cold start (vol_confidence == 0)
+        ctx.mode_confirmed = vol_confidence > 0
+        ctx.volatility_regime = vol_regime
+        ctx.regime_confidence = vol_confidence
         ctx.mode_votes = votes
 
-        # Store regime confidence on context for position_sizer
+        # Audit trail
         ctx.scan_config_updates["HMM_REGIME"] = hmm_regime or "UNKNOWN"
         ctx.scan_config_updates["HMM_CONFIDENCE"] = f"{hmm_confidence:.3f}"
         ctx.scan_config_updates["REGIME_ENGINE"] = REGIME_ENGINE
+        ctx.scan_config_updates["VOL_REGIME"] = vol_regime
+        ctx.scan_config_updates["VOL_DOWNGRADED"] = str(downgraded)
 
-        # CRASH mode: skip confirmation, immediately active
-        if raw_mode == "CRASH":
-            ctx.market_mode = "CRASH"
-            ctx.mode_confirmed = True  # CRASH is always confirmed (emergency)
-            ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = ctx.prev_mode_cycles
-            self._update_cp(ind_4h, "CRASH", ctx)
-            if ctx.verbose:
-                print(f"    Mode: CRASH (regime override, conf={hmm_confidence:.0%})")
-            return ctx
-
-        # Normal mode confirmation logic
-        if raw_mode == "UNKNOWN":
-            # Tie → maintain current mode
-            ctx.market_mode = ctx.prev_mode
-            ctx.mode_confirmed = ctx.prev_mode_cycles >= MODE_CONFIRMATION_REQUIRED
-        elif raw_mode == ctx.prev_mode:
-            # Same as before → increment confirmation
-            ctx.market_mode = raw_mode
-            new_cycles = ctx.prev_mode_cycles + 1
-            ctx.mode_confirmed = new_cycles >= MODE_CONFIRMATION_REQUIRED
-            ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = new_cycles
-        else:
-            # Mode change detected → need 2 consecutive
-            if ctx.prev_mode_cycles == 0 or ctx.prev_mode == "UNKNOWN":
-                # First detection or from unknown → accept immediately
-                ctx.market_mode = raw_mode
-                ctx.mode_confirmed = False
-                ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = 1
-            else:
-                # Was in a confirmed mode → need to see this new mode again
-                ctx.market_mode = raw_mode
-                ctx.mode_confirmed = False
-                ctx.scan_config_updates["MODE_CONFIRMED_CYCLES"] = 1
-
-        # CP update (every 4H candle, not just on signal)
+        # CP update
         self._update_cp(ind_4h, ctx.market_mode, ctx)
 
         if ctx.verbose:
             vote_str = " | ".join(f"{k}:{v}" for k, v in votes.items())
-            regime_tag = f" {REGIME_ENGINE}:{hmm_regime}({hmm_confidence:.0%})" if hmm_regime else ""
-            print(f"    Mode: {ctx.market_mode} (confirmed={ctx.mode_confirmed}) [{vote_str}]{regime_tag}")
+            brake_tag = " [BRAKE]" if downgraded else ""
+            print(
+                f"    Vol regime: {vol_regime} (conf={vol_confidence:.0%}){brake_tag} "
+                f"| mode={ctx.market_mode} [{vote_str}]"
+            )
 
         return ctx
 

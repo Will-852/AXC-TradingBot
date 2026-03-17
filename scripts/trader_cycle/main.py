@@ -55,6 +55,7 @@ from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalSt
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
 from trader_cycle.risk.adjust_positions import AdjustPositionsStep
 from trader_cycle.risk.position_sizer import SizePositionStep
+from trader_cycle.risk.regime_risk import SelectRiskProfileStep
 from trader_cycle.risk.validators import ValidateOrderStep
 from trader_cycle.state.trade_log import WriteTradeLogStep
 from trader_cycle.state.trade_journal import WriteTradeJournalStep
@@ -448,8 +449,9 @@ def build_pipeline() -> Pipeline:
       4. calc_indicators     — 4H + 1H technical indicators
       4.5 read_sentiment     — news sentiment overlay
       4.6 liq_signal         — liquidation event detection + signal boost
-      5. detect_mode         — 5-indicator voting (RANGE/TREND)
-      6. no_trade_check      — volume, funding, position limits
+      5. detect_mode         — HMM-dominant vol regime + voter brake
+      5.5 select_risk_profile — vol regime → risk profile
+      6. no_trade_check      — volume, position limits
       7. check_positions     — sync positions + balance from exchange
       8. manage_positions    — exit rules (circuit breaker, max hold, funding)
       8.5 adjust_positions   — trailing SL, TP extension, early exit, re-entry
@@ -472,6 +474,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(ReadSentimentStep())      # 4.5 — news sentiment overlay
     pipeline.add_step(LiqSignalStep())          # 4.6 — liquidation event detection
     pipeline.add_step(DetectModeStep())         # 5
+    pipeline.add_step(SelectRiskProfileStep())  # 5.5 — vol regime → risk profile
     pipeline.add_step(NoTradeCheckStep())       # 6
     pipeline.add_step(CheckPositionsStep())     # 7
     pipeline.add_step(ManagePositionsStep())    # 8

@@ -131,11 +131,12 @@ class NoTradeCheckStep:
                             f"volume={vol_ratio:.0%} of avg (min {NO_TRADE_VOLUME_MIN:.0%})"
                         )
 
-            # ─── Extreme funding ───
+            # ─── Extreme funding: log-only, no longer blocks ───
+            # (ManagePositionsStep funding_cost_ratio force close retained as safety net)
             if abs(snap.funding_rate) > NO_TRADE_FUNDING_EXTREME:
-                reasons.append(
-                    f"EXTREME_FUNDING: {symbol} "
-                    f"funding={snap.funding_rate:.4%} (limit +-{NO_TRADE_FUNDING_EXTREME:.2%})"
+                logger.info(
+                    "FUNDING_NOTE: %s funding=%s (extreme, logged only)",
+                    symbol, f"{snap.funding_rate:.4%}",
                 )
 
             if reasons:

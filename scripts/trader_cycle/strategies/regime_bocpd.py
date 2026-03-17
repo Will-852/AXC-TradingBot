@@ -61,6 +61,8 @@ class RegimeBOCPD:
 
     LABELS = ("RANGE", "TREND", "CRASH")
     CRASH_PERCENTILE = 85  # same as HMM
+    # Map regime labels → volatility regime (for risk profile selection)
+    _VOL_REGIME_MAP = {"RANGE": "LOW", "TREND": "NORMAL", "CRASH": "HIGH"}
 
     def __init__(
         self,
@@ -103,6 +105,9 @@ class RegimeBOCPD:
         self._norm_atr_history: list[float] = []
         self._prev_close: float | None = None
         self._n_updates: int = 0
+        # Cache last prediction for get_volatility_regime()
+        self._last_label: str = "UNKNOWN"
+        self._last_confidence: float = 0.0
 
     def update(self, indicators_4h: dict) -> tuple[str, float, bool]:
         """Feed new 4H candle, return (regime_label, confidence, crash_confirmed).
@@ -138,6 +143,10 @@ class RegimeBOCPD:
         regime = self._classify_regime(norm_atr)
         confidence = self._compute_confidence()
 
+        # Cache for get_volatility_regime()
+        self._last_label = regime
+        self._last_confidence = confidence
+
         # Crash percentile gate (same as HMM)
         crash_confirmed = False
         if regime == "CRASH":
@@ -145,6 +154,19 @@ class RegimeBOCPD:
             crash_confirmed = norm_atr >= threshold
 
         return (regime, confidence, crash_confirmed)
+
+    def get_volatility_regime(self) -> tuple[str, float]:
+        """Map regime label to volatility level for risk profile selection.
+
+        設計決定：同 HMM 一致嘅映射：
+          RANGE (< P33 norm_atr) → LOW
+          TREND (P33–P67)       → NORMAL
+          CRASH (≥ P67)         → HIGH
+        Cold start / unknown → ("NORMAL", 0.0) — 安全 fallback。
+        """
+        vol_regime = self._VOL_REGIME_MAP.get(self._last_label, "NORMAL")
+        confidence = self._last_confidence if self._last_label != "UNKNOWN" else 0.0
+        return (vol_regime, confidence)
 
     def _bocpd_step(self, x: float) -> None:
         """One step of BOCPD. Updates run length distribution + sufficient stats.

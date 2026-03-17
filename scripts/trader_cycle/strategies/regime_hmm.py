@@ -54,6 +54,8 @@ class RegimeHMM:
 
     LABELS = ("RANGE", "TREND", "CRASH")
     CRASH_PERCENTILE = 85  # current norm_atr must be ≥ this percentile for CRASH override
+    # Map regime labels → volatility regime (for risk profile selection)
+    _VOL_REGIME_MAP = {"RANGE": "LOW", "TREND": "NORMAL", "CRASH": "HIGH"}
 
     def __init__(self, n_states: int, window: int, refit_interval: int,
                  min_samples: int = 100):
@@ -69,6 +71,9 @@ class RegimeHMM:
         self._state_map: dict[int, str] = {}
         self._prev_close: float | None = None
         self._crash_vol_threshold: float = float("inf")  # percentile gate
+        # Cache last prediction for get_volatility_regime()
+        self._last_label: str = "UNKNOWN"
+        self._last_confidence: float = 0.0
 
     def save_state(self, path: str) -> None:
         """Persist feature history + prev_close for warm restart across processes.
@@ -153,6 +158,10 @@ class RegimeHMM:
         # Predict current state
         label, confidence = self._predict()
 
+        # Cache for get_volatility_regime()
+        self._last_label = label
+        self._last_confidence = confidence
+
         # Percentile gate: CRASH override only when current vol is extreme
         crash_confirmed = False
         if label == "CRASH":
@@ -160,6 +169,19 @@ class RegimeHMM:
             crash_confirmed = current_norm_atr >= self._crash_vol_threshold
 
         return (label, confidence, crash_confirmed)
+
+    def get_volatility_regime(self) -> tuple[str, float]:
+        """Map regime label to volatility level for risk profile selection.
+
+        設計決定：HMM 3 states 已按 norm_atr 排序，直接映射：
+          RANGE (lowest vol) → LOW
+          TREND (middle vol) → NORMAL
+          CRASH (highest vol) → HIGH
+        Cold start / unknown → ("NORMAL", 0.0) — 安全 fallback。
+        """
+        vol_regime = self._VOL_REGIME_MAP.get(self._last_label, "NORMAL")
+        confidence = self._last_confidence if self._last_label != "UNKNOWN" else 0.0
+        return (vol_regime, confidence)
 
     def _extract_features(self, ind: dict) -> list[float] | None:
         """Extract [log_return, norm_atr, volume_ratio, adx] from 4H indicators."""

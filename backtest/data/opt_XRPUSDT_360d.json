@@ -1,0 +1,78 @@
+{
+  "symbol": "XRPUSDT",
+  "days": 360,
+  "n_trials": 200,
+  "shrinkage": 0.7,
+  "final_source": "mild_shrunk",
+  "final_params": {
+    "conf_gate_range": 0.5915,
+    "conf_gate_trend": 0.5988,
+    "conf_gate_crash": 0.4473,
+    "mode_pen_trend_in_range": -0.3337,
+    "mode_pen_trend_in_crash": -0.1375,
+    "mode_pen_range_in_trend": -0.2397,
+    "mode_pen_range_in_crash": -0.264,
+    "mode_pen_default_trend": -0.2324,
+    "mode_pen_default_range": -0.1635,
+    "persist_range": 2,
+    "persist_trend": 6,
+    "persist_crash": 2,
+    "cooldown": 7
+  },
+  "best_raw_params": {
+    "conf_gate_range": 0.6830716587046525,
+    "conf_gate_trend": 0.6976665766515889,
+    "conf_gate_crash": 0.39459854680713397,
+    "mode_pen_trend_in_range": -0.36747930566030473,
+    "mode_pen_trend_in_crash": -0.07498584980310084,
+    "mode_pen_range_in_trend": -0.2794832737177314,
+    "mode_pen_range_in_crash": -0.22802272212870542,
+    "mode_pen_default_trend": -0.21478565392251533,
+    "mode_pen_default_range": -0.22703583257464163,
+    "persist_range": 2,
+    "persist_trend": 8,
+    "persist_crash": 2,
+    "cooldown": 6
+  },
+  "baseline": {
+    "return_pct": -24.45,
+    "sharpe": -1.0184,
+    "pf": 0.7276,
+    "trades": 158,
+    "objective": 0.1091
+  },
+  "final": {
+    "return_pct": -20.62,
+    "sharpe": -0.69,
+    "pf": 0.83,
+    "trades": 116,
+    "objective": 0.8174,
+    "max_dd": 37.6,
+    "win_rate": 33.6
+  },
+  "walk_forward": {
+    "passed": false,
+    "is_avg": -0.4493,
+    "oos_avg": -Infinity,
+    "degradation_pct": null,
+    "folds": [
+      {
+        "fold": 1,
+        "is_obj": -1.1015,
+        "oos_obj": 1.315,
+        "is_trades": 31,
+        "oos_trades": 24,
+        "oos_return": 3.75
+      },
+      {
+        "fold": 2,
+        "is_obj": 0.203,
+        "oos_obj": -Infinity,
+        "is_trades": 47,
+        "oos_trades": 18,
+        "oos_return": -15.04
+      }
+    ]
+  },
+  "created_at": "2026-03-16T21:22:04.653148+00:00"
+}
