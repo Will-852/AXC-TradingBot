@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 # ─── Volatility → Risk Profile 映射 ───
 VOL_PROFILE_MAP: dict[str, str] = {
-    "LOW":    "aggressive",     # 低波幅 → 激進（窄SL、高槓桿）
+    "LOW":    "balanced",       # 降級：低波幅窄SL→巨額notional→頻繁爆SL，2%比3%安全
     "NORMAL": "balanced",       # 正常 → 平衡
     "HIGH":   "conservative",   # 高波幅 → 穩健（闊SL、低槓桿）
 }

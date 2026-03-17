@@ -295,11 +295,17 @@ REGIME_SIGNAL_RULES = {
     # XRP NORMAL×TREND×trend: Sharpe~-0.23, WR 23%, n=27
     ("XRPUSDT", "NORMAL", "TREND", "trend"): "BLOCK",
 
-    # ── BLOCK: 360d strong negative (LOW vol is a trap) ──
-    # LOW vol×RANGE: negative for all pairs in 360d, E[PnL] -67 to -132
-    ("XRPUSDT", "LOW", "RANGE", "trend"): "BLOCK",
-    ("ETHUSDT", "LOW", "RANGE", "range"): "BLOCK",
-    ("ETHUSDT", "LOW", "RANGE", "trend"): "BLOCK",
+    # ── LOW vol: blanket skip (handled in get_regime_rule) ──
+    # 180d data: LOW vol total +$1,778 across 47 trades, but edge is thin and
+    # unreliable (ETH +$2,487 from 4 trades carries it; XRP/SOL/BTC all negative).
+    # Decision: skip all LOW vol trades. Revisit when LOW vol edge is proven stable.
+    # See get_regime_rule() below — returns "BLOCK" for any LOW vol lookup.
+
+    # ── BLOCK: NORMAL×RANGE×trend — trend-in-RANGE is a trap ──
+    # ETH: 33% WR, n=3 | XRP: 14% WR, -$119/trade, n=7 | BTC: pattern consistent
+    ("ETHUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
+    ("XRPUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
+    ("BTCUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
 
     # ── BOOST: stable high-Sharpe edge — lower conf_gate to capture more ──
     # XRP NORMAL×RANGE×range: Sharpe~+0.48, WR 60%, n=31, calibrated
@@ -325,7 +331,13 @@ def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
         "BLOCK" — don't trade this cell
         {"conf_gate": float} — use this conf_gate instead of default
         None — no rule, use defaults
+
+    Design: LOW vol is blanket-blocked for all pairs/modes/strategies.
+    Edge is thin (+$38/trade) and carried by 4 ETH trades. Not worth the risk.
+    Revisit if LOW vol edge becomes provably stable across multiple periods.
     """
+    if vol_regime == "LOW":
+        return "BLOCK"
     return REGIME_SIGNAL_RULES.get((pair, vol_regime, market_mode, strategy))
 
 

@@ -28,8 +28,8 @@ from trader_cycle.core.context import CycleContext
 class TestVOLProfileMap:
     """VOL_PROFILE_MAP maps volatility regime to risk profile."""
 
-    def test_low_to_aggressive(self):
-        assert VOL_PROFILE_MAP["LOW"] == "aggressive"
+    def test_low_to_balanced(self):
+        assert VOL_PROFILE_MAP["LOW"] == "balanced"
 
     def test_normal_to_balanced(self):
         assert VOL_PROFILE_MAP["NORMAL"] == "balanced"
@@ -49,7 +49,7 @@ class TestSelectRiskProfileStep:
         ctx = CycleContext(volatility_regime="LOW")
         step = SelectRiskProfileStep()
         result = step.run(ctx)
-        assert result.active_risk_profile == "aggressive"
+        assert result.active_risk_profile == "balanced"
 
     def test_normal_regime(self):
         ctx = CycleContext(volatility_regime="NORMAL")
@@ -141,7 +141,7 @@ class TestEndToEndSizing:
     """End-to-end: regime → profile → risk × size_tier → final risk."""
 
     @pytest.mark.parametrize("regime,expected_profile,base_risk", [
-        ("LOW", "aggressive", 0.03),
+        ("LOW", "balanced", 0.02),
         ("NORMAL", "balanced", 0.02),
         ("HIGH", "conservative", 0.01),
     ])

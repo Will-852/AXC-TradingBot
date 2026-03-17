@@ -16,6 +16,7 @@ Scope boundary（唔做）：
 
 import json
 import logging
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ from trader_cycle.strategies.regime_bocpd import RegimeBOCPD
 from backtest.strategies.bt_burst_strategy import BTBurstStrategy
 from trader_cycle.risk.atr_conformal import ATRConformal
 from trader_cycle.core.context import CycleContext
+from config.params import get_regime_rule
 from trader_cycle.config.settings import (
     MODE_CONFIRMATION_REQUIRED,
     MAX_CRYPTO_POSITIONS,
@@ -50,6 +52,8 @@ from trader_cycle.config.settings import (
     BOCPD_MIN_SAMPLES, BOCPD_CHANGEPOINT_THRESHOLD,
     CP_ENABLED, CP_ALPHA, CP_MIN_SCORES, CP_MAX_SCORES,
     CP_INFLATION_FACTOR, CP_FALLBACK_MULT,
+    KELLY_WINDOW_N, KELLY_MIN_RISK, KELLY_MAX_RISK, KELLY_NO_EDGE,
+    KELLY_MIN_TRADES_RANGE, KELLY_MIN_TRADES_TREND, KELLY_MIN_TRADES_CRASH,
 )
 
 log = logging.getLogger(__name__)
@@ -63,26 +67,33 @@ MAX_RISK_PCT = 0.05        # hard cap: never risk >5% per trade (防止 optimize
 # Persistence threshold: signal must appear N consecutive candles before acknowledged.
 # Different from signal_delay (delays execution of an already-acknowledged signal).
 # Per-strategy: crash=0 (immediate), range/trend=2 (need 2 consecutive same-direction signals).
-PERSISTENCE_THRESHOLD = {"range": 3, "trend": 4, "crash": 1, "burst": 1}
+PERSISTENCE_THRESHOLD = {"range": 3, "trend": 4, "crash": 1, "burst": 1, "newarch": 1}
 
 # ─── New architecture: volatility regime → risk profile ───
-_VOL_PROFILE_MAP = {"LOW": "aggressive", "NORMAL": "balanced", "HIGH": "conservative"}
+_VOL_PROFILE_MAP = {"LOW": "balanced", "NORMAL": "balanced", "HIGH": "conservative"}
 _VOL_DOWNGRADE = {"LOW": "NORMAL", "NORMAL": "HIGH", "HIGH": "HIGH"}
 _PROFILE_RISK = {"aggressive": 0.03, "balanced": 0.02, "conservative": 0.01}
 MIN_RISK_FLOOR = 0.005  # 0.5% absolute minimum risk
 TRADE_COOLDOWN_CANDLES = 8  # wait 8 candles (8h) after closing a position before entering another
 
+# ─── Kelly: per-strategy min trade thresholds ───
+_KELLY_MIN_TRADES = {
+    "range": KELLY_MIN_TRADES_RANGE,
+    "trend": KELLY_MIN_TRADES_TREND,
+    "crash": KELLY_MIN_TRADES_CRASH,
+}
+
 # Per-strategy confidence gates
-_STRATEGY_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50, "burst": 0.35}
+_STRATEGY_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50, "burst": 0.35, "newarch": 0.50}
 
 # Soft mode penalty: when mode doesn't match strategy affinity, penalize confidence
 # Strong penalty for trend (most false-positive prone) to approximate mode gate filtering
 _MODE_AFFINITY = {
-    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0, "burst": -0.05},
-    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0, "burst": -0.05},
-    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30, "burst": -0.15},
+    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0, "burst": -0.05, "newarch": 0.0},
+    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0, "burst": -0.05, "newarch": 0.0},
+    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30, "burst": -0.15, "newarch": 0.0},
 }
-_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0, "burst": -0.05}
+_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0, "burst": -0.05, "newarch": 0.0}
 
 
 def _get_size_tier(confidence: float) -> float:
@@ -104,10 +115,13 @@ class BTPosition:
     tp_price: float
     notional: float     # position size in USDT
     entry_time: str
-    strategy: str       # "range", "trend", "crash", or "burst"
+    strategy: str       # "range", "trend", "crash", "burst", or "newarch"
     vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
     market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
     confidence: float = 0.0      # signal confidence at entry
+    tp_source: str = "min_rr"    # TP calculation method: "bb_mid" / "atr_3.5" / "min_rr"
+    atr_at_entry: float = 0.0   # ATR at entry time (for newarch trailing stop)
+    hfe: float = 0.0            # highest favorable excursion in price units
 
 
 @dataclass
@@ -127,6 +141,7 @@ class BTTrade:
     vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
     market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
     confidence: float = 0.0      # signal confidence at entry
+    tp_source: str = "min_rr"    # TP calculation method: "bb_mid" / "atr_3.5" / "min_rr"
 
     def to_dict(self) -> dict:
         """Serialize all fields for dashboard API and analysis."""
@@ -145,6 +160,7 @@ class BTTrade:
             "vol_regime": self.vol_regime,
             "market_mode": self.market_mode,
             "confidence": round(self.confidence, 4),
+            "tp_source": self.tp_source,
         }
 
     def to_jsonl(self) -> str:
@@ -164,6 +180,7 @@ class BTTrade:
             "vol_regime": self.vol_regime,
             "market_mode": self.market_mode,
             "confidence": round(self.confidence, 4),
+            "tp_source": self.tp_source,
             "ts": self.entry_time,
             "closed": True,
         }, ensure_ascii=False)
@@ -179,6 +196,8 @@ class _PendingSignal:
     score: float = 0.0        # signal score for confidence-based sizing + filtering
     confidence: float = 0.0   # signal confidence (0-1) for size_tier calculation
     remaining_delay: int = 1  # candles until execution (1 = next candle = default)
+    bb_basis: float = 0.0     # 1H BB mid for Range TP (captured at signal time)
+    atr_4h: float = 0.0       # 4H ATR for Crash TP (captured at signal time)
 
 
 class BacktestEngine:
@@ -230,6 +249,7 @@ class BacktestEngine:
             "trend": tp.get("conf_gate_trend", _STRATEGY_CONF_GATE["trend"]),
             "crash": tp.get("conf_gate_crash", _STRATEGY_CONF_GATE["crash"]),
             "burst": tp.get("conf_gate_burst", _STRATEGY_CONF_GATE["burst"]),
+            "newarch": tp.get("conf_gate_newarch", _STRATEGY_CONF_GATE["newarch"]),
         }
         self._mode_affinity = {
             "TREND": {
@@ -262,6 +282,7 @@ class BacktestEngine:
             "trend": tp.get("persist_trend", PERSISTENCE_THRESHOLD["trend"]),
             "crash": tp.get("persist_crash", PERSISTENCE_THRESHOLD["crash"]),
             "burst": tp.get("persist_burst", PERSISTENCE_THRESHOLD["burst"]),
+            "newarch": tp.get("persist_newarch", PERSISTENCE_THRESHOLD["newarch"]),
         }
         self._cooldown = tp.get("cooldown", TRADE_COOLDOWN_CANDLES)
 
@@ -282,6 +303,8 @@ class BacktestEngine:
         # Tested on XRP 360d: neither continuation nor fade improved results.
         # Volume spikes on XRP don't carry reliable directional signal.
         self.burst_strategy = strats.get("burst", None)
+        # NewArch strategy: 5-layer architecture validation. Disabled by default.
+        self.newarch_strategy = strats.get("newarch", None)
 
         # Regime engine (per-run independent instances, no persistence across backtests)
         self.regime_engine = REGIME_ENGINE
@@ -449,6 +472,13 @@ class BacktestEngine:
 
             # ── Step 3: Check SL/TP ──
             self._check_sl_tp(candle, candle_time)
+
+            # ── Step 3b: Trailing stop for newarch positions ──
+            # DISABLED v3: breakeven at 1R kills mean reversion trades.
+            # Price oscillates in ranging regime → SL at entry = instant stop out.
+            # TODO: re-enable only for trend_pullback entries after adding entry_type to BTPosition.
+            # if self.newarch_strategy is not None:
+            #     self._check_trailing(candle)
 
             # ── Step 4: Calc 1H indicators ──
             start_idx = max(0, i - WARMUP_CANDLES + 1)
@@ -647,6 +677,50 @@ class BacktestEngine:
         else:
             return pos.sl_price * (1 + self.sl_slippage_pct)
 
+    def _check_trailing(self, candle):
+        """Trailing stop for newarch positions: breakeven at 1R, trail at 2R.
+
+        Called per-candle AFTER _check_sl_tp (so only surviving positions are trailed).
+        Modifies pos.sl_price in-place — next candle's _check_sl_tp will catch it.
+        """
+        high = float(candle["high"])
+        low = float(candle["low"])
+
+        for pos in self.positions:
+            if pos.strategy != "newarch" or pos.atr_at_entry <= 0:
+                continue
+
+            atr = pos.atr_at_entry
+            sl_dist = atr * 1.5  # matches sl_atr_mult=1.5
+
+            # Update HFE (highest favorable excursion)
+            if pos.direction == "LONG":
+                excursion = high - pos.entry_price
+            else:
+                excursion = pos.entry_price - low
+            pos.hfe = max(pos.hfe, excursion)
+
+            r_multiple = pos.hfe / sl_dist if sl_dist > 0 else 0
+
+            if r_multiple >= 2.0:
+                # Trail: SL = entry + (HFE - 1×ATR)
+                trail_offset = pos.hfe - atr
+                if pos.direction == "LONG":
+                    new_sl = pos.entry_price + trail_offset
+                else:
+                    new_sl = pos.entry_price - trail_offset
+                # Only move SL forward, never backward
+                if pos.direction == "LONG" and new_sl > pos.sl_price:
+                    pos.sl_price = new_sl
+                elif pos.direction == "SHORT" and new_sl < pos.sl_price:
+                    pos.sl_price = new_sl
+            elif r_multiple >= 1.0:
+                # Breakeven: move SL to entry
+                if pos.direction == "LONG" and pos.sl_price < pos.entry_price:
+                    pos.sl_price = pos.entry_price
+                elif pos.direction == "SHORT" and pos.sl_price > pos.entry_price:
+                    pos.sl_price = pos.entry_price
+
     def _close_position(self, pos: BTPosition, exit_price: float, exit_time: str, reason: str):
         """Close position, calculate PnL, record trade."""
         if pos.direction == "LONG":
@@ -680,6 +754,7 @@ class BacktestEngine:
             vol_regime=pos.vol_regime,
             market_mode=pos.market_mode,
             confidence=pos.confidence,
+            tp_source=pos.tp_source,
         ))
 
     def _try_signal(self, ind_1h: dict, candle, candle_time: str):
@@ -705,6 +780,8 @@ class BacktestEngine:
         all_strategies = [self.range_strategy, self.trend_strategy, self.crash_strategy]
         if self.burst_strategy is not None:
             all_strategies.append(self.burst_strategy)
+        if self.newarch_strategy is not None:
+            all_strategies.append(self.newarch_strategy)
         for strategy in all_strategies:
             sig = strategy.evaluate(self.symbol, indicators, ctx)
             if sig:
@@ -733,6 +810,17 @@ class BacktestEngine:
             reverse=True,
         )
         signal = candidates[0]
+
+        # ── Regime-conditional filter (same rules as live signal_filter.py) ──
+        rule = get_regime_rule(self.symbol, self.volatility_regime,
+                               self.current_mode, signal.strategy)
+        if rule == "BLOCK":
+            self._persist_count = 0
+            return
+        if isinstance(rule, dict) and "conf_gate" in rule and signal.confidence > 0:
+            if signal.confidence < rule["conf_gate"]:
+                self._persist_count = 0
+                return
 
         # Score-based filtering (relevant for old BT strategies with scorer)
         if signal.score < self.min_score:
@@ -765,8 +853,78 @@ class BacktestEngine:
                 score=signal.score,
                 confidence=signal.confidence,
                 remaining_delay=self.signal_delay,
+                bb_basis=ind_1h.get("bb_basis", 0.0) or 0.0,
+                atr_4h=self._ind_4h.get("atr", 0.0) if self._ind_4h else 0.0,
             )
             self._trade_confidences.append((signal.strategy, signal.confidence))
+
+    def _calc_bt_kelly(self, strategy: str) -> float | None:
+        """Per-strategy Kelly criterion using backtest closed trades.
+
+        Replicates live kelly.py formula: win rate × payoff ratio → raw Kelly,
+        CV correction, half-Kelly, clamped to [KELLY_MIN_RISK, KELLY_MAX_RISK].
+
+        Returns:
+          float > 0     → Kelly-derived risk cap
+          KELLY_NO_EDGE → sufficient data but f*≤0 → block signal
+          None          → insufficient data → use default risk
+        """
+        min_trades = _KELLY_MIN_TRADES.get(strategy, KELLY_MIN_TRADES_TREND)
+
+        # Filter closed trades by strategy, take last KELLY_WINDOW_N
+        matched = [t for t in self.trades if t.strategy == strategy]
+        recent = matched[-KELLY_WINDOW_N:]
+
+        if len(recent) < min_trades:
+            return None
+
+        wins = [t for t in recent if t.pnl > 0]
+        losses = [t for t in recent if t.pnl <= 0]
+
+        if not wins or not losses:
+            return KELLY_NO_EDGE
+
+        wr = len(wins) / len(recent)
+        avg_win = sum(t.pnl for t in wins) / len(wins)
+        avg_loss = abs(sum(t.pnl for t in losses) / len(losses))
+
+        if avg_loss == 0:
+            return KELLY_NO_EDGE
+
+        b = avg_win / avg_loss  # payoff ratio
+        f_star = (wr * b - (1 - wr)) / b  # raw Kelly
+
+        if f_star <= 0:
+            log.info(
+                "BT Kelly[%s]: f*=%.4f ≤ 0 → no edge (wr=%.1f%%, b=%.2f) → block",
+                strategy, f_star, wr * 100, b,
+            )
+            return KELLY_NO_EDGE
+
+        # CV correction: SE / mean of edge estimate
+        n = len(recent)
+        edges = [t.pnl / avg_loss for t in recent]
+        edge_mean = sum(edges) / n
+
+        if edge_mean > 0:
+            edge_var = sum((e - edge_mean) ** 2 for e in edges) / n
+            edge_std = math.sqrt(edge_var)
+            cv = edge_std / (edge_mean * math.sqrt(n))
+        else:
+            cv = float("inf")
+
+        cv_factor = max(0.0, 1.0 - cv)
+        f_adjusted = f_star * cv_factor
+
+        # Half-Kelly + clamp
+        base_risk = f_adjusted * 0.5
+        base_risk = max(KELLY_MIN_RISK, min(KELLY_MAX_RISK, base_risk))
+
+        log.debug(
+            "BT Kelly[%s]: wr=%.1f%% b=%.2f f*=%.4f CV=%.2f → risk=%.2f%%",
+            strategy, wr * 100, b, f_star, cv, base_risk * 100,
+        )
+        return base_risk
 
     def _execute_pending(self, candle, candle_time: str):
         """Execute pending signal at this candle's open price."""
@@ -784,6 +942,8 @@ class BacktestEngine:
             params = self.crash_strategy.get_position_params()
         elif sig.strategy == "burst" and self.burst_strategy is not None:
             params = self.burst_strategy.get_position_params()
+        elif sig.strategy == "newarch" and self.newarch_strategy is not None:
+            params = self.newarch_strategy.get_position_params()
         else:
             params = self.trend_strategy.get_position_params()
 
@@ -797,7 +957,49 @@ class BacktestEngine:
                 log.warning("CP get_atr_high failed in backtest: %s", e)
 
         sl_dist = atr_for_sl * params.sl_atr_mult
-        tp_dist = sl_dist * params.min_rr
+
+        # Minimum SL floor: 0.3% of entry price (prevents dust SL from ATR noise)
+        min_sl = entry_price * 0.003
+        if sl_dist < min_sl:
+            sl_dist = min_sl
+
+        # ── Strategy-specific TP (matches live position_sizer.py) ──
+        tp_source = "min_rr"  # default fallback
+        if sig.strategy == "range" and sig.bb_basis > 0:
+            # Range: TP = 50% of distance to BB mid (mean reversion target)
+            if sig.direction == "LONG":
+                tp_dist = (sig.bb_basis - entry_price) * 0.50
+            else:
+                tp_dist = (entry_price - sig.bb_basis) * 0.50
+            tp_dist = max(tp_dist, sl_dist * 1.0)  # floor: at least 1:1
+            tp_source = "bb_mid"
+        elif sig.strategy == "crash":
+            # Crash: 3.5× 4H ATR (live uses 4H ATR, not 1H)
+            atr_4h = sig.atr_4h if sig.atr_4h > 0 else sig.atr
+            tp_dist = atr_4h * 3.5
+            tp_source = "atr_3.5"
+        elif sig.strategy == "newarch":
+            # NewArch: regime-dependent TP
+            # BB mid for ranging Z-Score entries, 2.5× ATR for trending NFS entries
+            if sig.bb_basis > 0:
+                if sig.direction == "LONG":
+                    bb_tp = (sig.bb_basis - entry_price) * 0.60
+                else:
+                    bb_tp = (entry_price - sig.bb_basis) * 0.60
+                atr_tp = sig.atr * 2.5
+                tp_dist = max(bb_tp, atr_tp, sl_dist * params.min_rr)
+            else:
+                tp_dist = sig.atr * 2.5
+            tp_dist = max(tp_dist, sl_dist * params.min_rr)
+            tp_source = "newarch"
+        else:
+            # Trend / Burst: generic min_rr (same as live fallback without S/R)
+            tp_dist = sl_dist * params.min_rr
+
+        # Min R:R validation — reject if R:R < half of target
+        rr = tp_dist / sl_dist if sl_dist > 0 else 0
+        if rr < params.min_rr * 0.5:
+            return
 
         if sig.direction == "LONG":
             sl_price = entry_price - sl_dist
@@ -824,6 +1026,13 @@ class BacktestEngine:
                 risk_pct *= self._scorer.risk_multiplier(sig.score)
         risk_pct = min(risk_pct, MAX_RISK_PCT)
 
+        # ── Kelly blocking: block no-edge trades, cap risk if edge is thin ──
+        kelly_risk = self._calc_bt_kelly(sig.strategy)
+        if kelly_risk == KELLY_NO_EDGE:
+            return  # no statistical edge → block trade
+        if kelly_risk is not None and kelly_risk < risk_pct:
+            risk_pct = kelly_risk  # Kelly caps risk
+
         risk_amount = self.balance * risk_pct
         notional = risk_amount / sl_dist_pct
         max_notional = self.balance * params.leverage
@@ -843,6 +1052,8 @@ class BacktestEngine:
             vol_regime=self.volatility_regime,
             market_mode=self.current_mode,
             confidence=sig.confidence,
+            tp_source=tp_source,
+            atr_at_entry=sig.atr if sig.strategy == "newarch" else 0.0,
         ))
 
     def _record_equity(self, candle):
