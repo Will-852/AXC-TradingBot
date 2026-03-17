@@ -22,6 +22,13 @@ import os
 import tempfile
 from datetime import datetime, timezone
 
+from config.params import (
+    SIGNAL_CONF_GATE,
+    SIGNAL_MODE_AFFINITY,
+    SIGNAL_MODE_DEFAULT_PENALTY,
+    SIGNAL_PERSISTENCE,
+    SIGNAL_COOLDOWN_HOURS,
+)
 from ..core.context import CycleContext
 
 log = logging.getLogger(__name__)
@@ -31,17 +38,6 @@ _STATE_DIR = os.path.join(
     "shared",
 )
 _STATE_FILE = os.path.join(_STATE_DIR, ".signal_filter_state.json")
-
-# Default filter params (v5 engine baseline)
-_DEFAULT_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50}
-_DEFAULT_MODE_AFFINITY = {
-    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0},
-    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0},
-    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30},
-}
-_DEFAULT_MODE_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0}
-_DEFAULT_PERSISTENCE = {"range": 3, "trend": 4, "crash": 1}
-_DEFAULT_COOLDOWN_HOURS = 8
 
 
 def _load_state() -> dict:
@@ -93,7 +89,7 @@ class SignalFilterStep:
         filtered = []
         blocked_count = 0
 
-        vol_regime = getattr(ctx, "volatility_regime", "NORMAL")
+        vol_regime = ctx.volatility_regime
 
         for signal in ctx.signals:
             # ── 0. Regime rule check ──
@@ -114,7 +110,7 @@ class SignalFilterStep:
             if isinstance(rule, dict) and "conf_gate" in rule:
                 gate = rule["conf_gate"]
             else:
-                gate = _DEFAULT_CONF_GATE.get(signal.strategy, 0.50)
+                gate = SIGNAL_CONF_GATE.get(signal.strategy, 0.50)
 
             # ── 1. Cooldown check ──
             last_close_iso = cooldown_state.get(signal.pair)
@@ -123,19 +119,19 @@ class SignalFilterStep:
                     last_close = datetime.fromisoformat(last_close_iso)
                     elapsed_h = (ctx.timestamp.astimezone(timezone.utc)
                                  - last_close.astimezone(timezone.utc)).total_seconds() / 3600
-                    if elapsed_h < _DEFAULT_COOLDOWN_HOURS:
+                    if elapsed_h < SIGNAL_COOLDOWN_HOURS:
                         if ctx.verbose:
                             log.info(
                                 "COOLDOWN %s: %.1fh / %dh",
-                                signal.pair, elapsed_h, _DEFAULT_COOLDOWN_HOURS,
+                                signal.pair, elapsed_h, SIGNAL_COOLDOWN_HOURS,
                             )
                         continue
                 except (ValueError, TypeError):
                     pass
 
             # ── 2. Mode penalty ──
-            mode_penalties = _DEFAULT_MODE_AFFINITY.get(
-                ctx.market_mode, _DEFAULT_MODE_PENALTY
+            mode_penalties = SIGNAL_MODE_AFFINITY.get(
+                ctx.market_mode, SIGNAL_MODE_DEFAULT_PENALTY
             )
             penalty = mode_penalties.get(signal.strategy, 0.0)
             adj_conf = signal.confidence + penalty
@@ -154,7 +150,7 @@ class SignalFilterStep:
             signal.confidence = max(adj_conf, 0.0)
 
             # ── 4. Persistence check ──
-            threshold = _DEFAULT_PERSISTENCE.get(signal.strategy, 0)
+            threshold = SIGNAL_PERSISTENCE.get(signal.strategy, 0)
             if threshold > 1:
                 key = signal.pair
                 ps = persist_state.get(key, {})
@@ -196,10 +192,10 @@ class SignalFilterStep:
 
         if ctx.verbose:
             dropped = raw_count - len(filtered)
-            print(
-                f"    Signal filter: {len(filtered)} passed, "
-                f"{dropped} filtered ({blocked_count} regime-blocked) "
-                f"[{vol_regime}×{ctx.market_mode}]"
+            log.info(
+                "Signal filter: %d passed, %d filtered (%d regime-blocked) [%s×%s]",
+                len(filtered), dropped, blocked_count,
+                vol_regime, ctx.market_mode,
             )
 
         return ctx
