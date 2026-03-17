@@ -52,6 +52,7 @@ from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
 from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalStep
+from trader_cycle.strategies.signal_filter import SignalFilterStep
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
 from trader_cycle.risk.adjust_positions import AdjustPositionsStep
 from trader_cycle.risk.position_sizer import SizePositionStep
@@ -456,6 +457,7 @@ def build_pipeline() -> Pipeline:
       8. manage_positions    — exit rules (circuit breaker, max hold, funding)
       8.5 adjust_positions   — trailing SL, TP extension, early exit, re-entry
       9. evaluate_signals    — run active strategy on all pairs
+      9.5 signal_filter      — per-asset conf gate + mode penalty + persistence
      10. select_signal       — pick strongest signal
      11. size_position       — SL/TP/size calculation
      12. execute_trade       — place orders on Aster DEX
@@ -480,6 +482,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(ManagePositionsStep())    # 8
     pipeline.add_step(AdjustPositionsStep())    # 8.5 — trailing SL/TP/early exit
     pipeline.add_step(EvaluateSignalsStep())    # 9
+    pipeline.add_step(SignalFilterStep())       # 9.5 — per-asset conf gate + mode penalty + persistence
     pipeline.add_step(SelectSignalStep())       # 10
     pipeline.add_step(SizePositionStep())       # 11
     pipeline.add_step(ValidateOrderStep())     # 11.5 — pre-trade validation

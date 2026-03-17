@@ -258,6 +258,96 @@ CP_MAX_SCORES = 200                # 每個 bank 最多存幾多
 CP_INFLATION_FACTOR = 1.5          # cold start inflation
 
 # ═══════════════════════════════════════
+# Section 15: Signal Filter (Backtest-to-Live Bridge)
+# ═══════════════════════════════════════
+# 對應 backtest/engine.py 嘅 conf_gate / mode_pen / persist / cooldown。
+# v5 defaults 同 backtest/engine.py line 66-85 完全一致。
+# Per-asset overrides: 只有 WF PASS 嘅 asset 先有 entry。
+
+SIGNAL_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50}
+
+SIGNAL_MODE_AFFINITY = {
+    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0},
+    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0},
+    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30},
+}
+SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0}
+
+SIGNAL_PERSISTENCE = {"range": 3, "trend": 4, "crash": 1}
+
+SIGNAL_COOLDOWN_HOURS = 8  # post-trade cooldown (backtest: 8 candles × 1H = 8H)
+
+# Per-asset overrides (WF PASS only)
+# BTC/ETH: WF FAIL → not listed → defaults apply
+PER_ASSET_SIGNAL_OVERRIDES = {
+    "XRPUSDT": {
+        "conf_gate_range": 0.3975,
+        "conf_gate_trend": 0.4776,
+        "conf_gate_crash": 0.3318,
+        "mode_pen_trend_in_range": -0.4186,
+        "mode_pen_trend_in_crash": -0.0834,
+        "mode_pen_range_in_trend": -0.2348,
+        "mode_pen_range_in_crash": -0.301,
+        "mode_pen_default_trend": -0.181,
+        "mode_pen_default_range": -0.1988,
+        "persist_range": 3,
+        "persist_trend": 1,
+        "persist_crash": 2,
+        "cooldown_hours": 12,
+        # Source: backtest/data/opt_XRPUSDT_180d.json (2026-03-17)
+        # WF: PASS (degradation 37.2%)
+        # Baseline: -5.57% → Final: +5.92%, Sharpe 0.48
+    },
+}
+
+
+def get_signal_filter_params(symbol: str) -> dict:
+    """Resolve signal filter params for a symbol, with per-asset overrides."""
+    ov = PER_ASSET_SIGNAL_OVERRIDES.get(symbol, {})
+    return {
+        "conf_gate": {
+            "range": ov.get("conf_gate_range", SIGNAL_CONF_GATE["range"]),
+            "trend": ov.get("conf_gate_trend", SIGNAL_CONF_GATE["trend"]),
+            "crash": ov.get("conf_gate_crash", SIGNAL_CONF_GATE["crash"]),
+        },
+        "mode_affinity": {
+            "TREND": {
+                "trend": 0.0,
+                "range": ov.get("mode_pen_range_in_trend",
+                                SIGNAL_MODE_AFFINITY["TREND"]["range"]),
+                "crash": 0.0,
+            },
+            "RANGE": {
+                "range": 0.0,
+                "trend": ov.get("mode_pen_trend_in_range",
+                                SIGNAL_MODE_AFFINITY["RANGE"]["trend"]),
+                "crash": 0.0,
+            },
+            "CRASH": {
+                "crash": 0.0,
+                "trend": ov.get("mode_pen_trend_in_crash",
+                                SIGNAL_MODE_AFFINITY["CRASH"]["trend"]),
+                "range": ov.get("mode_pen_range_in_crash",
+                                SIGNAL_MODE_AFFINITY["CRASH"]["range"]),
+            },
+        },
+        "mode_default_penalty": {
+            "trend": ov.get("mode_pen_default_trend",
+                            SIGNAL_MODE_DEFAULT_PENALTY["trend"]),
+            "range": ov.get("mode_pen_default_range",
+                            SIGNAL_MODE_DEFAULT_PENALTY["range"]),
+            "crash": 0.0,
+        },
+        "persistence": {
+            "range": ov.get("persist_range", SIGNAL_PERSISTENCE["range"]),
+            "trend": ov.get("persist_trend", SIGNAL_PERSISTENCE["trend"]),
+            "crash": ov.get("persist_crash", SIGNAL_PERSISTENCE["crash"]),
+        },
+        "cooldown_hours": ov.get("cooldown_hours", SIGNAL_COOLDOWN_HOURS),
+    }
+
+
+# ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）
 # 用家自訂參數放呢度，git pull 永遠唔衝突
 # ═══════════════════════════════════════
