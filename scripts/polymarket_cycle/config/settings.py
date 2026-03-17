@@ -52,7 +52,7 @@ AI_TEMPERATURE = 0.3           # 低 temp = 更穩定概率估計
 CRYPTO_15M_ENABLED_COINS = ["bitcoin"]           # MVP: BTC only
 CRYPTO_15M_MIN_LEAD_MIN = 15                     # 市場開始前至少 15 min
 CRYPTO_15M_MAX_LEAD_MIN = 50                     # 唔超過 50 min（within one cycle）
-CRYPTO_15M_MIN_EDGE_PCT = 0.06                   # 低過 generic crypto（快轉倉）
+CRYPTO_15M_MIN_EDGE_PCT = 0.065                   # net >5% after ~1.5% taker fee
 CRYPTO_15M_CONFIDENCE_THRESHOLD = 0.55
 CRYPTO_15M_INDICATOR_THRESHOLD = 0.55            # P(Up) 需要偏離 0.5 至少 5%
 CRYPTO_15M_MAX_ASSESSMENTS = 3                   # 每 cycle 最多 3 個 AI 評估

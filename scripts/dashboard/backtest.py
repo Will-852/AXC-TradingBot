@@ -696,6 +696,79 @@ def handle_bt_import(body: str):
     }
 
 
+# ── NFS+FVZ Research Backtest ─────────────────────────────────────────
+
+_NFS_FVZ_DEFAULTS = {
+    "swing_lookback": 1, "nfs_max_gap": 20, "fvz_entry": "mid",
+    "stop_mode": "swing", "min_rr": 4.0, "zone_expiry": 20,
+    "regime_filter": "adx>25", "min_zone_width_pct": 0.001,
+}
+_NFS_FVZ_NUMERIC = {"swing_lookback", "nfs_max_gap", "min_rr", "zone_expiry", "min_zone_width_pct"}
+_NFS_FVZ_STRING = {"fvz_entry": {"upper", "mid", "lower"},
+                   "stop_mode": {"swing", "atr", "hybrid"},
+                   "regime_filter": {"none", "adx>20", "adx>25"}}
+
+
+def handle_bt_nfs_fvz(body: str):
+    """Run NFS+FVZ research backtest via dashboard."""
+    try:
+        req = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid JSON"}
+
+    symbol = req.get("symbol", "BTCUSDT").upper()
+    if symbol not in _BT_ALLOWED_SYMBOLS:
+        return 400, {"error": f"symbol not allowed: {symbol}"}
+
+    try:
+        balance = float(req.get("balance", 10000))
+    except (ValueError, TypeError):
+        return 400, {"error": "invalid balance"}
+
+    # Merge params with defaults
+    params = dict(_NFS_FVZ_DEFAULTS)
+    user_params = req.get("nfs_fvz_params") or {}
+    for k, v in user_params.items():
+        if k in _NFS_FVZ_NUMERIC:
+            try:
+                params[k] = float(v)
+                if k in ("swing_lookback", "nfs_max_gap", "zone_expiry"):
+                    params[k] = int(v)
+            except (ValueError, TypeError):
+                return 400, {"error": f"invalid numeric param: {k}"}
+        elif k in _NFS_FVZ_STRING:
+            if v not in _NFS_FVZ_STRING[k]:
+                return 400, {"error": f"invalid {k}: {v}. Valid: {_NFS_FVZ_STRING[k]}"}
+            params[k] = v
+
+    # Find CSV
+    from backtest.research_nfs_fvz import find_longest_csv, run_single
+    csv_path = find_longest_csv(symbol, "4h")
+    if not csv_path:
+        return 400, {"error": f"No 4H CSV data for {symbol}"}
+
+    # Run synchronously (fast enough for single pair, <2s)
+    job_id = f"nfs_{symbol}_{int(time.time())}"
+    with _bt_lock:
+        _evict_old_jobs()
+        _bt_jobs[job_id] = {"status": "running", "symbol": symbol, "days": 0,
+                            "result": None, "error": None}
+
+    def _on_done(fut):
+        with _bt_lock:
+            try:
+                result = fut.result()
+                _bt_jobs[job_id]["result"] = result
+                _bt_jobs[job_id]["status"] = "done"
+            except Exception as e:
+                _bt_jobs[job_id]["error"] = str(e)
+                _bt_jobs[job_id]["status"] = "error"
+
+    fut = _get_bt_pool().submit(run_single, symbol, csv_path, params, balance)
+    fut.add_done_callback(_on_done)
+    return 200, {"job_id": job_id, "status": "running"}
+
+
 # ── AggTrades ────────────────────────────────────────────────────────
 
 def _cleanup_old_jobs():

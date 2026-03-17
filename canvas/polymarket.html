@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXC Polymarket Dashboard</title>
+<style>
+:root {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --pos: #0d9488;
+  --neg: #e11d48;
+  --accent: #635bff;
+  --border: #e5e7eb;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-size: 18px; font-weight: 600; }
+.header h1 span { color: var(--accent); }
+.header .meta { color: var(--muted); font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge-live { background: #dcfce7; color: #166534; }
+.badge-dry { background: #fef3c7; color: #92400e; }
+.badge-error { background: #fce4ec; color: #c62828; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.kpi {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+}
+.kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+.kpi .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover { background: #f9fafb; }
+
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+
+.empty-state { padding: 32px; text-align: center; color: var(--muted); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+.risk-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+.signal-row { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.signal-row:last-child { border-bottom: none; }
+.signal-title { font-weight: 500; }
+.signal-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+#loading { text-align: center; padding: 48px; color: var(--muted); }
+#error-banner { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 8px 16px; border-radius: var(--radius); margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>AXC</span> Polymarket</h1>
+  <div class="meta">
+    <span id="last-update">Loading...</span>
+    <span id="mode-badge" class="badge badge-dry">DRY RUN</span>
+  </div>
+</div>
+
+<div class="container">
+  <div id="error-banner"></div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="label">USDC Balance</div>
+      <div class="value" id="kpi-balance">$--</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Exposure</div>
+      <div class="value" id="kpi-exposure">--%</div>
+      <div class="sub">
+        <div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%;background:var(--pos)"></div></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Open Positions</div>
+      <div class="value" id="kpi-positions">--</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Daily PnL</div>
+      <div class="value" id="kpi-pnl">--</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Markets Scanned</div>
+      <div class="value" id="kpi-scanned">--</div>
+      <div class="sub" id="kpi-scan-detail">-- filtered, -- assessed</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Circuit Breaker</div>
+      <div class="value" id="kpi-circuit">OFF</div>
+    </div>
+  </div>
+
+  <!-- Positions Table -->
+  <div class="card">
+    <div class="card-header">Open Positions</div>
+    <div id="positions-body">
+      <div class="empty-state">No open positions</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Recent Signals -->
+    <div class="card">
+      <div class="card-header">Last Signals</div>
+      <div id="signals-body">
+        <div class="empty-state">No recent signals</div>
+      </div>
+    </div>
+
+    <!-- Risk Status -->
+    <div class="card">
+      <div class="card-header">Risk Status</div>
+      <div id="risk-body">
+        <div class="empty-state">No risk alerts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Trades -->
+  <div class="card">
+    <div class="card-header">Recent Trades</div>
+    <div id="trades-body">
+      <div class="empty-state">No trades yet</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATE_PATH = '../shared/POLYMARKET_STATE.json';
+const TRADES_PATH = '../logs/poly_trades.jsonl';
+const REFRESH_MS = 30000; // 30s — poly cycle is 60min, no need for fast refresh
+
+async function fetchState() {
+  try {
+    const res = await fetch(STATE_PATH + '?t=' + Date.now());
+    if (!res.ok) throw new Error('State file not found');
+    return await res.json();
+  } catch (e) {
+    console.warn('State fetch error:', e);
+    return null;
+  }
+}
+
+async function fetchTrades() {
+  try {
+    const res = await fetch(TRADES_PATH + '?t=' + Date.now());
+    if (!res.ok) return [];
+    const text = await res.text();
+    return text.trim().split('\n')
+      .filter(l => l.trim())
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean)
+      .reverse()
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+function renderKPIs(D) {
+  const bal = D.usdc_balance || 0;
+  const exp = D.exposure_pct || 0;
+  const positions = (D.positions || []).length;
+  const pnl = D.daily_pnl_pct || 0;
+  const scan = D.last_scan || {};
+
+  document.getElementById('kpi-balance').textContent = '$' + bal.toLocaleString(undefined, {maximumFractionDigits: 0});
+  document.getElementById('kpi-exposure').textContent = (exp * 100).toFixed(1) + '%';
+  document.getElementById('kpi-positions').textContent = positions;
+
+  const pnlEl = document.getElementById('kpi-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + (pnl * 100).toFixed(2) + '%';
+  pnlEl.className = 'value ' + (pnl >= 0 ? 'pos' : 'neg');
+
+  document.getElementById('kpi-scanned').textContent = scan.scanned || 0;
+  document.getElementById('kpi-scan-detail').textContent =
+    (scan.filtered || 0) + ' filtered, ' + (scan.assessments || 0) + ' assessed';
+
+  const circuit = D.circuit_breaker_active;
+  const circuitEl = document.getElementById('kpi-circuit');
+  circuitEl.textContent = circuit ? 'ACTIVE' : 'OFF';
+  circuitEl.className = 'value ' + (circuit ? 'neg' : 'pos');
+
+  // Exposure bar
+  const barPct = Math.min(exp * 100 / 30, 100); // 30% max
+  const bar = document.getElementById('exposure-bar');
+  bar.style.width = barPct + '%';
+  bar.style.background = exp > 0.25 ? 'var(--neg)' : exp > 0.15 ? '#f59e0b' : 'var(--pos)';
+
+  // Mode badge
+  const badge = document.getElementById('mode-badge');
+  if (D.dry_run !== false) {
+    badge.textContent = 'DRY RUN';
+    badge.className = 'badge badge-dry';
+  } else {
+    badge.textContent = 'LIVE';
+    badge.className = 'badge badge-live';
+  }
+
+  document.getElementById('last-update').textContent = 'Updated: ' + (D.last_updated || '--');
+}
+
+function renderPositions(positions) {
+  const el = document.getElementById('positions-body');
+  if (!positions || !positions.length) {
+    el.innerHTML = '<div class="empty-state">No open positions</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr>';
+  html += '<th>Market</th><th>Side</th><th>Category</th><th>Shares</th><th>Avg Price</th><th>Current</th><th>Cost</th><th>PnL</th><th>PnL %</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const p of positions) {
+    const pnl = p.unrealized_pnl || 0;
+    const pnlPct = p.unrealized_pnl_pct || 0;
+    const cls = pnl >= 0 ? 'pos' : 'neg';
+    html += '<tr>';
+    html += '<td>' + (p.title || '').slice(0, 45) + '</td>';
+    html += '<td><strong>' + p.side + '</strong></td>';
+    html += '<td>' + p.category + '</td>';
+    html += '<td class="mono">' + (p.shares || 0).toFixed(1) + '</td>';
+    html += '<td class="mono">' + (p.avg_price || 0).toFixed(3) + '</td>';
+    html += '<td class="mono">' + (p.current_price || 0).toFixed(3) + '</td>';
+    html += '<td class="mono">$' + (p.cost_basis || 0).toFixed(0) + '</td>';
+    html += '<td class="mono ' + cls + '">$' + pnl.toFixed(2) + '</td>';
+    html += '<td class="mono ' + cls + '">' + (pnlPct >= 0 ? '+' : '') + (pnlPct * 100).toFixed(1) + '%</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderSignals(scan) {
+  const el = document.getElementById('signals-body');
+  const count = (scan && scan.signals) || 0;
+  if (!count) {
+    el.innerHTML = '<div class="empty-state">No recent signals</div>';
+    return;
+  }
+  el.innerHTML = '<div class="signal-row"><div class="signal-title">' + count + ' signal(s) generated last cycle</div><div class="signal-meta">See trade log for details</div></div>';
+}
+
+function renderRisk(D) {
+  const el = document.getElementById('risk-body');
+  const items = [];
+
+  if (D.circuit_breaker_active) items.push('<span class="neg">Circuit breaker ACTIVE</span>');
+  if (D.cooldown_until) items.push('Cooldown until: ' + D.cooldown_until);
+  if ((D.consecutive_losses || 0) > 0) items.push('Consecutive losses: ' + D.consecutive_losses);
+
+  const exp = D.exposure_pct || 0;
+  if (exp > 0.25) items.push('<span class="neg">Exposure ' + (exp * 100).toFixed(1) + '% (near 30% limit)</span>');
+
+  const positions = (D.positions || []).length;
+  if (positions >= 4) items.push('Positions: ' + positions + '/5');
+
+  if (!items.length) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--pos)">All clear</div>';
+    return;
+  }
+  el.innerHTML = items.map(i => '<div class="signal-row">' + i + '</div>').join('');
+}
+
+function renderTrades(trades) {
+  const el = document.getElementById('trades-body');
+  if (!trades.length) {
+    el.innerHTML = '<div class="empty-state">No trades yet</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr>';
+  html += '<th>Time</th><th>Action</th><th>Side</th><th>Market</th><th>Amount</th><th>Price</th><th>Edge</th><th>Mode</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const t of trades.slice(0, 15)) {
+    const ts = (t.timestamp || '').replace('T', ' ').slice(0, 16);
+    const dry = t.dry_run ? '<span class="badge badge-dry">DRY</span>' : '<span class="badge badge-live">LIVE</span>';
+    html += '<tr>';
+    html += '<td class="mono">' + ts + '</td>';
+    html += '<td>' + (t.action || '') + '</td>';
+    html += '<td><strong>' + (t.side || '') + '</strong></td>';
+    html += '<td>' + (t.title || '').slice(0, 35) + '</td>';
+    html += '<td class="mono">$' + (t.amount_usdc || 0).toFixed(0) + '</td>';
+    html += '<td class="mono">' + (t.price || 0).toFixed(3) + '</td>';
+    html += '<td class="mono">' + ((t.edge || 0) >= 0 ? '+' : '') + ((t.edge || 0) * 100).toFixed(1) + '%</td>';
+    html += '<td>' + dry + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function refresh() {
+  const [state, trades] = await Promise.all([fetchState(), fetchTrades()]);
+  const errBanner = document.getElementById('error-banner');
+
+  if (!state) {
+    errBanner.style.display = 'block';
+    errBanner.textContent = 'Cannot load POLYMARKET_STATE.json — is the pipeline running?';
+    return;
+  }
+  errBanner.style.display = 'none';
+
+  renderKPIs(state);
+  renderPositions(state.positions);
+  renderSignals(state.last_scan);
+  renderRisk(state);
+  renderTrades(trades);
+}
+
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>

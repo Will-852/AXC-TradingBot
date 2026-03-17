@@ -342,6 +342,69 @@
       cursor: pointer; margin: 0;
     }
 
+    /* ── Engine Switcher ── */
+    .engine-switcher {
+      display: flex; gap: 0; margin: 12px 0 8px; border-radius: 6px; overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .engine-tab {
+      flex: 1; padding: 7px 0; text-align: center; font-size: .72rem; font-weight: 600;
+      letter-spacing: .03em; cursor: pointer; user-select: none;
+      background: var(--surface); color: var(--text-3); transition: all .2s;
+      border: none; outline: none;
+    }
+    .engine-tab:first-child { border-right: 1px solid var(--border); }
+    .engine-tab:hover { color: var(--text-2); }
+    .engine-tab.active-classic { background: rgba(41,98,255,.12); color: #5b8def; }
+    .engine-tab.active-nfs { background: rgba(249,168,37,.10); color: #f9a825; }
+
+    /* ── NFS+FVZ Plugin Card ── */
+    .nfs-plugin { display: none; }
+    .nfs-plugin.show { display: block; }
+    .nfs-plugin-header {
+      display: flex; align-items: center; gap: 8px; margin: 6px 0 8px;
+    }
+    .nfs-badge {
+      font-size: .6rem; font-weight: 700; letter-spacing: .06em;
+      padding: 2px 7px; border-radius: 4px;
+      background: rgba(249,168,37,.12); color: #f9a825;
+    }
+    .nfs-hint {
+      font-size: .64rem; color: var(--text-3); font-style: italic;
+    }
+    .nfs-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px;
+    }
+    .nfs-field { display: flex; flex-direction: column; gap: 2px; }
+    .nfs-field label {
+      font-size: .62rem; color: var(--text-3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .04em; margin: 0;
+    }
+    .nfs-field input, .nfs-field select {
+      border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px;
+      font-size: .78rem; background: var(--surface); color: var(--text-1);
+      width: 100%;
+    }
+    .nfs-field select { appearance: none; padding-right: 20px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23929aa5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 6px center;
+    }
+    .nfs-field input:focus, .nfs-field select:focus {
+      border-color: rgba(249,168,37,.4); outline: none;
+    }
+    .nfs-preset-row {
+      display: flex; gap: 6px; margin-bottom: 10px;
+    }
+    .nfs-preset {
+      font-size: .65rem; font-weight: 600; padding: 3px 10px; border-radius: 4px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-3); cursor: pointer; transition: all .15s;
+    }
+    .nfs-preset:hover { background: var(--surface); color: var(--text-2); border-color: #f9a825; }
+    .nfs-divider {
+      height: 1px; background: var(--border); margin: 10px 0;
+    }
+
     /* ── Live / LivePos Toggles ── */
     .btn-live, .btn-livepos {
       background: var(--surface);
@@ -850,10 +913,83 @@
         </div>
       </div>
 
-      <div class="param-group-title">Mode Filter</div>
-      <div class="mode-checks">
-        <label><input type="checkbox" id="p-mode-range" checked> RANGE</label>
-        <label><input type="checkbox" id="p-mode-trend" checked> TREND</label>
+      <!-- ── Engine Switcher ── -->
+      <div class="nfs-divider"></div>
+      <div class="engine-switcher">
+        <button class="engine-tab active-classic" id="eng-classic" onclick="switchEngine('classic')">
+          <i class="fas fa-chart-line" style="margin-right:4px"></i>CLASSIC (Range + Trend)
+        </button>
+        <button class="engine-tab" id="eng-nfs" onclick="switchEngine('nfs')">
+          <i class="fas fa-bolt" style="margin-right:4px"></i>NFS + FVZ
+        </button>
+      </div>
+      <input type="hidden" id="p-nfs-fvz-toggle" value="0">
+
+      <!-- Classic mode filter (shown by default) -->
+      <div id="classic-modes">
+        <div class="param-group-title">Mode Filter</div>
+        <div class="mode-checks">
+          <label><input type="checkbox" id="p-mode-range" checked> RANGE</label>
+          <label><input type="checkbox" id="p-mode-trend" checked> TREND</label>
+        </div>
+      </div>
+
+      <!-- NFS+FVZ plugin card -->
+      <div class="nfs-plugin" id="nfs-fvz-params">
+        <div class="nfs-plugin-header">
+          <span class="nfs-badge">SMC</span>
+          <span style="font-size:.75rem;font-weight:600;color:var(--text-1)">Non-Failure Swing + Fair Value Zone</span>
+          <span class="nfs-hint">4H timeframe</span>
+        </div>
+
+        <!-- Presets -->
+        <div class="nfs-preset-row">
+          <button class="nfs-preset" onclick="nfsPreset('optimal')" title="Stage 2 最佳參數">Optimal</button>
+          <button class="nfs-preset" onclick="nfsPreset('conservative')" title="低回撤保守設定">Conservative</button>
+          <button class="nfs-preset" onclick="nfsPreset('aggressive')" title="高信號激進設定">Aggressive</button>
+        </div>
+
+        <!-- Row 1: Detection -->
+        <div style="font-size:.6rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Detection 偵測</div>
+        <div class="nfs-row">
+          <div class="nfs-field" title="Swing lookback bars&#10;1 = 更多信號&#10;2 = 更穩定，過濾噪音">
+            <label>Lookback</label>
+            <input type="number" id="p-nfs-lb" step="1" min="1" max="3" value="1">
+          </div>
+          <div class="nfs-field" title="NFS 最大 bar 間距&#10;結構突破必須在 N 根 bar 內完成">
+            <label>Max Gap</label>
+            <input type="number" id="p-nfs-gap" step="5" min="5" max="50" value="20">
+          </div>
+          <div class="nfs-field" title="Zone 有效期 (bars)&#10;20 bars = ~5 天 (4H)&#10;過期未觸及 → 作廢">
+            <label>Expiry</label>
+            <input type="number" id="p-nfs-expiry" step="10" min="10" max="100" value="20">
+          </div>
+          <div class="nfs-field" title="最小 zone 寬度佔比&#10;過濾 hairline zones">
+            <label>Min Width</label>
+            <input type="number" id="p-nfs-minw" step="0.0005" min="0.0001" max="0.01" value="0.001">
+          </div>
+        </div>
+
+        <!-- Row 2: Execution -->
+        <div style="font-size:.6rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Execution 執行</div>
+        <div class="nfs-row">
+          <div class="nfs-field" title="FVZ 入場位置&#10;Upper = zone 頂部（保守）&#10;Mid = zone 中間&#10;Lower = zone 底部（激進）">
+            <label>Entry</label>
+            <select id="p-nfs-entry"><option value="upper">Upper</option><option value="mid" selected>Mid</option><option value="lower">Lower</option></select>
+          </div>
+          <div class="nfs-field" title="止損模式&#10;Swing = 結構止損&#10;ATR = 波動止損&#10;Hybrid = 兩者取嚴">
+            <label>Stop</label>
+            <select id="p-nfs-stop"><option value="swing" selected>Swing</option><option value="atr">ATR</option><option value="hybrid">Hybrid</option></select>
+          </div>
+          <div class="nfs-field" title="最低回報風險比&#10;4.0 = 每蝕 1R 要賺 4R&#10;高 RR = 低勝率但高期望值">
+            <label>Min RR</label>
+            <input type="number" id="p-nfs-rr" step="0.5" min="1" max="8" value="4.0">
+          </div>
+          <div class="nfs-field" title="趨勢環境過濾&#10;ADX > 25 = 只做強趨勢&#10;大幅降低 drawdown">
+            <label>Regime</label>
+            <select id="p-nfs-regime"><option value="none">None</option><option value="adx>20">ADX &gt; 20</option><option value="adx>25" selected>ADX &gt; 25</option></select>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1104,6 +1240,18 @@
         <div style="font-weight:600;margin-bottom:4px">STRATEGY SPLIT</div>
         <div id="strat-range"></div>
         <div id="strat-trend"></div>
+      </div>
+      <!-- NFS+FVZ SMC Metrics -->
+      <div id="nfs-metrics-panel" style="display:none;margin-top:8px;font-size:.72rem;color:var(--text-3)">
+        <div style="font-weight:600;margin-bottom:4px;color:#f9a825">SMC METRICS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
+          <div>Zones: <span id="nfs-m-zones" style="color:var(--text-1)">--</span></div>
+          <div>Fill Rate: <span id="nfs-m-fill" style="color:var(--text-1)">--</span></div>
+          <div>E[R]: <span id="nfs-m-er" style="color:var(--text-1)">--</span></div>
+          <div>Max DD(R): <span id="nfs-m-ddr" style="color:var(--text-1)">--</span></div>
+          <div>Conflict: <span id="nfs-m-conflict" style="color:var(--text-1)">--</span></div>
+          <div>Score: <span id="nfs-m-score" style="color:var(--text-1)">--</span></div>
+        </div>
       </div>
       <!-- A/B Compare panel -->
       <div id="compare-panel" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
@@ -2491,7 +2639,25 @@ function updateStats(result) {
   // Phase 4B: Strategy breakdown
   var bs = result.by_strategy || {};
   var breakdown = byId('strategy-breakdown');
-  if (Object.keys(bs).length) {
+  var nfsPanel = byId('nfs-metrics-panel');
+  if (bs.nfs_fvz) {
+    // NFS+FVZ engine — show SMC metrics, hide classic breakdown
+    breakdown.style.display = 'none';
+    if (nfsPanel && result.nfs_fvz_metrics) {
+      var m = result.nfs_fvz_metrics;
+      nfsPanel.style.display = 'block';
+      byId('nfs-m-zones').textContent = m.total_zones || 0;
+      byId('nfs-m-fill').textContent = ((m.fill_rate || 0) * 100).toFixed(1) + '%';
+      var er = m.expectancy_r || 0;
+      byId('nfs-m-er').textContent = (er >= 0 ? '+' : '') + er.toFixed(3) + 'R';
+      byId('nfs-m-er').style.color = er >= 0 ? 'var(--pos)' : 'var(--neg)';
+      byId('nfs-m-ddr').textContent = (m.max_dd_r || 0).toFixed(1) + 'R';
+      byId('nfs-m-conflict').textContent = ((m.conflict_pct || 0) * 100).toFixed(1) + '%';
+      byId('nfs-m-score').textContent = (m.score || 0).toFixed(2);
+    }
+  } else if (Object.keys(bs).length) {
+    // Classic engine — show strategy split, hide NFS metrics
+    if (nfsPanel) nfsPanel.style.display = 'none';
     breakdown.style.display = 'block';
     byId('strat-range').textContent = bs.range
       ? 'Range: ' + bs.range.count + ' trades, WR ' + bs.range.win_rate + '%, avg $' + bs.range.avg_pnl
@@ -2501,6 +2667,7 @@ function updateStats(result) {
       : 'Trend: --';
   } else {
     breakdown.style.display = 'none';
+    if (nfsPanel) nfsPanel.style.display = 'none';
   }
 
   // Update compare if Run A exists
@@ -2962,6 +3129,72 @@ function toggleParams() {
   body.classList.toggle('show');
 }
 
+var currentEngine = 'classic';
+
+var _savedClassicInterval = '1h';
+
+function switchEngine(eng) {
+  currentEngine = eng;
+  var classic = document.getElementById('eng-classic');
+  var nfs = document.getElementById('eng-nfs');
+  var classicModes = document.getElementById('classic-modes');
+  var nfsPanel = document.getElementById('nfs-fvz-params');
+  var toggle = document.getElementById('p-nfs-fvz-toggle');
+
+  if (eng === 'nfs') {
+    _savedClassicInterval = currentInterval;
+    currentInterval = '4h';
+    classic.className = 'engine-tab';
+    nfs.className = 'engine-tab active-nfs';
+    classicModes.style.display = 'none';
+    nfsPanel.classList.add('show');
+    toggle.value = '1';
+  } else {
+    currentInterval = _savedClassicInterval;
+    classic.className = 'engine-tab active-classic';
+    nfs.className = 'engine-tab';
+    classicModes.style.display = '';
+    nfsPanel.classList.remove('show');
+    toggle.value = '0';
+  }
+}
+
+function nfsPreset(name) {
+  var presets = {
+    optimal:      {lb:1, gap:20, entry:'mid',   stop:'swing',  rr:4.0, expiry:20, regime:'adx>25', minw:0.001},
+    conservative: {lb:2, gap:20, entry:'upper',  stop:'hybrid', rr:4.0, expiry:20, regime:'adx>25', minw:0.002},
+    aggressive:   {lb:1, gap:30, entry:'lower',  stop:'swing',  rr:3.0, expiry:40, regime:'none',   minw:0.0005},
+  };
+  var p = presets[name];
+  if (!p) return;
+  document.getElementById('p-nfs-lb').value = p.lb;
+  document.getElementById('p-nfs-gap').value = p.gap;
+  document.getElementById('p-nfs-entry').value = p.entry;
+  document.getElementById('p-nfs-stop').value = p.stop;
+  document.getElementById('p-nfs-rr').value = p.rr;
+  document.getElementById('p-nfs-expiry').value = p.expiry;
+  document.getElementById('p-nfs-regime').value = p.regime;
+  document.getElementById('p-nfs-minw').value = p.minw;
+  // Flash feedback — highlight clicked preset
+  var btns = document.querySelectorAll('.nfs-preset');
+  btns.forEach(function(b) { b.style.borderColor = ''; b.style.color = ''; });
+  var clicked = document.querySelector('.nfs-preset[onclick*="' + name + '"]');
+  if (clicked) { clicked.style.borderColor = '#f9a825'; clicked.style.color = '#f9a825'; }
+}
+
+function collectNfsFvzParams() {
+  return {
+    swing_lookback: parseInt(document.getElementById('p-nfs-lb').value) || 1,
+    nfs_max_gap: parseInt(document.getElementById('p-nfs-gap').value) || 20,
+    fvz_entry: document.getElementById('p-nfs-entry').value,
+    stop_mode: document.getElementById('p-nfs-stop').value,
+    min_rr: parseFloat(document.getElementById('p-nfs-rr').value) || 4.0,
+    zone_expiry: parseInt(document.getElementById('p-nfs-expiry').value) || 20,
+    regime_filter: document.getElementById('p-nfs-regime').value,
+    min_zone_width_pct: parseFloat(document.getElementById('p-nfs-minw').value) || 0.001,
+  };
+}
+
 // ── Collect param overrides from panel ──
 function collectParamOverrides() {
   var result = {strategy_params: {}, param_overrides: {}, allowed_modes: null, mode_confirmation: null};
@@ -3128,9 +3361,33 @@ function runBacktest() {
   var days = parseInt(document.getElementById('sel-days').value);
   var balance = parseFloat(document.getElementById('inp-balance').value) || 10000;
   var interval = currentInterval;
-  var overrides = collectParamOverrides();
+  var isNfsFvz = currentEngine === 'nfs';
 
-  // Update run config card
+  if (isNfsFvz) {
+    // ── NFS+FVZ Engine ──
+    var nfsParams = collectNfsFvzParams();
+    updateRunConfig({symbol: symbol, days: 0, balance: balance, param_overrides: nfsParams});
+    setState('RUNNING', {symbol: symbol, days: 0, interval: '4h'});
+
+    api('/api/backtest/nfs-fvz', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol: symbol, balance: balance, nfs_fvz_params: nfsParams})
+    })
+    .then(function(resp) {
+      if (!resp.job_id) throw new Error('no job_id');
+      pollJob(resp.job_id, {symbol: symbol, days: 0, interval: '4h'});
+    })
+    .catch(function(e) {
+      console.error('nfs-fvz error:', e);
+      setState('ERROR');
+      showToast('NFS+FVZ failed: ' + e.message, 'error');
+    });
+    return;
+  }
+
+  // ── Classic Engine (Range+Trend) ──
+  var overrides = collectParamOverrides();
   updateRunConfig({
     symbol: symbol, days: days, balance: balance,
     strategy_params: overrides.strategy_params,

@@ -31,6 +31,7 @@ from scripts.dashboard.backtest import (
     handle_bt_list, handle_bt_klines, handle_bt_results, handle_bt_status,
     handle_bt_run, handle_bt_export, handle_bt_import,
     handle_bt_aggtrades, handle_bt_aggtrades_status,
+    handle_bt_nfs_fvz,
 )
 from scripts.dashboard.chat import handle_chat
 from scripts.dashboard.paper_trading import (
@@ -326,6 +327,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/backtest/run":
             code, data = handle_bt_run(body)
+            self._json_response(code, data)
+        elif self.path == "/api/backtest/nfs-fvz":
+            code, data = handle_bt_nfs_fvz(body)
             self._json_response(code, data)
         elif self.path == "/api/backtest/import":
             if len(body) > 50 * 1024 * 1024:  # 50 MB limit
