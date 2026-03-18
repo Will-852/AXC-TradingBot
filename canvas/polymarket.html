@@ -239,17 +239,20 @@ tr:hover { background: var(--card-hover); }
 <div class="cmd-bar">
   <div class="cmd-left">
     <a href="/" class="cmd-back">&#8592; Dashboard</a>
-    <div class="cmd-title"><span>AXC</span> Prediction Markets</div>
+    <div class="cmd-title"><span>AXC</span> 預測市場指揮台</div>
   </div>
   <div class="cmd-center">
-    <button class="cmd-btn" onclick="cmdForceScan(this)" title="Scan Gamma API for markets + arb detection">
-      <span class="icon">&#9654;</span> Scan
+    <button class="cmd-btn" onclick="cmdRunCycle(this)" title="跑完整 17-step pipeline（背景執行）" style="border-color:var(--accent)">
+      <span class="icon">&#9654;</span> 跑 Pipeline
     </button>
-    <button class="cmd-btn" onclick="cmdResetCB(this)" title="Reset all circuit breakers to CLOSED">
-      <span class="icon">&#8635;</span> Reset CB
+    <button class="cmd-btn" onclick="cmdForceScan(this)" title="掃描 Gamma API 市場 + 套利偵測">
+      <span class="icon">&#9670;</span> 掃描
     </button>
-    <button class="cmd-btn" onclick="cmdCheckMerge(this)" title="Check for mergeable YES+NO positions">
-      <span class="icon">&#9651;</span> Merge
+    <button class="cmd-btn" onclick="cmdResetCB(this)" title="重置所有斷路器">
+      <span class="icon">&#8635;</span> 重置 CB
+    </button>
+    <button class="cmd-btn" onclick="cmdCheckMerge(this)" title="檢查可合併嘅 YES+NO 持倉">
+      <span class="icon">&#9651;</span> 合併
     </button>
   </div>
   <div class="cmd-right">
@@ -269,29 +272,29 @@ tr:hover { background: var(--card-hover); }
   <!-- KPI Row -->
   <div class="kpi-row fade-in" style="animation-delay:0.05s">
     <div class="kpi">
-      <div class="label">Balance</div>
+      <div class="label">結餘</div>
       <div class="value" id="kpi-balance">$--</div>
     </div>
     <div class="kpi">
-      <div class="label">Exposure</div>
+      <div class="label">風險敞口</div>
       <div class="value" id="kpi-exposure">--%</div>
       <div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%"></div></div>
     </div>
     <div class="kpi">
-      <div class="label">Positions</div>
+      <div class="label">持倉</div>
       <div class="value" id="kpi-positions">--</div>
     </div>
     <div class="kpi">
-      <div class="label">Daily PnL</div>
+      <div class="label">日損益</div>
       <div class="value" id="kpi-pnl">--</div>
     </div>
     <div class="kpi">
-      <div class="label">Scanned</div>
+      <div class="label">已掃描</div>
       <div class="value" id="kpi-scanned">--</div>
-      <div class="sub" id="kpi-scan-detail">-- filtered</div>
+      <div class="sub" id="kpi-scan-detail">-- 過濾</div>
     </div>
     <div class="kpi">
-      <div class="label">Circuit Breaker</div>
+      <div class="label">斷路器</div>
       <div class="value pos" id="kpi-circuit">OFF</div>
     </div>
   </div>
@@ -300,7 +303,7 @@ tr:hover { background: var(--card-hover); }
   <div class="grid-2-1 fade-in" style="animation-delay:0.1s">
     <div class="card">
       <div class="card-header">
-        PnL Timeline
+        損益走勢
         <span class="tag" id="pnl-tag">0 trades</span>
       </div>
       <div class="chart-wrap">
@@ -310,32 +313,32 @@ tr:hover { background: var(--card-hover); }
     <div>
       <!-- Strategy Distribution -->
       <div class="card">
-        <div class="card-header">Signal Sources</div>
+        <div class="card-header">信號來源</div>
         <div id="strategy-body" style="padding:10px 0">
-          <div class="empty-state">No trade data</div>
+          <div class="empty-state">冇交易數據</div>
         </div>
       </div>
-      <!-- Circuit Breakers -->
+      <!-- 斷路器 -->
       <div class="card">
         <div class="card-header">
-          Circuit Breakers
+          斷路器
           <span class="tag" id="cb-tag">--</span>
         </div>
         <div id="cb-body">
-          <div class="empty-state">No services registered</div>
+          <div class="empty-state">冇已註冊服務</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Open Positions -->
+  <!-- 持倉 -->
   <div class="card fade-in" style="animation-delay:0.15s">
     <div class="card-header">
-      Open Positions
+      持倉
       <span class="tag" id="positions-tag">0</span>
     </div>
     <div id="positions-body">
-      <div class="empty-state">No open positions</div>
+      <div class="empty-state">冇持倉</div>
     </div>
   </div>
 
@@ -343,20 +346,20 @@ tr:hover { background: var(--card-hover); }
   <div class="grid-2 fade-in" style="animation-delay:0.2s">
     <div class="card">
       <div class="card-header">
-        Market Scanner
+        市場掃描
         <span class="tag" id="scanner-tag">--</span>
       </div>
       <div id="scanner-body">
-        <div class="empty-state">Run <strong>&#9654; Scan</strong> to view markets</div>
+        <div class="empty-state">撳 <strong>&#9670; 掃描</strong> 睇市場</div>
       </div>
     </div>
     <div class="card">
       <div class="card-header">
-        Logical Arb Monitor
+        邏輯套利
         <span class="tag" id="arb-tag">0</span>
       </div>
       <div id="arb-body">
-        <div class="empty-state">Run <strong>&#9654; Scan</strong> to check arb</div>
+        <div class="empty-state">撳 <strong>&#9670; 掃描</strong> 偵測套利</div>
       </div>
     </div>
   </div>
@@ -364,44 +367,44 @@ tr:hover { background: var(--card-hover); }
   <!-- Risk + Merge -->
   <div class="grid-2 fade-in" style="animation-delay:0.25s">
     <div class="card">
-      <div class="card-header">Risk Status</div>
+      <div class="card-header">風險狀態</div>
       <div id="risk-body">
         <div class="empty-state pos">All clear</div>
       </div>
     </div>
     <div class="card">
       <div class="card-header">
-        Merge Detection
+        合併偵測
         <span class="tag" id="merge-tag">--</span>
       </div>
       <div id="merge-body">
-        <div class="empty-state">Press <strong>&#9651; Merge</strong> to check</div>
+        <div class="empty-state">撳 <strong>&#9651; 合併</strong> 檢查</div>
       </div>
     </div>
   </div>
 
-  <!-- Command Log -->
+  <!-- 指令記錄 -->
   <div class="card fade-in" style="animation-delay:0.3s">
-    <div class="card-header">Command Log</div>
+    <div class="card-header">指令記錄</div>
     <div class="cmd-log" id="cmd-log">
-      <div class="cmd-log-entry"><span class="ts">--:--:--</span> System ready</div>
+      <div class="cmd-log-entry"><span class="ts">--:--:--</span> 系統就緒</div>
     </div>
   </div>
 
-  <!-- Recent Trades -->
+  <!-- 近期交易 -->
   <div class="card fade-in" style="animation-delay:0.35s">
     <div class="card-header">
-      Recent Trades
+      近期交易
       <span class="tag" id="trades-tag">0</span>
     </div>
     <div id="trades-body">
-      <div class="empty-state">No trades yet</div>
+      <div class="empty-state">未有交易</div>
     </div>
   </div>
 
-  <!-- Weather Calibration -->
+  <!-- 天氣校準 -->
   <div class="card fade-in" id="calibration-card" style="display:none;animation-delay:0.4s">
-    <div class="card-header">Weather Calibration</div>
+    <div class="card-header">天氣校準</div>
     <div id="calibration-body"></div>
   </div>
 </div>
@@ -499,7 +502,7 @@ function showToast(msg, isError) {
   setTimeout(() => el.className = 'toast', 3000);
 }
 
-// ── Command Log ────────────────────────────────────
+// ── 指令記錄 ────────────────────────────────────
 function logCmd(msg) {
   const el = document.getElementById('cmd-log');
   const now = new Date().toTimeString().slice(0, 8);
@@ -543,7 +546,7 @@ function renderKPIs(D) {
   pnlEl.className = 'value ' + (pnl >= 0 ? 'pos' : 'neg');
 
   document.getElementById('kpi-scanned').textContent = scan.scanned || 0;
-  document.getElementById('kpi-scan-detail').textContent = (scan.filtered || 0) + ' filtered, ' + (scan.assessments || 0) + ' assessed';
+  document.getElementById('kpi-scan-detail').textContent = (scan.filtered || 0) + ' 過濾, ' + (scan.assessments || 0) + ' 評估';
   document.getElementById('scanner-tag').textContent = (scan.scanned || 0) + ' mkts';
 
   const circuit = D.circuit_breaker_active;
@@ -585,7 +588,7 @@ function renderKPIs(D) {
 function renderPositions(positions) {
   const el = document.getElementById('positions-body');
   if (!positions || !positions.length) {
-    el.innerHTML = '<div class="empty-state">No open positions</div>';
+    el.innerHTML = '<div class="empty-state">冇持倉</div>';
     return;
   }
   let h = '<table><thead><tr><th>Market</th><th>Side</th><th>Cat</th><th>Shares</th><th>Entry</th><th>Now</th><th>Cost</th><th>PnL</th><th>PnL%</th></tr></thead><tbody>';
@@ -609,11 +612,11 @@ function renderPositions(positions) {
   el.innerHTML = h;
 }
 
-// ── Render: Circuit Breakers ───────────────────────
+// ── Render: 斷路器 ───────────────────────
 function renderCB(cbs) {
   const el = document.getElementById('cb-body');
   if (!cbs || !cbs.length) {
-    el.innerHTML = '<div class="empty-state">No services registered</div>';
+    el.innerHTML = '<div class="empty-state">冇已註冊服務</div>';
     document.getElementById('cb-tag').textContent = '--';
     return;
   }
@@ -638,7 +641,7 @@ function renderCB(cbs) {
 function renderStrategy(breakdown) {
   const el = document.getElementById('strategy-body');
   if (!breakdown || !Object.keys(breakdown).length) {
-    el.innerHTML = '<div class="empty-state">No trade data</div>';
+    el.innerHTML = '<div class="empty-state">冇交易數據</div>';
     return;
   }
   const colors = { indicator: '#0d9488', cvd: '#3b82f6', microstructure: '#8b5cf6', ai: '#f59e0b', logical_arb: '#ec4899', exit: '#6b7280', unknown: '#d1d5db' };
@@ -658,7 +661,7 @@ function renderStrategy(breakdown) {
   el.innerHTML = h;
 }
 
-// ── Render: Risk Status ────────────────────────────
+// ── Render: 風險狀態 ────────────────────────────
 function renderRisk(D) {
   const el = document.getElementById('risk-body');
   const items = [];
@@ -676,12 +679,12 @@ function renderRisk(D) {
   el.innerHTML = items.map(i => '<div style="padding:8px 16px;border-bottom:1px solid var(--border-light)">' + i + '</div>').join('');
 }
 
-// ── Render: Recent Trades ──────────────────────────
+// ── Render: 近期交易 ──────────────────────────
 function renderTrades(trades) {
   const el = document.getElementById('trades-body');
   document.getElementById('trades-tag').textContent = trades.length;
   if (!trades.length) {
-    el.innerHTML = '<div class="empty-state">No trades yet</div>';
+    el.innerHTML = '<div class="empty-state">未有交易</div>';
     return;
   }
   let h = '<table><thead><tr><th>Time</th><th>Action</th><th>Side</th><th>Market</th><th>$</th><th>Price</th><th>Edge</th><th>Mode</th></tr></thead><tbody>';
@@ -751,7 +754,7 @@ function renderCalibration(cal) {
 function renderScanner(markets) {
   const el = document.getElementById('scanner-body');
   if (!markets || !markets.length) {
-    el.innerHTML = '<div class="empty-state">Run <strong>&#9654; Scan</strong> to view markets</div>';
+    el.innerHTML = '<div class="empty-state">撳 <strong>&#9670; 掃描</strong> 睇市場</div>';
     return;
   }
   document.getElementById('scanner-tag').textContent = markets.length + ' mkts';
@@ -794,7 +797,7 @@ function renderArb(arbs) {
 function renderMerge(data) {
   const el = document.getElementById('merge-body');
   if (!data) {
-    el.innerHTML = '<div class="empty-state">Press <strong>&#9651; Merge</strong> to check</div>';
+    el.innerHTML = '<div class="empty-state">撳 <strong>&#9651; 合併</strong> 檢查</div>';
     return;
   }
   if (data.message) {
@@ -829,8 +832,8 @@ function renderMerge(data) {
 
 async function cmdForceScan(btn) {
   btn.classList.add('running');
-  btn.innerHTML = '<span class="icon">&#9654;</span> Scanning...';
-  logCmd('> force_scan — scanning Gamma API...');
+  btn.innerHTML = '<span class="icon">&#9670;</span> 掃描中...';
+  logCmd('> force_scan — 掃描 Gamma API...');
   try {
     const res = await fetch(API + '/force_scan', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
     const data = await res.json();
@@ -848,7 +851,7 @@ async function cmdForceScan(btn) {
     showToast('Scan failed', true);
   }
   btn.classList.remove('running');
-  btn.innerHTML = '<span class="icon">&#9654;</span> Scan';
+  btn.innerHTML = '<span class="icon">&#9670;</span> 掃描';
 }
 
 async function cmdResetCB(btn) {
@@ -874,8 +877,8 @@ async function cmdResetCB(btn) {
 
 async function cmdCheckMerge(btn) {
   btn.classList.add('running');
-  btn.innerHTML = '<span class="icon">&#9651;</span> Checking...';
-  logCmd('> check_merge — querying Data API...');
+  btn.innerHTML = '<span class="icon">&#9651;</span> 檢查中...';
+  logCmd('> check_merge — 查詢 Data API...');
   try {
     const res = await fetch(API + '/check_merge', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
     const data = await res.json();
@@ -893,7 +896,69 @@ async function cmdCheckMerge(btn) {
     showToast('Merge check failed', true);
   }
   btn.classList.remove('running');
-  btn.innerHTML = '<span class="icon">&#9651;</span> Merge';
+  btn.innerHTML = '<span class="icon">&#9651;</span> 合併';
+}
+
+async function cmdRunCycle(btn) {
+  btn.classList.add('running');
+  btn.innerHTML = '<span class="icon">&#9654;</span> 跑緊...';
+  logCmd('> run_cycle — 啟動 17-step pipeline...');
+  try {
+    const res = await fetch(API + '/run_cycle', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+    const data = await res.json();
+    if (data.ok) {
+      logCmd('Pipeline 已啟動（背景執行）');
+      showToast('Pipeline 已啟動');
+      // Poll for completion
+      pollCycleStatus(btn);
+    } else {
+      logCmd('ERROR: ' + (data.error || ''));
+      showToast(data.error || '啟動失敗', true);
+      btn.classList.remove('running');
+      btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
+    }
+  } catch (e) {
+    logCmd('ERROR: ' + e.message);
+    showToast('啟動失敗', true);
+    btn.classList.remove('running');
+    btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
+  }
+}
+
+async function pollCycleStatus(btn) {
+  let polls = 0;
+  const MAX_POLLS = 60; // 60 × 2s = 120s timeout
+  const poll = setInterval(async () => {
+    polls++;
+    if (polls > MAX_POLLS) {
+      clearInterval(poll);
+      btn.classList.remove('running');
+      btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
+      logCmd('Pipeline timeout (120s) — 可能仲跑緊');
+      showToast('Pipeline timeout', true);
+      return;
+    }
+    try {
+      const res = await fetch(API + '/cycle_status?t=' + Date.now());
+      const data = await res.json();
+      if (!data.running) {
+        clearInterval(poll);
+        btn.classList.remove('running');
+        btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
+        if (data.last_error) {
+          logCmd('Pipeline 失敗: ' + data.last_error);
+          showToast('Pipeline 失敗', true);
+        } else if (data.last_result) {
+          const r = data.last_result;
+          logCmd('Pipeline 完成 (' + data.last_duration + 's): '
+            + r.scanned + ' 掃描, ' + r.signals + ' 信號, '
+            + r.executed + ' 執行, ' + r.errors + ' 錯誤');
+          showToast('Pipeline 完成 — ' + r.executed + ' 筆執行');
+        }
+        refresh();
+      }
+    } catch (e) { /* keep polling */ }
+  }, 2000);
 }
 
 async function toggleMode() {
@@ -901,7 +966,7 @@ async function toggleMode() {
   const currentlyDry = badge.textContent.trim() === 'DRY RUN';
   const targetMode = currentlyDry ? 'live' : 'dry_run';
   if (currentlyDry) {
-    if (!confirm('Switch to LIVE mode?\n\nPipeline will execute REAL trades.\nPaper gate (48h) still enforced.')) return;
+    if (!confirm('切換去 LIVE 模式？\n\nPipeline 會執行真正交易。\nPaper gate（48h）仲有效。')) return;
   }
   badge.textContent = '...';
   logCmd('> set_mode ' + targetMode);
@@ -930,7 +995,7 @@ async function refresh() {
   const errBanner = document.getElementById('error-banner');
   if (!data) {
     errBanner.style.display = 'block';
-    errBanner.textContent = 'Cannot reach API — is the dashboard server running?';
+    errBanner.textContent = '連唔到 API — dashboard server 開咗未？';
     document.getElementById('status-dot').className = 'pulse-dot error';
     return;
   }
@@ -951,7 +1016,7 @@ async function refresh() {
 initChart();
 refresh();
 setInterval(refresh, REFRESH_MS);
-logCmd('Command Center initialized — refreshing every ' + (REFRESH_MS / 1000) + 's');
+logCmd('指揮台啟動 — 每 ' + (REFRESH_MS / 1000) + ' 秒刷新');
 </script>
 </body>
 </html>

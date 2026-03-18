@@ -1,18 +1,30 @@
 """polymarket.py — Polymarket dashboard data + command endpoints.
 
 Serves the Polymarket dashboard tab:
-- GET  /api/polymarket/data       → state + trades + CB + strategy + calibration
-- POST /api/polymarket/set_mode   → toggle dry_run / live
-- POST /api/polymarket/force_scan → run Gamma API scan, return market list
-- POST /api/polymarket/reset_cb   → reset a circuit breaker by service name
+- GET  /api/polymarket/data        → state + trades + CB + strategy + calibration
+- GET  /api/polymarket/cycle_status → pipeline cycle status (running/done/error)
+- POST /api/polymarket/set_mode    → toggle dry_run / live
+- POST /api/polymarket/force_scan  → run Gamma API scan, return market list
+- POST /api/polymarket/reset_cb    → reset a circuit breaker by service name
 - POST /api/polymarket/check_merge → run merge detection, return results
+- POST /api/polymarket/run_cycle   → trigger full 17-step pipeline cycle (background)
 """
 
 import json
 import logging
+import threading
 import time
 
 log = logging.getLogger(__name__)
+
+# ── Pipeline cycle background runner ────────────────────────────────
+_cycle_status = {
+    "running": False,
+    "last_result": None,
+    "last_error": None,
+    "last_run": 0,
+    "last_duration": 0,
+}
 
 # ── Calibration cache (30 min) ──────────────────────────────────────
 _cal_cache: dict | None = None
@@ -310,3 +322,133 @@ def handle_polymarket_check_merge(body: str) -> tuple[int, dict]:
     except Exception as e:
         log.error("check_merge error: %s", e)
         return 500, {"ok": False, "error": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Pipeline cycle (background thread)
+# ─────────────────────────────────────────────────────────────────────
+
+def _run_cycle_bg():
+    """Run full pipeline in background thread."""
+    import os
+    import sys
+    from datetime import datetime
+
+    _cycle_status["running"] = True
+    _cycle_status["last_error"] = None
+    _cycle_status["last_result"] = None
+    start = time.time()
+    pipeline_lock = None
+
+    try:
+        # Ensure import paths
+        axc = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
+        if axc not in sys.path:
+            sys.path.insert(0, axc)
+        scripts_dir = os.path.join(axc, "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+
+        from polymarket.pipeline import build_pipeline
+        from polymarket.config.settings import HKT, LOG_DIR, POLY_PIPELINE_LOCK_PATH
+        from polymarket.core.context import PolyContext
+        from polymarket.state.poly_state import read_state
+        from shared_infra.file_lock import FileLock
+
+        os.makedirs(LOG_DIR, exist_ok=True)
+
+        # Pipeline mutex — prevent concurrent execution with LaunchAgent scheduler
+        try:
+            pipeline_lock = FileLock(POLY_PIPELINE_LOCK_PATH, timeout=0.1)
+            pipeline_lock.__enter__()
+        except TimeoutError:
+            _cycle_status["last_error"] = "Pipeline mutex held — scheduler 正在跑"
+            return
+
+        # Read mode from state (same as pipeline main())
+        state = read_state()
+        effective_dry_run = state.get("dry_run", True)
+
+        # Paper gate (live mode only)
+        if not effective_dry_run:
+            from polymarket.pipeline import check_paper_gate
+            passed, msg = check_paper_gate()
+            if not passed:
+                _cycle_status["last_error"] = f"Paper gate: {msg}"
+                return
+
+        now = datetime.now(HKT)
+        ctx = PolyContext(
+            timestamp=now,
+            timestamp_str=now.strftime("%Y-%m-%d %H:%M"),
+            dry_run=effective_dry_run,
+            verbose=False,
+        )
+        ctx._no_telegram = True  # don't spam Telegram from dashboard
+
+        # WAL + exchange client for live mode
+        if not effective_dry_run:
+            from shared_infra.wal import WriteAheadLog
+            from polymarket.config.settings import POLY_WAL_PATH
+            ctx.wal = WriteAheadLog(POLY_WAL_PATH)
+            from polymarket.exchange.polymarket_client import PolymarketClient
+            ctx.exchange_client = PolymarketClient(dry_run=False)
+
+        pipeline = build_pipeline()
+        ctx = pipeline.run(ctx)
+
+        _cycle_status["last_result"] = {
+            "balance": ctx.usdc_balance,
+            "positions": len(ctx.open_positions),
+            "scanned": len(ctx.scanned_markets),
+            "filtered": len(ctx.filtered_markets),
+            "assessments": len(ctx.edge_assessments),
+            "signals": len(ctx.signals),
+            "executed": len(ctx.executed_trades),
+            "errors": len(ctx.errors),
+            "warnings": len(ctx.warnings),
+            "dry_run": ctx.dry_run,
+            "error_details": ctx.errors[:3],
+        }
+
+        log.info(
+            "Dashboard pipeline cycle: %d scanned, %d signals, %d executed, %d errors",
+            len(ctx.scanned_markets), len(ctx.signals),
+            len(ctx.executed_trades), len(ctx.errors),
+        )
+
+    except Exception as e:
+        _cycle_status["last_error"] = str(e)
+        log.error("Dashboard pipeline cycle failed: %s", e)
+
+    finally:
+        if pipeline_lock:
+            try:
+                pipeline_lock.__exit__(None, None, None)
+            except Exception:
+                pass
+        _cycle_status["running"] = False
+        _cycle_status["last_run"] = time.time()
+        _cycle_status["last_duration"] = round(time.time() - start, 1)
+
+
+def handle_polymarket_run_cycle(body: str) -> tuple[int, dict]:
+    """POST /api/polymarket/run_cycle — trigger full pipeline cycle."""
+    if _cycle_status["running"]:
+        return 409, {"ok": False, "error": "Pipeline 跑緊"}
+
+    thread = threading.Thread(target=_run_cycle_bg, daemon=True)
+    thread.start()
+    log.info("Dashboard triggered pipeline cycle")
+    return 200, {"ok": True, "message": "Pipeline cycle started"}
+
+
+def handle_polymarket_cycle_status() -> tuple[int, dict]:
+    """GET /api/polymarket/cycle_status — check pipeline run status."""
+    return 200, {
+        "running": _cycle_status["running"],
+        "last_result": _cycle_status["last_result"],
+        "last_error": _cycle_status["last_error"],
+        "last_run": _cycle_status["last_run"],
+        "last_duration": _cycle_status["last_duration"],
+    }
