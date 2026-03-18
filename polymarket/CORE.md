@@ -1,37 +1,31 @@
 # Polymarket — 核心原則
 
-## 業務範圍
-- **Crypto 15M**: BTC Up/Down 5-min window markets (24/7)
-- **Weather**: 亞洲每日最高溫 — Japan (Tokyo) + Shanghai, HK later
+## 1. 根基：零和博弈
+- 預測市場每筆 fill 都有對手盤
+- **第一問：「點解佢肯賣俾我？」**
+- 答唔到 → 你係 dumb money，對面有 edge 你冇
+- 呢條問題貫穿所有決策：入場、加注、持倉、離場
 
-## 交易決策流程
+## 2. 業務範圍
+| 策略 | 市場 | 狀態 |
+|------|------|------|
+| Crypto 15M | BTC Up/Down 5-min window (24/7) | Paper |
+| Weather | 亞洲每日最高溫 — Tokyo, HK, Shanghai | Paper |
+| Crypto（一般） | 各類 crypto 預測 | Paper |
+
+> **Weather scope**：亞洲為主。categories.py 有 US cities = paper testing only，唔係正式 scope。
+
+## 3. 交易決策流程
 1. **方向 > Edge** — 確定啱邊先落注，big edge + wrong side = 0
-2. **信心閾值** — P(direction) < 55% = SKIP, ranging market 要 60%
+2. **信心閾值** — P(direction) < 55% = SKIP，ranging market 要 60%
 3. **Lead confirmation** — 15 分鐘 lead 期間 BTC 走勢 confirm/contradict model
 4. **選擇性入場** — 唔係每局都玩，100 個 window 可能只有 5-10 個值得
 
-## 落注規則
-- Bankroll: $100 USDC
-- Max per bet: $10
-- Max total exposure: 30%
-- 0.45 ≤ P(Up) ≤ 0.55 → SKIP
-- Lead period contradicts model → SKIP
-- Entry price > 0.55 → SKIP (price cap)
+## 4. GTO Framework
 
-## 架構原則
-- 寄生於 AXC shared_infra（retry, exceptions, telegram, pipeline）
-- 唔 import AXC trader_cycle 任何嘢
-- 唔被 AXC import
-- 獨立 config、logs、state
-- shared/ 入面嘅 SCAN_CONFIG.md + news_sentiment.json 係共用讀取（read-only）
+### 4a. Defensive GTO — 避開陷阱
 
-## GTO（Game Theory Optimal）Rules
-
-### 核心認知：預測市場係零和博弈
-- 每筆 fill 都有對手盤。問「點解佢肯賣俾我？」
-- 如果冇答案 → 你就係 dumb money
-
-### 市場分類 + Adverse Selection 風險
+**市場分類 + Adverse Selection 風險**
 | Type | Base Risk | 策略 | 例子 |
 |------|-----------|------|------|
 | live_event | 0.95 | BLOCK | NBA score, match result |
@@ -40,20 +34,59 @@
 | crypto_15m | 0.40 | MARKET (FOK) | BTC Up/Down |
 | crypto | 0.50 | LIMIT near mid (5%) | Default |
 
-### GTO Decision Rules
+**GTO Decision Rules（對應 gto.py:343-368）**
 1. `live_event` → 永遠 BLOCK（場內有人睇住比分）
 2. `fill_quality == "bad"` on non-quantifiable → BLOCK
 3. `adverse_selection > 0.80` → BLOCK
 4. `nash_eq > 0.90` AND `edge < 10%` → SKIP（市場已 efficient）
 5. `is_dominant_strategy` → APPROVE + full Kelly
-6. 其餘 → APPROVE，Kelly scaled by unexploitability
+6. `unexploitability < 0.30` → BLOCK（order 太容易被 exploit）
+7. 其餘 → APPROVE，Kelly scaled by unexploitability
 
-### Nash Equilibrium 原則
+**Nash Equilibrium 原則**
 - 高 Nash score = 市場接近均衡 = 冇 edge = skip
 - 低 Nash score = 市場失衡 = 有機會
 - Price near 50% + tight spread + deep liquidity → 最高 Nash score
 
-## 依賴清單（shared_infra only）
+### 4b. Offensive GTO — 逆推對手方向（概念階段）
+- 對手每步行動 = information leak
+- 觀察行為 → 推演方向 → 反制或跟隨
+- 類比象棋：唔係猜對手係邊個，而係睇佢做咗咩
+- 實作框架：CVD / order flow 重新 frame 為「對手資訊逆推」
+- **核心修正**：focus net flow result，唔猜身份
+  - ✅ 「賣壓有冇被吸收」「買盤 net flow 係正定負」
+  - ❌ 「大戶在賣」「散戶在追」
+
+## 5. BTC 15M — Exchange Signal 原則
+> 適用於 crypto_15m 策略，指導 edge_finder + crypto_15m 信號來源優先級
+
+- **PRIMARY signal**：交易所數據（BTC 價格、成交量、訂單簿）
+- **SECONDARY reference**：Polymarket 成交量（流動性低，noise 大）
+- 觀察重點：15 分鐘內有冇大型 net flow 傾斜
+- **Spoofing 防範**：只信 executed volume，唔信 resting orders
+  - 大掛單可以隨時撤，成交量造唔到假
+- **Time decay**：越接近 window 結束，signal 要越強
+  - 開頭 5 分鐘嘅 signal ≠ 最後 2 分鐘嘅 signal
+- **唔推演身份**：唔猜「邊個在賣」→ 只睇「賣壓有冇被吸收」
+
+## 6. 落注規則
+- Bankroll: $100 USDC
+- Max per bet: $10
+- Max total exposure: 30%
+- 0.45 ≤ P(Up) ≤ 0.55 → SKIP
+- Lead period contradicts model → SKIP
+- Entry price > 0.55 → SKIP (price cap)
+- Daily loss > 15% → circuit breaker（6h cooldown）
+- 3 consecutive losses → circuit breaker
+
+## 7. 架構原則
+- 寄生於 AXC shared_infra（retry, exceptions, telegram, pipeline）
+- 唔 import AXC trader_cycle 任何嘢
+- 唔被 AXC import
+- 獨立 config、logs、state
+- shared/ 入面嘅 SCAN_CONFIG.md + news_sentiment.json 係共用讀取（read-only）
+
+## 8. 依賴清單（shared_infra only）
 | import | 用途 |
 |--------|------|
 | `shared_infra.exchange.exceptions` | Error hierarchy（7 classes） |

@@ -21,22 +21,23 @@
 **Weather 正式範圍：亞洲**（Tokyo, HK, Shanghai 為主）。
 categories.py 有 21 城市含 US — US 係 paper testing，唔係正式 scope。
 
-## 架構：13-Step Pipeline
+## 架構：14-Step Pipeline
 ```
-pipeline.py (818 行) — 主循環入口
-1  ReadState        → POLYMARKET_STATE.json
-2  ReplayWAL        → crash recovery
-3  SafetyCheck      → circuit breaker / daily loss / cooldown
-4  ScanMarkets      → Gamma API → match categories
-5  CheckPositions   → sync 持倉 + PnL
-6  ManagePositions  → exit triggers (drift/profit/loss/expiry)
-7  FindEdge         → AI 或 deterministic 概率評估
-7.5 GTOFilter       → adverse selection + Nash eq（零 AI）
-8  GenerateSignals  → edge > threshold → PolySignal
-9  SizePositions    → binary Kelly (half Kelly × confidence × GTO)
-10 ExecuteTrades    → dry-run log / live WAL → CLOB SDK
-11 WriteState       → atomic write state
-12 SendReports      → Telegram
+pipeline.py — 主循環入口
+1   ReadState        → POLYMARKET_STATE.json
+2   ReplayWAL        → crash recovery
+3   SafetyCheck      → circuit breaker / daily loss / cooldown
+4   ScanMarkets      → Gamma API → match categories
+5   CheckPositions   → sync 持倉 + PnL
+6   ManagePositions  → exit triggers (drift/profit/loss/expiry)
+6.5 CloseHedge       → close HL hedge for resolved/exited positions
+7   FindEdge         → dual signal: indicator + CVD divergence → AI fallback
+7.5 GTOFilter        → adverse selection + Nash eq（零 AI）
+8   GenerateSignals  → edge > threshold → PolySignal
+9   SizePositions    → binary Kelly (half Kelly × confidence × GTO)
+10  ExecuteTrades    → Poly order + HL hedge (crypto_15m)
+11  WriteState       → atomic write state
+12  SendReports      → Telegram
 ```
 
 ## 獨立入口（唔經 pipeline）
@@ -57,12 +58,14 @@ polymarket/
 │   └── categories.py    ← 市場分類 + weather cities + blocklist
 ├── core/context.py      ← dataclasses: PolyMarket, EdgeAssessment, PolySignal...
 ├── exchange/
-│   ├── gamma_client.py  ← Gamma API（公開，免 auth）
-│   └── polymarket_client.py ← CLOB SDK（需 POLY_PRIVATE_KEY）
+│   ├── gamma_client.py      ← Gamma API（公開，免 auth）
+│   ├── polymarket_client.py ← CLOB SDK（需 POLY_PRIVATE_KEY）
+│   └── hl_hedge_client.py   ← Hyperliquid hedge（需 HL_PRIVATE_KEY）
 ├── strategy/
 │   ├── market_scanner.py    ← scan + filter
-│   ├── edge_finder.py       ← 核心 edge 偵測（weather=CDF, crypto=AI）
+│   ├── edge_finder.py       ← 核心 edge 偵測（dual: indicator + CVD）
 │   ├── crypto_15m.py        ← BTC 15M 指標 pipeline
+│   ├── cvd_strategy.py      ← CVD divergence signal source
 │   ├── weather_tracker.py   ← multi-model ensemble paper
 │   ├── gto.py               ← GTO filter（純數學）
 │   └── spread_analyzer.py   ← order book 分析
@@ -87,7 +90,9 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab，try/ex
 
 **Hard coupling（已知，暫時接受）：**
 - `crypto_15m.py:154` subprocess 呼叫 `scripts/indicator_calc.py`
+- `cvd_strategy.py` lazy import `backtest.fetch_agg_trades`（頂層 backtest/ package，唔係 polymarket/backtest/）
 - 所有入口用 `sys.path` hack 注入 `scripts/` 目錄
+- `hl_hedge_client.py` 直接用 `hyperliquid-python-sdk`（唔經 trader_cycle）
 
 ## 落注規則速查
 - Bankroll: **$100 USDC** | Max per bet: **$10** | Max exposure: **30%**
@@ -111,8 +116,9 @@ PYTHONPATH=.:scripts python3 polymarket/run_weather_paper.py --resolve --report 
 
 ## ⚠️ Known Issues
 1. ~~Trade log 路徑~~ — ✅ 已修（2026-03-18）：settings.py + trade_log.py 統一指向 `polymarket/logs/`
-2. **CORE.md weather scope 過時**：寫「亞洲 only」但 code 已有 US cities（paper testing）
+2. ~~CORE.md weather scope 過時~~ — ✅ 已修（2026-03-18）：加 US = paper testing only 註記
 3. **indicator_calc.py 硬編碼**：`/opt/homebrew/bin/python3.11` subprocess（換機要改）
+4. **HL credentials 未填**：`secrets/.env` 嘅 HL_PRIVATE_KEY + HL_ACCOUNT_ADDRESS 係空，填好先開 HEDGE_ENABLED
 
 ## Gotchas
 - Gamma API `search_markets()` 先搵到 15M 市場，`get_markets()` by-liquidity 排唔到（volume 太低 ~$15K）
