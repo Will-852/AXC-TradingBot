@@ -20,6 +20,7 @@
        ═══════════════════════════════════════════ */
     :root {
       --bg:      #0d0d0f;
+      --bg-2:    #131316;
       --card:    #1c1c1f;
       --surface: #252528;
       --border:  #292929;
@@ -46,7 +47,8 @@
     .topbar {
       background: #131316;
       color: #d1d4dc;
-      padding: 10px 24px;
+      padding: 0 24px;
+      height: 38px;
       display: flex;
       align-items: center;
       gap: 16px;
@@ -56,27 +58,44 @@
     .topbar a { color: var(--text-2); text-decoration: none; }
     .topbar a:hover { color: #f1f5f9; }
     .topbar .brand { font-weight: 700; color: #f1f5f9; font-size: 1rem; }
+    .topbar .tb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .btn-sidebar-toggle {
+      width: 28px; height: 28px; border: 1px solid var(--border);
+      border-radius: 5px; background: var(--surface); color: var(--text-2);
+      cursor: pointer; font-size: .75rem; display: flex; align-items: center;
+      justify-content: center; transition: background .15s, color .15s;
+    }
+    .btn-sidebar-toggle:hover { background: #2a2e39; color: #d1d4dc; }
 
     /* ── Main Grid ── */
     .main-grid {
       display: grid;
-      grid-template-columns: 1fr 340px;
+      grid-template-columns: 1fr 6px var(--rp-width, 300px);
       grid-template-rows: auto 1fr;
-      gap: 12px;
-      padding: 12px 16px;
-      height: calc(100vh - 50px);
+      gap: 0 4px;
+      padding: 0;
+      height: calc(100vh - 38px);
     }
+
+    /* ── Resize Handle ── */
+    .resize-handle {
+      width: 4px; cursor: col-resize; background: transparent;
+      transition: background .15s; position: relative; z-index: 10;
+      grid-row: 2;
+      margin: 0;
+    }
+    .resize-handle:hover, .resize-handle.dragging { background: #2962ff; }
 
     /* ── Control Bar ── */
     .control-bar {
       grid-column: 1 / -1;
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      padding: 5px 12px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .control-bar label {
@@ -140,73 +159,84 @@
     /* ── Chart Panel ── */
     .chart-panel {
       background: #131722;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border-radius: 0;
+      border: none;
+      border-right: 1px solid #2a2e39;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
-    #chart-container { flex: 1; min-height: 400px; }
+    #chart-container { flex: 1; min-height: 0; }
 
     /* ── Right Panel ── */
     .right-panel {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0;
+      width: var(--rp-width, 300px);
+      min-width: 0;
+      max-width: 520px;
       overflow-y: auto;
+      overflow-x: hidden;
       scrollbar-width: thin;
       scrollbar-color: #363a45 transparent;
+      grid-column: 3;
+      background: var(--bg-2);
+      transition: width .2s;
     }
+    .right-panel.collapsed { width: 0 !important; min-width: 0; overflow: hidden; }
+    .resize-handle.collapsed { display: none; }
     .right-panel::-webkit-scrollbar { width: 5px; }
     .right-panel::-webkit-scrollbar-thumb { background: #363a45; border-radius: 3px; }
     .right-panel::-webkit-scrollbar-track { background: transparent; }
 
     .card-section {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      padding: 8px 10px;
     }
     .card-section h6 {
-      font-size: .68rem;
+      font-size: .6rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .06em;
       color: var(--text-3);
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
 
     /* ── Stats Grid ── */
     .stat-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 4px;
+      gap: 3px;
     }
     .stat-item {
-      padding: 6px 8px;
+      padding: 4px 6px;
       background: var(--surface);
-      border-radius: 6px;
+      border-radius: 4px;
     }
     .stat-label {
-      font-size: .62rem;
+      font-size: .56rem;
       color: var(--text-3);
       font-weight: 500;
-      line-height: 1.2;
+      line-height: 1.1;
       text-transform: uppercase;
       letter-spacing: .03em;
     }
     .stat-value {
-      font-size: .9rem;
+      font-size: .82rem;
       font-weight: 700;
       color: var(--text-1);
-      line-height: 1.3;
+      line-height: 1.2;
     }
     .stat-value.pos { color: var(--pos); }
     .stat-value.neg { color: var(--neg); }
 
     /* ── Trade Log ── */
     .trade-log {
-      max-height: 400px;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: #363a45 transparent;
@@ -216,46 +246,46 @@
     .trade-row {
       display: flex;
       align-items: center;
-      padding: 5px 8px;
-      border-radius: 4px;
+      padding: 3px 6px;
+      border-radius: 3px;
       cursor: pointer;
-      font-size: .78rem;
-      gap: 6px;
+      font-size: .72rem;
+      gap: 5px;
       transition: background .15s;
       color: var(--text-2);
     }
     .trade-row:nth-child(odd) { background: rgba(37,37,40,.5); }
     .trade-row:nth-child(even) { background: transparent; }
     .trade-row:hover { background: rgba(41,98,255,.1); }
-    .trade-row.win { border-left: 3px solid var(--pos); }
-    .trade-row.loss { border-left: 3px solid var(--neg); }
+    .trade-row.win { border-left: 2px solid var(--pos); }
+    .trade-row.loss { border-left: 2px solid var(--neg); }
     .trade-row .side {
       font-weight: 700;
-      font-size: .68rem;
-      padding: 2px 6px;
+      font-size: .62rem;
+      padding: 1px 5px;
       border-radius: 3px;
     }
     .side-long  { background: rgba(38,166,154,.15); color: #26a69a; }
     .side-short { background: rgba(239,83,80,.15); color: #ef5350; }
-    .trade-row .pnl { margin-left: auto; font-weight: 600; }
+    .trade-row .pnl { margin-left: auto; font-weight: 600; white-space: nowrap; }
     .trade-row .reason {
-      font-size: .62rem;
+      font-size: .58rem;
       color: var(--text-3);
-      width: 24px;
+      width: 20px;
       text-align: center;
     }
 
     /* ── Monthly Heatmap ── */
     .monthly-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
-      gap: 3px;
+      grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+      gap: 2px;
     }
     .monthly-cell {
-      padding: 5px 4px;
-      border-radius: 4px;
+      padding: 3px 3px;
+      border-radius: 3px;
       text-align: center;
-      font-size: .7rem;
+      font-size: .65rem;
       font-weight: 600;
     }
 
@@ -273,13 +303,6 @@
     }
 
     /* ── Expand Button ── */
-    .btn-expand {
-      position: absolute; top: 6px; right: 6px; z-index: 10;
-      width: 28px; height: 28px; border: none; border-radius: 4px;
-      background: rgba(30,34,45,.9); cursor: pointer; font-size: .8rem;
-      color: #787b86; box-shadow: 0 2px 6px rgba(0,0,0,.4);
-      display: flex; align-items: center; justify-content: center;
-    }
     .btn-expand:hover { background: #2a2e39; color: #d1d4dc; }
     .chart-panel.expanded {
       position: fixed; inset: 0; z-index: 9998;
@@ -291,14 +314,14 @@
     /* ── Param Panel ── */
     .param-panel {
       grid-column: 1 / -1;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: #1e222d;
+      border-bottom: 1px solid #2a2e39;
+      border-radius: 0;
       overflow: hidden;
     }
     .param-toggle {
-      padding: 8px 16px;
-      font-size: .75rem;
+      padding: 4px 12px;
+      font-size: .7rem;
       font-weight: 600;
       color: var(--text-3);
       cursor: pointer;
@@ -537,15 +560,16 @@
 
     /* ── Drawing Toolbar ── */
     .draw-toolbar {
-      position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
-      display: flex; flex-direction: column; gap: 3px; z-index: 10;
-      background: rgba(30,34,45,.95); border-radius: 6px;
-      border: 1px solid #363a45;
-      box-shadow: 0 4px 12px rgba(0,0,0,.5); padding: 4px;
+      display: flex; flex-direction: row; align-items: center; gap: 2px;
+      background: var(--bg-2); border-bottom: 1px solid var(--border);
+      padding: 2px 8px; flex-shrink: 0;
+    }
+    .draw-toolbar .draw-sep {
+      width: 1px; height: 18px; background: var(--border); margin: 0 4px;
     }
     .draw-btn {
-      width: 30px; height: 30px; border: none; border-radius: 4px;
-      background: transparent; cursor: pointer; font-size: .85rem;
+      width: 28px; height: 28px; border: none; border-radius: 4px;
+      background: transparent; cursor: pointer; font-size: .82rem;
       display: flex; align-items: center; justify-content: center;
       color: #787b86; transition: all .15s;
     }
@@ -577,26 +601,26 @@
        Trade Detail + Compare + Config
        ═══════════════════════════════════════════ */
     .trade-detail {
-      background: var(--surface); border-radius: 6px; padding: 10px;
-      font-size: .75rem; display: none; margin-bottom: 8px;
+      background: var(--surface); border-radius: 4px; padding: 8px;
+      font-size: .68rem; display: none; margin-bottom: 0;
       border: 1px solid var(--border);
     }
     .trade-detail.show { display: block; }
     .trade-detail .td-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px;
     }
-    .trade-detail .td-label { color: var(--text-3); font-weight: 500; }
-    .trade-detail .td-val { color: var(--text-1); font-weight: 600; }
+    .trade-detail .td-label { color: var(--text-3); font-weight: 500; font-size: .62rem; }
+    .trade-detail .td-val { color: var(--text-1); font-weight: 600; font-size: .68rem; }
 
     .compare-row {
-      display: flex; justify-content: space-between; font-size: .72rem;
-      padding: 2px 0; color: var(--text-2);
+      display: flex; justify-content: space-between; font-size: .65rem;
+      padding: 1px 0; color: var(--text-2);
     }
     .compare-delta { font-weight: 600; }
 
     .config-row {
       display: flex; justify-content: space-between;
-      font-size: .72rem; padding: 2px 0;
+      font-size: .65rem; padding: 1px 0;
     }
     .config-key { color: var(--text-3); font-weight: 500; }
     .config-val { color: var(--text-1); font-weight: 600; }
@@ -606,123 +630,122 @@
        ═══════════════════════════════════════════ */
     .guide-panel {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-bottom: 1px solid var(--border);
     }
     .guide-toggle {
-      padding: 12px 14px;
-      font-size: .75rem; font-weight: 700;
+      padding: 8px 10px;
+      font-size: .68rem; font-weight: 700;
       color: var(--text-1); cursor: pointer;
       user-select: none;
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 6px;
     }
-    .guide-toggle:hover { background: var(--surface); border-radius: var(--radius); }
-    .guide-toggle .arrow { transition: transform .2s; font-size: .7rem; color: var(--text-3); }
+    .guide-toggle:hover { background: var(--surface); }
+    .guide-toggle .arrow { transition: transform .2s; font-size: .6rem; color: var(--text-3); }
     .guide-toggle .arrow.open { transform: rotate(90deg); }
     .guide-toggle .gi {
-      width: 24px; height: 24px;
+      width: 20px; height: 20px;
       background: linear-gradient(135deg, var(--accent), #818cf8);
-      border-radius: 6px;
+      border-radius: 5px;
       display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: .65rem;
+      color: #fff; font-size: .55rem;
     }
-    .guide-body { padding: 0 14px 12px; color: var(--text-2); }
+    .guide-body { padding: 0 10px 8px; color: var(--text-2); }
 
     .guide-body details { border-top: 1px solid var(--border); }
     .guide-body details:first-of-type { border-top: none; }
     .guide-body summary {
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 2px; cursor: pointer; list-style: none;
-      font-size: .75rem; font-weight: 700; color: var(--text-1);
-      min-height: 40px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 2px; cursor: pointer; list-style: none;
+      font-size: .68rem; font-weight: 700; color: var(--text-1);
+      min-height: 28px;
     }
     .guide-body summary::-webkit-details-marker { display: none; }
     .guide-body summary::before {
       content: '\f105'; font-family: 'Font Awesome 5 Free';
-      font-weight: 900; font-size: .6rem; color: var(--text-3);
-      width: 12px; text-align: center; transition: transform .2s;
+      font-weight: 900; font-size: .55rem; color: var(--text-3);
+      width: 10px; text-align: center; transition: transform .2s;
     }
     .guide-body details[open] > summary::before { transform: rotate(90deg); }
     .guide-body summary .g-icon {
-      width: 22px; height: 22px; min-width: 22px; border-radius: 5px;
+      width: 18px; height: 18px; min-width: 18px; border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
-      font-size: .58rem; color: #fff;
+      font-size: .5rem; color: #fff;
     }
-    .guide-body .g-content { padding: 0 2px 10px 22px; font-size: .75rem; line-height: 1.6; }
+    .guide-body .g-content { padding: 0 2px 6px 18px; font-size: .68rem; line-height: 1.5; }
 
     .guide-body .conn-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px; background: var(--surface);
-      border-radius: 6px; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      padding: 5px 8px; background: var(--surface);
+      border-radius: 4px; margin-bottom: 3px;
     }
     .guide-body .conn-status {
-      padding: 3px 10px; border-radius: 10px;
-      font-size: .7rem; font-weight: 600; white-space: nowrap;
+      padding: 2px 8px; border-radius: 8px;
+      font-size: .62rem; font-weight: 600; white-space: nowrap;
     }
     .guide-body .conn-ok { background: rgba(38,166,154,.15); color: #26a69a; }
     .guide-body .conn-fail { background: rgba(239,83,80,.15); color: #ef5350; }
     .guide-body .conn-checking { background: rgba(41,98,255,.15); color: #5b8def; }
-    .guide-body .conn-msg { font-size: .7rem; color: var(--text-3); }
+    .guide-body .conn-msg { font-size: .62rem; color: var(--text-3); min-width: 0; }
     .guide-body code {
-      background: var(--surface); padding: 1px 5px;
-      border-radius: 3px; font-size: .68rem; color: var(--text-1);
+      background: var(--surface); padding: 1px 4px;
+      border-radius: 3px; font-size: .62rem; color: var(--text-1);
     }
 
-    .guide-body .g-step { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; }
+    .guide-body .g-step { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
     .guide-body .step-num {
-      width: 20px; height: 20px; min-width: 20px;
+      width: 16px; height: 16px; min-width: 16px;
       background: var(--accent); color: #fff; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: .62rem; font-weight: 700;
+      font-size: .55rem; font-weight: 700;
     }
-    .guide-body .step-text { font-size: .75rem; line-height: 1.45; padding-top: 1px; }
-    .guide-body .note { color: var(--text-3); font-size: .68rem; padding: 4px 0 0 28px; }
+    .guide-body .step-text { font-size: .68rem; line-height: 1.35; padding-top: 0; }
+    .guide-body .note { color: var(--text-3); font-size: .62rem; padding: 2px 0 0 22px; }
 
     .guide-body .strat-card {
-      display: flex; gap: 10px;
-      padding: 10px 12px; background: var(--surface);
-      border-radius: 6px; margin: 6px 0;
+      display: flex; gap: 8px;
+      padding: 6px 8px; background: var(--surface);
+      border-radius: 4px; margin: 3px 0;
       border-left: 3px solid var(--text-3);
     }
     .guide-body .strat-card .strat-icon {
-      width: 28px; height: 28px; min-width: 28px; border-radius: 6px;
+      width: 22px; height: 22px; min-width: 22px; border-radius: 5px;
       display: flex; align-items: center; justify-content: center;
-      font-size: .72rem; color: #fff;
+      font-size: .6rem; color: #fff;
     }
     .guide-body .strat-card .strat-info { flex: 1; min-width: 0; }
-    .guide-body .strat-card .strat-name { font-weight: 700; font-size: .78rem; color: var(--text-1); }
-    .guide-body .strat-card .strat-sub { font-size: .68rem; color: var(--text-3); margin-top: 1px; }
-    .guide-body .strat-card .strat-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+    .guide-body .strat-card .strat-name { font-weight: 700; font-size: .7rem; color: var(--text-1); }
+    .guide-body .strat-card .strat-sub { font-size: .6rem; color: var(--text-3); margin-top: 0; }
+    .guide-body .strat-card .strat-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
     .guide-body .strat-card .strat-tag {
-      font-size: .6rem; font-weight: 600;
-      padding: 1px 6px; border-radius: 3px;
+      font-size: .55rem; font-weight: 600;
+      padding: 1px 5px; border-radius: 3px;
       background: rgba(41,98,255,.1); color: #5b8def;
     }
 
-    .guide-body table { width: 100%; border-collapse: collapse; font-size: .72rem; margin: 6px 0; }
+    .guide-body table { width: 100%; border-collapse: collapse; font-size: .65rem; margin: 4px 0; }
     .guide-body table th {
-      text-align: left; font-weight: 600; font-size: .62rem;
+      text-align: left; font-weight: 600; font-size: .56rem;
       color: var(--text-3); text-transform: uppercase; letter-spacing: .03em;
-      padding: 6px 6px; border-bottom: 1px solid var(--border);
+      padding: 4px 4px; border-bottom: 1px solid var(--border);
     }
-    .guide-body table td { padding: 5px 6px; color: var(--text-2); border-bottom: 1px solid rgba(41,41,41,.5); }
+    .guide-body table td { padding: 3px 4px; color: var(--text-2); border-bottom: 1px solid rgba(41,41,41,.5); }
     .guide-body table tr:last-child td { border-bottom: none; }
     .guide-body table .t-label { font-weight: 600; color: var(--text-1); white-space: nowrap; }
     .guide-body table .t-pass { font-weight: 700; }
 
     .guide-body .warn-box {
-      display: flex; gap: 8px; align-items: flex-start;
+      display: flex; gap: 6px; align-items: flex-start;
       background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2);
-      border-radius: 6px; padding: 10px 12px;
-      font-size: .72rem; color: #f59e0b; margin-top: 8px;
+      border-radius: 4px; padding: 6px 8px;
+      font-size: .65rem; color: #f59e0b; margin-top: 4px;
     }
-    .guide-body .warn-box .warn-icon { font-size: .9rem; line-height: 1; min-width: 16px; }
+    .guide-body .warn-box .warn-icon { font-size: .75rem; line-height: 1; min-width: 14px; }
     .guide-body .cmd-box {
-      background: #0d0d0f; color: #d1d4dc; border-radius: 6px;
+      background: #0d0d0f; color: #d1d4dc; border-radius: 4px;
       border: 1px solid var(--border);
-      padding: 8px 10px; font-family: 'SF Mono', 'JetBrains Mono', monospace;
-      font-size: .68rem; margin: 4px 0; overflow-x: auto;
-      user-select: all; line-height: 1.4;
+      padding: 5px 8px; font-family: 'SF Mono', 'JetBrains Mono', monospace;
+      font-size: .6rem; margin: 3px 0; overflow-x: auto;
+      user-select: all; line-height: 1.3; word-break: break-all;
     }
 
     /* ═══════════════════════════════════════════
@@ -745,6 +768,9 @@
   <a href="/">主控台</a>
   <span style="width:1px;height:14px;background:#363a45;display:inline-block;vertical-align:middle"></span>
   <span style="color:#f1f5f9;font-weight:600">回測</span>
+  <div class="tb-right">
+    <button class="btn-sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="顯示/隱藏右側面板">&#x25B6;</button>
+  </div>
 </div>
 
 <!-- ── Main grid ── -->
@@ -804,6 +830,10 @@
 
     <button class="btn-livepos" id="btn-livepos" onclick="toggleLivePos()" title="喺圖上顯示你真實嘅交易所持倉（入場價、止損、止盈線）">
       <i class="fas fa-crosshairs"></i> Live Pos
+    </button>
+
+    <button class="btn-livepos" id="btn-live-flow" onclick="toggleLiveOrderFlow()" title="實時 Order Flow（需要先開 Live）" disabled style="opacity:.5">
+      <i class="fas fa-water"></i> Flow
     </button>
 
     <span id="status-pill" class="status-pill status-idle">IDLE</span>
@@ -1028,25 +1058,37 @@
       <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" title="切換 Block/Bubble 模式">Blk</button>
       <label title="Cumulative Volume Delta" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> CVD</label>
       <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵啟用 VP+FP+CVD+VWAP">Vol</button>
+      <span class="sep"></span>
+      <div style="position:relative;display:inline-block">
+        <button class="vol-preset-btn" onclick="var m=document.getElementById('template-menu');m.style.display=m.style.display==='block'?'none':'block'" title="Save/Load chart templates">Tpl ▾</button>
+        <div id="template-menu" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;min-width:140px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
+      </div>
       <span class="fp-loading-dot" id="fp-loading-dot"><span id="fp-elapsed"></span></span>
       <div class="fp-progress" id="fp-progress"><div class="fp-progress-bar"></div></div>
     </div>
-    <div style="position:relative">
-      <!-- Drawing toolbar (Phase 3) -->
-      <div class="draw-toolbar" id="draw-toolbar">
-        <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線 — 標記支撐/阻力位">&#x2194;</button>
-        <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線 — 兩點畫一條線">&#x2571;</button>
-        <button class="draw-btn" onclick="setDrawingMode('rect', this)" title="矩形 — 標記區域/zone" style="font-size:11px">&#x25AD;</button>
-        <button class="draw-btn" onclick="setDrawingMode('axc_arrow', this)" title="箭頭 — 方向標記">&#x2B07;</button>
-        <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci — 黃金比例回撤">Fib</button>
-        <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線">&#x1F5D1;</button>
-      </div>
-      <button class="btn-expand" onclick="toggleExpand()" id="btn-expand" title="展開/縮小圖表">&#x26F6;</button>
+    <!-- Drawing toolbar — horizontal strip above chart (TradingView style) -->
+    <div class="draw-toolbar" id="draw-toolbar">
+      <span style="font-size:.6rem;color:var(--text-3);font-weight:600;letter-spacing:.03em;margin-right:4px">DRAW</span>
+      <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線 H-Line">&#x2194;</button>
+      <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線 Trend">&#x2571;</button>
+      <button class="draw-btn" onclick="setDrawingMode('rect', this)" title="矩形 Rect" style="font-size:11px">&#x25AD;</button>
+      <button class="draw-btn" onclick="setDrawingMode('axc_arrow', this)" title="箭頭 Arrow">&#x2B07;</button>
+      <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci">Fib</button>
+      <button class="draw-btn" onclick="setDrawingMode('parallelStraightLine', this)" title="平行通道 Parallel">&#x2225;</button>
+      <div class="draw-sep"></div>
+      <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線 Clear">&#x1F5D1;</button>
+      <div style="flex:1"></div>
+      <button class="btn-expand" onclick="toggleExpand()" id="btn-expand" title="展開/縮小圖表 (F)" style="width:28px;height:28px;border:none;border-radius:4px;background:transparent;cursor:pointer;font-size:.82rem;color:#787b86;display:flex;align-items:center;justify-content:center">&#x26F6;</button>
+    </div>
+    <div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column">
       <div id="chart-container"></div>
     </div>
     <div class="equity-label" id="equity-label" style="display:none">淨值曲線 Equity Curve</div>
     <div id="equity-container"></div>
   </div>
+
+  <!-- Resize handle -->
+  <div class="resize-handle" id="resize-handle"></div>
 
   <!-- Right panel -->
   <div class="right-panel">
@@ -1222,14 +1264,15 @@
     <div class="card-section">
       <h6>Performance</h6>
       <div class="stat-grid" id="stats-grid">
-        <div class="stat-item" title="總回報率"><div class="stat-label">回報 Return</div><div class="stat-value" id="st-return">--</div></div>
-        <div class="stat-item" title="勝率"><div class="stat-label">勝率 WR</div><div class="stat-value" id="st-wr">--</div></div>
-        <div class="stat-item" title="盈虧比 >1 代表賺多過蝕"><div class="stat-label">盈虧比 PF</div><div class="stat-value" id="st-pf">--</div></div>
-        <div class="stat-item" title="最大回撤"><div class="stat-label">回撤 DD</div><div class="stat-value" id="st-dd">--</div></div>
-        <div class="stat-item" title="交易次數"><div class="stat-label">次數</div><div class="stat-value" id="st-trades">--</div></div>
-        <div class="stat-item" title="平均每次交易賺/蝕幾多"><div class="stat-label">期望值</div><div class="stat-value" id="st-exp">--</div></div>
-        <div class="stat-item" title="夏普比率 >1 算好"><div class="stat-label">夏普</div><div class="stat-value" id="st-sharpe">--</div></div>
-        <div class="stat-item" title="最長連贏/連輸"><div class="stat-label">連贏/輸</div><div class="stat-value" id="st-streaks">--</div></div>
+        <div class="stat-item" title="總盈虧（美元）"><div class="stat-label">PnL</div><div class="stat-value" id="st-pnl">--</div></div>
+        <div class="stat-item" title="總回報率"><div class="stat-label">Return</div><div class="stat-value" id="st-return">--</div></div>
+        <div class="stat-item" title="勝率"><div class="stat-label">WR</div><div class="stat-value" id="st-wr">--</div></div>
+        <div class="stat-item" title="盈虧比 >1 代表賺多過蝕"><div class="stat-label">PF</div><div class="stat-value" id="st-pf">--</div></div>
+        <div class="stat-item" title="最大回撤"><div class="stat-label">DD</div><div class="stat-value" id="st-dd">--</div></div>
+        <div class="stat-item" title="交易次數"><div class="stat-label">Trades</div><div class="stat-value" id="st-trades">--</div></div>
+        <div class="stat-item" title="平均每次交易賺/蝕幾多"><div class="stat-label">E[X]</div><div class="stat-value" id="st-exp">--</div></div>
+        <div class="stat-item" title="夏普比率 >1 算好"><div class="stat-label">Sharpe</div><div class="stat-value" id="st-sharpe">--</div></div>
+        <div class="stat-item" title="最長連贏/連輸" style="grid-column:span 2"><div class="stat-label">Streaks W/L</div><div class="stat-value" id="st-streaks">--</div></div>
       </div>
       <div style="display:flex;gap:6px;margin-top:8px">
         <button class="btn-load" style="padding:3px 10px;font-size:.65rem;flex:1" onclick="toggleCompare()" id="btn-compare" title="撳一次存 Run A，改參數再跑顯示對比">A/B 對比</button>
@@ -1240,6 +1283,7 @@
         <div style="font-weight:600;margin-bottom:4px">STRATEGY SPLIT</div>
         <div id="strat-range"></div>
         <div id="strat-trend"></div>
+        <div id="strat-crash"></div>
       </div>
       <!-- NFS+FVZ SMC Metrics -->
       <div id="nfs-metrics-panel" style="display:none;margin-top:8px;font-size:.72rem;color:var(--text-3)">
@@ -1253,11 +1297,26 @@
           <div>Score: <span id="nfs-m-score" style="color:var(--text-1)">--</span></div>
         </div>
       </div>
-      <!-- A/B Compare panel -->
+      <!-- A/B Compare panel (enhanced — logic in backtest-compare.js) -->
       <div id="compare-panel" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
-        <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px">A/B COMPARE</div>
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px;cursor:pointer" onclick="openCompareDrawer()">
+          &#x25B8; A/B COMPARE
+        </div>
         <div id="compare-body"></div>
       </div>
+    </div>
+
+    <!-- Shootout (Parameter Comparison) -->
+    <div class="card-section" id="shootout-panel" style="display:none">
+      <h6 style="cursor:pointer" onclick="toggleShootoutPanel()">
+        Parameter Shootout <span id="shootout-toggle-icon" style="font-size:.6rem;color:var(--text-3)">&#9660;</span>
+      </h6>
+      <div id="shootout-selector" style="margin-bottom:6px">
+        <select id="shootout-file" onchange="loadShootoutDetail()" style="width:100%;background:var(--bg-3);color:var(--text-1);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:.7rem">
+          <option value="">Loading...</option>
+        </select>
+      </div>
+      <div id="shootout-body" style="font-size:.7rem"></div>
     </div>
 
     <!-- Monthly heatmap -->
@@ -1520,6 +1579,7 @@ function _showFpLoading(show, msg) {
 function toggleFootprint(feature) {
   fpActive[feature] = !fpActive[feature];
   _syncFpToggleStyle();
+  updateVolPresetButtonState();
 
   // Already have data → apply immediately
   if (fpFetched) {
@@ -1548,17 +1608,28 @@ function fetchFootprintData() {
   _showFpLoading(true);
   showToast('正在拉取 aggTrades（' + days + '日）— 首次需要 2-4 分鐘', 'info');
 
-  // Step 1: Start background job
-  api('/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap,cvd')
-    .then(function(data) {
+  // Step 1: Start background job (handle 429 "already in progress" gracefully)
+  var fpUrl = '/api/backtest/aggtrades?symbol=' + symbol + '&days=' + days + '&interval=' + currentInterval + '&features=delta,large,profile,heatmap,cvd';
+  fetch(fpUrl)
+    .then(function(r) { return r.json().then(function(d) { return {status: r.status, data: d}; }); })
+    .then(function(res) {
       if (myVersion !== _fpFetchVersion) return;
-      if (!data.job_id) {
-        // Shouldn't happen, but handle gracefully
+      if (res.status === 429 && res.data.job_id) {
+        // Job already running — piggyback on it instead of erroring
+        showToast('已有 aggTrades 任務進行中，自動追蹤…', 'info');
+        _pollAggtrades(res.data.job_id, myVersion, 0);
+        return;
+      }
+      if (res.status >= 400) {
+        _onFpError(myVersion, res.data.error || 'HTTP ' + res.status);
+        return;
+      }
+      if (!res.data.job_id) {
         _onFpError(myVersion, 'No job ID returned');
         return;
       }
       // Step 2: Poll for completion
-      _pollAggtrades(data.job_id, myVersion, 0);
+      _pollAggtrades(res.data.job_id, myVersion, 0);
     })
     .catch(function(e) {
       _onFpError(myVersion, e);
@@ -1596,6 +1667,28 @@ function _pollAggtrades(jobId, myVersion, elapsed) {
       footprintData.cvd = data.cvd || {};
       fpFetched = true;
       fpLoading = false;
+
+      // ── Diagnostic: verify data arrived (check DevTools console) ──
+      console.log('[FP] Data received:', {
+        delta_keys: Object.keys(footprintData.delta_volume).length,
+        large_count: footprintData.large_trades.length,
+        vp_levels: footprintData.volume_profile.length,
+        heatmap_keys: Object.keys(footprintData.heatmap).length,
+        cvd_keys: Object.keys(footprintData.cvd).length
+      });
+      // Spot-check: first kline timestamp vs first data key
+      if (mainChart) {
+        var klineData = mainChart.getDataList();
+        if (klineData && klineData.length) {
+          var firstTs = String(klineData[0].timestamp);
+          var deltaKeys = Object.keys(footprintData.delta_volume);
+          console.log('[FP] Timestamp alignment check:', {
+            firstKline: firstTs,
+            firstDelta: deltaKeys.length ? deltaKeys[0] : 'EMPTY',
+            match: deltaKeys.indexOf(firstTs) >= 0
+          });
+        }
+      }
 
       var msg = 'AggTrades 載入完成 (' + (data.elapsed || '?') + 's, ' + (footprintData.large_trades.length) + ' whale trades)';
       if (data.warnings && data.warnings.length) {
@@ -1705,34 +1798,41 @@ function toggleFpMode() {
   }
 }
 
+function updateVolPresetButtonState() {
+  var volBtn = document.querySelector('.vol-preset-btn');
+  if (!volBtn) return;
+  var allOn = fpActive.profile && fpActive.heatmap && fpActive.cvd;
+  if (allOn) volBtn.classList.add('active');
+  else volBtn.classList.remove('active');
+}
+
 function activateVolPreset() {
-  // One-click: enable VP + FP + CVD + VWAP
   var targets = ['profile', 'heatmap', 'cvd'];
+  // Toggle: if ALL on → deactivate all; else activate all
+  var allOn = targets.every(function(f) { return fpActive[f]; });
+  var turnOn = !allOn;
+
   targets.forEach(function(f) {
-    if (!fpActive[f]) {
-      fpActive[f] = true;
+    if (fpActive[f] !== turnOn) {
+      fpActive[f] = turnOn;
       var cb = document.querySelector('#fp-' + f + ' input');
-      if (cb) cb.checked = true;
+      if (cb) cb.checked = turnOn;
+      if (fpFetched) applyFootprintFeature(f);
     }
   });
   _syncFpToggleStyle();
+  updateVolPresetButtonState();
 
-  // Also enable VWAP (standard indicator, not Order Flow)
-  if (!activeIndicators.AXC_VWAP) {
+  // Enable VWAP when activating (don't force-disable when deactivating — user may want to keep it)
+  if (turnOn && !activeIndicators.AXC_VWAP) {
     activeIndicators.AXC_VWAP = true;
     var vwapCb = document.querySelector('label[title*="VWAP"] input');
     if (vwapCb) vwapCb.checked = true;
     if (Object.keys(indicatorData).length) addIndicatorToChart('AXC_VWAP');
   }
 
-  // Toggle Vol button active state
-  var volBtn = document.querySelector('.vol-preset-btn');
-  if (volBtn) volBtn.classList.add('active');
-
-  // Fetch aggTrades if needed, then apply
-  if (fpFetched) {
-    targets.forEach(function(f) { applyFootprintFeature(f); });
-  } else if (!fpLoading) {
+  // Fetch aggTrades if activating and not yet fetched
+  if (turnOn && !fpFetched && !fpLoading) {
     fetchFootprintData();
   }
 }
@@ -2158,7 +2258,8 @@ function registerBackendIndicators() {
       }
 
       ctx.save();
-      ctx.globalCompositeOperation = 'destination-over';
+      // Draw ON TOP of candles (not behind) — professional footprint style
+      // Low alpha ensures candles remain visible through the heatmap
 
       for (var j = from; j < to; j++) {
         var dd = dataList[j];
@@ -2190,7 +2291,7 @@ function registerBackendIndicators() {
           var py = yAxis.convertToPixel(lv.price);
           if (py == null || isNaN(py)) return;
           var intensity = lv.total_vol / globalMax;
-          var alpha = 0.15 + intensity * 0.55;
+          var alpha = 0.25 + intensity * 0.50;  // boosted min alpha for visibility on top of candles
 
           var isBuyDom = lv.buy_vol >= lv.sell_vol;
           var buyColor = 'rgba(66,133,244,';
@@ -2268,9 +2369,14 @@ function registerBackendIndicators() {
       { key: 'cvd', title: 'CVD $', type: 'line' }
     ],
     calc: function(dataList) {
+      // Normalize CVD to first data point — shows CHANGE, not absolute
+      // (absolute value like -$6.6M makes visible-range variation invisible)
+      var baselineCvd = null;
       return dataList.map(function(d) {
         var cv = footprintData.cvd[String(d.timestamp)];
-        return cv ? { cvd: cv.cvd } : {};
+        if (!cv) return {};
+        if (baselineCvd === null) baselineCvd = cv.cvd;
+        return { cvd: cv.cvd - baselineCvd };
       });
     },
     styles: {
@@ -2303,13 +2409,17 @@ function applyIndicatorData(series) {
 
 function addIndicatorToChart(name) {
   if (!mainChart) return;
+  // Sub-pane indicators: each gets its OWN pane (false = don't stack on existing)
   var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA' || name === 'AXC_CVD');
   try {
     if (isSubPane) {
-      var paneId = mainChart.createIndicator(name, true);
+      var paneId = mainChart.createIndicator(name, false);
       if (paneId) indicatorPaneIds[name] = paneId;
     } else {
-      mainChart.createIndicator(name, false);
+      // Overlay indicators MUST go to candle_pane — without { id: 'candle_pane' },
+      // KLC v9 creates a new empty sub-pane (yAxis has no price range → draw() fails)
+      var overlayResult = mainChart.createIndicator(name, true, { id: 'candle_pane' });
+      console.log('[FP] Overlay indicator', name, '→ candle_pane, result:', overlayResult);
       indicatorPaneIds[name] = 'main';
     }
   } catch(e) { console.warn('indicator add failed:', name, e); }
@@ -2388,6 +2498,12 @@ function loadKlines(symbol, days, cb, interval, errCb) {
     .then(function(resp) {
       var candles = resp.candles || resp;  // backward compat
       initChart();
+      // Clear stale indicators/overlays before applying new data (prevents duplicate panes)
+      Object.keys(indicatorPaneIds).forEach(function(name) {
+        try { removeIndicatorFromChart(name); } catch(e) {}
+      });
+      indicatorPaneIds = {};
+      clearModeOverlays();
       mainChart.applyNewData(candles.map(function(c) {
         return {
           timestamp: c.timestamp,
@@ -2557,11 +2673,11 @@ function setDrawingMode(mode, btn) {
 function clearDrawings() {
   if (!mainChart) return;
   try { mainChart.removeOverlay(); } catch(e) {}
-  // Re-draw trade markers and indicators
+  // Re-render persistent overlays
   if (currentTrades.length) drawTradeMarkers(currentTrades);
-  if (currentResult && currentResult.indicator_series) {
-    applyIndicatorData(currentResult.indicator_series);
-  }
+  if (selectedTradeIdx >= 0) showSlTp(selectedTradeIdx);
+  if (activeIndicators.AXC_MODE && currentResult && currentResult.indicator_series)
+    drawModeTransitions(currentResult.indicator_series);
   showToast('Drawings cleared', 'info');
 }
 
@@ -2615,6 +2731,24 @@ function toggleExpand() {
 // ══════════════════════════════════════════════════
 function updateStats(result) {
   var byId = function(id) { return document.getElementById(id); };
+
+  // Net PnL ($)
+  var pnlEl = byId('st-pnl');
+  if (pnlEl) {
+    var pnl = result.total_pnl;
+    if (pnl === undefined && result.final_balance !== undefined) {
+      var initBal = parseFloat(document.getElementById('sel-balance').value) || 10000;
+      pnl = result.final_balance - initBal;
+    }
+    if (pnl !== undefined && !isNaN(pnl)) {
+      pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+      pnlEl.className = 'stat-value ' + (pnl >= 0 ? 'pos' : 'neg');
+    } else {
+      pnlEl.textContent = '--';
+      pnlEl.className = 'stat-value';
+    }
+  }
+
   var retPct = result.return_pct || 0;
   var retEl = byId('st-return');
   retEl.textContent = (retPct >= 0 ? '+' : '') + retPct.toFixed(2) + '%';
@@ -2665,13 +2799,22 @@ function updateStats(result) {
     byId('strat-trend').textContent = bs.trend
       ? 'Trend: ' + bs.trend.count + ' trades, WR ' + bs.trend.win_rate + '%, avg $' + bs.trend.avg_pnl
       : 'Trend: --';
+    var crashEl = byId('strat-crash');
+    if (crashEl) {
+      crashEl.textContent = bs.crash
+        ? 'Crash: ' + bs.crash.count + ' trades, WR ' + bs.crash.win_rate + '%, avg $' + bs.crash.avg_pnl
+        : '';
+    }
   } else {
     breakdown.style.display = 'none';
     if (nfsPanel) nfsPanel.style.display = 'none';
   }
 
   // Update compare if Run A exists
-  if (compareRunA) updateCompare(result);
+  if (compareRunA) {
+    updateCompare(result);
+    document.getElementById('compare-panel').style.display = 'block';
+  }
 
   // Monthly heatmap
   renderMonthlyHeatmap(result.monthly_returns);
@@ -3444,6 +3587,11 @@ function pollJob(jobId, ctx) {
           updateRunConfig(currentRunConfig);
         }
         showToast('Backtest complete: ' + (result.total_trades || 0) + ' trades', 'success');
+        // Auto-update compare Run B if drawer is open
+        if (compareState && compareState.runA && document.getElementById('compare-panel').style.display !== 'none') {
+          var selB = document.getElementById('compare-sel-b');
+          if (selB) { selB.value = 'current'; selectCompareRun('B', selB); }
+        }
         // Auto-collapse guide panel when results load
         if (guideOpen) { toggleGuide(); }
         // Standard filename for fresh backtest
@@ -3472,8 +3620,10 @@ function onSymbolChange() {
   var days = parseInt(document.getElementById('sel-days').value) || 3;
   loadKlines(symbol, days, function() {
     connectLiveWs(true);
+    if (liveOFActive) startLiveOFWorker();  // restart OF worker for new symbol
   }, currentInterval, function() {
     connectLiveWs(true);
+    if (liveOFActive) startLiveOFWorker();
   });
 }
 
@@ -3490,14 +3640,19 @@ var _liveReconnectDelay = 1000;
 
 function toggleLive() {
   var btn = document.getElementById('btn-live');
+  var flowBtn = document.getElementById('btn-live-flow');
   if (liveWs) {
     closeLiveWs();
+    // Stop order flow worker when live stops
+    if (liveOFActive) { closeLiveOFWorker(); flowBtn.classList.remove('active'); }
+    flowBtn.disabled = true; flowBtn.style.opacity = '.5';
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live';
     return;
   }
   btn.classList.add('active');
   btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live ON';
+  flowBtn.disabled = false; flowBtn.style.opacity = '1';
   // Load recent history first, then attach WS for live updates
   var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value) || 3;
@@ -3568,6 +3723,157 @@ function scheduleLiveReconnect() {
     connectLiveWs(true);
   }, _liveReconnectDelay);
   _liveReconnectDelay = Math.min(_liveReconnectDelay * 2, 30000);
+}
+
+// ══════════════════════════════════════════════════
+//  Live Order Flow (Web Worker → footprintData merge)
+// ══════════════════════════════════════════════════
+var liveOFWorker = null;
+var liveOFActive = false;
+
+var _AGG_BUCKET_DEFAULTS = {
+  BTCUSDT: 50, ETHUSDT: 10, SOLUSDT: 1, XRPUSDT: 0.01, BNBUSDT: 2
+};
+
+function toggleLiveOrderFlow() {
+  var btn = document.getElementById('btn-live-flow');
+  if (liveOFActive) {
+    closeLiveOFWorker();
+    btn.classList.remove('active');
+    btn.style.opacity = '.5';
+    showToast('Live Order Flow 已斷開', 'info');
+    return;
+  }
+  if (!liveWs) {
+    showToast('請先開 Live 模式', 'error');
+    return;
+  }
+  liveOFActive = true;
+  btn.classList.add('active');
+  btn.style.opacity = '1';
+  startLiveOFWorker();
+}
+
+function startLiveOFWorker() {
+  if (liveOFWorker) closeLiveOFWorker();
+  var sym = document.getElementById('sel-symbol').value;
+  var bkt = _AGG_BUCKET_DEFAULTS[sym] || 50;
+  liveOFWorker = new Worker('live-orderflow-worker.js');
+  liveOFWorker.onmessage = handleOFMessage;
+  liveOFWorker.onerror = function(e) { console.error('OF Worker error:', e); };
+  liveOFWorker.postMessage({ type: 'start', symbol: sym, interval: currentInterval, bucketSize: bkt });
+  showToast('Live Order Flow 已連接 — ' + sym + ' @aggTrade', 'success');
+}
+
+function closeLiveOFWorker() {
+  liveOFActive = false;
+  if (liveOFWorker) {
+    liveOFWorker.postMessage({ type: 'stop' });
+    liveOFWorker.terminate();
+    liveOFWorker = null;
+  }
+  // Reset VP base so next start re-snapshots historical data
+  delete footprintData._vpHistBase;
+}
+
+function handleOFMessage(evt) {
+  var msg = evt.data;
+  if (!msg || !msg.type) return;
+  var tsKey = String(msg.ts);
+
+  if (msg.type === 'delta') {
+    footprintData.delta_volume[tsKey] = {
+      buy_vol: msg.data.buy_vol, sell_vol: msg.data.sell_vol,
+      delta: msg.data.buy_vol - msg.data.sell_vol,
+      buy_usd: msg.data.buy_usd, sell_usd: msg.data.sell_usd,
+      delta_usd: msg.data.buy_usd - msg.data.sell_usd
+    };
+  } else if (msg.type === 'heatmap') {
+    footprintData.heatmap[tsKey] = msg.data.map(function(d) {
+      var bv = d[1].buy_vol, sv = d[1].sell_vol;
+      var minor = Math.min(bv, sv);
+      return {
+        price: d[0], buy_vol: bv, sell_vol: sv,
+        total_vol: bv + sv, delta: bv - sv,
+        imbalance: minor > 0 && Math.max(bv, sv) / minor >= 3.0
+      };
+    });
+  } else if (msg.type === 'cvd') {
+    footprintData.cvd[tsKey] = msg.data;
+  } else if (msg.type === 'vp') {
+    // Worker sends FULL vpAccum each time → REPLACE live portion, don't ADD
+    // Merge: keep historical base, overlay live VP snapshot
+    if (!footprintData._vpHistBase) {
+      // First VP message: snapshot current (historical) as base
+      footprintData._vpHistBase = footprintData.volume_profile.map(function(v) {
+        return { price: v.price, buy_vol: v.buy_vol, sell_vol: v.sell_vol, total_vol: v.total_vol };
+      });
+    }
+    // Rebuild from base + live
+    var merged = {};
+    footprintData._vpHistBase.forEach(function(v) { merged[v.price] = { buy_vol: v.buy_vol, sell_vol: v.sell_vol }; });
+    msg.data.forEach(function(d) {
+      var p = d[0];
+      if (merged[p]) { merged[p].buy_vol += d[1].buy_vol; merged[p].sell_vol += d[1].sell_vol; }
+      else { merged[p] = { buy_vol: d[1].buy_vol, sell_vol: d[1].sell_vol }; }
+    });
+    var prices = Object.keys(merged).map(Number).sort(function(a, b) { return a - b; });
+    footprintData.volume_profile = prices.map(function(p) {
+      var m = merged[p];
+      return { price: p, buy_vol: m.buy_vol, sell_vol: m.sell_vol, total_vol: m.buy_vol + m.sell_vol };
+    });
+  } else if (msg.type === 'large_trade') {
+    footprintData.large_trades.push(msg.data);
+    if (fpActive.large) drawSingleLargeTradeMarker(msg.data);
+  } else if (msg.type === 'status') {
+    // Could update UI status indicator here
+    return;
+  } else if (msg.type === 'candle_close') {
+    return;
+  }
+
+  // Debounced indicator refresh — avoid remove+add flicker on every 1s flush
+  // Only refresh on candle_close (structural change) or every 3rd flush
+  if (!handleOFMessage._cnt) handleOFMessage._cnt = 0;
+  handleOFMessage._cnt++;
+  var needRefresh = (msg.type === 'candle_close') || (handleOFMessage._cnt % 3 === 0);
+  if (needRefresh && (msg.type === 'delta' || msg.type === 'heatmap' || msg.type === 'cvd' || msg.type === 'candle_close')) {
+    if (!handleOFMessage._rafPending) {
+      handleOFMessage._rafPending = true;
+      requestAnimationFrame(function() {
+        handleOFMessage._rafPending = false;
+        // Refresh active footprint indicators
+        var fpRefreshList = [];
+        if (fpActive.delta) fpRefreshList.push('AXC_DELTA');
+        if (fpActive.heatmap) fpRefreshList.push('AXC_HEATMAP');
+        if (fpActive.cvd) fpRefreshList.push('AXC_CVD');
+        fpRefreshList.forEach(function(name) {
+          try { removeIndicatorFromChart(name); addIndicatorToChart(name); } catch(e) {}
+        });
+      });
+    }
+  }
+  if (msg.type === 'vp' && fpActive.profile) {
+    requestAnimationFrame(function() {
+      try { removeIndicatorFromChart('AXC_VP'); addIndicatorToChart('AXC_VP'); } catch(e) {}
+    });
+  }
+}
+
+function drawSingleLargeTradeMarker(t) {
+  if (!mainChart) return;
+  var color = t.side === 'BUY' ? '#26a69a' : '#ef5350';
+  var sz = Math.min(14, Math.max(6, Math.sqrt(t.usd_value / 100000) * 6));
+  var label = t.side + ' $' + (t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1)+'M' : Math.round(t.usd_value/1000)+'K') + ' @ ' + t.price;
+  try {
+    var id = mainChart.createOverlay({
+      name: 'simpleAnnotation',
+      extendData: label,
+      styles: { symbol: { type: 'circle', size: sz, color: color, activeColor: color }, text: { color: '#ccc' } },
+      points: [{ timestamp: t.timestamp, value: t.price }]
+    });
+    largeTradeOverlays.push(id);
+  } catch(e) {}
 }
 
 // ══════════════════════════════════════════════════
@@ -3707,6 +4013,21 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     var tb = document.getElementById('ind-toolbar');
     tb.style.display = tb.style.display === 'none' ? 'flex' : 'none';
+  } else if (e.key === 'l' || e.key === 'L') {
+    e.preventDefault();
+    toggleLive();
+  } else if (e.key === 'o' || e.key === 'O') {
+    e.preventDefault();
+    toggleLiveOrderFlow();
+  } else if (e.key === 'c' || e.key === 'C') {
+    e.preventDefault();
+    openCompareDrawer();
+  } else if (e.key >= '1' && e.key <= '6') {
+    e.preventDefault();
+    var _intMap = { '1': '1m', '2': '5m', '3': '15m', '4': '1h', '5': '4h', '6': '1d' };
+    var _intVal = _intMap[e.key];
+    var _intBtn = document.querySelector('#interval-tabs .itab[data-val="' + _intVal + '"]');
+    if (_intBtn) setInterval_(_intBtn);
   }
 });
 
@@ -3749,6 +4070,8 @@ window.addEventListener('DOMContentLoaded', function() {
   registerBackendIndicators();
   initChart();
   checkConnection();
+  renderTemplateMenu();
+  setTimeout(showOnboarding, 1000);
 });
 
 // ── Resize handling ──
@@ -3756,7 +4079,559 @@ window.addEventListener('resize', function() {
   if (mainChart) mainChart.resize();
   if (equityChart) equityChart.resize();
 });
+
+// ══════════════════════════════════════════════════
+//  Shootout (Parameter Comparison)
+// ══════════════════════════════════════════════════
+var _shootoutExpanded = true;
+var _shootoutData = null;       // full resp cache for interactivity
+var _shootoutParams = {};       // params dict from API
+var _shootoutActiveConfig = null;
+var _shootoutParamsOpen = true; // collapsible params panel state
+
+var PARAM_DEFAULTS = {
+  conf_gate_range: 0.50, conf_gate_trend: 0.50, conf_gate_crash: 0.50,
+  mode_pen_trend_in_range: -0.30, mode_pen_trend_in_crash: -0.20,
+  mode_pen_range_in_trend: -0.20, mode_pen_range_in_crash: -0.30,
+  mode_pen_default_trend: -0.25, mode_pen_default_range: -0.10,
+  persist_range: 3, persist_trend: 4, persist_crash: 1, cooldown: 8
+};
+
+// Returns true if val is "better" than default for a given param
+function _paramIsBetter(key, val) {
+  var def = PARAM_DEFAULTS[key];
+  if (def === undefined) return null;
+  // Gates: higher = stricter/better
+  if (key.indexOf('conf_gate') === 0) return val > def;
+  // Penalties: less negative = better (closer to 0)
+  if (key.indexOf('mode_pen') === 0) return val > def;
+  // Persist / cooldown: higher = better
+  return val > def;
+}
+
+function toggleShootoutPanel() {
+  _shootoutExpanded = !_shootoutExpanded;
+  document.getElementById('shootout-body').style.display = _shootoutExpanded ? '' : 'none';
+  document.getElementById('shootout-selector').style.display = _shootoutExpanded ? '' : 'none';
+  document.getElementById('shootout-toggle-icon').innerHTML = _shootoutExpanded ? '&#9660;' : '&#9654;';
+}
+
+function loadShootoutList() {
+  fetch('/api/backtest/shootout/list')
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      if (!list || !list.length) {
+        document.getElementById('shootout-panel').style.display = 'none';
+        return;
+      }
+      document.getElementById('shootout-panel').style.display = '';
+      var sel = document.getElementById('shootout-file');
+      sel.innerHTML = '';
+      list.forEach(function(item) {
+        var opt = document.createElement('option');
+        opt.value = item.file;
+        var best = item.ranking[0];
+        opt.textContent = item.created + ' — ' + item.pairs.length + ' pairs × ' +
+          item.configs.length + ' configs — Best: ' + best.config + ' $' + best.pnl.toLocaleString();
+        sel.appendChild(opt);
+      });
+      loadShootoutDetail();
+    })
+    .catch(function() {
+      document.getElementById('shootout-panel').style.display = 'none';
+    });
+}
+
+function loadShootoutDetail() {
+  var file = document.getElementById('shootout-file').value;
+  if (!file) return;
+  fetch('/api/backtest/shootout/detail?file=' + encodeURIComponent(file))
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (resp.error) { document.getElementById('shootout-body').innerHTML = '<span style="color:#e57373">' + resp.error + '</span>'; return; }
+      _shootoutData = resp;
+      _shootoutParams = resp.params || {};
+      renderShootout(resp.data, resp.summary, _shootoutParams);
+    });
+}
+
+function renderShootout(data, summary, params) {
+  var configs = Object.keys(data).filter(function(k) { return k !== '_meta'; });
+  if (!configs.length) { document.getElementById('shootout-body').innerHTML = '<span style="color:var(--text-3)">No configs</span>'; return; }
+  var pairs = Object.keys(data[configs[0]]).filter(function(k) { return k !== '_meta'; });
+
+  // ── A. Ranking bar ──────────────────────────────────
+  var ranked = configs.map(function(c) { return { name: c, pnl: summary[c] ? summary[c].total_pnl : 0 }; });
+  ranked.sort(function(a, b) { return b.pnl - a.pnl; });
+  var topPnlAbs = Math.abs(ranked[0].pnl) || 1;
+
+  var html = '<div style="margin-bottom:8px;padding:6px;background:var(--bg-3);border-radius:4px">';
+  html += '<div style="font-weight:700;color:var(--text-3);margin-bottom:4px;font-size:.65rem">RANKING</div>';
+  ranked.forEach(function(r, i) {
+    var color = r.pnl > 0 ? '#26a69a' : '#ef5350';
+    var bar = Math.min(Math.abs(r.pnl) / topPnlAbs * 100, 100);
+    html += '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">';
+    html += '<span style="color:var(--text-3);width:14px">#' + (i + 1) + '</span>';
+    html += '<span style="width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)">' + r.name + '</span>';
+    html += '<div style="flex:1;height:12px;background:var(--bg-2);border-radius:2px;overflow:hidden">';
+    html += '<div style="width:' + bar + '%;height:100%;background:' + color + ';border-radius:2px"></div></div>';
+    html += '<span style="color:' + color + ';font-weight:600;width:70px;text-align:right">$' + r.pnl.toLocaleString() + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // ── C. Collapsible Config Params panel ──────────────
+  html += '<div style="margin-bottom:8px;padding:6px;background:var(--bg-3);border-radius:4px">';
+  html += '<div style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px" onclick="toggleShootoutParamsPanel()">';
+  html += '<span style="font-weight:700;color:var(--text-3);font-size:.65rem">CONFIG PARAMS</span>';
+  html += '<span id="shootout-params-toggle" style="font-size:.6rem;color:var(--text-3)">&#9660;</span>';
+  html += '<select id="shootout-params-select" style="margin-left:auto;background:var(--bg-2);color:var(--text-1);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-size:.65rem" onclick="event.stopPropagation()" onchange="showConfigParams(this.value, _shootoutParams)">';
+  ranked.forEach(function(r) {
+    html += '<option value="' + r.name + '">' + r.name + '</option>';
+  });
+  html += '</select></div>';
+  html += '<div id="shootout-params-detail" style="' + (_shootoutParamsOpen ? '' : 'display:none') + '"></div>';
+  html += '</div>';
+
+  // ── B. PnL Heatmap table ────────────────────────────
+  // Find global max PnL for intensity scaling
+  var maxCellPnl = 1;
+  configs.forEach(function(cfg) {
+    pairs.forEach(function(pair) {
+      var cell = data[cfg][pair];
+      if (cell) maxCellPnl = Math.max(maxCellPnl, Math.abs(cell.pnl || 0));
+    });
+  });
+
+  html += '<div style="overflow-x:auto;margin-bottom:8px">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.65rem">';
+  html += '<tr>';
+  html += '<th style="text-align:left;padding:3px 4px;color:var(--text-3);border-bottom:1px solid var(--border)">Config</th>';
+  pairs.forEach(function(p) {
+    html += '<th style="text-align:right;padding:3px 4px;color:var(--text-3);border-bottom:1px solid var(--border)">' + p.replace('USDT', '') + '</th>';
+  });
+  html += '<th style="text-align:right;padding:3px 4px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:700">Total</th>';
+  html += '</tr>';
+
+  configs.forEach(function(cfg) {
+    var rowId = 'srow-' + cfg.replace(/[^a-z0-9]/gi, '_');
+    var detailId = 'sdetail-' + cfg.replace(/[^a-z0-9]/gi, '_');
+    html += '<tr id="' + rowId + '" style="cursor:pointer" onclick="toggleHeatmapRow(\'' + cfg + '\')" title="Click to expand row detail">';
+    html += '<td style="padding:3px 4px;color:var(--text-2);white-space:nowrap;border-bottom:1px solid rgba(41,41,41,.3)">';
+    html += '<span id="' + rowId + '-icon" style="font-size:.55rem;margin-right:3px;color:var(--text-3)">&#9654;</span>' + cfg;
+    html += '</td>';
+    pairs.forEach(function(pair) {
+      var cell = data[cfg][pair];
+      var pnl = cell ? (cell.pnl || 0) : 0;
+      var trades = cell ? (cell.trades || cell.n || 0) : 0;
+      var color = pnl > 0 ? '#26a69a' : pnl < 0 ? '#ef5350' : 'var(--text-3)';
+      var intensity = Math.min(Math.abs(pnl) / maxCellPnl, 1) * 0.18;
+      var bg = pnl > 0 ? 'rgba(38,166,154,' + intensity + ')' : pnl < 0 ? 'rgba(239,83,80,' + intensity + ')' : '';
+      var wr = cell ? (cell.wr || 0) : 0;
+      var pf = cell ? (cell.pf || 0) : 0;
+      html += '<td style="text-align:right;padding:3px 4px;border-bottom:1px solid rgba(41,41,41,.3);background:' + bg + '" title="' + trades + 't, WR ' + wr + '%, PF ' + pf + '">';
+      html += '<span style="color:' + color + ';display:block">$' + Math.round(pnl).toLocaleString() + '</span>';
+      if (trades > 0) html += '<span style="color:var(--text-3);font-size:.6rem">' + trades + 't</span>';
+      html += '</td>';
+    });
+    var total = summary[cfg] ? summary[cfg].total_pnl : 0;
+    var tColor = total > 0 ? '#26a69a' : '#ef5350';
+    html += '<td style="text-align:right;padding:3px 4px;color:' + tColor + ';font-weight:700;border-bottom:1px solid rgba(41,41,41,.3)">$' + Math.round(total).toLocaleString() + '</td>';
+    html += '</tr>';
+    // Inline detail row (hidden by default) — spans all columns
+    html += '<tr id="' + detailId + '" style="display:none"><td colspan="' + (pairs.length + 2) + '" style="padding:0 4px 6px 4px;border-bottom:1px solid var(--border)">';
+    html += '<div id="' + detailId + '-content" style="padding:6px;background:var(--bg-2);border-radius:4px;margin-top:2px"></div>';
+    html += '</td></tr>';
+  });
+  html += '</table></div>';
+
+  // ── D. Interactive Strategy Breakdown ───────────────
+  html += '<div style="padding:6px;background:var(--bg-3);border-radius:4px">';
+  html += '<div style="font-weight:700;color:var(--text-3);margin-bottom:4px;font-size:.65rem">STRATEGY BREAKDOWN</div>';
+  // Config toggle buttons
+  html += '<div id="shootout-breakdown-btns" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">';
+  ranked.forEach(function(r, i) {
+    var isFirst = i === 0;
+    html += '<button id="sbtn-' + r.name.replace(/[^a-z0-9]/gi, '_') + '" onclick="showConfigBreakdown(\'' + r.name + '\')" ';
+    html += 'style="font-size:.6rem;padding:2px 6px;border-radius:3px;border:1px solid var(--border);cursor:pointer;';
+    html += isFirst ? 'background:#26a69a;color:#fff' : 'background:var(--bg-2);color:var(--text-2)';
+    html += '">' + r.name + '</button>';
+  });
+  html += '</div>';
+  html += '<div id="shootout-breakdown-body"></div>';
+  html += '</div>';
+
+  document.getElementById('shootout-body').innerHTML = html;
+
+  // Initialize: show first config params + breakdown
+  _shootoutActiveConfig = ranked[0].name;
+  showConfigParams(ranked[0].name, params);
+  showConfigBreakdown(ranked[0].name);
+}
+
+function toggleShootoutParamsPanel() {
+  _shootoutParamsOpen = !_shootoutParamsOpen;
+  var detail = document.getElementById('shootout-params-detail');
+  var icon = document.getElementById('shootout-params-toggle');
+  if (detail) detail.style.display = _shootoutParamsOpen ? '' : 'none';
+  if (icon) icon.innerHTML = _shootoutParamsOpen ? '&#9660;' : '&#9654;';
+}
+
+function showConfigParams(cfgName, params) {
+  _shootoutActiveConfig = cfgName;
+  // Sync select element if it exists
+  var sel = document.getElementById('shootout-params-select');
+  if (sel) sel.value = cfgName;
+
+  var panel = document.getElementById('shootout-params-detail');
+  if (!panel) return;
+
+  var p = params && params[cfgName];
+  if (!p) {
+    panel.innerHTML = '<span style="color:var(--text-3);font-size:.65rem">No params metadata (old file format)</span>';
+    return;
+  }
+
+  var tp = p.tuning_params || {};
+  var desc = p.desc || cfgName;
+  var overrides = p.param_overrides || {};
+
+  var html = '<div style="font-size:.6rem;color:var(--text-3);margin-bottom:4px">' + desc + '</div>';
+
+  // 2-col grid of tuning params
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">';
+  Object.keys(tp).forEach(function(key) {
+    var val = tp[key];
+    var better = _paramIsBetter(key, val);
+    var def = PARAM_DEFAULTS[key];
+    var valColor = better === true ? '#26a69a' : better === false ? '#ef5350' : 'var(--text-1)';
+    var defStr = def !== undefined ? ' <span style="color:var(--text-3)">(def:' + def + ')</span>' : '';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:1px 0;border-bottom:1px solid rgba(41,41,41,.2)">';
+    html += '<span style="color:var(--text-3);font-size:.58rem">' + key + '</span>';
+    html += '<span style="color:' + valColor + ';font-weight:600;font-size:.62rem">' + val + defStr + '</span>';
+    html += '</div>';
+  });
+  // Also show param_overrides if any extra
+  Object.keys(overrides).forEach(function(key) {
+    if (tp.hasOwnProperty(key)) return; // already shown
+    var val = overrides[key];
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:1px 0;border-bottom:1px solid rgba(41,41,41,.2)">';
+    html += '<span style="color:var(--text-3);font-size:.58rem">' + key + '*</span>';
+    html += '<span style="color:var(--text-2);font-size:.62rem">' + val + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function _renderInlineParamsGrid(cfgName, params) {
+  var p = params && params[cfgName];
+  if (!p) return '<span style="color:var(--text-3);font-size:.62rem">No params metadata</span>';
+  var tp = p.tuning_params || {};
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-bottom:4px">';
+  Object.keys(tp).forEach(function(key) {
+    var val = tp[key];
+    var better = _paramIsBetter(key, val);
+    var valColor = better === true ? '#26a69a' : better === false ? '#ef5350' : 'var(--text-1)';
+    html += '<div style="display:flex;justify-content:space-between;padding:1px 0">';
+    html += '<span style="color:var(--text-3);font-size:.58rem">' + key + '</span>';
+    html += '<span style="color:' + valColor + ';font-size:.6rem;font-weight:600">' + val + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function _renderBreakdownTable(cfgName, data, pairs) {
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:.65rem">';
+  html += '<tr><th style="text-align:left;padding:2px 4px;color:var(--text-3)">Pair</th>';
+  html += '<th style="text-align:right;padding:2px 4px;color:var(--text-3)">Range</th>';
+  html += '<th style="text-align:right;padding:2px 4px;color:var(--text-3)">Trend</th>';
+  html += '<th style="text-align:right;padding:2px 4px;color:var(--text-3)">Crash</th></tr>';
+  var anyRow = false;
+  pairs.forEach(function(pair) {
+    var cell = data[cfgName][pair];
+    if (!cell || !cell.by_strat) return;
+    anyRow = true;
+    html += '<tr>';
+    html += '<td style="padding:2px 4px;color:var(--text-2)">' + pair.replace('USDT', '') + '</td>';
+    ['range', 'trend', 'crash'].forEach(function(s) {
+      var st = cell.by_strat[s];
+      if (!st || st.n === 0) { html += '<td style="text-align:right;padding:2px 4px;color:var(--text-3)">—</td>'; return; }
+      var c = st.pnl > 0 ? '#26a69a' : '#ef5350';
+      html += '<td style="text-align:right;padding:2px 4px;color:' + c + '">';
+      html += '$' + Math.round(st.pnl).toLocaleString() + '<br><span style="font-size:.58rem;color:var(--text-3)">' + st.n + 't</span>';
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+  if (!anyRow) html += '<tr><td colspan="4" style="color:var(--text-3);padding:4px">No strategy data</td></tr>';
+  html += '</table>';
+  return html;
+}
+
+function showConfigBreakdown(cfgName) {
+  if (!_shootoutData) return;
+  var data = _shootoutData.data;
+  var params = _shootoutParams;
+  var configs = Object.keys(data).filter(function(k) { return k !== '_meta'; });
+  var pairs = Object.keys(data[configs[0]]).filter(function(k) { return k !== '_meta'; });
+
+  // Update button styles
+  configs.forEach(function(cfg) {
+    var btn = document.getElementById('sbtn-' + cfg.replace(/[^a-z0-9]/gi, '_'));
+    if (!btn) return;
+    btn.style.background = cfg === cfgName ? '#26a69a' : 'var(--bg-2)';
+    btn.style.color = cfg === cfgName ? '#fff' : 'var(--text-2)';
+  });
+
+  var body = document.getElementById('shootout-breakdown-body');
+  if (!body) return;
+  body.innerHTML = _renderBreakdownTable(cfgName, data, pairs);
+}
+
+function toggleHeatmapRow(cfgName) {
+  if (!_shootoutData) return;
+  var data = _shootoutData.data;
+  var params = _shootoutParams;
+  var configs = Object.keys(data).filter(function(k) { return k !== '_meta'; });
+  var pairs = Object.keys(data[configs[0]]).filter(function(k) { return k !== '_meta'; });
+
+  var detailId = 'sdetail-' + cfgName.replace(/[^a-z0-9]/gi, '_');
+  var rowId = 'srow-' + cfgName.replace(/[^a-z0-9]/gi, '_');
+  var detailRow = document.getElementById(detailId);
+  var icon = document.getElementById(rowId + '-icon');
+
+  if (!detailRow) return;
+  var isOpen = detailRow.style.display !== 'none';
+
+  if (isOpen) {
+    detailRow.style.display = 'none';
+    if (icon) icon.innerHTML = '&#9654;';
+    return;
+  }
+
+  // Build inline content
+  var contentEl = document.getElementById(detailId + '-content');
+  if (contentEl) {
+    var html = '';
+    // Tuning params
+    html += '<div style="font-size:.6rem;font-weight:700;color:var(--text-3);margin-bottom:3px">TUNING PARAMS</div>';
+    html += _renderInlineParamsGrid(cfgName, params);
+    // Strategy breakdown
+    html += '<div style="font-size:.6rem;font-weight:700;color:var(--text-3);margin:4px 0 3px">STRATEGY BREAKDOWN</div>';
+    html += _renderBreakdownTable(cfgName, data, pairs);
+    contentEl.innerHTML = html;
+  }
+
+  detailRow.style.display = '';
+  if (icon) icon.innerHTML = '&#9660;';
+}
+
+// Load shootout list on page ready
+document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); });
+
+// ── Sidebar toggle (default collapsed) ──
+(function() {
+  var OPEN_KEY = 'bt_sidebar_open';
+  var W_KEY    = 'bt_sidebar_w';
+  var panel    = document.querySelector('.right-panel');
+  var handle   = document.getElementById('resize-handle');
+  var btn      = document.getElementById('btn-sidebar-toggle');
+
+  var grid = document.querySelector('.main-grid');
+
+  function setOpen(open, animate) {
+    if (!animate) {
+      panel.style.transition = 'none';
+      if (handle) handle.style.transition = 'none';
+    }
+    if (open) {
+      var w = parseInt(localStorage.getItem(W_KEY)) || 300;
+      document.documentElement.style.setProperty('--rp-width', w + 'px');
+      panel.classList.remove('collapsed');
+      if (handle) handle.classList.remove('collapsed');
+      grid.style.gridTemplateColumns = '1fr 6px var(--rp-width, 300px)';
+      btn.innerHTML = '&#x25B6;';
+      btn.title = '隱藏右側面板';
+    } else {
+      grid.style.gridTemplateColumns = '1fr';
+      panel.classList.add('collapsed');
+      if (handle) handle.classList.add('collapsed');
+      btn.innerHTML = '&#x25C0;';
+      btn.title = '顯示右側面板';
+    }
+    localStorage.setItem(OPEN_KEY, open ? '1' : '0');
+    requestAnimationFrame(function() {
+      if (mainChart) mainChart.resize();
+      if (equityChart) equityChart.resize();
+      if (!animate) {
+        panel.style.transition = '';
+        if (handle) handle.style.transition = '';
+      }
+    });
+  }
+
+  window.toggleSidebar = function() {
+    var isOpen = !panel.classList.contains('collapsed');
+    setOpen(!isOpen, true);
+  };
+
+  // Init: default collapsed
+  var saved = localStorage.getItem(OPEN_KEY);
+  setOpen(saved === '1', false);
+})();
+
+// ── Resizable sidebar ──
+(function() {
+  var handle = document.getElementById('resize-handle');
+  var dragging = false, startX = 0, startW = 0;
+  var SAVED_KEY = 'bt_sidebar_w';
+
+  // Restore saved width (only matters when open)
+  var saved = localStorage.getItem(SAVED_KEY);
+  if (saved) document.documentElement.style.setProperty('--rp-width', saved + 'px');
+
+  handle.addEventListener('mousedown', function(e) {
+    dragging = true;
+    startX = e.clientX;
+    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rp-width')) || 300;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var delta = startX - e.clientX; // dragging left = wider sidebar
+    var newW = Math.min(520, Math.max(220, startW + delta));
+    document.documentElement.style.setProperty('--rp-width', newW + 'px');
+    if (mainChart) mainChart.resize();
+    if (equityChart) equityChart.resize();
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    var w = getComputedStyle(document.documentElement).getPropertyValue('--rp-width').trim();
+    localStorage.setItem(SAVED_KEY, parseInt(w));
+  });
+})();
+
+// ══════════════════════════════════════════════════
+//  Phase 4B: Chart Templates (localStorage)
+// ══════════════════════════════════════════════════
+function saveTemplate(name) {
+  if (!name) {
+    name = prompt('Template name:', '');
+    if (!name) return;
+  }
+  var t = {
+    activeIndicators: JSON.parse(JSON.stringify(activeIndicators)),
+    fpActive: JSON.parse(JSON.stringify(fpActive)),
+    fpMode: fpMode,
+    currentInterval: currentInterval
+  };
+  var all = JSON.parse(localStorage.getItem('axc_templates') || '{}');
+  all[name] = t;
+  localStorage.setItem('axc_templates', JSON.stringify(all));
+  showToast('Template "' + name + '" saved', 'success');
+  renderTemplateMenu();
+}
+
+function loadTemplate(name) {
+  var all = JSON.parse(localStorage.getItem('axc_templates') || '{}');
+  var t = all[name];
+  if (!t) { showToast('Template not found', 'error'); return; }
+  // Apply interval
+  if (t.currentInterval) {
+    var btn = document.querySelector('#interval-tabs .itab[data-val="' + t.currentInterval + '"]');
+    if (btn) setInterval_(btn);
+  }
+  // Apply indicators
+  if (t.activeIndicators) {
+    Object.keys(t.activeIndicators).forEach(function(k) {
+      var want = t.activeIndicators[k];
+      if (want && !activeIndicators[k]) { activeIndicators[k] = true; addIndicatorToChart(k); }
+      else if (!want && activeIndicators[k]) { activeIndicators[k] = false; removeIndicatorFromChart(k); }
+    });
+  }
+  // Apply footprint toggles
+  if (t.fpActive) {
+    Object.keys(t.fpActive).forEach(function(k) {
+      if (t.fpActive[k] !== fpActive[k]) toggleFootprint(k);
+    });
+  }
+  if (t.fpMode && t.fpMode !== fpMode) toggleFpMode();
+  showToast('Template "' + name + '" loaded', 'success');
+}
+
+function deleteTemplate(name) {
+  var all = JSON.parse(localStorage.getItem('axc_templates') || '{}');
+  delete all[name];
+  localStorage.setItem('axc_templates', JSON.stringify(all));
+  showToast('Template "' + name + '" deleted', 'info');
+  renderTemplateMenu();
+}
+
+function renderTemplateMenu() {
+  var el = document.getElementById('template-menu');
+  if (!el) return;
+  var all = JSON.parse(localStorage.getItem('axc_templates') || '{}');
+  var names = Object.keys(all);
+  // Always include "Save current" header + template list
+  var html = '<div style="padding:3px 8px;border-bottom:1px solid var(--border)">' +
+    '<span onclick="saveTemplate()" style="cursor:pointer;font-size:.65rem;color:var(--accent)">+ Save current</span></div>';
+  if (!names.length) {
+    html += '<div style="padding:4px 8px;font-size:.65rem;color:var(--text-3)">No saved templates</div>';
+  } else {
+    names.forEach(function(n) {
+      html += '<div style="display:flex;align-items:center;gap:4px;padding:2px 6px">' +
+        '<span onclick="loadTemplate(\'' + n.replace(/'/g, "\\'") + '\')" style="flex:1;cursor:pointer;font-size:.68rem;color:var(--text-1)">' + n + '</span>' +
+        '<span onclick="deleteTemplate(\'' + n.replace(/'/g, "\\'") + '\')" style="cursor:pointer;font-size:.6rem;color:var(--neg)" title="Delete">✕</span>' +
+        '</div>';
+    });
+  }
+  el.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+//  Phase 4C: Onboarding (first-time user)
+// ══════════════════════════════════════════════════
+function showOnboarding() {
+  if (localStorage.getItem('axc_onboarded')) return;
+  var tips = [
+    { sel: '#sel-symbol', text: '1. 揀 Symbol + Days' },
+    { sel: '#btn-run', text: '2. 撳 Run 執行回測' },
+    { sel: '#fp-delta', text: '3. Order Flow 指標' },
+    { sel: '#btn-live', text: '4. Live 模式 + Compare (C鍵)' }
+  ];
+  var overlay = document.createElement('div');
+  overlay.id = 'onboard-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.6);cursor:pointer';
+  var tipsHtml = '';
+  tips.forEach(function(tip) {
+    var el = document.querySelector(tip.sel);
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    tipsHtml += '<div style="position:absolute;left:' + (r.right + 8) + 'px;top:' + (r.top + r.height/2 - 12) + 'px;' +
+      'background:#1a1a2e;border:1px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:.72rem;color:#e0e0e0;' +
+      'white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.4)">' + tip.text + '</div>';
+  });
+  overlay.innerHTML = tipsHtml;
+  overlay.addEventListener('click', function() {
+    overlay.remove();
+    localStorage.setItem('axc_onboarded', '1');
+  });
+  document.body.appendChild(overlay);
+}
 </script>
+
+<script src="backtest-compare.js"></script>
 
 </body>
 </html>
