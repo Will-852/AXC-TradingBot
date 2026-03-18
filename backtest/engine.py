@@ -479,12 +479,11 @@ class BacktestEngine:
             # ── Step 3: Check SL/TP ──
             self._check_sl_tp(candle, candle_time)
 
-            # ── Step 3b: Trailing stop for newarch positions ──
-            # DISABLED v3: breakeven at 1R kills mean reversion trades.
-            # Price oscillates in ranging regime → SL at entry = instant stop out.
-            # TODO: re-enable only for trend_pullback entries after adding entry_type to BTPosition.
-            # if self.newarch_strategy is not None:
-            #     self._check_trailing(candle)
+            # ── Step 3b: Trailing stop ──
+            # Only for trend/crash/newarch — range uses fixed TP (mean reversion target).
+            # Breakeven at 1.5R (not 1R — 1R too aggressive for range-like oscillations).
+            # Trail at 2.5R by 1×ATR behind highest favorable excursion.
+            self._check_trailing(candle)
 
             # ── Step 4: Calc 1H indicators ──
             start_idx = max(0, i - WARMUP_CANDLES + 1)
@@ -765,21 +764,41 @@ class BacktestEngine:
         else:
             return pos.sl_price * (1 + self.sl_slippage_pct)
 
+    # Per-strategy trailing config: (breakeven_R, trail_R, trail_atr_mult)
+    # range: disabled (None) — mean reversion needs fixed TP
+    # trend: breakeven at 1.5R, trail at 2.5R, trail by 1.0×ATR
+    # crash: breakeven at 1.5R, trail at 2.0R, trail by 0.8×ATR (tighter — fast moves)
+    # newarch: breakeven at 1.5R, trail at 2.5R, trail by 1.0×ATR
+    # burst: breakeven at 1.5R, trail at 2.0R, trail by 1.0×ATR
+    _TRAIL_CONFIG = {
+        "range":   None,
+        "trend":   (1.5, 2.5, 1.0),
+        "crash":   (1.5, 2.0, 0.8),
+        "newarch": (1.5, 2.5, 1.0),
+        "burst":   (1.5, 2.0, 1.0),
+    }
+
     def _check_trailing(self, candle):
-        """Trailing stop for newarch positions: breakeven at 1R, trail at 2R.
+        """Trailing stop: breakeven then ATR trail for directional strategies.
 
         Called per-candle AFTER _check_sl_tp (so only surviving positions are trailed).
         Modifies pos.sl_price in-place — next candle's _check_sl_tp will catch it.
+
+        Design: range strategy is EXCLUDED — mean reversion needs exit at BB mid / fixed target.
+        Trend/crash benefit from letting winners run: breakeven protects capital,
+        ATR trail locks in profit while giving room for continuation.
         """
         high = float(candle["high"])
         low = float(candle["low"])
 
         for pos in self.positions:
-            if pos.strategy != "newarch" or pos.atr_at_entry <= 0:
+            cfg = self._TRAIL_CONFIG.get(pos.strategy)
+            if cfg is None or pos.atr_at_entry <= 0:
                 continue
 
+            breakeven_r, trail_r, trail_atr_mult = cfg
             atr = pos.atr_at_entry
-            sl_dist = atr * 1.5  # matches sl_atr_mult=1.5
+            sl_dist = abs(pos.entry_price - pos.sl_price) if pos.sl_price else atr * 1.5
 
             # Update HFE (highest favorable excursion)
             if pos.direction == "LONG":
@@ -790,9 +809,9 @@ class BacktestEngine:
 
             r_multiple = pos.hfe / sl_dist if sl_dist > 0 else 0
 
-            if r_multiple >= 2.0:
-                # Trail: SL = entry + (HFE - 1×ATR)
-                trail_offset = pos.hfe - atr
+            if r_multiple >= trail_r:
+                # Trail: SL follows HFE minus trail_atr_mult × ATR
+                trail_offset = pos.hfe - trail_atr_mult * atr
                 if pos.direction == "LONG":
                     new_sl = pos.entry_price + trail_offset
                 else:
@@ -802,7 +821,7 @@ class BacktestEngine:
                     pos.sl_price = new_sl
                 elif pos.direction == "SHORT" and new_sl < pos.sl_price:
                     pos.sl_price = new_sl
-            elif r_multiple >= 1.0:
+            elif r_multiple >= breakeven_r:
                 # Breakeven: move SL to entry
                 if pos.direction == "LONG" and pos.sl_price < pos.entry_price:
                     pos.sl_price = pos.entry_price

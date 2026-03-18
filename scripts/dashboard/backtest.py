@@ -124,12 +124,22 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
                     _patched_modules.append((mod, attr))
 
     try:
+        # Extract commission/slippage overrides (if user set them in dashboard)
+        _po = param_overrides or {}
+        _commission = _po.pop("commission_rate", None)
+        _slippage = _po.pop("sl_slippage_pct", None)
+        _extra = {}
+        if _commission is not None:
+            _extra["commission_rate"] = float(_commission)
+        if _slippage is not None:
+            _extra["sl_slippage_pct"] = float(_slippage)
         engine = BacktestEngine(
             symbol=symbol, df_1h=df_1h, df_4h=df_4h,
             initial_balance=balance, quiet=True,
-            param_overrides=param_overrides or {},
+            param_overrides=_po,
             allowed_modes=allowed_modes,
             mode_confirmation=mode_confirmation,
+            **_extra,
         )
         result = engine.run()
         result = extend_summary(result)

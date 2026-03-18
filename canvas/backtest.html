@@ -950,6 +950,14 @@
           <label>Mode Confirm 確認</label>
           <input type="number" id="p-mode-conf" step="1" min="1" max="5" placeholder="2">
         </div>
+        <div class="param-item" title="佣金率（每邊）。0.05 = 0.05%。唔同交易所唔同（Binance 0.02-0.05%）">
+          <label>Commission % 佣金</label>
+          <input type="number" id="p-commission" step="0.01" placeholder="0.05">
+        </div>
+        <div class="param-item" title="止損滑點%。止損市價單嘅預估滑點。0.02 = 0.02%">
+          <label>SL Slippage % 滑點</label>
+          <input type="number" id="p-slippage" step="0.01" placeholder="0.02">
+        </div>
       </div>
 
       <!-- ── Engine Switcher ── -->
@@ -3477,6 +3485,12 @@ function collectParamOverrides() {
     var v = document.getElementById(f[0]).value;
     if (v !== '') result.param_overrides[f[1]] = parseFloat(v);
   });
+
+  // Commission and slippage overrides
+  var commVal = document.getElementById('p-commission').value;
+  if (commVal !== '') result.param_overrides.commission_rate = parseFloat(commVal) / 100;
+  var slipVal = document.getElementById('p-slippage').value;
+  if (slipVal !== '') result.param_overrides.sl_slippage_pct = parseFloat(slipVal) / 100;
 
   var mc = document.getElementById('p-mode-conf').value;
   if (mc !== '') result.mode_confirmation = parseInt(mc);
