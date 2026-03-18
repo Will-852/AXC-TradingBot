@@ -962,8 +962,11 @@
 
       <div class="param-group-title">Robustness 穩健性測試</div>
       <div class="param-row">
-        <div class="param-item" title="對 OHLC 加 ±0.2% 隨機噪音重跑 backtest 50 次。測試信號係咪依賴精確價格（~30-50秒）">
+        <div class="param-item">
           <label><input type="checkbox" id="p-noise-mc"> Noise MC 噪音測試</label>
+          <div style="font-size:.58rem;color:var(--text-3);margin-top:2px;line-height:1.4">
+            對價格加 ±0.2% 隨機噪音重跑 50 次。如果大部分信號消失 = 過擬合。額外需要 ~30-50 秒。
+          </div>
         </div>
       </div>
 
@@ -2940,6 +2943,18 @@ function renderMonteCarlo(mc) {
       '<div style="text-align:right;color:var(--text-3);font-size:.6rem">[' + (m[3] ? m[3][0].toFixed(1) : '?') + ', ' + (m[3] ? m[3][1].toFixed(1) : '?') + ']</div>';
   });
   html += '</div>';
+
+  // Interpretation guide
+  var mcGuide = mc.grade === 'A'
+    ? 'Stability ≥95%，95% CI 正回報，P(Ruin) <1% — 機構級穩健。'
+    : mc.grade === 'B'
+    ? 'Stability ≥80%，CI 正回報 — 可以 trade，但留意 drawdown range。'
+    : mc.grade === 'C'
+    ? 'Stability 60-80% — edge 存在但唔穩定。建議減倉或收窄 pair/timeframe。'
+    : 'CI 跨零或 stability <60% — 策略可能冇真正嘅 edge，唔建議 trade。';
+  html += '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid ' + gc + '">' +
+    '<div style="font-size:.58rem;color:var(--text-3);line-height:1.4">' + mcGuide + '</div></div>';
+
   body.innerHTML = html;
 }
 
@@ -2987,6 +3002,17 @@ function renderOOS(oos) {
     html += '</div>';
   }
 
+  // Interpretation guide
+  var oosGuide = oos.grade === 'PASS'
+    ? '≥4/5 metrics 穩定性 ≥60% — 策略喺未見過嘅數據上表現一致，overfitting 風險低。'
+    : oos.grade === 'WARN'
+    ? '3/5 metrics 通過 — 策略可能部分 overfit。留意 Sharpe/DD 嘅 IS→OOS 跌幅。'
+    : oos.grade === 'INSUFFICIENT'
+    ? 'OOS 段 trades 太少（<5），統計上無法判斷。試增加 backtest 日數。'
+    : 'IS 表現遠優於 OOS — 策略大機會 overfit。唔建議直接 live trade。';
+  html += '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid ' + gc + '">' +
+    '<div style="font-size:.58rem;color:var(--text-3);line-height:1.4">' + oosGuide + '</div></div>';
+
   body.innerHTML = html;
 }
 
@@ -3017,6 +3043,15 @@ function renderNoiseMC(nm) {
     '<div style="color:var(--text-2)">Trade Count</div>' +
     '<div style="text-align:right;color:var(--text-1)">' + nm.original_trades + ' → ' + nm.trade_count_range[0] + '-' + nm.trade_count_range[1] + '</div>' +
     '</div>';
+
+  // Interpretation guide
+  var guideText = nm.grade === 'ROBUST'
+    ? '大部分信號喺價格微變下仍然觸發 — 策略基於結構性 pattern，唔係精確數字。可以信。'
+    : nm.grade === 'FRAGILE'
+    ? '部分信號喺 ±0.2% noise 下消失。策略可能部分依賴精確價格 — 建議減倉或收窄參數。'
+    : '大量信號喺微小 noise 下消失 — 策略可能過擬合。Backtest 好靚但 live 表現會差好遠。';
+  html += '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid ' + gc + '">' +
+    '<div style="font-size:.58rem;color:var(--text-3);line-height:1.4">' + guideText + '</div></div>';
 
   body.innerHTML = html;
 }
@@ -3058,6 +3093,14 @@ function renderAltData(ad) {
   }
 
   html += '</div>';
+
+  // Interpretation guide
+  html += '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid var(--accent)">' +
+    '<div style="font-size:.55rem;color:var(--text-3);line-height:1.4">' +
+    'Funding >0.1% = 多頭擁擠（反轉風險）。OI 急升+price 持平 = squeeze 風險。' +
+    'Netflow Z >2 = 大量幣流入交易所（拋壓）。Addr Momentum >1 = 網絡活躍度上升。' +
+    '</div></div>';
+
   body.innerHTML = html;
 }
 
