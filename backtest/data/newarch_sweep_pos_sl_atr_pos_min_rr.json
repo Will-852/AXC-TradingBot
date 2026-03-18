@@ -2,6 +2,20 @@
   {
     "params": {
       "pos_sl_atr": 1.0,
+      "pos_min_rr": 2.0
+    },
+    "long_only": false,
+    "return_pct": -23.48,
+    "sharpe_ratio": -1.58,
+    "win_rate": 6.5,
+    "total_trades": 31,
+    "profit_factor": 0.17,
+    "max_drawdown_pct": 24.1,
+    "expectancy": -75.76
+  },
+  {
+    "params": {
+      "pos_sl_atr": 1.0,
       "pos_min_rr": 1.5
     },
     "long_only": false,
@@ -31,20 +45,6 @@
     "params": {
       "pos_sl_atr": 1.0,
       "pos_min_rr": 1.0
-    },
-    "long_only": false,
-    "return_pct": -23.48,
-    "sharpe_ratio": -1.58,
-    "win_rate": 6.5,
-    "total_trades": 31,
-    "profit_factor": 0.17,
-    "max_drawdown_pct": 24.1,
-    "expectancy": -75.76
-  },
-  {
-    "params": {
-      "pos_sl_atr": 1.0,
-      "pos_min_rr": 2.0
     },
     "long_only": false,
     "return_pct": -23.48,
@@ -240,20 +240,6 @@
   {
     "params": {
       "pos_sl_atr": 2.5,
-      "pos_min_rr": 2.5
-    },
-    "long_only": false,
-    "return_pct": -0.08,
-    "sharpe_ratio": 0.04,
-    "win_rate": 22.4,
-    "total_trades": 49,
-    "profit_factor": 1.0,
-    "max_drawdown_pct": 10.5,
-    "expectancy": -0.17
-  },
-  {
-    "params": {
-      "pos_sl_atr": 2.5,
       "pos_min_rr": 2.0
     },
     "long_only": false,
@@ -264,6 +250,20 @@
     "profit_factor": 1.16,
     "max_drawdown_pct": 8.0,
     "expectancy": 4.93
+  },
+  {
+    "params": {
+      "pos_sl_atr": 2.5,
+      "pos_min_rr": 2.5
+    },
+    "long_only": false,
+    "return_pct": -0.08,
+    "sharpe_ratio": 0.04,
+    "win_rate": 22.4,
+    "total_trades": 49,
+    "profit_factor": 1.0,
+    "max_drawdown_pct": 10.5,
+    "expectancy": -0.17
   },
   {
     "params": {

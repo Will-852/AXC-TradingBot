@@ -848,6 +848,48 @@
     <span id="status-pill" class="status-pill status-idle">IDLE</span>
   </div>
 
+  <!-- Order Book + Trade Tape Panel (toggled by OB button) -->
+  <div id="ob-panel" style="display:none;position:fixed;top:80px;right:12px;width:520px;max-height:72vh;background:#131722;border:1px solid #2a2e39;border-radius:8px;z-index:100;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.5)">
+    <div style="display:flex;height:100%">
+      <!-- Left: Order Book -->
+      <div style="width:250px;border-right:1px solid #2a2e39;display:flex;flex-direction:column">
+        <div style="padding:5px 8px;background:#1e222d;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2e39">
+          <span style="font-size:.7rem;font-weight:600;color:#d1d4dc">Book</span>
+          <span id="ob-spread" style="font-size:.6rem;color:#787b86">Spread: --</span>
+        </div>
+        <div style="display:flex;padding:2px 8px;font-size:.58rem;color:#787b86">
+          <span style="flex:1">Price</span><span style="width:65px;text-align:right">Size</span>
+        </div>
+        <div id="ob-asks" style="flex:1;overflow-y:auto;display:flex;flex-direction:column-reverse;max-height:26vh"></div>
+        <div style="padding:3px 8px;background:#1e222d;text-align:center;font-size:.72rem;font-weight:600" id="ob-mid-price">--</div>
+        <div id="ob-bids" style="flex:1;overflow-y:auto;max-height:26vh"></div>
+        <div style="padding:3px 8px;background:#1e222d;display:flex;justify-content:space-between;font-size:.58rem;color:#787b86;border-top:1px solid #2a2e39">
+          <span>Bid: <span id="ob-bid-depth" style="color:#26a69a">--</span></span>
+          <span>Ask: <span id="ob-ask-depth" style="color:#ef5350">--</span></span>
+        </div>
+      </div>
+      <!-- Right: Trade Tape -->
+      <div style="width:270px;display:flex;flex-direction:column">
+        <div style="padding:4px 8px;background:#1e222d;border-bottom:1px solid #2a2e39;display:flex;align-items:center;gap:6px">
+          <span style="font-size:.7rem;font-weight:600;color:#d1d4dc">Trades</span>
+          <select id="trade-min-size" onchange="_tradeMinQty=parseFloat(this.value);_renderTradeTape()" style="background:#131722;color:#d1d4dc;border:1px solid #2a2e39;border-radius:3px;font-size:.6rem;padding:1px 4px;cursor:pointer">
+            <option value="0">All</option>
+            <option value="0.01">&gt;0.01</option>
+            <option value="0.05">&gt;0.05</option>
+            <option value="0.1" selected>&gt;0.1</option>
+            <option value="0.5">&gt;0.5</option>
+            <option value="1">&gt;1 BTC</option>
+            <option value="5">&gt;5 BTC</option>
+          </select>
+        </div>
+        <div style="display:flex;padding:2px 8px;font-size:.58rem;color:#787b86">
+          <span style="flex:1">Price</span><span style="width:70px;text-align:right">Size</span><span style="width:50px;text-align:right">Time</span>
+        </div>
+        <div id="ob-trade-tape" style="flex:1;overflow-y:auto;max-height:62vh"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- File location help panel -->
   <div id="file-help" style="display:none;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:14px 18px;margin:8px 0;font-size:.78rem;color:#d1d4dc;line-height:1.7">
     <div style="font-weight:600;margin-bottom:8px;color:#fff"><i class="fas fa-folder"></i> 文件位置同格式說明</div>
@@ -1527,7 +1569,10 @@ function initChart() {
         }
       },
       indicator: {
-        tooltip: { text: { color: '#d1d4dc' } }
+        tooltip: { text: { color: '#d1d4dc' } },
+        bars: [
+          { upColor: 'rgba(38,166,154,0.5)', downColor: 'rgba(239,83,80,0.5)' }
+        ]
       },
       xAxis: {
         axisLine: { color: '#2a2e39' },
@@ -1842,10 +1887,16 @@ function toggleFpMode() {
     btn.textContent = fpMode === 'block' ? 'Blk' : 'Bbl';
     btn.classList.toggle('active-bubble', fpMode === 'bubble');
   }
-  // Re-render heatmap if active
-  if (fpActive.heatmap && fpFetched && mainChart) {
-    removeIndicatorFromChart('AXC_HEATMAP');
-    addIndicatorToChart('AXC_HEATMAP');
+  // Re-render heatmap + VP if active (force repaint by remove/re-add)
+  if (mainChart && fpFetched) {
+    if (fpActive.heatmap) {
+      try { removeIndicatorFromChart('AXC_HEATMAP'); } catch(e) {}
+      addIndicatorToChart('AXC_HEATMAP');
+    }
+    if (fpActive.profile) {
+      try { removeIndicatorFromChart('AXC_VP'); } catch(e) {}
+      addIndicatorToChart('AXC_VP');
+    }
   }
 }
 
@@ -2124,6 +2175,7 @@ function registerBackendIndicators() {
   // POC = red highlight, Value Area = yellow band, HVN = horizontal supply/demand zones
   klinecharts.registerIndicator({
     name: 'AXC_VP',
+    shortName: '',
     figures: [],
     calc: function(dataList) { return dataList.map(function() { return {}; }); },
     draw: function(params) {
@@ -2137,7 +2189,7 @@ function registerBackendIndicators() {
       vp.forEach(function(v) { if (v && v.total_vol > maxVol) maxVol = v.total_vol; });
       if (maxVol === 0) return false;
 
-      var maxBarWidth = bounding.width * 0.28;  // wider bars for visibility
+      var maxBarWidth = bounding.width * 0.15;  // narrower to not block candles
       var bucketSize = vp.length > 1 ? Math.abs(vp[1].price - vp[0].price) : 50;
 
       // Find POC (Point of Control = highest volume level)
@@ -2195,7 +2247,7 @@ function registerBackendIndicators() {
         var sellW = (v.sell_vol / maxVol) * maxBarWidth;
         var totalW = buyW + sellW;
         var isInVA = (i >= vaLow && i <= vaHigh);
-        var alphaBase = isInVA ? 0.65 : 0.35;
+        var alphaBase = isInVA ? 0.45 : 0.20;
 
         // Left-side: sell (yellow) first, then buy (blue) stacked right
         var xStart = bounding.left + 2;
@@ -2248,19 +2300,21 @@ function registerBackendIndicators() {
         }
       });
 
-      // Legend
+      // Legend — offset below OHLCV crosshair area to avoid overlap
       ctx.font = '9px sans-serif';
-      var lx = bounding.left + 4, ly = bounding.top + 12;
-      ctx.fillStyle = 'rgba(66,133,244,0.8)';
+      var lx = bounding.left + 4, ly = bounding.top + 36;
+      ctx.fillStyle = 'rgba(66,133,244,0.6)';
       ctx.fillRect(lx, ly - 8, 8, 8);
+      ctx.fillStyle = 'rgba(66,133,244,0.8)';
       ctx.fillText('Buy', lx + 12, ly);
-      ctx.fillStyle = 'rgba(255,193,7,0.8)';
+      ctx.fillStyle = 'rgba(255,193,7,0.6)';
       ctx.fillRect(lx + 38, ly - 8, 8, 8);
+      ctx.fillStyle = 'rgba(255,193,7,0.8)';
       ctx.fillText('Sell', lx + 50, ly);
       ctx.fillStyle = 'rgba(239,83,80,0.7)';
       ctx.fillText('POC', lx + 80, ly);
       ctx.fillStyle = 'rgba(255,193,7,0.5)';
-      ctx.fillText('VA 70%', lx + 108, ly);
+      ctx.fillText('VA', lx + 108, ly);
 
       return false;  // don't suppress candles
     }
@@ -2271,6 +2325,7 @@ function registerBackendIndicators() {
   // Higher alpha + outlined blocks for visibility
   klinecharts.registerIndicator({
     name: 'AXC_HEATMAP',
+    shortName: '',
     figures: [],
     calc: function(dataList) { return dataList.map(function() { return {}; }); },
     draw: function(params) {
@@ -2566,6 +2621,38 @@ function loadKlines(symbol, days, cb, interval, errCb) {
         };
       }));
       currentInterval = interval;
+      // Add built-in VOL sub-pane (volume bars per kline, TradingView style)
+      if (!indicatorPaneIds['VOL']) {
+        try {
+          var volPaneId = mainChart.createIndicator('VOL', false, {
+            height: 80,
+            minHeight: 30,
+            dragEnabled: true,
+            gap: { top: 0.2, bottom: 0.1 }
+          });
+          if (volPaneId) {
+            indicatorPaneIds['VOL'] = volPaneId;
+            mainChart.overrideIndicator({
+              name: 'VOL',
+              calcParams: [5, 10, 20],
+              styles: {
+                bars: [{
+                  style: 'fill',
+                  borderSize: 0,
+                  upColor: 'rgba(38, 166, 154, 0.45)',
+                  downColor: 'rgba(239, 83, 80, 0.45)',
+                  noChangeColor: 'rgba(120, 123, 134, 0.35)'
+                }],
+                lines: [
+                  { style: 'solid', smooth: false, size: 1, color: '#FFAB40' },
+                  { style: 'solid', smooth: false, size: 1, color: '#AB47BC' },
+                  { style: 'dashed', smooth: false, size: 1, dashedValue: [3, 3], color: '#42A5F5' }
+                ]
+              }
+            }, volPaneId);
+          }
+        } catch(e) { console.warn('VOL indicator failed:', e); }
+      }
       setState('LOADED', {symbol: symbol, interval: interval});
       // Reset footprint data on chart reload (symbol/interval/days changed)
       resetFootprintData();
@@ -4159,12 +4246,15 @@ function toggleDepth() {
     btn.classList.remove('active');
     btn.style.opacity = '.5';
     document.getElementById('obi-bar').style.display = 'none';
+    document.getElementById('ob-panel').style.display = 'none';
+    _tradeTape = [];
     return;
   }
   if (!liveWs) { showToast('請先開 Live 模式', 'error'); return; }
   depthActive = true;
   btn.classList.add('active');
   btn.style.opacity = '1';
+  document.getElementById('ob-panel').style.display = 'block';
   startDepthWorker();
 }
 
@@ -4182,6 +4272,78 @@ function startDepthWorker() {
 function closeDepthWorker() {
   depthActive = false;
   if (depthWorker) { depthWorker.postMessage({ type: 'stop' }); depthWorker.terminate(); depthWorker = null; }
+}
+
+var _tradeTape = [];  // ring buffer of last 200 trades (filter applied on render)
+var _TRADE_TAPE_MAX = 200;
+var _tradeRenderPending = false;
+var _tradeMinQty = 0.1;  // default: only show trades > 0.1 BTC
+
+function _addTrade(trade) {
+  _tradeTape.unshift(trade);
+  if (_tradeTape.length > _TRADE_TAPE_MAX) _tradeTape.length = _TRADE_TAPE_MAX;
+  // Throttle rendering to 4fps max (avoids DOM thrashing from high-freq trades)
+  if (!_tradeRenderPending) {
+    _tradeRenderPending = true;
+    requestAnimationFrame(function() {
+      _renderTradeTape();
+      _tradeRenderPending = false;
+    });
+  }
+}
+
+function _renderTradeTape() {
+  var el = document.getElementById('ob-trade-tape');
+  // Filter by min size
+  var filtered = _tradeTape.filter(function(t) { return t.qty >= _tradeMinQty; });
+  // Find max qty for bar scaling
+  var maxQty = 0;
+  for (var j = 0; j < filtered.length; j++) {
+    if (filtered[j].qty > maxQty) maxQty = filtered[j].qty;
+  }
+  var html = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var t = filtered[i];
+    var isBuy = t.isBuy;
+    var priceColor = isBuy ? '#26a69a' : '#ef5350';
+    var barColor = isBuy ? 'rgba(38,166,154,0.25)' : 'rgba(239,83,80,0.25)';
+    var pct = maxQty > 0 ? (t.qty / maxQty * 100) : 0;
+    var d = new Date(t.ts);
+    var time = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+    html += '<div style="display:flex;padding:1px 8px;font-size:.66rem;line-height:1.5;position:relative">' +
+      '<div style="position:absolute;top:0;right:0;width:' + pct + '%;height:100%;background:' + barColor + '"></div>' +
+      '<span style="flex:1;color:' + priceColor + ';position:relative;z-index:1">' + t.price.toFixed(1) + '</span>' +
+      '<span style="width:70px;text-align:right;color:#d1d4dc;position:relative;z-index:1">' + t.qty.toFixed(5) + '</span>' +
+      '<span style="width:50px;text-align:right;color:#787b86;position:relative;z-index:1">' + time + '</span></div>';
+  }
+  el.innerHTML = html;
+}
+
+function _renderOBRow(level, maxQty, side) {
+  var p = level.p, q = level.q;
+  var pct = maxQty > 0 ? (q / maxQty * 100) : 0;
+  var isBid = side === 'bid';
+  var barColor = isBid ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)';
+  var priceColor = isBid ? '#26a69a' : '#ef5350';
+  return '<div style="display:flex;padding:1px 8px;font-size:.66rem;position:relative;line-height:1.5">' +
+    '<div style="position:absolute;top:0;' + (isBid ? 'left' : 'right') + ':0;width:' + pct + '%;height:100%;background:' + barColor + '"></div>' +
+    '<span style="flex:1;color:' + priceColor + ';position:relative;z-index:1">' + p.toFixed(1) + '</span>' +
+    '<span style="width:65px;text-align:right;color:#d1d4dc;position:relative;z-index:1">' + q.toFixed(3) + '</span></div>';
+}
+
+function _renderOrderBook(msg) {
+  var bids = msg.bids || [], asks = msg.asks || [];
+  if (!bids.length && !asks.length) return;
+  var maxQty = 0;
+  bids.forEach(function(l) { if (l.q > maxQty) maxQty = l.q; });
+  asks.forEach(function(l) { if (l.q > maxQty) maxQty = l.q; });
+  document.getElementById('ob-bids').innerHTML = bids.map(function(l) { return _renderOBRow(l, maxQty, 'bid'); }).join('');
+  document.getElementById('ob-asks').innerHTML = asks.map(function(l) { return _renderOBRow(l, maxQty, 'ask'); }).join('');
+  var mid = msg.bestBid && msg.bestAsk ? ((msg.bestBid + msg.bestAsk) / 2) : 0;
+  document.getElementById('ob-mid-price').textContent = mid ? mid.toFixed(1) : '--';
+  document.getElementById('ob-spread').textContent = 'Spread: ' + (msg.spread || 0).toFixed(1);
+  document.getElementById('ob-bid-depth').textContent = (msg.bidDepth || 0).toFixed(1);
+  document.getElementById('ob-ask-depth').textContent = (msg.askDepth || 0).toFixed(1);
 }
 
 function handleDepthMessage(evt) {
@@ -4204,8 +4366,12 @@ function handleDepthMessage(evt) {
       fill.style.background = 'rgba(239,83,80,' + (0.3 + Math.abs(obi) * 0.5) + ')';
     }
     text.textContent = 'OBI ' + obi.toFixed(2);
+    _renderOrderBook(msg);
+  } else if (msg.type === 'trade') {
+    _addTrade(msg);
   } else if (msg.type === 'spoof') {
-    showToast('Spoof detected: ' + msg.side + ' ' + msg.qty + ' @ ' + msg.price + ' (' + msg.lifetime_ms + 'ms)', 'warning');
+    // Log only — no popup toast
+    console.log('[Spoof]', msg.side, msg.qty, '@', msg.price, '(' + msg.lifetime_ms + 'ms)');
   }
 }
 

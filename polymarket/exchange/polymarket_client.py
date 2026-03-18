@@ -93,10 +93,12 @@ class PolymarketClient:
         """Initialize ClobClient: L1 → derive creds → L2."""
         try:
             # Start as L1 (can sign orders)
+            # signature_type=1 (POLY_PROXY) — Polymarket UI 開嘅帳戶用 proxy wallet
             self.client = ClobClient(
                 CLOB_HOST,
                 chain_id=CHAIN_ID,
                 key=self.private_key,
+                signature_type=1,
             )
 
             # Try loading cached API creds

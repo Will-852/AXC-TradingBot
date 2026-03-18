@@ -10,9 +10,11 @@ fetch_agg_trades.py — Binance aggTrades 拉取 + 四個聚合函數
 - Vectorized pandas operations，唔 row-by-row iterate
 """
 
+import io
 import logging
 import os
 import time
+import zipfile
 from datetime import datetime, timezone, timedelta
 
 import numpy as np
@@ -25,6 +27,7 @@ AXC_HOME = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading
 AGG_DATA_DIR = os.path.join(AXC_HOME, "backtest", "data", "aggtrades")
 
 BINANCE_FAPI = "https://fapi.binance.com"
+BINANCE_DATA_VISION = "https://data.binance.vision"
 
 # BTC 高 volume 時段一小時可能超過 1000 trades per request
 # 所以用 30-min windows 而唔係 1-hour windows
@@ -47,6 +50,58 @@ def _cache_path(symbol: str, day_str: str) -> str:
     return os.path.join(AGG_DATA_DIR, f"{symbol}_{day_str}_agg.csv")
 
 
+def _try_data_vision_download(symbol: str, day: datetime) -> pd.DataFrame | None:
+    """Try downloading aggTrades from data.binance.vision (CDN, no rate limit).
+
+    設計決定：Binance 提供歷史 aggTrades 做 ZIP 下載，走 CDN 唔受 API rate limit。
+    通常 T+1 available（今日數據聽日先有）。比 API 快 100x+ for historical data。
+    """
+    date_str = day.strftime("%Y-%m-%d")
+    url = (
+        f"{BINANCE_DATA_VISION}/data/futures/um/daily/aggTrades/"
+        f"{symbol}/{symbol}-aggTrades-{date_str}.zip"
+    )
+
+    try:
+        resp = requests.get(url, timeout=120, stream=True)
+        if resp.status_code == 404:
+            log.debug("Data Vision: %s %s not available yet", symbol, date_str)
+            return None
+        resp.raise_for_status()
+
+        buf = io.BytesIO(resp.content)
+        with zipfile.ZipFile(buf) as zf:
+            csv_name = zf.namelist()[0]
+            with zf.open(csv_name) as f:
+                df = pd.read_csv(f, dtype={
+                    "agg_trade_id": np.int64,
+                    "price": np.float64,
+                    "quantity": np.float64,
+                    "transact_time": np.int64,
+                    "is_buyer_maker": str,
+                })
+
+        # Rename to match API schema used throughout codebase
+        df = df.rename(columns={
+            "agg_trade_id": "agg_id",
+            "quantity": "qty",
+            "transact_time": "timestamp",
+        })
+        df = df[["agg_id", "price", "qty", "timestamp", "is_buyer_maker"]]
+        # Data Vision CSV: is_buyer_maker is lowercase "true"/"false" string
+        df["is_buyer_maker"] = df["is_buyer_maker"].str.strip().str.lower() == "true"
+
+        log.info("Data Vision: downloaded %d trades for %s %s", len(df), symbol, date_str)
+        return df
+
+    except requests.RequestException as e:
+        log.debug("Data Vision download failed for %s %s: %s", symbol, date_str, e)
+        return None
+    except (zipfile.BadZipFile, KeyError, IndexError) as e:
+        log.warning("Data Vision ZIP corrupt for %s %s: %s", symbol, date_str, e)
+        return None
+
+
 def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
     """
     拉取指定日期嘅 aggTrades，自動分頁 + CSV cache。
@@ -66,6 +121,16 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
         log.info("AggTrades cache hit: %s (%d trades)", os.path.basename(cache), len(df))
         return df
 
+    # Try Binance Data Vision first (CDN bulk ZIP, zero rate limit, ~10s per day)
+    if day_str != today_str:
+        dv_df = _try_data_vision_download(symbol, day)
+        if dv_df is not None and not dv_df.empty:
+            dv_df = dv_df.drop_duplicates(subset=["agg_id"]).reset_index(drop=True)
+            dv_df.to_csv(cache, index=False)
+            log.info("Cached %d aggTrades (Data Vision) → %s", len(dv_df), os.path.basename(cache))
+            return dv_df
+
+    # Fallback: API paginated fetch (slow, rate-limited)
     # Day boundaries in UTC
     day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
     start_ms = int(day_start.timestamp() * 1000)

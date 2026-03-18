@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-cvd_backtest.py — CVD Divergence Backtest for BTC 5-min Up/Down
+cvd_backtest.py — CVD Divergence Backtest for BTC 15-min Up/Down
 
 設計決定：
 - 用 Binance aggTrades 計 CVD，1m klines 做 price reference
-- Ground truth: 5-min close > open = UP
+- Ground truth: 15-min candle close > open = UP（對齊 Polymarket crypto_15m 市場）
+- 5m klines 做 leading indicator（更短 timeframe 嘅 signal 預測 15m 方向）
 - 三個 model 對比：Indicator-only, CVD-only, Combined
 - Brier score 為主要指標（0.25 = random baseline，越低越好）
 - funding/sentiment 歷史冇數據 → neutral fallback
-- Look-ahead 防護：CVD/price reference 用 candle open 前一分鐘 (ref_ts = ts - 60s)
+- Look-ahead 防護：CVD ref 用 15m candle open 前一分鐘；5m indicator 用最後完成嘅 5m candle
 - Dollar imbalance 用前一個完成嘅 5m candle，唔係當前（未完成）
 
 用法:
@@ -250,34 +251,52 @@ def run_backtest(days: int = 14) -> dict:
     signal_types = {"BULLISH_DIV": {"c": 0, "t": 0}, "BEARISH_DIV": {"c": 0, "t": 0}}
     edge_buckets = {label: {"c": 0, "t": 0} for _, _, label in EDGE_BUCKETS}
 
-    warmup = 26  # EMA-26 needs 26 candles
-    for i in range(warmup, len(klines_5m)):
-        row = klines_5m.iloc[i]
-        actual = 1.0 if float(row["close"]) > float(row["open"]) else 0.0
-        ts = int(row["open_time"])
+    # Build 5m open_time → indicator index mapping (for look-up from 15m loop)
+    ts_5m_arr = klines_5m["open_time"].astype(int).values
+    ts_to_5m_idx = {int(t): i for i, t in enumerate(ts_5m_arr)}
+    warmup_5m = 26  # EMA-26 needs 26 × 5m candles of history
 
-        # ── Model A: Indicator-only ──
-        ind = ind_list[i]
+    skipped = 0
+    for i in range(len(klines_15m)):
+        row = klines_15m.iloc[i]
+        actual = 1.0 if float(row["close"]) > float(row["open"]) else 0.0
+        ts_15 = int(row["open_time"])
+
+        # Find last COMPLETED 5m candle before this 15m candle opens
+        # 5m candle at (ts_15 - 5min) closes exactly at ts_15
+        last_5m_ts = ts_15 - FIVE_MIN_MS
+        idx_5m = ts_to_5m_idx.get(last_5m_ts)
+        if idx_5m is None or idx_5m < warmup_5m:
+            skipped += 1
+            continue
+
+        # ── Model A: Indicator-only (5m leading indicator for 15m direction) ──
+        ind = ind_list[idx_5m]
         p_ind = _score_direction(ind, btc_ctx_neutral)[0] if ind["rsi"] is not None else 0.5
 
         # ── Model B: CVD-only ──
-        # ref_ts = 1 minute BEFORE candle open (avoid look-ahead)
-        ref_ts = ts - ONE_MIN_MS
+        # ref_ts = 1 minute BEFORE 15m candle open (avoid look-ahead)
+        ref_ts = ts_15 - ONE_MIN_MS
         div_result = detect_cvd_divergence(price_by_ts, cvd_by_ts, ref_ts)
-        # Dollar imbalance from PREVIOUS completed 5m candle
-        imbalance = compute_dollar_imbalance(dv_5m, dv_15m, ts - FIVE_MIN_MS)
+        # Dollar imbalance from last completed 5m candle
+        imbalance = compute_dollar_imbalance(dv_5m, dv_15m, last_5m_ts)
         p_cvd = cvd_to_prob(div_result, imbalance)
 
         # ── Model C: Combined ──
         p_comb = max(0.15, min(0.85, W_INDICATOR * p_ind + W_CVD * p_cvd))
 
         # ── Record metrics ──
+        # p == 0.5 = no directional call → skip accuracy (still count Brier)
         for name, p in [("indicator", p_ind), ("cvd", p_cvd), ("combined", p_comb)]:
             m = models[name]
             m["total"] += 1
             m["brier"] += (p - actual) ** 2
-            if (p > 0.5 and actual == 1.0) or (p < 0.5 and actual == 0.0):
+            if p > 0.5 and actual == 1.0:
                 m["correct"] += 1
+            elif p < 0.5 and actual == 0.0:
+                m["correct"] += 1
+            elif p == 0.5:
+                m["neutral"] = m.get("neutral", 0) + 1
 
         # CVD signal-only (skip no-signal candles for dedicated accuracy)
         if p_cvd != 0.5:
@@ -294,22 +313,27 @@ def run_backtest(days: int = 14) -> dict:
         for lo_b, hi_b, label in EDGE_BUCKETS:
             if lo_b <= edge < hi_b:
                 edge_buckets[label]["t"] += 1
-                if (p_cvd > 0.5 and actual == 1.0) or (p_cvd < 0.5 and actual == 0.0):
+                if p_cvd != 0.5 and ((p_cvd > 0.5 and actual == 1.0) or (p_cvd < 0.5 and actual == 0.0)):
                     edge_buckets[label]["c"] += 1
                 break
+
+    if skipped:
+        print(f"  (skipped {skipped} 15m candles — warmup / alignment)")
 
     # ── 5. Report ──
     print("\n[5/5] Results")
     print("=" * 65)
 
-    print(f"\n{'Model':<15} {'Accuracy':>10} {'Brier':>10} {'N':>8}")
-    print("-" * 45)
+    print(f"\n{'Model':<15} {'Accuracy':>10} {'Brier':>10} {'N':>8} {'Neutral':>8}")
+    print("-" * 55)
     for name in ["indicator", "cvd", "combined"]:
         m = models[name]
         n = m["total"]
-        acc = m["correct"] / n if n else 0
+        neutral = m.get("neutral", 0)
+        directional = n - neutral
+        acc = m["correct"] / directional if directional else 0
         brier = m["brier"] / n if n else 0
-        print(f"  {name:<13} {acc:>9.1%} {brier:>10.4f} {n:>8}")
+        print(f"  {name:<13} {acc:>9.1%} {brier:>10.4f} {n:>8} {neutral:>8}")
     print(f"  {'random':<13} {'50.0%':>10} {'0.2500':>10}")
 
     # CVD signal-only
@@ -350,12 +374,14 @@ def run_backtest(days: int = 14) -> dict:
         "period": f"{start_dt:%Y-%m-%d} → {end_dt:%Y-%m-%d}",
         "days": days,
         "symbol": SYMBOL,
+        "timeframe": "15m ground truth, 5m leading indicators",
         "models": {
             name: {
-                "accuracy": m["correct"] / m["total"] if m["total"] else 0,
+                "accuracy": m["correct"] / max(1, m["total"] - m.get("neutral", 0)),
                 "brier_score": m["brier"] / m["total"] if m["total"] else 0,
                 "total": m["total"],
                 "correct": m["correct"],
+                "neutral": m.get("neutral", 0),
             }
             for name, m in models.items()
         },

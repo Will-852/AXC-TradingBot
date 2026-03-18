@@ -21,6 +21,12 @@ from ..config.settings import (
     LOSS_CUT_PCT,
     MIN_DAYS_TO_RESOLUTION,
 )
+
+# Token price take-profit — 達到就走，唔等 resolution
+try:
+    from ..config.settings import TAKE_PROFIT_TOKEN_PRICE
+except ImportError:
+    TAKE_PROFIT_TOKEN_PRICE = 0.93
 from ..core.context import PolyPosition
 
 logger = logging.getLogger(__name__)
@@ -102,7 +108,18 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
         except (ValueError, TypeError):
             pass
 
-    # ─── 3. Profit Taking ───
+    # ─── 3a. Token Price Take Profit ───
+    # 買入嘅 token 市價去到 93%+ → 鎖定利潤，唔等 resolution
+    current_token_price = pos.current_price if pos.current_price > 0 else 0.0
+    if current_token_price >= TAKE_PROFIT_TOKEN_PRICE:
+        signal.reasons.append(
+            f"Token price {current_token_price:.2f} ≥ {TAKE_PROFIT_TOKEN_PRICE:.2f} — lock profit"
+        )
+        signal.urgency = "high"
+        signal.action = "exit"
+        return signal  # immediate exit, no further checks
+
+    # ─── 3b. Profit Taking (PnL %) ───
     if pos.unrealized_pnl_pct > PROFIT_TAKE_PCT:
         signal.reasons.append(f"Profit {pos.unrealized_pnl_pct:.1%} > {PROFIT_TAKE_PCT:.1%}")
         signal.urgency = "low"

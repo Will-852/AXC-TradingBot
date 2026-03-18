@@ -20,3 +20,101 @@
     [10/30] 1259s elapsed, ~2519s ETA
     [11/30] 1261s elapsed, ~2179s ETA
     [12/30] 1263s elapsed, ~1895s ETA
+    [13/30] 1678s elapsed, ~2194s ETA
+    [14/30] 1680s elapsed, ~1920s ETA
+    [15/30] 1682s elapsed, ~1682s ETA
+    [16/30] 1684s elapsed, ~1473s ETA
+    [17/30] 2092s elapsed, ~1600s ETA
+    [18/30] 2094s elapsed, ~1396s ETA
+    [19/30] 2096s elapsed, ~1214s ETA
+    [20/30] 2098s elapsed, ~1049s ETA
+    [21/30] 2513s elapsed, ~1077s ETA
+    [22/30] 2516s elapsed, ~915s ETA
+    [23/30] 2518s elapsed, ~766s ETA
+    [24/30] 2520s elapsed, ~630s ETA
+    [25/30] 2928s elapsed, ~586s ETA
+    [26/30] 2932s elapsed, ~451s ETA
+    [27/30] 2935s elapsed, ~326s ETA
+    [28/30] 2937s elapsed, ~210s ETA
+    [29/30] 3344s elapsed, ~115s ETA
+    [30/30] 3348s elapsed, ~0s ETA
+  Sweep complete: 3348.7s total
+  Results JSON → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr.json
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_return_pct.png
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_sharpe_ratio.png
+
+  Top-10 Parameter Combos (by return):
+    #    pos_sl_atr    pos_min_rr    Return   Sharpe  Trades     WR     PF     MDD
+  ───────────────────────────────────────────────────────────────────────────
+    1           2.0           2.5   +15.07%     0.64     171  29.8%   1.25    8.6%
+    2           2.5           3.0    +7.95%     0.42      75  28.0%   1.31   14.2%
+    3           2.0           3.0    +7.94%     0.40      83  25.3%   1.23    9.5%
+    4           2.5           2.0    +4.68%     0.31      95  28.4%   1.16    8.0%
+    5           3.0           1.5    -0.06%     0.03      50  28.0%   1.00    7.6%
+    6           2.5           2.5    -0.08%     0.04      49  22.4%   1.00   10.5%
+    7           3.0           1.0    -0.21%     0.01      35  40.0%   0.98    7.6%
+    8           3.0           2.0    -0.22%     0.02      49  24.5%   0.99    6.4%
+    9           2.0           1.5    -0.25%     0.02      59  28.8%   0.99    8.6%
+   10           3.0           3.0    -0.55%     0.02      38  21.1%   0.97   15.5%
+
+  Diagnosis:
+  4/30 (13%) positive — Narrow edge region.
+
+════════════════════════════════════════════════════════════
+  Walk-Forward Validation
+  Train: start → 2025-06-01
+  Test:  2025-06-01 → end
+════════════════════════════════════════════════════════════
+
+[Train] Sweeping 30 combos...
+  Sweep: 30 combos, 4 workers, range None → 2025-06-01
+    [1/30] 249s elapsed, ~7209s ETA
+    [2/30] 249s elapsed, ~3487s ETA
+    [3/30] 250s elapsed, ~2252s ETA
+    [4/30] 251s elapsed, ~1629s ETA
+    [5/30] 500s elapsed, ~2501s ETA
+    [6/30] 502s elapsed, ~2007s ETA
+    [7/30] 502s elapsed, ~1651s ETA
+    [8/30] 504s elapsed, ~1386s ETA
+    [9/30] 756s elapsed, ~1763s ETA
+    [10/30] 757s elapsed, ~1513s ETA
+    [11/30] 759s elapsed, ~1311s ETA
+    [12/30] 761s elapsed, ~1142s ETA
+    [13/30] 1013s elapsed, ~1324s ETA
+    [14/30] 1015s elapsed, ~1160s ETA
+    [15/30] 1017s elapsed, ~1017s ETA
+    [16/30] 1019s elapsed, ~892s ETA
+    [17/30] 1268s elapsed, ~970s ETA
+    [18/30] 1271s elapsed, ~847s ETA
+    [19/30] 1273s elapsed, ~737s ETA
+    [20/30] 1275s elapsed, ~638s ETA
+    [21/30] 1516s elapsed, ~650s ETA
+    [22/30] 1519s elapsed, ~552s ETA
+    [23/30] 1523s elapsed, ~464s ETA
+    [24/30] 1525s elapsed, ~381s ETA
+    [25/30] 1764s elapsed, ~353s ETA
+    [26/30] 1766s elapsed, ~272s ETA
+    [27/30] 1771s elapsed, ~197s ETA
+    [28/30] 1773s elapsed, ~127s ETA
+    [29/30] 2006s elapsed, ~69s ETA
+    [30/30] 2009s elapsed, ~0s ETA
+  Sweep complete: 2009.0s total
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_return_pct_train.png
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_sharpe_ratio_train.png
+
+  Top-3 on train period:
+  Rank    pos_sl_atr    pos_min_rr    Return   Sharpe  Trades     WR
+  ────────────────────────────────────────────────────────────
+     1           2.0           2.5   +15.07%     0.83     171  29.8%
+     2           2.5           3.0    +7.95%     0.55      75  28.0%
+     3           2.0           3.0    +7.94%     0.52      83  25.3%
+
+[Test] Running top-3 combos on test period (2025-06-01 → end)...
+  Rank    pos_sl_atr    pos_min_rr     Train      Test  Trades  Overfit?
+  ──────────────────────────────────────────────────────────────────────
+Model is not converging.  Current: -2291.3897851182514 is not greater than -2291.3894129982978. Delta is -0.00037211995368124917
+     1           2.0           2.5   +15.07%   -20.94%      31       YES
+Model is not converging.  Current: -2291.3897851182514 is not greater than -2291.3894129982978. Delta is -0.00037211995368124917
+     2           2.5           3.0    +7.95%   -14.98%      31       YES
+Model is not converging.  Current: -2291.3897851182514 is not greater than -2291.3894129982978. Delta is -0.00037211995368124917
+     3           2.0           3.0    +7.94%   -20.17%      32       YES

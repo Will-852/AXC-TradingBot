@@ -148,6 +148,9 @@ function flush() {
     obi_l10: Math.round(calcOBI(bidL10, askL10) * 10000) / 10000,
     bidDepth: Math.round(bidDepth * 1000) / 1000,
     askDepth: Math.round(askDepth * 1000) / 1000,
+    // Raw levels for order book display (top 20 each side)
+    bids: currentBids.slice(0, 20).map(function(l) { return { p: l[0], q: l[1] }; }),
+    asks: currentAsks.slice(0, 20).map(function(l) { return { p: l[0], q: l[1] }; }),
     ts: lastUpdateTs
   });
 }
@@ -159,7 +162,8 @@ function connect() {
     ws = null;
   }
 
-  var url = 'wss://fstream.binance.com/ws/' + symbol.toLowerCase() + '@depth20@100ms';
+  var sym = symbol.toLowerCase();
+  var url = 'wss://fstream.binance.com/stream?streams=' + sym + '@depth20@100ms/' + sym + '@aggTrade';
   self.postMessage({ type: 'status', status: 'reconnecting' });
 
   try {
@@ -176,9 +180,21 @@ function connect() {
 
   ws.onmessage = function (evt) {
     try {
-      var msg = JSON.parse(evt.data);
+      var wrapper = JSON.parse(evt.data);
+      var msg = wrapper.data || wrapper;
+      // Depth message
       if (msg.b && msg.a) {
         processDepth(msg);
+      }
+      // AggTrade message
+      if (msg.e === 'aggTrade') {
+        self.postMessage({
+          type: 'trade',
+          price: parseFloat(msg.p),
+          qty: parseFloat(msg.q),
+          isBuy: !msg.m,  // m=true means buyer is maker = sell aggressor
+          ts: msg.T
+        });
       }
     } catch (e) {
       // Parse error — skip malformed message
