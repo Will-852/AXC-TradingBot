@@ -39,7 +39,11 @@ from scripts.dashboard.paper_trading import (
     handle_paper_trading_status, handle_paper_trading_start,
     handle_paper_trading_stop,
 )
-from scripts.dashboard.polymarket import handle_polymarket_data, handle_polymarket_set_mode
+from scripts.dashboard.polymarket import (
+    handle_polymarket_data, handle_polymarket_set_mode,
+    handle_polymarket_force_scan, handle_polymarket_reset_cb,
+    handle_polymarket_check_merge,
+)
 from scripts.dashboard.files import (
     handle_file_read, handle_open_folder, get_docs_list, serve_doc,
     generate_share_package,
@@ -371,6 +375,15 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif self.path == "/api/polymarket/set_mode":
             code, data = handle_polymarket_set_mode(body)
+            self._json_response(code, data)
+        elif self.path == "/api/polymarket/force_scan":
+            code, data = handle_polymarket_force_scan(body)
+            self._json_response(code, data)
+        elif self.path == "/api/polymarket/reset_cb":
+            code, data = handle_polymarket_reset_cb(body)
+            self._json_response(code, data)
+        elif self.path == "/api/polymarket/check_merge":
+            code, data = handle_polymarket_check_merge(body)
             self._json_response(code, data)
         elif self.path == "/api/service/restart":
             data = handle_service_restart(body)
