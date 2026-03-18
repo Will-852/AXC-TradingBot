@@ -18,6 +18,7 @@ import time
 log = logging.getLogger(__name__)
 
 # ── Pipeline cycle background runner ────────────────────────────────
+_cycle_lock = threading.Lock()  # protects check+start atomicity
 _cycle_status = {
     "running": False,
     "last_result": None,
@@ -25,6 +26,10 @@ _cycle_status = {
     "last_run": 0,
     "last_duration": 0,
 }
+
+# ── Force scan mutex ────────────────────────────────────────────────
+_scan_lock = threading.Lock()
+_scan_running = False
 
 # ── Calibration cache (30 min) ──────────────────────────────────────
 _cal_cache: dict | None = None
@@ -59,9 +64,16 @@ def _get_calibration() -> dict:
     return result
 
 
+_CB_SERVICES = ["polymarket", "gamma", "claude", "binance"]
+
+
 def _get_circuit_breaker_statuses() -> list[dict]:
-    """Get 3-state circuit breaker statuses for all services."""
+    """Get 3-state circuit breaker statuses for all known services."""
     try:
+        from polymarket.risk.circuit_breaker import get_circuit_breaker
+        # Pre-init known services so panel is never empty
+        for svc in _CB_SERVICES:
+            get_circuit_breaker(svc)
         from polymarket.risk.circuit_breaker import all_statuses
         return all_statuses()
     except Exception as e:
@@ -99,9 +111,11 @@ def _get_strategy_breakdown(trades: list[dict]) -> dict:
 
 def _compute_pnl_series(trades: list[dict]) -> list[dict]:
     """Compute cumulative PnL time series from trade log."""
+    # Sort by timestamp to ensure correct cumulative order
+    sorted_trades = sorted(trades, key=lambda t: t.get("timestamp", ""))
     series = []
     cumulative = 0.0
-    for t in trades:
+    for t in sorted_trades:
         pnl = t.get("pnl")
         if pnl is not None:
             cumulative += pnl
@@ -184,6 +198,11 @@ def handle_polymarket_set_mode(body: str) -> tuple[int, dict]:
 
 def handle_polymarket_force_scan(body: str) -> tuple[int, dict]:
     """POST /api/polymarket/force_scan — run Gamma scan + arb detection."""
+    global _scan_running
+    with _scan_lock:
+        if _scan_running:
+            return 409, {"ok": False, "error": "掃描進行中"}
+        _scan_running = True
     try:
         from polymarket.exchange.gamma_client import GammaClient
         from polymarket.strategy.market_scanner import scan_markets
@@ -247,6 +266,8 @@ def handle_polymarket_force_scan(body: str) -> tuple[int, dict]:
     except Exception as e:
         log.error("force_scan error: %s", e)
         return 500, {"ok": False, "error": str(e)}
+    finally:
+        _scan_running = False
 
 
 def handle_polymarket_reset_cb(body: str) -> tuple[int, dict]:
@@ -334,7 +355,7 @@ def _run_cycle_bg():
     import sys
     from datetime import datetime
 
-    _cycle_status["running"] = True
+    # running=True already set by handle_polymarket_run_cycle (main thread)
     _cycle_status["last_error"] = None
     _cycle_status["last_result"] = None
     start = time.time()
@@ -434,8 +455,11 @@ def _run_cycle_bg():
 
 def handle_polymarket_run_cycle(body: str) -> tuple[int, dict]:
     """POST /api/polymarket/run_cycle — trigger full pipeline cycle."""
-    if _cycle_status["running"]:
-        return 409, {"ok": False, "error": "Pipeline 跑緊"}
+    with _cycle_lock:
+        if _cycle_status["running"]:
+            return 409, {"ok": False, "error": "Pipeline 跑緊"}
+        # Set running=True HERE (main thread) before bg thread starts
+        _cycle_status["running"] = True
 
     thread = threading.Thread(target=_run_cycle_bg, daemon=True)
     thread.start()

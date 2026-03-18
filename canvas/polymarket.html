@@ -3,234 +3,133 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AXC Polymarket — Command Center</title>
+<title>AXC 預測市場指揮台</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-/* ═══════════════════════════════════════════════════
-   AXC Polymarket Command Center
-   Design: Mission Control — dark command strip,
-   light sage workspace, teal accent system
-   ═══════════════════════════════════════════════════ */
-
 :root {
-  --bg: #eef2f0;
-  --card: #ffffff;
-  --card-hover: #fafcfb;
-  --text: #1a1a2e;
-  --text-2: #374151;
-  --muted: #6b7280;
-  --pos: #0d9488;
-  --neg: #e11d48;
-  --warn: #d97706;
-  --accent: #0d9488;
-  --accent2: #065f46;
-  --cmd-bg: #1e293b;
-  --cmd-text: #e2e8f0;
-  --border: #d1ddd9;
-  --border-light: #e8edeb;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --bg: #eef2f0; --card: #ffffff; --card-hover: #fafcfb;
+  --text: #1a1a2e; --text-2: #374151; --muted: #6b7280;
+  --pos: #0d9488; --neg: #e11d48; --warn: #d97706;
+  --accent: #0d9488; --accent2: #065f46;
+  --cmd-bg: #1e293b; --cmd-text: #e2e8f0;
+  --border: #d1ddd9; --border-light: #e8edeb;
+  --paper-bg: #fffbeb; --live-bg: #f0fdf4;
+  --radius: 10px; --radius-sm: 6px;
   --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
   --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   --transition: 0.2s ease;
 }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; -webkit-font-smoothing:antialiased; }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; }
+/* ── Command Bar ── */
+.cmd-bar { background:var(--cmd-bg); padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:52px; border-bottom:2px solid var(--accent); position:sticky; top:0; z-index:100; }
+.cmd-left { display:flex; align-items:center; gap:16px; }
+.cmd-back { color:rgba(255,255,255,0.5); text-decoration:none; font-size:13px; }
+.cmd-back:hover { color:#fff; }
+.cmd-title { color:#fff; font-size:16px; font-weight:600; }
+.cmd-title span { color:var(--accent); }
+.cmd-center { display:flex; align-items:center; gap:8px; }
+.cmd-btn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:var(--cmd-text); padding:6px 14px; border-radius:var(--radius-sm); font-family:var(--mono); font-size:12px; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
+.cmd-btn:hover { background:rgba(255,255,255,0.15); border-color:var(--accent); color:#fff; }
+.cmd-btn:active { transform:scale(0.97); }
+.cmd-btn.running { opacity:0.6; pointer-events:none; }
+.cmd-btn.primary { border-color:var(--accent); background:rgba(13,148,136,0.2); }
+.cmd-right { display:flex; align-items:center; gap:12px; }
+.cmd-status { display:flex; align-items:center; gap:6px; color:rgba(255,255,255,0.6); font-size:12px; font-family:var(--mono); }
+.pulse-dot { width:8px; height:8px; border-radius:50%; background:var(--pos); animation:pulse 2s ease-in-out infinite; }
+.pulse-dot.idle { background:var(--muted); animation:none; }
+.pulse-dot.error { background:var(--neg); }
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(13,148,136,0.4)} 50%{opacity:0.7;box-shadow:0 0 0 6px rgba(13,148,136,0)} }
+.badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; font-family:var(--mono); cursor:pointer; }
+.badge-live { background:#dcfce7; color:#166534; }
+.badge-dry { background:#fef3c7; color:#92400e; }
 
-/* ── Command Bar ────────────────────────────────── */
-.cmd-bar {
-  background: var(--cmd-bg);
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 52px;
-  border-bottom: 2px solid var(--accent);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.cmd-left { display: flex; align-items: center; gap: 16px; }
-.cmd-back { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; transition: color var(--transition); }
-.cmd-back:hover { color: #fff; }
-.cmd-title { color: #fff; font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
-.cmd-title span { color: var(--accent); }
+/* ── Tabs ── */
+.tab-bar { display:flex; gap:0; background:var(--card); border-bottom:2px solid var(--border-light); margin-bottom:16px; border-radius:var(--radius) var(--radius) 0 0; overflow:hidden; box-shadow:var(--shadow); }
+.tab { padding:12px 24px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all var(--transition); letter-spacing:0.3px; }
+.tab:hover { color:var(--text); background:#f8faf9; }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); background:#fff; }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
 
-.cmd-center { display: flex; align-items: center; gap: 8px; }
-.cmd-btn {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: var(--cmd-text);
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  font-family: var(--mono);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--transition);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.cmd-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--accent); color: #fff; }
-.cmd-btn:active { transform: scale(0.97); }
-.cmd-btn.running { opacity: 0.6; pointer-events: none; }
-.cmd-btn .icon { font-size: 11px; }
+/* ── Container + Layout ── */
+.container { max-width:1280px; margin:0 auto; padding:12px 24px 32px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:12px; }
+@media(max-width:768px) { .grid-2,.grid-2-1{grid-template-columns:1fr} }
 
-.cmd-right { display: flex; align-items: center; gap: 12px; }
-.cmd-status { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.6); font-size: 12px; font-family: var(--mono); }
+/* ── KPI ── */
+.kpi-row { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:12px; }
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.kpi { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:12px 14px; border-top:3px solid var(--border-light); transition:border-color var(--transition); }
+.kpi:hover { border-top-color:var(--accent); }
+.kpi .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; }
+.kpi .value { font-size:22px; font-weight:700; margin-top:4px; font-family:var(--mono); letter-spacing:-0.5px; }
+.kpi .sub { font-size:11px; color:var(--muted); margin-top:4px; }
+.risk-bar { height:5px; background:#e5e7eb; border-radius:3px; overflow:hidden; margin-top:6px; }
+.risk-bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease; }
 
-.pulse-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: var(--pos);
-  animation: pulse 2s ease-in-out infinite;
-}
-.pulse-dot.idle { background: var(--muted); animation: none; }
-.pulse-dot.error { background: var(--neg); }
+/* ── Cards ── */
+.card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden; }
+.card-header { padding:12px 16px; border-bottom:1px solid var(--border-light); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.card-header .tag { font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(13,148,136,0.1); color:var(--accent); font-weight:600; font-family:var(--mono); }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(13,148,136,0.4); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(13,148,136,0); }
-}
+/* ── Tables ── */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 12px; color:var(--muted); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid var(--border-light); background:#f8faf9; }
+td { padding:8px 12px; border-bottom:1px solid var(--border-light); }
+tr:last-child td { border-bottom:none; }
+tr:hover { background:var(--card-hover); }
+tr.paper-row { background:var(--paper-bg); }
+tr.live-row { background:var(--live-bg); }
+.pos{color:var(--pos)} .neg{color:var(--neg)} .warn{color:var(--warn)}
+.mono{font-family:var(--mono);font-size:12px;font-weight:500}
+.empty-state { padding:20px; text-align:center; color:var(--muted); font-size:13px; }
+.empty-state-sm { padding:12px; text-align:center; color:var(--muted); font-size:12px; }
 
-.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all var(--transition); }
-.badge-live { background: #dcfce7; color: #166534; }
-.badge-dry { background: #fef3c7; color: #92400e; }
+/* ── Paper watermark (banner style) ── */
+.paper-watermark { position:fixed; top:54px; left:0; right:0; z-index:50; font-family:var(--mono); font-size:12px; padding:6px 24px; background:linear-gradient(90deg,#fef3c7,#fffbeb,#fef3c7); color:#92400e; font-weight:600; letter-spacing:1px; pointer-events:none; text-align:center; border-bottom:1px solid #fde68a; }
 
-/* ── Container ──────────────────────────────────── */
-.container { max-width: 1280px; margin: 0 auto; padding: 16px 24px 48px; }
+/* ── Toast ── */
+.toast { position:fixed; bottom:24px; right:24px; z-index:200; background:var(--cmd-bg); color:#fff; padding:12px 20px; border-radius:var(--radius); font-size:13px; font-family:var(--mono); box-shadow:var(--shadow-md); transform:translateY(100px); opacity:0; transition:all 0.3s ease; border-left:3px solid var(--accent); }
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.error { border-left-color:var(--neg); }
 
-/* ── Notification Toast ─────────────────────────── */
-.toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 200;
-  background: var(--cmd-bg); color: #fff; padding: 12px 20px;
-  border-radius: var(--radius); font-size: 13px; font-family: var(--mono);
-  box-shadow: var(--shadow-md); transform: translateY(100px); opacity: 0;
-  transition: all 0.3s ease;
-  border-left: 3px solid var(--accent);
-}
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.error { border-left-color: var(--neg); }
+/* ── CB dots ── */
+.cb-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border-light); }
+.cb-row:last-child { border-bottom:none; }
+.cb-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.cb-dot.closed{background:var(--pos)} .cb-dot.open{background:var(--neg);animation:pulse 1.5s ease-in-out infinite} .cb-dot.half_open{background:var(--warn);animation:pulse 2s ease-in-out infinite}
 
-/* ── KPI Cards ──────────────────────────────────── */
-.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
-@media (max-width: 900px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 600px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+/* ── Strategy bars ── */
+.strat-row { display:flex; align-items:center; gap:10px; padding:6px 16px; }
+.strat-label { font-size:12px; width:90px; color:var(--text-2); font-weight:500; }
+.strat-bar-bg { flex:1; height:8px; background:#e8edeb; border-radius:4px; overflow:hidden; }
+.strat-bar-fill { height:100%; border-radius:4px; transition:width 0.4s ease; }
+.strat-count { font-family:var(--mono); font-size:12px; color:var(--muted); width:24px; text-align:right; }
 
-.kpi {
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 14px 16px;
-  border-top: 3px solid var(--border-light);
-  transition: border-color var(--transition);
-}
-.kpi:hover { border-top-color: var(--accent); }
-.kpi .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-.kpi .value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: var(--mono); letter-spacing: -0.5px; }
-.kpi .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+/* ── Chart ── */
+.chart-wrap { padding:16px; height:260px; position:relative; }
 
-.risk-bar { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-top: 6px; }
-.risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+/* ── Command Log ── */
+.cmd-log { max-height:100px; overflow-y:auto; padding:8px 16px; font-family:var(--mono); font-size:11px; background:#f8faf9; }
+.cmd-log-entry { padding:2px 0; color:var(--muted); }
+.cmd-log-entry .ts { color:var(--accent); }
 
-/* ── Cards ──────────────────────────────────────── */
-.card {
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.card-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
-  font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.card-header .tag {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(13,148,136,0.1);
-  color: var(--accent);
-  font-weight: 600;
-  font-family: var(--mono);
-}
+/* ── Help text ── */
+.help-text { font-size:12px; color:var(--muted); padding:8px 16px; line-height:1.5; }
 
-/* ── Tables ─────────────────────────────────────── */
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th {
-  text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
-  border-bottom: 1px solid var(--border-light); background: #f8faf9;
-}
-td { padding: 8px 12px; border-bottom: 1px solid var(--border-light); }
-tr:last-child td { border-bottom: none; }
-tr:hover { background: var(--card-hover); }
+/* ── Arb ── */
+.arb-opportunity { padding:12px 16px; border-bottom:1px solid var(--border-light); display:flex; align-items:center; gap:12px; }
+.arb-opportunity:last-child { border-bottom:none; }
+.arb-edge { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--pos); min-width:60px; }
 
-.pos { color: var(--pos); }
-.neg { color: var(--neg); }
-.warn { color: var(--warn); }
-.mono { font-family: var(--mono); font-size: 12px; font-weight: 500; }
-
-.empty-state { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
-
-/* ── Layout Grids ───────────────────────────────── */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
-@media (max-width: 768px) { .grid-2, .grid-2-1 { grid-template-columns: 1fr; } }
-
-/* ── Circuit Breaker ────────────────────────────── */
-.cb-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border-light); }
-.cb-row:last-child { border-bottom: none; }
-.cb-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.cb-dot.closed { background: var(--pos); }
-.cb-dot.open { background: var(--neg); animation: pulse 1.5s ease-in-out infinite; }
-.cb-dot.half_open { background: var(--warn); animation: pulse 2s ease-in-out infinite; }
-.cb-name { font-weight: 500; flex: 1; }
-.cb-state { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-
-/* ── Strategy Bars ──────────────────────────────── */
-.strat-row { display: flex; align-items: center; gap: 10px; padding: 6px 16px; }
-.strat-label { font-size: 12px; width: 90px; color: var(--text-2); font-weight: 500; }
-.strat-bar-bg { flex: 1; height: 8px; background: #e8edeb; border-radius: 4px; overflow: hidden; }
-.strat-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
-.strat-count { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 24px; text-align: right; }
-
-/* ── Chart ──────────────────────────────────────── */
-.chart-wrap { padding: 16px; height: 260px; position: relative; }
-
-/* ── Command Result Log ─────────────────────────── */
-.cmd-log { max-height: 120px; overflow-y: auto; padding: 8px 16px; font-family: var(--mono); font-size: 11px; background: #f8faf9; }
-.cmd-log-entry { padding: 3px 0; color: var(--muted); }
-.cmd-log-entry .ts { color: var(--accent); }
-.cmd-log-entry .result { color: var(--text-2); }
-
-/* ── Arb Card ───────────────────────────────────── */
-.arb-opportunity {
-  padding: 12px 16px; border-bottom: 1px solid var(--border-light);
-  display: flex; align-items: center; gap: 12px;
-}
-.arb-opportunity:last-child { border-bottom: none; }
-.arb-edge { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--pos); min-width: 60px; }
-.arb-detail { flex: 1; }
-.arb-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-
-/* ── Fade-in animation ──────────────────────────── */
-.fade-in { opacity: 0; transform: translateY(8px); animation: fadeIn 0.4s ease forwards; }
-@keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
-
-/* ── Error banner ───────────────────────────────── */
-#error-banner { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 16px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px; }
+#error-banner { display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:10px 16px; border-radius:var(--radius); margin-bottom:12px; font-size:13px; }
 </style>
 </head>
 <body>
@@ -239,20 +138,14 @@ tr:hover { background: var(--card-hover); }
 <div class="cmd-bar">
   <div class="cmd-left">
     <a href="/" class="cmd-back">&#8592; Dashboard</a>
-    <div class="cmd-title"><span>AXC</span> 預測市場指揮台</div>
+    <div class="cmd-title"><span>AXC</span> 預測市場</div>
   </div>
   <div class="cmd-center">
-    <button class="cmd-btn" onclick="cmdRunCycle(this)" title="跑完整 17-step pipeline（背景執行）" style="border-color:var(--accent)">
-      <span class="icon">&#9654;</span> 跑 Pipeline
+    <button class="cmd-btn primary" onclick="cmdRunCycle(this)" title="跑完整 pipeline（背景執行）">
+      &#9654; 跑 Pipeline
     </button>
-    <button class="cmd-btn" onclick="cmdForceScan(this)" title="掃描 Gamma API 市場 + 套利偵測">
-      <span class="icon">&#9670;</span> 掃描
-    </button>
-    <button class="cmd-btn" onclick="cmdResetCB(this)" title="重置所有斷路器">
-      <span class="icon">&#8635;</span> 重置 CB
-    </button>
-    <button class="cmd-btn" onclick="cmdCheckMerge(this)" title="檢查可合併嘅 YES+NO 持倉">
-      <span class="icon">&#9651;</span> 合併
+    <button class="cmd-btn" onclick="cmdForceScan(this)" title="掃描市場 + 偵測套利">
+      &#9670; 掃描
     </button>
   </div>
   <div class="cmd-right">
@@ -260,763 +153,375 @@ tr:hover { background: var(--card-hover); }
       <div class="pulse-dot idle" id="status-dot"></div>
       <span id="pipeline-status">idle</span>
     </div>
-    <span id="mode-badge" class="badge badge-dry" onclick="toggleMode()" title="Click to toggle DRY/LIVE">DRY RUN</span>
+    <span id="mode-badge" class="badge badge-dry" onclick="toggleMode()" title="撳切換 DRY/LIVE">DRY RUN</span>
     <span class="cmd-status" id="last-update">--:--</span>
   </div>
 </div>
 
-<!-- ═══ MAIN CONTENT ═══ -->
+<div id="paper-wm" class="paper-watermark" style="display:none">&#9888; PAPER MODE — 所有交易係模擬，冇真金白銀</div>
+
 <div class="container">
   <div id="error-banner"></div>
 
-  <!-- KPI Row -->
-  <div class="kpi-row fade-in" style="animation-delay:0.05s">
-    <div class="kpi">
-      <div class="label">結餘</div>
-      <div class="value" id="kpi-balance">$--</div>
+  <!-- ═══ TAB BAR ═══ -->
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('main')">主控</div>
+    <div class="tab" onclick="switchTab('weather')">天氣</div>
+    <div class="tab" onclick="switchTab('tools')">工具</div>
+    <div class="tab" onclick="switchTab('log')">記錄</div>
+  </div>
+
+  <!-- ═══ TAB: 主控 ═══ -->
+  <div id="tab-main" class="tab-panel active">
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">結餘</div><div class="value" id="kpi-balance">$--</div></div>
+      <div class="kpi"><div class="label">風險敞口</div><div class="value" id="kpi-exposure">--%</div><div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%"></div></div></div>
+      <div class="kpi"><div class="label">持倉</div><div class="value" id="kpi-positions">--</div></div>
+      <div class="kpi"><div class="label">日損益</div><div class="value" id="kpi-pnl">--</div></div>
+      <div class="kpi"><div class="label">已掃描</div><div class="value" id="kpi-scanned">--</div><div class="sub" id="kpi-scan-detail">--</div></div>
+      <div class="kpi"><div class="label">斷路器</div><div class="value pos" id="kpi-circuit">OFF</div></div>
     </div>
-    <div class="kpi">
-      <div class="label">風險敞口</div>
-      <div class="value" id="kpi-exposure">--%</div>
-      <div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%"></div></div>
+
+    <!-- 持倉 -->
+    <div class="card">
+      <div class="card-header">持倉 <span class="tag" id="positions-tag">0</span></div>
+      <div id="positions-body"><div class="empty-state-sm">冇持倉</div></div>
     </div>
-    <div class="kpi">
-      <div class="label">持倉</div>
-      <div class="value" id="kpi-positions">--</div>
+
+    <!-- 損益圖 + 信號來源 -->
+    <div class="grid-2-1">
+      <div class="card">
+        <div class="card-header">損益走勢 <span class="tag" id="pnl-tag">0</span></div>
+        <div id="pnl-empty" class="empty-state-sm">交易開始後會顯示損益走勢</div>
+        <div class="chart-wrap" id="pnl-wrap" style="display:none"><canvas id="pnl-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">信號來源</div>
+        <div id="strategy-body" style="padding:10px 0"><div class="empty-state-sm">冇交易數據</div></div>
+      </div>
     </div>
-    <div class="kpi">
-      <div class="label">日損益</div>
-      <div class="value" id="kpi-pnl">--</div>
-    </div>
-    <div class="kpi">
-      <div class="label">已掃描</div>
-      <div class="value" id="kpi-scanned">--</div>
-      <div class="sub" id="kpi-scan-detail">-- 過濾</div>
-    </div>
-    <div class="kpi">
-      <div class="label">斷路器</div>
-      <div class="value pos" id="kpi-circuit">OFF</div>
+
+    <!-- 交易紀錄 (paper vs live 用行色區分) -->
+    <div class="card">
+      <div class="card-header">交易紀錄 <span class="tag" id="trades-tag">0</span></div>
+      <div id="trades-body"><div class="empty-state">未有交易</div></div>
     </div>
   </div>
 
-  <!-- PnL Chart + Strategy/CB -->
-  <div class="grid-2-1 fade-in" style="animation-delay:0.1s">
+  <!-- ═══ TAB: 天氣 ═══ -->
+  <div id="tab-weather" class="tab-panel">
     <div class="card">
-      <div class="card-header">
-        損益走勢
-        <span class="tag" id="pnl-tag">0 trades</span>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="pnl-chart"></canvas>
-      </div>
+      <div class="card-header">天氣校準</div>
+      <div id="calibration-body"><div class="empty-state">冇天氣數據 — 跑 weather paper tracker 先</div></div>
     </div>
-    <div>
-      <!-- Strategy Distribution -->
-      <div class="card">
-        <div class="card-header">信號來源</div>
-        <div id="strategy-body" style="padding:10px 0">
-          <div class="empty-state">冇交易數據</div>
-        </div>
-      </div>
+  </div>
+
+  <!-- ═══ TAB: 工具 ═══ -->
+  <div id="tab-tools" class="tab-panel">
+    <!-- 市場掃描 -->
+    <div class="card">
+      <div class="card-header">市場掃描 <span class="tag" id="scanner-tag">--</span></div>
+      <div class="help-text">撳 command bar 嘅「&#9670; 掃描」掃描 Polymarket 所有匹配市場。結果顯示喺下面。</div>
+      <div id="scanner-body"><div class="empty-state">未掃描</div></div>
+    </div>
+
+    <!-- 邏輯套利 -->
+    <div class="card">
+      <div class="card-header">邏輯套利 <span class="tag" id="arb-tag">0</span></div>
+      <div class="help-text">偵測同一事件下嘅定價矛盾。NegRisk 事件嘅所有結果價格總和應該 ≈ 1.0，偏離 = 套利機會。掃描時自動偵測。</div>
+      <div id="arb-body"><div class="empty-state">未掃描</div></div>
+    </div>
+
+    <div class="grid-2">
       <!-- 斷路器 -->
       <div class="card">
         <div class="card-header">
           斷路器
           <span class="tag" id="cb-tag">--</span>
         </div>
-        <div id="cb-body">
-          <div class="empty-state">冇已註冊服務</div>
+        <div class="help-text">當外部 API（Polymarket、Gamma、Claude、Binance）連續失敗，斷路器會自動跳開，保護系統唔會一直重試。綠 = 正常，黃 = 恢復中，紅 = 斷開。</div>
+        <div id="cb-body"><div class="empty-state">冇已註冊服務</div></div>
+        <div style="padding:8px 16px;border-top:1px solid var(--border-light)">
+          <button class="cmd-btn" onclick="cmdResetCB(this)" style="font-size:11px;padding:4px 10px">&#8635; 全部重置</button>
+        </div>
+      </div>
+
+      <!-- 合併偵測 -->
+      <div class="card">
+        <div class="card-header">合併偵測 <span class="tag" id="merge-tag">--</span></div>
+        <div class="help-text">如果你同時持有同一個市場嘅 YES 同 NO token，可以合併返拎回 $1。呢個功能檢查有冇咁嘅情況。</div>
+        <div id="merge-body"><div class="empty-state">未檢查</div></div>
+        <div style="padding:8px 16px;border-top:1px solid var(--border-light)">
+          <button class="cmd-btn" onclick="cmdCheckMerge(this)" style="font-size:11px;padding:4px 10px">&#9651; 檢查合併</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- 持倉 -->
-  <div class="card fade-in" style="animation-delay:0.15s">
-    <div class="card-header">
-      持倉
-      <span class="tag" id="positions-tag">0</span>
-    </div>
-    <div id="positions-body">
-      <div class="empty-state">冇持倉</div>
-    </div>
-  </div>
-
-  <!-- Scanner + Arb Monitor -->
-  <div class="grid-2 fade-in" style="animation-delay:0.2s">
-    <div class="card">
-      <div class="card-header">
-        市場掃描
-        <span class="tag" id="scanner-tag">--</span>
-      </div>
-      <div id="scanner-body">
-        <div class="empty-state">撳 <strong>&#9670; 掃描</strong> 睇市場</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        邏輯套利
-        <span class="tag" id="arb-tag">0</span>
-      </div>
-      <div id="arb-body">
-        <div class="empty-state">撳 <strong>&#9670; 掃描</strong> 偵測套利</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Risk + Merge -->
-  <div class="grid-2 fade-in" style="animation-delay:0.25s">
+    <!-- 風險狀態 -->
     <div class="card">
       <div class="card-header">風險狀態</div>
-      <div id="risk-body">
-        <div class="empty-state pos">All clear</div>
-      </div>
+      <div id="risk-body"><div class="empty-state pos">&#10003; 正常</div></div>
     </div>
+  </div>
+
+  <!-- ═══ TAB: 記錄 ═══ -->
+  <div id="tab-log" class="tab-panel">
     <div class="card">
-      <div class="card-header">
-        合併偵測
-        <span class="tag" id="merge-tag">--</span>
-      </div>
-      <div id="merge-body">
-        <div class="empty-state">撳 <strong>&#9651; 合併</strong> 檢查</div>
+      <div class="card-header">指令記錄</div>
+      <div class="cmd-log" id="cmd-log" style="max-height:400px">
+        <div class="cmd-log-entry"><span class="ts">--:--:--</span> 系統就緒</div>
       </div>
     </div>
-  </div>
-
-  <!-- 指令記錄 -->
-  <div class="card fade-in" style="animation-delay:0.3s">
-    <div class="card-header">指令記錄</div>
-    <div class="cmd-log" id="cmd-log">
-      <div class="cmd-log-entry"><span class="ts">--:--:--</span> 系統就緒</div>
-    </div>
-  </div>
-
-  <!-- 近期交易 -->
-  <div class="card fade-in" style="animation-delay:0.35s">
-    <div class="card-header">
-      近期交易
-      <span class="tag" id="trades-tag">0</span>
-    </div>
-    <div id="trades-body">
-      <div class="empty-state">未有交易</div>
-    </div>
-  </div>
-
-  <!-- 天氣校準 -->
-  <div class="card fade-in" id="calibration-card" style="display:none;animation-delay:0.4s">
-    <div class="card-header">天氣校準</div>
-    <div id="calibration-body"></div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-/* ═══════════════════════════════════════════════════
-   AXC Polymarket Command Center — JavaScript
-   ═══════════════════════════════════════════════════ */
 const API = '/api/polymarket';
 const REFRESH_MS = 10000;
 
-// ── PnL Chart Setup ────────────────────────────────
+// ── Tab switching ──
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const panels = ['main','weather','tools','log'];
+    t.classList.toggle('active', panels[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── Chart ──
 let pnlChart = null;
 function initChart() {
   const ctx = document.getElementById('pnl-chart').getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-  gradient.addColorStop(0, 'rgba(13,148,136,0.25)');
-  gradient.addColorStop(1, 'rgba(13,148,136,0)');
-
+  const grad = ctx.createLinearGradient(0,0,0,240);
+  grad.addColorStop(0,'rgba(13,148,136,0.25)');
+  grad.addColorStop(1,'rgba(13,148,136,0)');
   pnlChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Cumulative PnL ($)',
-        data: [],
-        borderColor: '#0d9488',
-        backgroundColor: gradient,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointBackgroundColor: '#0d9488',
-        pointHoverRadius: 5,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1e293b',
-          titleFont: { family: "'JetBrains Mono'" },
-          bodyFont: { family: "'JetBrains Mono'", size: 12 },
-          callbacks: {
-            label: function(ctx) { return '$' + ctx.parsed.y.toFixed(2); }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: 'rgba(0,0,0,0.04)' },
-          ticks: { font: { family: "'JetBrains Mono'", size: 10 }, color: '#9ca3af', maxTicksLimit: 8 }
-        },
-        y: {
-          grid: { color: 'rgba(0,0,0,0.04)' },
-          ticks: {
-            font: { family: "'JetBrains Mono'", size: 10 }, color: '#9ca3af',
-            callback: v => '$' + v.toFixed(2)
-          }
-        }
-      },
-      interaction: { intersect: false, mode: 'index' },
-    }
+    type:'line',
+    data:{labels:[],datasets:[{label:'累計損益($)',data:[],borderColor:'#0d9488',backgroundColor:grad,borderWidth:2,fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#0d9488',pointHoverRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',bodyFont:{family:"'JetBrains Mono'",size:12},callbacks:{label:c=>'$'+c.parsed.y.toFixed(2)}}},
+      scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:10},color:'#9ca3af',maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:10},color:'#9ca3af',callback:v=>'$'+v.toFixed(2)}}},
+      interaction:{intersect:false,mode:'index'}}
   });
 }
-
 function updateChart(series) {
-  if (!pnlChart) return;
-  const labels = series.map(s => {
-    const ts = s.timestamp || '';
-    return ts.slice(11, 16) || ts.slice(0, 10);
-  });
-  const data = series.map(s => s.cumulative);
-  pnlChart.data.labels = labels;
-  pnlChart.data.datasets[0].data = data;
-
-  // Color based on PnL direction
-  const last = data.length ? data[data.length - 1] : 0;
-  pnlChart.data.datasets[0].borderColor = last >= 0 ? '#0d9488' : '#e11d48';
-  pnlChart.data.datasets[0].pointBackgroundColor = last >= 0 ? '#0d9488' : '#e11d48';
-
+  if(!pnlChart)return;
+  const wrap=document.getElementById('pnl-wrap'),empty=document.getElementById('pnl-empty');
+  if(!series.length){wrap.style.display='none';empty.style.display='';return}
+  wrap.style.display='';empty.style.display='none';
+  pnlChart.data.labels = series.map(s=>(s.timestamp||'').slice(11,16)||(s.timestamp||'').slice(0,10));
+  pnlChart.data.datasets[0].data = series.map(s=>s.cumulative);
+  const last = series.length ? series[series.length-1].cumulative : 0;
+  pnlChart.data.datasets[0].borderColor = last>=0?'#0d9488':'#e11d48';
+  pnlChart.data.datasets[0].pointBackgroundColor = last>=0?'#0d9488':'#e11d48';
   pnlChart.update('none');
-  document.getElementById('pnl-tag').textContent = series.length + ' events';
+  document.getElementById('pnl-tag').textContent = series.length + ' 筆';
 }
 
-// ── Toast Notification ─────────────────────────────
-function showToast(msg, isError) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => el.className = 'toast', 3000);
+// ── HTML Escape (XSS prevention for external strings) ──
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// ── Toast + Log ──
+function showToast(msg,err){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(err?' error':'');setTimeout(()=>el.className='toast',3000)}
+function logCmd(msg){const el=document.getElementById('cmd-log');const now=new Date().toTimeString().slice(0,8);const e=document.createElement('div');e.className='cmd-log-entry';const ts=document.createElement('span');ts.className='ts';ts.textContent=now;const r=document.createElement('span');r.textContent=' '+msg;e.appendChild(ts);e.appendChild(r);el.appendChild(e);el.scrollTop=el.scrollHeight;while(el.children.length>50)el.removeChild(el.firstChild)}
+
+// ── Fetch ──
+async function fetchData(){try{const r=await fetch(API+'/data?t='+Date.now());if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}catch(e){return null}}
+
+// ── Render: KPIs ──
+function renderKPIs(D){
+  const bal=D.usdc_balance||0,exp=D.exposure_pct||0,pnl=D.daily_pnl_pct||0,scan=D.last_scan||{};
+  document.getElementById('kpi-balance').textContent='$'+bal.toLocaleString(undefined,{maximumFractionDigits:0});
+  document.getElementById('kpi-exposure').textContent=(exp*100).toFixed(1)+'%';
+  document.getElementById('kpi-positions').textContent=(D.positions||[]).length;
+  document.getElementById('positions-tag').textContent=(D.positions||[]).length;
+  const pe=document.getElementById('kpi-pnl');pe.textContent=(pnl>=0?'+':'')+(pnl*100).toFixed(2)+'%';pe.className='value '+(pnl>=0?'pos':'neg');
+  document.getElementById('kpi-scanned').textContent=scan.scanned||0;
+  document.getElementById('kpi-scan-detail').textContent=(scan.filtered||0)+' 過濾, '+(scan.assessments||0)+' 評估';
+  const ce=document.getElementById('kpi-circuit');const cb=D.circuit_breaker_active;ce.textContent=cb?'ACTIVE':'OFF';ce.className='value '+(cb?'neg':'pos');
+  const bp=Math.min(exp*100/30,100),bar=document.getElementById('exposure-bar');bar.style.width=bp+'%';bar.style.background=exp>0.25?'var(--neg)':exp>0.15?'var(--warn)':'var(--pos)';
+  const badge=document.getElementById('mode-badge');
+  if(D.dry_run!==false){badge.textContent='DRY RUN';badge.className='badge badge-dry';document.getElementById('paper-wm').style.display='';document.querySelector('.container').style.paddingTop='40px'}
+  else{badge.textContent='LIVE';badge.className='badge badge-live';document.getElementById('paper-wm').style.display='none';document.querySelector('.container').style.paddingTop='12px'}
+  const dot=document.getElementById('status-dot'),st=document.getElementById('pipeline-status');
+  if(D.last_updated){st.textContent=D.last_updated;dot.className='pulse-dot'}else{st.textContent='idle';dot.className='pulse-dot idle'}
+  document.getElementById('last-update').textContent=new Date().toTimeString().slice(0,8);
 }
 
-// ── 指令記錄 ────────────────────────────────────
-function logCmd(msg) {
-  const el = document.getElementById('cmd-log');
-  const now = new Date().toTimeString().slice(0, 8);
-  const entry = document.createElement('div');
-  entry.className = 'cmd-log-entry';
-  const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = now;
-  const res = document.createElement('span'); res.className = 'result'; res.textContent = msg;
-  entry.appendChild(ts); entry.appendChild(document.createTextNode(' ')); entry.appendChild(res);
-  el.appendChild(entry);
-  el.scrollTop = el.scrollHeight;
-  // Keep last 30 entries
-  while (el.children.length > 30) el.removeChild(el.firstChild);
+// ── Render: Positions ──
+function renderPositions(pos){
+  const el=document.getElementById('positions-body');
+  if(!pos||!pos.length){el.innerHTML='<div class="empty-state-sm">冇持倉</div>';return}
+  let h='<table><thead><tr><th>市場</th><th>方向</th><th>類別</th><th>數量</th><th>入場</th><th>現價</th><th>成本</th><th>損益</th><th>損益%</th></tr></thead><tbody>';
+  for(const p of pos){const pnl=p.unrealized_pnl||0,cls=pnl>=0?'pos':'neg';
+    h+='<tr><td title="'+esc(p.title)+'">'+esc((p.title||'').slice(0,40))+'</td><td><strong>'+esc(p.side)+'</strong></td><td>'+esc((p.category||'').slice(0,10))+'</td>';
+    h+='<td class="mono">'+(p.shares||0).toFixed(1)+'</td><td class="mono">'+(p.avg_price||0).toFixed(3)+'</td><td class="mono">'+(p.current_price||0).toFixed(3)+'</td>';
+    h+='<td class="mono">$'+(p.cost_basis||0).toFixed(0)+'</td><td class="mono '+cls+'">$'+pnl.toFixed(2)+'</td>';
+    h+='<td class="mono '+cls+'">'+(p.unrealized_pnl_pct>=0?'+':'')+((p.unrealized_pnl_pct||0)*100).toFixed(1)+'%</td></tr>'}
+  el.innerHTML=h+'</tbody></table>';
 }
 
-// ── Data Fetching ──────────────────────────────────
-async function fetchData() {
-  try {
-    const res = await fetch(API + '/data?t=' + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
-  } catch (e) {
-    console.warn('fetch error:', e);
-    return null;
-  }
+// ── Render: Trades (paper vs live 行色) ──
+function renderTrades(trades){
+  const el=document.getElementById('trades-body');document.getElementById('trades-tag').textContent=trades.length;
+  if(!trades.length){el.innerHTML='<div class="empty-state">未有交易</div>';return}
+  let h='<table><thead><tr><th>時間</th><th>動作</th><th>方向</th><th>市場</th><th>金額</th><th>價格</th><th>Edge</th><th>模式</th></tr></thead><tbody>';
+  for(const t of trades.slice(0,20)){
+    const ts=(t.timestamp||'').slice(11,16);
+    const rowCls=t.dry_run?'paper-row':'live-row';
+    const modeBadge=t.dry_run?'<span class="badge badge-dry">PAPER</span>':'<span class="badge badge-live">LIVE</span>';
+    h+='<tr class="'+rowCls+'"><td class="mono">'+ts+'</td><td>'+(t.action||'')+'</td><td><strong>'+(t.side||'')+'</strong></td>';
+    h+='<td title="'+esc(t.title)+'">'+esc((t.title||'').slice(0,28))+'</td><td class="mono">$'+(t.amount_usdc||0).toFixed(0)+'</td>';
+    h+='<td class="mono">'+(t.price||0).toFixed(3)+'</td><td class="mono">'+((t.edge||0)>=0?'+':'')+((t.edge||0)*100).toFixed(1)+'%</td>';
+    h+='<td>'+modeBadge+'</td></tr>'}
+  el.innerHTML=h+'</tbody></table>';
 }
 
-// ── Render: KPIs ───────────────────────────────────
-function renderKPIs(D) {
-  const bal = D.usdc_balance || 0;
-  const exp = D.exposure_pct || 0;
-  const pnl = D.daily_pnl_pct || 0;
-  const scan = D.last_scan || {};
-
-  document.getElementById('kpi-balance').textContent = '$' + bal.toLocaleString(undefined, {maximumFractionDigits: 0});
-  document.getElementById('kpi-exposure').textContent = (exp * 100).toFixed(1) + '%';
-  document.getElementById('kpi-positions').textContent = (D.positions || []).length;
-  document.getElementById('positions-tag').textContent = (D.positions || []).length;
-
-  const pnlEl = document.getElementById('kpi-pnl');
-  pnlEl.textContent = (pnl >= 0 ? '+' : '') + (pnl * 100).toFixed(2) + '%';
-  pnlEl.className = 'value ' + (pnl >= 0 ? 'pos' : 'neg');
-
-  document.getElementById('kpi-scanned').textContent = scan.scanned || 0;
-  document.getElementById('kpi-scan-detail').textContent = (scan.filtered || 0) + ' 過濾, ' + (scan.assessments || 0) + ' 評估';
-  document.getElementById('scanner-tag').textContent = (scan.scanned || 0) + ' mkts';
-
-  const circuit = D.circuit_breaker_active;
-  const circuitEl = document.getElementById('kpi-circuit');
-  circuitEl.textContent = circuit ? 'ACTIVE' : 'OFF';
-  circuitEl.className = 'value ' + (circuit ? 'neg' : 'pos');
-
-  // Exposure bar
-  const barPct = Math.min(exp * 100 / 30, 100);
-  const bar = document.getElementById('exposure-bar');
-  bar.style.width = barPct + '%';
-  bar.style.background = exp > 0.25 ? 'var(--neg)' : exp > 0.15 ? 'var(--warn)' : 'var(--pos)';
-
-  // Mode badge
-  const badge = document.getElementById('mode-badge');
-  if (D.dry_run !== false) {
-    badge.textContent = 'DRY RUN';
-    badge.className = 'badge badge-dry';
-  } else {
-    badge.textContent = 'LIVE';
-    badge.className = 'badge badge-live';
-  }
-
-  // Pipeline status
-  const dot = document.getElementById('status-dot');
-  const statusEl = document.getElementById('pipeline-status');
-  if (D.last_updated) {
-    statusEl.textContent = D.last_updated;
-    dot.className = 'pulse-dot';
-  } else {
-    statusEl.textContent = 'idle';
-    dot.className = 'pulse-dot idle';
-  }
-
-  document.getElementById('last-update').textContent = new Date().toTimeString().slice(0, 8);
+// ── Render: Strategy ──
+function renderStrategy(b){
+  const el=document.getElementById('strategy-body');
+  if(!b||!Object.keys(b).length){el.innerHTML='<div class="empty-state-sm">冇交易數據</div>';return}
+  const colors={indicator:'#0d9488',cvd:'#3b82f6',microstructure:'#8b5cf6',ai:'#f59e0b',logical_arb:'#ec4899',exit:'#6b7280',unknown:'#d1d5db'};
+  const total=Object.values(b).reduce((s,v)=>s+v,0)||1;
+  let h='';for(const[src,n]of Object.entries(b).sort((a,b)=>b[1]-a[1])){
+    const pct=(n/total*100).toFixed(0);h+='<div class="strat-row"><span class="strat-label">'+src+'</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:'+pct+'%;background:'+(colors[src]||'#9ca3af')+'"></div></div><span class="strat-count">'+n+'</span></div>'}
+  el.innerHTML=h;
 }
 
-// ── Render: Positions ──────────────────────────────
-function renderPositions(positions) {
-  const el = document.getElementById('positions-body');
-  if (!positions || !positions.length) {
-    el.innerHTML = '<div class="empty-state">冇持倉</div>';
-    return;
-  }
-  let h = '<table><thead><tr><th>Market</th><th>Side</th><th>Cat</th><th>Shares</th><th>Entry</th><th>Now</th><th>Cost</th><th>PnL</th><th>PnL%</th></tr></thead><tbody>';
-  for (const p of positions) {
-    const pnl = p.unrealized_pnl || 0;
-    const pnlPct = p.unrealized_pnl_pct || 0;
-    const cls = pnl >= 0 ? 'pos' : 'neg';
-    h += '<tr>';
-    h += '<td title="' + (p.title || '') + '">' + (p.title || '').slice(0, 40) + '</td>';
-    h += '<td><strong>' + p.side + '</strong></td>';
-    h += '<td>' + (p.category || '').slice(0, 10) + '</td>';
-    h += '<td class="mono">' + (p.shares || 0).toFixed(1) + '</td>';
-    h += '<td class="mono">' + (p.avg_price || 0).toFixed(3) + '</td>';
-    h += '<td class="mono">' + (p.current_price || 0).toFixed(3) + '</td>';
-    h += '<td class="mono">$' + (p.cost_basis || 0).toFixed(0) + '</td>';
-    h += '<td class="mono ' + cls + '">$' + pnl.toFixed(2) + '</td>';
-    h += '<td class="mono ' + cls + '">' + (pnlPct >= 0 ? '+' : '') + (pnlPct * 100).toFixed(1) + '%</td>';
-    h += '</tr>';
-  }
-  h += '</tbody></table>';
-  el.innerHTML = h;
+// ── Render: CB ──
+function renderCB(cbs){
+  const el=document.getElementById('cb-body');
+  if(!cbs||!cbs.length){el.innerHTML='<div class="empty-state">冇已註冊服務</div>';document.getElementById('cb-tag').textContent='--';return}
+  const open=cbs.filter(c=>c.state!=='closed').length;document.getElementById('cb-tag').textContent=open?open+' 斷開':'全部正常';
+  let h='';for(const cb of cbs){
+    const lbl=cb.state==='half_open'?'恢復中':cb.state==='open'?'斷開':'正常';const sc=cb.state==='closed'?'pos':cb.state==='open'?'neg':'warn';
+    h+='<div class="cb-row"><div class="cb-dot '+(cb.state||'closed')+'"></div><span style="font-weight:500;flex:1">'+(cb.service||'')+'</span><span class="mono '+sc+'" style="font-size:11px">'+lbl+'</span></div>'}
+  el.innerHTML=h;
 }
 
-// ── Render: 斷路器 ───────────────────────
-function renderCB(cbs) {
-  const el = document.getElementById('cb-body');
-  if (!cbs || !cbs.length) {
-    el.innerHTML = '<div class="empty-state">冇已註冊服務</div>';
-    document.getElementById('cb-tag').textContent = '--';
-    return;
-  }
-  const openCount = cbs.filter(c => c.state !== 'closed').length;
-  document.getElementById('cb-tag').textContent = openCount ? openCount + ' OPEN' : 'all closed';
-  let h = '';
-  for (const cb of cbs) {
-    const stateClass = cb.state || 'closed';
-    const label = cb.state === 'half_open' ? 'HALF OPEN' : (cb.state || 'closed').toUpperCase();
-    const stateColor = cb.state === 'closed' ? 'pos' : cb.state === 'open' ? 'neg' : 'warn';
-    h += '<div class="cb-row">';
-    h += '<div class="cb-dot ' + stateClass + '"></div>';
-    h += '<span class="cb-name">' + (cb.service || 'unknown') + '</span>';
-    h += '<span class="cb-state ' + stateColor + '">' + label + '</span>';
-    if (cb.failure_count > 0) h += '<span class="mono" style="color:var(--muted);font-size:11px">' + cb.failure_count + ' fails</span>';
-    h += '</div>';
-  }
-  el.innerHTML = h;
+// ── Render: Risk ──
+function renderRisk(D){
+  const el=document.getElementById('risk-body');const items=[];
+  if(D.circuit_breaker_active)items.push('<span class="neg">&#9888; 斷路器啟動中</span>');
+  if(D.cooldown_until)items.push('&#9200; 冷卻至: '+D.cooldown_until);
+  if((D.consecutive_losses||0)>0)items.push('&#9888; 連續虧損: '+D.consecutive_losses);
+  if((D.exposure_pct||0)>0.25)items.push('<span class="neg">&#9888; 敞口 '+((D.exposure_pct||0)*100).toFixed(1)+'% (接近 30% 上限)</span>');
+  if(!items.length){el.innerHTML='<div class="empty-state pos">&#10003; 正常</div>';return}
+  el.innerHTML=items.map(i=>'<div style="padding:8px 16px;border-bottom:1px solid var(--border-light)">'+i+'</div>').join('');
 }
 
-// ── Render: Strategy Distribution ──────────────────
-function renderStrategy(breakdown) {
-  const el = document.getElementById('strategy-body');
-  if (!breakdown || !Object.keys(breakdown).length) {
-    el.innerHTML = '<div class="empty-state">冇交易數據</div>';
-    return;
-  }
-  const colors = { indicator: '#0d9488', cvd: '#3b82f6', microstructure: '#8b5cf6', ai: '#f59e0b', logical_arb: '#ec4899', exit: '#6b7280', unknown: '#d1d5db' };
-  const total = Object.values(breakdown).reduce((s, v) => s + v, 0) || 1;
-  const sorted = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
-
-  let h = '';
-  for (const [src, count] of sorted) {
-    const pct = (count / total * 100).toFixed(0);
-    const color = colors[src] || '#9ca3af';
-    h += '<div class="strat-row">';
-    h += '<span class="strat-label">' + src + '</span>';
-    h += '<div class="strat-bar-bg"><div class="strat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
-    h += '<span class="strat-count">' + count + '</span>';
-    h += '</div>';
-  }
-  el.innerHTML = h;
+// ── Render: Scanner ──
+function renderScanner(markets){
+  const el=document.getElementById('scanner-body');
+  if(!markets||!markets.length){el.innerHTML='<div class="empty-state">未掃描</div>';return}
+  document.getElementById('scanner-tag').textContent=markets.length+' 個';
+  let h='<table><thead><tr><th>市場</th><th>類別</th><th>YES</th><th>24h量</th><th>流動性</th></tr></thead><tbody>';
+  for(const m of markets.slice(0,20)){
+    h+='<tr><td title="'+esc(m.title)+'">'+esc((m.title||'').slice(0,35))+'</td><td>'+esc(m.category||'')+'</td>';
+    h+='<td class="mono">'+(m.yes_price||0).toFixed(3)+'</td><td class="mono">$'+Math.round(m.volume_24h||0).toLocaleString()+'</td>';
+    h+='<td class="mono">$'+Math.round(m.liquidity||0).toLocaleString()+'</td></tr>'}
+  el.innerHTML=h+'</tbody></table>';
 }
 
-// ── Render: 風險狀態 ────────────────────────────
-function renderRisk(D) {
-  const el = document.getElementById('risk-body');
-  const items = [];
-  if (D.circuit_breaker_active) items.push('<span class="neg">&#9888; Circuit breaker ACTIVE</span>');
-  if (D.cooldown_until) items.push('&#9200; Cooldown until: ' + D.cooldown_until);
-  if ((D.consecutive_losses || 0) > 0) items.push('&#9888; Consecutive losses: ' + D.consecutive_losses);
-  const exp = D.exposure_pct || 0;
-  if (exp > 0.25) items.push('<span class="neg">&#9888; Exposure ' + (exp * 100).toFixed(1) + '% (near 30% limit)</span>');
-  if ((D.positions || []).length >= 4) items.push('Positions: ' + (D.positions || []).length + '/5');
-
-  if (!items.length) {
-    el.innerHTML = '<div class="empty-state pos">&#10003; All clear</div>';
-    return;
-  }
-  el.innerHTML = items.map(i => '<div style="padding:8px 16px;border-bottom:1px solid var(--border-light)">' + i + '</div>').join('');
+// ── Render: Arb ──
+function renderArb(arbs){
+  const el=document.getElementById('arb-body');document.getElementById('arb-tag').textContent=(arbs||[]).length;
+  if(!arbs||!arbs.length){el.innerHTML='<div class="empty-state">冇套利機會（市場定價正常）</div>';return}
+  let h='';for(const a of arbs){
+    h+='<div class="arb-opportunity"><div class="arb-edge">+'+(a.edge_pct||0).toFixed(1)+'%</div><div><div style="font-size:10px;text-transform:uppercase;color:var(--muted)">'+esc((a.type||'').replace(/_/g,' '))+'</div><div style="font-size:13px;margin-top:2px">'+esc((a.detail||'').slice(0,80))+'</div></div></div>'}
+  el.innerHTML=h;
 }
 
-// ── Render: 近期交易 ──────────────────────────
-function renderTrades(trades) {
-  const el = document.getElementById('trades-body');
-  document.getElementById('trades-tag').textContent = trades.length;
-  if (!trades.length) {
-    el.innerHTML = '<div class="empty-state">未有交易</div>';
-    return;
-  }
-  let h = '<table><thead><tr><th>Time</th><th>Action</th><th>Side</th><th>Market</th><th>$</th><th>Price</th><th>Edge</th><th>Mode</th></tr></thead><tbody>';
-  for (const t of trades.slice(0, 15)) {
-    const ts = (t.timestamp || '').replace('T', ' ').slice(11, 16);
-    const dry = t.dry_run ? '<span class="badge badge-dry">DRY</span>' : '<span class="badge badge-live">LIVE</span>';
-    h += '<tr>';
-    h += '<td class="mono">' + ts + '</td>';
-    h += '<td>' + (t.action || '') + '</td>';
-    h += '<td><strong>' + (t.side || '') + '</strong></td>';
-    h += '<td title="' + (t.title || '') + '">' + (t.title || '').slice(0, 30) + '</td>';
-    h += '<td class="mono">$' + (t.amount_usdc || 0).toFixed(0) + '</td>';
-    h += '<td class="mono">' + (t.price || 0).toFixed(3) + '</td>';
-    h += '<td class="mono">' + ((t.edge || 0) >= 0 ? '+' : '') + ((t.edge || 0) * 100).toFixed(1) + '%</td>';
-    h += '<td>' + dry + '</td>';
-    h += '</tr>';
-  }
-  h += '</tbody></table>';
-  el.innerHTML = h;
+// ── Render: Merge ──
+function renderMerge(data){
+  const el=document.getElementById('merge-body');
+  if(!data){el.innerHTML='<div class="empty-state">未檢查</div>';return}
+  if(data.message){const msgDiv=document.createElement('div');msgDiv.className='empty-state';msgDiv.textContent=data.message;el.innerHTML='';el.appendChild(msgDiv);document.getElementById('merge-tag').textContent='--';return}
+  const ms=data.mergeables||[];document.getElementById('merge-tag').textContent=ms.length?'$'+data.total_reclaimable:'0';
+  if(!ms.length){el.innerHTML='<div class="empty-state pos">&#10003; 冇可合併持倉</div>';return}
+  let h='<div style="padding:12px 16px;color:var(--pos);font-weight:600">$'+data.total_reclaimable+' 可回收</div>';
+  h+='<table><thead><tr><th>市場</th><th>YES</th><th>NO</th><th>可合併</th><th>$</th></tr></thead><tbody>';
+  for(const m of ms){h+='<tr><td>'+esc((m.title||'').slice(0,30))+'</td><td class="mono">'+(m.yes_shares||0).toFixed(0)+'</td><td class="mono">'+(m.no_shares||0).toFixed(0)+'</td><td class="mono">'+(m.mergeable_pairs||0).toFixed(0)+'</td><td class="mono pos">$'+(m.reclaimable_usdc||0).toFixed(2)+'</td></tr>'}
+  el.innerHTML=h+'</tbody></table>';
 }
 
-// ── Render: Calibration ────────────────────────────
-function renderCalibration(cal) {
-  const card = document.getElementById('calibration-card');
-  const el = document.getElementById('calibration-body');
-  if (!cal) { card.style.display = 'none'; return; }
-  const brier = cal.brier || {};
-  const edge = cal.edge || {};
-  if ((!brier.matched || brier.error) && (!edge.per_source_mae || edge.error)) { card.style.display = 'none'; return; }
-  card.style.display = '';
-  let h = '<div style="padding:16px;display:grid;gap:16px">';
-  if (brier && !brier.error && brier.matched) {
-    h += '<div><h4 style="margin-bottom:8px;font-size:13px">Brier Score</h4>';
-    h += '<div style="display:flex;gap:20px;margin-bottom:8px;font-size:13px">';
-    h += '<span>N: <strong class="mono">' + brier.matched + '</strong></span>';
-    h += '<span>Score: <strong class="mono">' + (brier.brier_overall || 0).toFixed(4) + '</strong></span>';
-    h += '<span>Bias: <strong class="mono">' + ((brier.bias_overall || 0) >= 0 ? '+' : '') + (brier.bias_overall || 0).toFixed(4) + '</strong></span>';
-    h += '</div>';
-    const byCity = brier.by_city || {};
-    const cities = Object.keys(byCity);
-    if (cities.length) {
-      h += '<table><thead><tr><th>City</th><th>N</th><th>Brier</th><th>Bias</th></tr></thead><tbody>';
-      for (const c of cities) {
-        const d = byCity[c];
-        h += '<tr><td>' + c + '</td><td class="mono">' + (d.n || 0) + '</td>';
-        h += '<td class="mono">' + (d.brier || 0).toFixed(4) + '</td>';
-        h += '<td class="mono">' + ((d.bias || 0) >= 0 ? '+' : '') + (d.bias || 0).toFixed(4) + '</td></tr>';
-      }
-      h += '</tbody></table>';
-    }
-    h += '</div>';
-  }
-  if (edge && !edge.error && edge.per_source_mae) {
-    h += '<div><h4 style="margin-bottom:8px;font-size:13px">Source Accuracy (MAE)</h4>';
-    const mae = edge.per_source_mae || {};
-    h += '<table><thead><tr><th>Source</th><th>MAE</th></tr></thead><tbody>';
-    for (const s of Object.keys(mae)) {
-      h += '<tr><td>' + s + '</td><td class="mono">' + (mae[s] || 0).toFixed(4) + '</td></tr>';
-    }
-    h += '</tbody></table></div>';
-  }
-  h += '</div>';
-  el.innerHTML = h;
+// ── Render: Calibration ──
+function renderCalibration(cal){
+  const el=document.getElementById('calibration-body');
+  if(!cal){el.innerHTML='<div class="empty-state">冇天氣數據 — 跑 weather paper tracker 先</div>';return}
+  const brier=cal.brier||{},edge=cal.edge||{};
+  if((!brier.matched||brier.error)&&(!edge.per_source_mae||edge.error)){el.innerHTML='<div class="empty-state">冇天氣數據</div>';return}
+  let h='<div style="padding:16px;display:grid;gap:16px">';
+  if(brier&&!brier.error&&brier.matched){
+    h+='<div><h4 style="margin-bottom:8px;font-size:13px">Brier Score</h4><div style="display:flex;gap:20px;margin-bottom:8px;font-size:13px"><span>N: <strong class="mono">'+brier.matched+'</strong></span><span>分數: <strong class="mono">'+(brier.brier_overall||0).toFixed(4)+'</strong></span><span>偏差: <strong class="mono">'+((brier.bias_overall||0)>=0?'+':'')+(brier.bias_overall||0).toFixed(4)+'</strong></span></div>';
+    const bc=brier.by_city||{},cities=Object.keys(bc);
+    if(cities.length){h+='<table><thead><tr><th>城市</th><th>N</th><th>Brier</th><th>偏差</th></tr></thead><tbody>';for(const c of cities){const d=bc[c];h+='<tr><td>'+c+'</td><td class="mono">'+(d.n||0)+'</td><td class="mono">'+(d.brier||0).toFixed(4)+'</td><td class="mono">'+((d.bias||0)>=0?'+':'')+(d.bias||0).toFixed(4)+'</td></tr>'}h+='</tbody></table>'}h+='</div>'}
+  if(edge&&!edge.error&&edge.per_source_mae){
+    h+='<div><h4 style="margin-bottom:8px;font-size:13px">預測來源準確度 (MAE)</h4>';const mae=edge.per_source_mae||{};h+='<table><thead><tr><th>來源</th><th>MAE</th></tr></thead><tbody>';for(const s of Object.keys(mae))h+='<tr><td>'+s+'</td><td class="mono">'+(mae[s]||0).toFixed(4)+'</td></tr>';h+='</tbody></table></div>'}
+  el.innerHTML=h+'</div>';
 }
 
-// ── Render: Scanner Results ────────────────────────
-function renderScanner(markets) {
-  const el = document.getElementById('scanner-body');
-  if (!markets || !markets.length) {
-    el.innerHTML = '<div class="empty-state">撳 <strong>&#9670; 掃描</strong> 睇市場</div>';
-    return;
-  }
-  document.getElementById('scanner-tag').textContent = markets.length + ' mkts';
-  let h = '<table><thead><tr><th>Market</th><th>Cat</th><th>YES</th><th>Vol 24h</th><th>Liq</th></tr></thead><tbody>';
-  for (const m of markets.slice(0, 15)) {
-    h += '<tr>';
-    h += '<td title="' + m.title + '">' + (m.title || '').slice(0, 35) + '</td>';
-    h += '<td>' + (m.category || '') + '</td>';
-    h += '<td class="mono">' + (m.yes_price || 0).toFixed(3) + '</td>';
-    h += '<td class="mono">$' + Math.round(m.volume_24h || 0).toLocaleString() + '</td>';
-    h += '<td class="mono">$' + Math.round(m.liquidity || 0).toLocaleString() + '</td>';
-    h += '</tr>';
-  }
-  h += '</tbody></table>';
-  el.innerHTML = h;
+// ═══ Commands ═══
+async function cmdRunCycle(btn){
+  btn.classList.add('running');btn.innerHTML='\u25b6 跑緊...';
+  logCmd('> run_cycle \u2014 啟動 pipeline...');
+  try{const r=await fetch(API+'/run_cycle',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
+    if(d.ok){logCmd('Pipeline 已啟動');showToast('Pipeline 已啟動');pollCycle(btn)}
+    else{logCmd('ERROR: '+(d.error||''));showToast(d.error||'失敗',true);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline'}}
+  catch(e){logCmd('ERROR: '+e.message);showToast('失敗',true);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline'}}
+
+async function pollCycle(btn){let n=0;const iv=setInterval(async()=>{n++;if(n>60){clearInterval(iv);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline';logCmd('Pipeline timeout');showToast('Timeout',true);return}
+  try{const r=await fetch(API+'/cycle_status?t='+Date.now());const d=await r.json();if(!d.running){clearInterval(iv);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline';
+    if(d.last_error){logCmd('失敗: '+d.last_error);showToast('Pipeline 失敗',true)}else if(d.last_result){const x=d.last_result;logCmd('完成 ('+d.last_duration+'s): '+x.scanned+'掃描 '+x.signals+'信號 '+x.executed+'執行 '+x.errors+'錯誤');showToast('Pipeline 完成')}refresh()}}catch(e){}},2000)}
+
+async function cmdForceScan(btn){
+  btn.classList.add('running');btn.innerHTML='\u25c6 掃描中...';logCmd('> force_scan \u2014 掃描 Gamma API...');
+  try{const r=await fetch(API+'/force_scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
+    if(d.ok){logCmd('掃描完成: '+d.scanned+' 市場, '+(d.arb_opportunities||[]).length+' 套利');showToast(d.scanned+' 個市場');renderScanner(d.markets);renderArb(d.arb_opportunities);switchTab('tools')}
+    else{logCmd('ERROR: '+(d.error||''));showToast('掃描失敗',true)}}
+  catch(e){logCmd('ERROR: '+e.message);showToast('掃描失敗',true)}
+  btn.classList.remove('running');btn.innerHTML='\u25c6 掃描'}
+
+async function cmdResetCB(btn){
+  btn.classList.add('running');logCmd('> reset_cb — 重置斷路器...');
+  try{const svcs=['polymarket','gamma','claude','binance'];let n=0;
+    for(const s of svcs){const r=await fetch(API+'/reset_cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})});const d=await r.json();if(d.ok&&d.old_state!=='closed')n++}
+    logCmd('重置完成: '+n+' 個');showToast(n?n+' 個斷路器已重置':'全部正常');refresh()}
+  catch(e){logCmd('ERROR: '+e.message);showToast('重置失敗',true)}
+  btn.classList.remove('running')}
+
+async function cmdCheckMerge(btn){
+  btn.classList.add('running');btn.innerHTML='\u25b3 檢查中...';logCmd('> check_merge \u2014 查詢...');
+  try{const r=await fetch(API+'/check_merge',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
+    if(d.ok){logCmd('合併檢查: '+(d.mergeables||[]).length+' 個, $'+(d.total_reclaimable||0));showToast(d.message||'$'+(d.total_reclaimable||0)+' 可回收');renderMerge(d)}
+    else{logCmd('ERROR: '+(d.error||''));showToast('檢查失敗',true)}}
+  catch(e){logCmd('ERROR: '+e.message);showToast('檢查失敗',true)}
+  btn.classList.remove('running');btn.innerHTML='\u25b3 檢查合併'}
+
+async function toggleMode(){
+  const b=document.getElementById('mode-badge');const dry=b.textContent.trim()==='DRY RUN';const m=dry?'live':'dry_run';
+  if(dry&&!confirm('切換去 LIVE 模式？\n\nPipeline 會執行真正交易。\nPaper gate（48h）仲有效。'))return;
+  b.textContent='...';logCmd('> set_mode '+m);
+  try{const r=await fetch(API+'/set_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:m})});const d=await r.json();
+    if(d.ok){logCmd('模式: '+d.mode);showToast(d.message)}else{logCmd('ERROR: '+(d.error||''));showToast('切換失敗',true)}}
+  catch(e){logCmd('ERROR: '+e.message)}refresh()}
+
+// ═══ Refresh ═══
+async function refresh(){
+  const data=await fetchData();const err=document.getElementById('error-banner');
+  if(!data){err.style.display='block';err.textContent='連唔到 API — server 開咗未？';document.getElementById('status-dot').className='pulse-dot error';return}
+  err.style.display='none';
+  const s=data.state||{};
+  renderKPIs(s);renderPositions(s.positions);renderRisk(s);renderTrades(data.trades||[]);
+  renderCalibration(data.calibration);renderCB(data.circuit_breakers||[]);renderStrategy(data.strategy_breakdown||{});updateChart(data.pnl_series||[]);
 }
 
-// ── Render: Arb Opportunities ──────────────────────
-function renderArb(arbs) {
-  const el = document.getElementById('arb-body');
-  document.getElementById('arb-tag').textContent = (arbs || []).length;
-  if (!arbs || !arbs.length) {
-    el.innerHTML = '<div class="empty-state">No arbitrage detected</div>';
-    return;
-  }
-  let h = '';
-  for (const a of arbs) {
-    h += '<div class="arb-opportunity">';
-    h += '<div class="arb-edge">+' + (a.edge_pct || 0).toFixed(1) + '%</div>';
-    h += '<div class="arb-detail">';
-    h += '<div class="arb-type">' + (a.type || '').replace(/_/g, ' ') + '</div>';
-    h += '<div style="font-size:13px;margin-top:2px">' + (a.detail || '').slice(0, 80) + '</div>';
-    h += '</div>';
-    h += '</div>';
-  }
-  el.innerHTML = h;
-}
-
-// ── Render: Merge Results ──────────────────────────
-function renderMerge(data) {
-  const el = document.getElementById('merge-body');
-  if (!data) {
-    el.innerHTML = '<div class="empty-state">撳 <strong>&#9651; 合併</strong> 檢查</div>';
-    return;
-  }
-  if (data.message) {
-    el.innerHTML = '<div class="empty-state">' + data.message + '</div>';
-    document.getElementById('merge-tag').textContent = data.message.includes('skipped') ? 'DRY' : '--';
-    return;
-  }
-  const mergeables = data.mergeables || [];
-  document.getElementById('merge-tag').textContent = mergeables.length ? '$' + data.total_reclaimable : '0';
-  if (!mergeables.length) {
-    el.innerHTML = '<div class="empty-state pos">&#10003; No mergeable positions</div>';
-    return;
-  }
-  let h = '<div style="padding:12px 16px;font-size:13px;color:var(--pos);font-weight:600">$' + data.total_reclaimable + ' reclaimable</div>';
-  h += '<table><thead><tr><th>Market</th><th>YES</th><th>NO</th><th>Pairs</th><th>$</th></tr></thead><tbody>';
-  for (const m of mergeables) {
-    h += '<tr>';
-    h += '<td>' + (m.title || '').slice(0, 30) + '</td>';
-    h += '<td class="mono">' + (m.yes_shares || 0).toFixed(0) + '</td>';
-    h += '<td class="mono">' + (m.no_shares || 0).toFixed(0) + '</td>';
-    h += '<td class="mono">' + (m.mergeable_pairs || 0).toFixed(0) + '</td>';
-    h += '<td class="mono pos">$' + (m.reclaimable_usdc || 0).toFixed(2) + '</td>';
-    h += '</tr>';
-  }
-  h += '</tbody></table>';
-  el.innerHTML = h;
-}
-
-// ═══════════════════════════════════════════════════
-// Command Handlers
-// ═══════════════════════════════════════════════════
-
-async function cmdForceScan(btn) {
-  btn.classList.add('running');
-  btn.innerHTML = '<span class="icon">&#9670;</span> 掃描中...';
-  logCmd('> force_scan — 掃描 Gamma API...');
-  try {
-    const res = await fetch(API + '/force_scan', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
-    const data = await res.json();
-    if (data.ok) {
-      logCmd('Scan complete: ' + data.scanned + ' markets, ' + data.filtered + ' filtered, ' + (data.arb_opportunities || []).length + ' arbs');
-      showToast('Scan: ' + data.scanned + ' markets found');
-      renderScanner(data.markets);
-      renderArb(data.arb_opportunities);
-    } else {
-      logCmd('ERROR: ' + (data.error || 'unknown'));
-      showToast('Scan failed: ' + (data.error || ''), true);
-    }
-  } catch (e) {
-    logCmd('ERROR: ' + e.message);
-    showToast('Scan failed', true);
-  }
-  btn.classList.remove('running');
-  btn.innerHTML = '<span class="icon">&#9670;</span> 掃描';
-}
-
-async function cmdResetCB(btn) {
-  btn.classList.add('running');
-  logCmd('> reset_cb — resetting all circuit breakers...');
-  try {
-    const services = ['polymarket', 'gamma', 'claude', 'binance'];
-    let resetCount = 0;
-    for (const svc of services) {
-      const res = await fetch(API + '/reset_cb', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({service: svc}) });
-      const data = await res.json();
-      if (data.ok && data.old_state !== 'closed') resetCount++;
-    }
-    logCmd('Reset complete: ' + resetCount + ' breakers reset');
-    showToast(resetCount ? resetCount + ' circuit breakers reset' : 'All breakers already closed');
-    refresh();
-  } catch (e) {
-    logCmd('ERROR: ' + e.message);
-    showToast('Reset failed', true);
-  }
-  btn.classList.remove('running');
-}
-
-async function cmdCheckMerge(btn) {
-  btn.classList.add('running');
-  btn.innerHTML = '<span class="icon">&#9651;</span> 檢查中...';
-  logCmd('> check_merge — 查詢 Data API...');
-  try {
-    const res = await fetch(API + '/check_merge', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
-    const data = await res.json();
-    if (data.ok) {
-      const n = (data.mergeables || []).length;
-      logCmd('Merge check: ' + n + ' positions, $' + (data.total_reclaimable || 0) + ' reclaimable');
-      showToast(n ? '$' + data.total_reclaimable + ' reclaimable' : (data.message || 'No mergeables'));
-      renderMerge(data);
-    } else {
-      logCmd('ERROR: ' + (data.error || 'unknown'));
-      showToast('Merge check failed', true);
-    }
-  } catch (e) {
-    logCmd('ERROR: ' + e.message);
-    showToast('Merge check failed', true);
-  }
-  btn.classList.remove('running');
-  btn.innerHTML = '<span class="icon">&#9651;</span> 合併';
-}
-
-async function cmdRunCycle(btn) {
-  btn.classList.add('running');
-  btn.innerHTML = '<span class="icon">&#9654;</span> 跑緊...';
-  logCmd('> run_cycle — 啟動 17-step pipeline...');
-  try {
-    const res = await fetch(API + '/run_cycle', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
-    const data = await res.json();
-    if (data.ok) {
-      logCmd('Pipeline 已啟動（背景執行）');
-      showToast('Pipeline 已啟動');
-      // Poll for completion
-      pollCycleStatus(btn);
-    } else {
-      logCmd('ERROR: ' + (data.error || ''));
-      showToast(data.error || '啟動失敗', true);
-      btn.classList.remove('running');
-      btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
-    }
-  } catch (e) {
-    logCmd('ERROR: ' + e.message);
-    showToast('啟動失敗', true);
-    btn.classList.remove('running');
-    btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
-  }
-}
-
-async function pollCycleStatus(btn) {
-  let polls = 0;
-  const MAX_POLLS = 60; // 60 × 2s = 120s timeout
-  const poll = setInterval(async () => {
-    polls++;
-    if (polls > MAX_POLLS) {
-      clearInterval(poll);
-      btn.classList.remove('running');
-      btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
-      logCmd('Pipeline timeout (120s) — 可能仲跑緊');
-      showToast('Pipeline timeout', true);
-      return;
-    }
-    try {
-      const res = await fetch(API + '/cycle_status?t=' + Date.now());
-      const data = await res.json();
-      if (!data.running) {
-        clearInterval(poll);
-        btn.classList.remove('running');
-        btn.innerHTML = '<span class="icon">&#9654;</span> 跑 Pipeline';
-        if (data.last_error) {
-          logCmd('Pipeline 失敗: ' + data.last_error);
-          showToast('Pipeline 失敗', true);
-        } else if (data.last_result) {
-          const r = data.last_result;
-          logCmd('Pipeline 完成 (' + data.last_duration + 's): '
-            + r.scanned + ' 掃描, ' + r.signals + ' 信號, '
-            + r.executed + ' 執行, ' + r.errors + ' 錯誤');
-          showToast('Pipeline 完成 — ' + r.executed + ' 筆執行');
-        }
-        refresh();
-      }
-    } catch (e) { /* keep polling */ }
-  }, 2000);
-}
-
-async function toggleMode() {
-  const badge = document.getElementById('mode-badge');
-  const currentlyDry = badge.textContent.trim() === 'DRY RUN';
-  const targetMode = currentlyDry ? 'live' : 'dry_run';
-  if (currentlyDry) {
-    if (!confirm('切換去 LIVE 模式？\n\nPipeline 會執行真正交易。\nPaper gate（48h）仲有效。')) return;
-  }
-  badge.textContent = '...';
-  logCmd('> set_mode ' + targetMode);
-  try {
-    const res = await fetch(API + '/set_mode', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode: targetMode}) });
-    const data = await res.json();
-    if (data.ok) {
-      logCmd('Mode: ' + data.mode);
-      showToast('Mode: ' + data.message);
-    } else {
-      logCmd('ERROR: ' + (data.error || ''));
-      showToast('Mode change failed', true);
-    }
-  } catch (e) {
-    logCmd('ERROR: ' + e.message);
-  }
-  refresh();
-}
-
-// ═══════════════════════════════════════════════════
-// Main Refresh Loop
-// ═══════════════════════════════════════════════════
-
-async function refresh() {
-  const data = await fetchData();
-  const errBanner = document.getElementById('error-banner');
-  if (!data) {
-    errBanner.style.display = 'block';
-    errBanner.textContent = '連唔到 API — dashboard server 開咗未？';
-    document.getElementById('status-dot').className = 'pulse-dot error';
-    return;
-  }
-  errBanner.style.display = 'none';
-
-  const state = data.state || {};
-  renderKPIs(state);
-  renderPositions(state.positions);
-  renderRisk(state);
-  renderTrades(data.trades || []);
-  renderCalibration(data.calibration);
-  renderCB(data.circuit_breakers || []);
-  renderStrategy(data.strategy_breakdown || {});
-  updateChart(data.pnl_series || []);
-}
-
-// ── Init ───────────────────────────────────────────
-initChart();
-refresh();
-setInterval(refresh, REFRESH_MS);
-logCmd('指揮台啟動 — 每 ' + (REFRESH_MS / 1000) + ' 秒刷新');
+initChart();refresh();setInterval(refresh,REFRESH_MS);
+logCmd('指揮台啟動 — 每 '+(REFRESH_MS/1000)+' 秒刷新');
 </script>
 </body>
 </html>
