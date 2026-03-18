@@ -557,6 +557,7 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
         side=side,
         reasoning=reasoning,
         data_sources=["indicator_calc_15m", "scan_config", parsed["symbol"]],
+        signal_source="indicator",
     )
 
 

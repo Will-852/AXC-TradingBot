@@ -19,7 +19,6 @@ cvd_backtest.py — CVD Divergence Backtest for BTC 5-min Up/Down
 import argparse
 import json
 import logging
-import math
 import os
 import sys
 import tempfile
@@ -40,25 +39,16 @@ from backtest.fetch_agg_trades import (
 )
 from backtest.fetch_historical import fetch_klines_range
 from polymarket.strategy.crypto_15m import _score_direction
+from polymarket.strategy.cvd_strategy import (
+    detect_cvd_divergence, cvd_to_prob, compute_dollar_imbalance,
+    LOOKBACK_WINDOWS, ONE_MIN_MS, FIVE_MIN_MS, FIFTEEN_MIN_MS,
+)
 
 logger = logging.getLogger(__name__)
 
 # ─── Constants ───
 SYMBOL = "BTCUSDT"
 LOG_DIR = os.path.join(_PROJECT_ROOT, "polymarket", "logs")
-FIVE_MIN_MS = 300_000
-FIFTEEN_MIN_MS = 900_000
-ONE_MIN_MS = 60_000
-
-# CVD divergence lookback windows
-LOOKBACK_WINDOWS = {
-    "1m": ONE_MIN_MS, "3m": 3 * ONE_MIN_MS, "5m": FIVE_MIN_MS,
-    "10m": 10 * ONE_MIN_MS, "15m": FIFTEEN_MIN_MS,
-}
-MIN_PRICE_CHANGE_USD = 5.0    # BTC noise filter
-
-# CVD → P(Up) mapping
-CVD_STRENGTH_SCALE = 2.0      # tanh scaling
 
 # Combined model weights
 W_INDICATOR = 0.5
@@ -178,96 +168,6 @@ def compute_indicators(klines_5m: pd.DataFrame) -> list[dict]:
 
 
 # ═══════════════════════════════════════
-#  CVD Divergence Detection
-# ═══════════════════════════════════════
-
-def detect_cvd_divergence(
-    price_by_ts: dict[int, float],
-    cvd_by_ts: dict[int, float],
-    ref_ts: int,
-) -> dict:
-    """Detect CVD divergence across lookback windows from a reference point.
-
-    Bullish div: price down + CVD up → buying pressure despite drop → predict UP
-    Bearish div: price up + CVD down → selling pressure despite rise → predict DOWN
-
-    ref_ts should be the 1m timestamp BEFORE the 5m candle (avoids look-ahead).
-    """
-    cur_price = price_by_ts.get(ref_ts)
-    cur_cvd = cvd_by_ts.get(ref_ts)
-    if cur_price is None or cur_cvd is None:
-        return {"bullish": 0, "bearish": 0, "score": 0.0}
-
-    bullish = 0
-    bearish = 0
-    for _name, lb_ms in LOOKBACK_WINDOWS.items():
-        lb_ts = ref_ts - lb_ms
-        lb_price = price_by_ts.get(lb_ts)
-        lb_cvd = cvd_by_ts.get(lb_ts)
-        if lb_price is None or lb_cvd is None:
-            continue
-
-        dp = cur_price - lb_price
-        dc = cur_cvd - lb_cvd
-        if abs(dp) < MIN_PRICE_CHANGE_USD:
-            continue
-
-        if dp < 0 and dc > 0:
-            bullish += 1
-        elif dp > 0 and dc < 0:
-            bearish += 1
-
-    net = bullish - bearish
-    return {"bullish": bullish, "bearish": bearish, "score": float(net)}
-
-
-def cvd_to_prob(div_result: dict, dollar_imbalance: float = 0.0) -> float:
-    """Map CVD divergence → P(Up) in [0.15, 0.85].
-
-    Same tanh + clamp as _score_direction() for comparable P(Up) scales.
-    """
-    score = div_result["score"]
-    if score == 0:
-        return 0.5
-
-    # Normalize: score in [-5, +5] → [-1, +1]
-    norm = score / len(LOOKBACK_WINDOWS)
-
-    # Dollar imbalance confirmation (same direction boosts signal)
-    if abs(dollar_imbalance) > 0.05:
-        if (norm > 0 and dollar_imbalance > 0) or (norm < 0 and dollar_imbalance < 0):
-            norm *= 1.3
-
-    p_up = 0.5 + 0.3 * math.tanh(norm * CVD_STRENGTH_SCALE)
-    return max(0.15, min(0.85, p_up))
-
-
-def compute_dollar_imbalance(dv_5m: dict, dv_15m: dict, prev_5m_ts: int) -> float:
-    """5m buy_ratio - 15m buy_ratio for the PREVIOUS completed 5m candle.
-
-    Positive = short-term more bullish than longer-term context.
-    """
-    d5 = dv_5m.get(str(prev_5m_ts))
-    if not d5:
-        return 0.0
-    total5 = d5["buy_usd"] + d5["sell_usd"]
-    if total5 == 0:
-        return 0.0
-    r5 = d5["buy_usd"] / total5
-
-    ts_15 = prev_5m_ts - (prev_5m_ts % FIFTEEN_MIN_MS)
-    d15 = dv_15m.get(str(ts_15))
-    if not d15:
-        return 0.0
-    total15 = d15["buy_usd"] + d15["sell_usd"]
-    if total15 == 0:
-        return 0.0
-    r15 = d15["buy_usd"] / total15
-
-    return r5 - r15
-
-
-# ═══════════════════════════════════════
 #  Main Backtest
 # ═══════════════════════════════════════
 
@@ -301,7 +201,16 @@ def run_backtest(days: int = 14) -> dict:
     print(f"  15m klines: {len(klines_15m)}")
 
     print("  Fetching aggTrades (cached per-day, first run may be slow)...")
-    trades_df = fetch_agg_trades_range(SYMBOL, start_ms, end_ms)
+    # Retry on ConnectionError — Binance resets after heavy API usage
+    for _attempt in range(3):
+        try:
+            trades_df = fetch_agg_trades_range(SYMBOL, start_ms, end_ms)
+            break
+        except (ConnectionError, OSError) as e:
+            if _attempt == 2:
+                raise
+            logger.warning("Connection error, retrying in 30s: %s", e)
+            time.sleep(30)
     print(f"  aggTrades: {len(trades_df):,}")
     print(f"  Fetch time: {time.time() - t0:.0f}s")
 

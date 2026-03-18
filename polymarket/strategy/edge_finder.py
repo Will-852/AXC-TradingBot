@@ -745,16 +745,38 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
     Weather dispatch: parse title → forecast → normal CDF → EdgeAssessment.
     Falls back to Claude AI if weather parse fails or forecast unavailable.
     """
-    # Crypto 15M: deterministic indicator path → AI fallback
+    # Crypto 15M: dual signal source (indicator + CVD) → AI fallback
     if market.category == "crypto_15m":
         from .crypto_15m import (
             assess_crypto_15m_edge, build_15m_ai_context,
             _fetch_15m_indicators, _gather_btc_context,
             parse_crypto_15m_market,
         )
-        result = assess_crypto_15m_edge(market)
-        if result is not None:
-            return result
+        from polymarket.config.settings import CVD_ENABLED
+
+        indicator_result = assess_crypto_15m_edge(market)
+        if indicator_result is not None and not indicator_result.signal_source:
+            indicator_result.signal_source = "indicator"
+
+        cvd_result = None
+        if CVD_ENABLED:
+            try:
+                from .cvd_strategy import assess_cvd_edge
+                cvd_result = assess_cvd_edge(market)
+            except Exception as e:
+                logger.warning("CVD assessment failed: %s", e)
+
+        # Take the candidate with highest edge (both must pass their own thresholds)
+        candidates = [r for r in [indicator_result, cvd_result] if r is not None]
+        if candidates:
+            best = max(candidates, key=lambda x: x.edge_pct)
+            if len(candidates) > 1:
+                logger.info("15M dual signal: indicator=%.3f, cvd=%.3f → picked %s",
+                            indicator_result.edge_pct if indicator_result else 0,
+                            cvd_result.edge_pct if cvd_result else 0,
+                            best.signal_source)
+            return best
+
         logger.info("15M deterministic below threshold, using AI: %s",
                      market.title[:50])
         # Prepare rich context for AI fallback — use parsed symbol, not hardcoded BTC

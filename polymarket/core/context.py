@@ -53,6 +53,7 @@ class EdgeAssessment:
     side: str = ""                  # "YES" or "NO"
     reasoning: str = ""             # AI 解釋
     data_sources: list[str] = field(default_factory=list)  # what data informed the assessment
+    signal_source: str = ""  # "indicator" / "cvd" / "ai" — which strategy produced this
     # ─── GTO fields (populated by GTOFilterStep) ───
     gto_type: str = ""
     adverse_selection_score: float = 0.0
@@ -80,6 +81,7 @@ class PolySignal:
     bet_size_usdc: float = 0.0      # Kelly-sized bet in USDC
     kelly_fraction: float = 0.0     # raw Kelly fraction before sizing
     reasoning: str = ""
+    signal_source: str = ""  # "indicator" / "cvd" / "ai"
     # ─── GTO fields (populated by GTOFilterStep) ───
     gto_type: str = ""
     adverse_selection_score: float = 0.0
@@ -106,6 +108,10 @@ class PolyPosition:
     unrealized_pnl_pct: float = 0.0
     entry_time: str = ""
     end_date: str = ""              # market resolution date
+    # ─── Hyperliquid Hedge ───
+    hedge_side: str = ""            # "LONG" or "SHORT" (empty = no hedge)
+    hedge_size: float = 0.0         # HL position qty (coins)
+    hedge_entry_px: float = 0.0     # HL entry price
 
     @property
     def probability_drift(self) -> float:
@@ -161,6 +167,7 @@ class PolyContext:
     # ─── Execution ───
     exchange_client: Any = None       # PolymarketClient instance
     gamma_client: Any = None          # GammaClient instance
+    hl_hedge_client: Any = None       # HLHedgeClient instance (Phase 3)
     executed_trades: list[dict] = field(default_factory=list)
 
     # ─── Outputs ───

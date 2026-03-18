@@ -59,6 +59,21 @@ CRYPTO_15M_MAX_ASSESSMENTS = 3                   # 每 cycle 最多 3 個 AI 評
 CRYPTO_15M_MIN_LIQUIDITY = 200                   # 15M 市場流動性門檻較低
 CRYPTO_15M_MAX_BET_USDC = 50.0                   # 快市場 → 細注
 
+# ─── CVD Strategy (Cumulative Volume Delta) ───
+CVD_ENABLED = True                       # Enable CVD signal source for crypto_15m
+CVD_MIN_EDGE_PCT = 0.065                 # Same threshold as indicator path
+CVD_LOOKBACK_MINUTES = 20                # aggTrades lookback (covers 15m windows + buffer)
+CVD_STRENGTH_SCALE = 2.0                 # tanh scaling factor
+CVD_MIN_PRICE_CHANGE_USD = 5.0           # BTC noise filter for divergence detection
+
+# ─── Hyperliquid Hedge ───
+HEDGE_ENABLED = False                    # Phase 3 完成驗證後先開
+HEDGE_USD = 100.0                        # HL notional size per hedge ($100 at leverage)
+HEDGE_LEVERAGE = 20                      # Conservative (Moon Dev 用 40x)
+HEDGE_SYMBOL = "BTC"                     # Only BTC for now
+HEDGE_AUTO_CLOSE_ON_RESOLVE = True       # Auto-close HL hedge when Poly market resolves
+HEDGE_CATEGORIES = ["crypto_15m"]        # Only hedge crypto_15m trades
+
 # ─── Spread / Liquidity ───
 MAX_SPREAD_PCT = 0.08          # 最大可接受 bid-ask spread 8%
 MIN_BOOK_DEPTH_USDC = 500      # 最低 order book 深度
