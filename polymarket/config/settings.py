@@ -30,7 +30,9 @@ DATA_API_HOST = "https://data-api.polymarket.com"
 CHAIN_ID = 137  # Polygon mainnet
 
 # ─── Cycle Timing ───
-CYCLE_INTERVAL_MIN = 60  # 60 分鐘 cycle（預測市場變動慢）
+CYCLE_INTERVAL_MIN = 60  # default 60 min（params.py override 到 1 min）
+SCAN_INTERVAL_SEC = 180  # heavy steps (scan + edge) 最少間隔 3 min
+WATCHER_INTERVAL_SEC = 30  # position watcher check interval
 
 # ─── Market Scanning ───
 MAX_MARKETS_TO_SCAN = 50       # Gamma API 拉幾多個市場
@@ -102,6 +104,7 @@ KELLY_MAX_BET_USDC = 100.0     # 最高下注 $100（初期）
 # ─── Position Management ───
 EXIT_PROBABILITY_DRIFT = 0.15  # 概率漂移 >15% 觸發 exit review
 PROFIT_TAKE_PCT = 0.50         # 持倉升 50% → 考慮止盈
+TAKE_PROFIT_TOKEN_PRICE = 0.93 # token price ≥ 93% → 即走鎖定利潤
 LOSS_CUT_PCT = 0.30            # 持倉跌 30% → 考慮止損
 
 # ─── Cooldown ───

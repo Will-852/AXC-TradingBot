@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import sys
+import time
 import traceback
 from datetime import datetime
 
@@ -100,15 +101,50 @@ class SafetyCheckStep:
 
 
 class ScanMarketsStep:
-    """Step 4: Scan Gamma API for crypto/weather markets."""
+    """Step 4: Scan Gamma API for crypto/weather markets.
+
+    Time-gated: skip if last scan < SCAN_INTERVAL_SEC ago.
+    Reuses cached scanned_markets from state on skip.
+    """
     name = "scan_markets"
 
     def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.config.settings import SCAN_INTERVAL_SEC
         from polymarket.exchange.gamma_client import GammaClient
         from polymarket.strategy.market_scanner import scan_markets
+        from polymarket.core.context import PolyMarket
 
+        # Always init GammaClient (zero API calls on init) so downstream
+        # steps (LogicalArbStep) can fetch sibling markets even on cached cycles
         gamma = ctx.gamma_client or GammaClient()
         ctx.gamma_client = gamma
+
+        # ─── Time gate: reuse cached scan if recent enough ───
+        last_scan_ts = ctx.state.get("last_scan_ts", 0)
+        elapsed = time.time() - last_scan_ts
+        if elapsed < SCAN_INTERVAL_SEC:
+            # Rebuild scanned_markets from state cache
+            cached = ctx.state.get("cached_scanned_markets", [])
+            for m_data in cached:
+                ctx.scanned_markets.append(PolyMarket(
+                    condition_id=m_data.get("condition_id", ""),
+                    title=m_data.get("title", ""),
+                    category=m_data.get("category", ""),
+                    yes_price=float(m_data.get("yes_price", 0)),
+                    no_price=float(m_data.get("no_price", 0)),
+                    liquidity=float(m_data.get("liquidity", 0)),
+                    volume_24h=float(m_data.get("volume_24h", 0)),
+                    end_date=m_data.get("end_date", ""),
+                    event_id=m_data.get("event_id", ""),
+                    neg_risk=m_data.get("neg_risk", False),
+                    yes_token_id=m_data.get("yes_token_id", ""),
+                    no_token_id=m_data.get("no_token_id", ""),
+                ))
+            ctx.filtered_markets = list(ctx.scanned_markets)
+            if ctx.verbose:
+                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
+                print(f"    Scan skipped (gate: {skip_sec}s left). Cached: {len(ctx.scanned_markets)}")
+            return ctx
 
         try:
             ctx.scanned_markets, ctx.filtered_markets = scan_markets(
@@ -116,6 +152,20 @@ class ScanMarketsStep:
             )
         except Exception as e:
             raise RecoverableError(f"Gamma API scan failed: {e}")
+
+        # Cache scanned markets in state for time-gated reuse
+        ctx.state_updates["last_scan_ts"] = time.time()
+        ctx.state_updates["cached_scanned_markets"] = [
+            {
+                "condition_id": m.condition_id, "title": m.title,
+                "category": m.category, "yes_price": m.yes_price,
+                "no_price": m.no_price, "liquidity": m.liquidity,
+                "volume_24h": m.volume_24h, "end_date": m.end_date,
+                "event_id": m.event_id, "neg_risk": m.neg_risk,
+                "yes_token_id": m.yes_token_id, "no_token_id": m.no_token_id,
+            }
+            for m in ctx.scanned_markets
+        ]
 
         if ctx.verbose:
             print(f"    Category matched: {len(ctx.scanned_markets)}")
@@ -152,14 +202,26 @@ class CheckPositionsStep:
                 hedge_size=float(pos_data.get("hedge_size", 0)),
                 hedge_entry_px=float(pos_data.get("hedge_entry_px", 0)),
             )
-            # Update current price from scanned markets
-            for m in ctx.scanned_markets:
-                if m.condition_id == pos.condition_id:
-                    if pos.side == "YES":
-                        pos.current_price = m.yes_price
-                    else:
-                        pos.current_price = m.no_price
-                    break
+            # Update current price — prefer CLOB midpoint (real-time)
+            # over scanned_markets (may be stale from time-gating)
+            got_live_price = False
+            if ctx.exchange_client and not ctx.dry_run and pos.token_id:
+                try:
+                    mid = ctx.exchange_client.get_midpoint(pos.token_id)
+                    if mid and mid > 0:
+                        pos.current_price = mid
+                        got_live_price = True
+                except Exception as e:
+                    logger.debug("Midpoint fetch failed for %s: %s", pos.token_id[:10], e)
+
+            if not got_live_price:
+                for m in ctx.scanned_markets:
+                    if m.condition_id == pos.condition_id:
+                        if pos.side == "YES":
+                            pos.current_price = m.yes_price
+                        else:
+                            pos.current_price = m.no_price
+                        break
 
             # Calculate PnL
             pos.market_value = pos.shares * pos.current_price
@@ -459,14 +521,24 @@ class ExecuteExitStep:
 class FindEdgeStep:
     """Step 7: AI probability assessment via Claude API.
 
+    Time-gated: skip if last edge-finding < SCAN_INTERVAL_SEC ago.
     Core innovation — uses Claude to estimate real probability,
     compare with market price to find mispricing.
     """
     name = "find_edge"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.config.settings import MAX_MARKETS_FOR_AI
+        from polymarket.config.settings import MAX_MARKETS_FOR_AI, SCAN_INTERVAL_SEC
         from polymarket.strategy.edge_finder import assess_markets
+
+        # ─── Time gate: skip if recent ───
+        last_edge_ts = ctx.state.get("last_edge_ts", 0)
+        elapsed = time.time() - last_edge_ts
+        if elapsed < SCAN_INTERVAL_SEC:
+            if ctx.verbose:
+                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
+                print(f"    Edge finding skipped (gate: {skip_sec}s left)")
+            return ctx
 
         if ctx.risk_blocked:
             if ctx.verbose:
@@ -486,6 +558,8 @@ class FindEdgeStep:
             max_assessments=MAX_MARKETS_FOR_AI,
             verbose=ctx.verbose,
         )
+
+        ctx.state_updates["last_edge_ts"] = time.time()
 
         if ctx.verbose:
             print(f"    Edge assessments: {len(ctx.edge_assessments)}")
