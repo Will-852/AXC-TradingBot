@@ -11,3 +11,4 @@ python-telegram-bot>=20.0
 python-dotenv>=0.20.0
 python-binance>=1.0.17
 hyperliquid-python-sdk>=0.22.0
+redis>=5.0.0

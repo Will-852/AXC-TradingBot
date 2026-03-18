@@ -35,6 +35,36 @@ if _scripts_dir not in sys.path:
 
 from indicator_calc import fetch_klines, calc_indicators, TIMEFRAME_PARAMS, PRODUCT_OVERRIDES
 
+# ─── Indicator Cache (from indicator_engine.py) ───
+_INDICATOR_CACHE_PATH = os.path.join(
+    os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading")),
+    "shared", "indicator_cache.json"
+)
+_CACHE_MAX_AGE_SEC = 600  # 10 minutes — stale after this
+
+
+def _read_indicator_cache() -> dict | None:
+    """Read indicator_cache.json if it exists and is fresh. Returns None if stale/missing."""
+    try:
+        if not os.path.exists(_INDICATOR_CACHE_PATH):
+            return None
+        with open(_INDICATOR_CACHE_PATH) as f:
+            cache = json.load(f)
+        meta = cache.get("_meta", {})
+        last_update = meta.get("last_update", "")
+        if not last_update:
+            return None
+        from datetime import datetime, timezone
+        updated_at = datetime.fromisoformat(last_update)
+        age = (datetime.now(timezone.utc) - updated_at).total_seconds()
+        if age > _CACHE_MAX_AGE_SEC:
+            logger.info("Indicator cache stale (%.0fs old), falling back to REST", age)
+            return None
+        return cache
+    except Exception as exc:
+        logger.warning("Failed to read indicator cache: %s", exc)
+        return None
+
 
 def _fetch_json(url: str, timeout: int = API_TIMEOUT) -> dict:
     """Fetch JSON from URL. Returns dict with 'error' key on failure."""
@@ -134,29 +164,57 @@ class FetchMarketDataStep:
 
 
 class CalcIndicatorsStep:
-    """Step 5: Calculate technical indicators for all pairs."""
+    """Step 5: Calculate technical indicators for all pairs.
+
+    Fast path: read from indicator_cache.json (written by indicator_engine.py).
+    Slow path: REST fetch klines + calc_indicators (original behavior, fallback).
+    """
     name = "calc_indicators"
 
     def run(self, ctx: CycleContext) -> CycleContext:
+        # ── Fast path: read from indicator_engine cache ──
+        cache = _read_indicator_cache()
+        if cache:
+            cache_hit = False
+            for symbol in ctx.market_data:
+                sym_cache = cache.get(symbol, {})
+                if sym_cache:
+                    ctx.indicators[symbol] = {}
+                    for timeframe in [PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME]:
+                        tf_data = sym_cache.get(timeframe)
+                        if tf_data and tf_data.get("price") is not None:
+                            ctx.indicators[symbol][timeframe] = tf_data
+                            cache_hit = True
+
+            if cache_hit and ctx.indicators:
+                meta = cache.get("_meta", {})
+                if ctx.verbose:
+                    age = meta.get("engine_uptime_s", "?")
+                    src = meta.get("source", "?")
+                    for sym in ctx.indicators:
+                        tfs = list(ctx.indicators[sym].keys())
+                        print(f"    {sym}: indicators from cache ({src}, uptime={age}s) for {tfs}")
+                logger.info("CalcIndicatorsStep: cache hit (source=%s)", meta.get("source"))
+                return ctx
+            else:
+                logger.info("CalcIndicatorsStep: cache incomplete, falling back to REST")
+
+        # ── Slow path: REST fetch + calc (original behavior) ──
         for symbol in ctx.market_data:
             ctx.indicators[symbol] = {}
 
             for timeframe in [PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME]:
                 try:
-                    # Get params for this timeframe
                     if timeframe not in TIMEFRAME_PARAMS:
                         continue
                     params = TIMEFRAME_PARAMS[timeframe].copy()
 
-                    # Apply product overrides
                     if symbol in PRODUCT_OVERRIDES:
                         params.update(PRODUCT_OVERRIDES[symbol])
 
-                    # Fetch klines and calculate — route to correct exchange
                     df = fetch_klines(symbol, timeframe, KLINE_LIMIT, platform=_platform(symbol))
                     indicators = calc_indicators(df, params)
 
-                    # Also get volume average (last 30 candles vs last candle)
                     if len(df) >= 30:
                         avg_vol = df["volume"].tail(30).mean()
                         current_vol = df["volume"].iloc[-1]
@@ -177,6 +235,6 @@ class CalcIndicatorsStep:
         if ctx.verbose:
             for sym in ctx.indicators:
                 tfs = list(ctx.indicators[sym].keys())
-                print(f"    {sym}: indicators for {tfs}")
+                print(f"    {sym}: indicators for {tfs} (REST fallback)")
 
         return ctx

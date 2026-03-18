@@ -52,6 +52,16 @@ BB_WIDTH_MIN = 0.065           # 最小BB寬度過濾 (opt: 0.0645)
 # 每個 timeframe 嘅 BB/RSI/ADX/EMA/ATR 參數
 # 改呢度 = 改 indicator_calc 嘅計算行為
 TIMEFRAME_PARAMS = {
+    "3m": {
+        "bb_length": 20, "bb_mult": 2,
+        "rsi_period": 14, "adx_period": 14,
+        "ema_fast": 5, "ema_slow": 13, "atr_period": 14,
+        "rsi_long": 25, "rsi_short": 75,
+        "adx_range_max": 18,
+        "bb_touch_tol": BB_TOUCH_TOL_DEFAULT,
+        "bb_width_squeeze": 0.006,
+        "lookback_support": 100,  # 100 × 3m = 5 hours
+    },
     "15m": {
         "bb_length": 20, "bb_mult": 2,
         "rsi_period": 14, "adx_period": 14,
@@ -246,7 +256,7 @@ REGIME_PRESETS = {
     "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
     "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
 }
-ACTIVE_REGIME_PRESET = "classic"
+ACTIVE_REGIME_PRESET = "full"
 # Derived from preset（settings.py getattr 繼續正常運作）
 REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
 CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]

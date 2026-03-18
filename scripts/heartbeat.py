@@ -158,6 +158,84 @@ def check_cost_alerts(cost_path: str) -> list:
 
 
 # ─────────────────────────────────────────
+# EVENT-DRIVEN INFRA HEALTH
+# ─────────────────────────────────────────
+_WS_HEARTBEAT = os.path.join(AXC_HOME, "logs", "ws_heartbeat.txt")
+_IE_HEARTBEAT = os.path.join(AXC_HOME, "logs", "indicator_engine_heartbeat.txt")
+_INDICATOR_CACHE = os.path.join(_SHARED, "indicator_cache.json")
+_HEARTBEAT_STALE_SEC = 120    # heartbeat file older than 2min = service down
+_CACHE_STALE_SEC = 600        # indicator cache older than 10min = stale
+
+
+def _check_event_driven_health() -> list:
+    """Check Redis, ws_manager, and indicator_engine health."""
+    alerts = []
+    now = datetime.now(timezone.utc)
+
+    # 1. Redis
+    try:
+        from shared_infra.redis_bus import is_available as redis_available, health_check
+        if not redis_available():
+            alerts.append({
+                "type": "WARNING",
+                "reason": "Redis 無法連線",
+                "action": "檢查 redis-server 是否運行中"
+            })
+        else:
+            hc = health_check()
+            if hc.get("latency_ms", 999) > 100:
+                alerts.append({
+                    "type": "WARNING",
+                    "reason": f"Redis 延遲偏高: {hc['latency_ms']}ms",
+                    "action": "檢查 Redis 負載"
+                })
+    except ModuleNotFoundError:
+        pass  # redis package not installed — skip
+
+    # 2. ws_manager heartbeat
+    if os.path.exists(_WS_HEARTBEAT):
+        age = (now - datetime.fromtimestamp(os.path.getmtime(_WS_HEARTBEAT), tz=timezone.utc)).total_seconds()
+        if age > _HEARTBEAT_STALE_SEC:
+            alerts.append({
+                "type": "WARNING",
+                "reason": f"ws_manager heartbeat 過期 ({age:.0f}s)",
+                "action": "檢查 ai.openclaw.wsmanager LaunchAgent"
+            })
+
+    # 3. indicator_engine heartbeat
+    if os.path.exists(_IE_HEARTBEAT):
+        age = (now - datetime.fromtimestamp(os.path.getmtime(_IE_HEARTBEAT), tz=timezone.utc)).total_seconds()
+        if age > _HEARTBEAT_STALE_SEC:
+            alerts.append({
+                "type": "WARNING",
+                "reason": f"indicator_engine heartbeat 過期 ({age:.0f}s)",
+                "action": "檢查 ai.openclaw.indicatorengine LaunchAgent"
+            })
+
+    # 4. indicator cache freshness
+    if os.path.exists(_INDICATOR_CACHE):
+        try:
+            with open(_INDICATOR_CACHE) as f:
+                cache = json.load(f)
+            last_update = cache.get("_meta", {}).get("last_update", "")
+            if last_update:
+                updated_at = datetime.fromisoformat(last_update)
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                age = (now - updated_at).total_seconds()
+                if age > _CACHE_STALE_SEC:
+                    alerts.append({
+                        "type": "WARNING",
+                        "reason": f"indicator_cache 過期 ({age:.0f}s > {_CACHE_STALE_SEC}s)",
+                        "action": "indicator_engine 可能停止運行，trader_cycle 將 fallback 到 REST"
+                    })
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+
+    return alerts
+
+
+# ─────────────────────────────────────────
 # SCAN_LOG TRIMMING
 # ─────────────────────────────────────────
 def trim_scan_log_if_needed(path: str) -> bool:
@@ -256,8 +334,14 @@ def run_heartbeat() -> int:
     # ─── Step 3: Read COST_TRACKER.md (via check) ───
     # (parsed inside check_cost_alerts)
 
-    # ─── Step 4: Collect all alerts ───
+    # ─── Step 3.5: Check event-driven infra health ───
     all_alerts = []
+    try:
+        all_alerts.extend(_check_event_driven_health())
+    except Exception as e:
+        result.setdefault("errors", []).append(f"event_driven_health: {e}")
+
+    # ─── Step 4: Collect all alerts ───
     all_alerts.extend(check_position_alerts(trade_state))
     all_alerts.extend(check_trigger_alerts(scan_config))
 

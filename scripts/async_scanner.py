@@ -52,6 +52,13 @@ sys.path.insert(0, str(BASE_DIR / "config"))
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
 from write_activity import write_activity
+
+# ── Redis (optional — graceful if unavailable) ───
+try:
+    from shared_infra.redis_bus import STREAM_POLL, xadd, is_available as redis_available
+    _REDIS_OK = True
+except ModuleNotFoundError:
+    _REDIS_OK = False
 from public_feeds import fetch_exchange_tickers
 from public_feeds import shutdown as feeds_shutdown
 
@@ -340,6 +347,24 @@ def write_scan_results(results: list[dict], prev_cache: dict) -> dict:
             SHARED_DIR / "prices_cache.json",
             json.dumps(new_cache, ensure_ascii=False, indent=2),
         )
+
+        # ── 4. Redis stream (supplementary — file bus is primary) ──
+        if _REDIS_OK and results:
+            try:
+                if redis_available():
+                    for r in results:
+                        xadd(STREAM_POLL, {
+                            "symbol": r.get("symbol", ""),
+                            "exchange": r.get("platform", ""),
+                            "price": str(r.get("price", "")),
+                            "change_24h": str(r.get("change", "")),
+                            "volume": str(r.get("volume", "")),
+                            "signal": r.get("signal", ""),
+                            "ts": str(r.get("ts", "")),
+                        })
+            except Exception as e:
+                log.warning(f"Redis XADD skipped: {e}")
+
         return new_cache
 
     except Exception as e:
