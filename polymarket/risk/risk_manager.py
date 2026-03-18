@@ -5,7 +5,8 @@ Same philosophy as trader_cycle/risk/risk_manager.py:
 純 if-else 規則，冇 LLM 介入。
 
 Checks:
-1. Circuit breaker (daily loss limit)
+1. Circuit breaker — 3-state (CLOSED/OPEN/HALF_OPEN) for services
+                   + daily loss limit for trading
 2. Cooldown after losses
 3. Position limits (max 5 open, max per category)
 4. Exposure limits (max 30% bankroll)
@@ -25,6 +26,7 @@ from ..config.settings import (
     HKT,
 )
 from ..core.context import PolyContext, PolySignal
+from .circuit_breaker import get_circuit_breaker, all_statuses, CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,16 @@ def check_safety(ctx: PolyContext) -> PolyContext:
         ctx.risk_reasons.append(
             f"Max exposure reached: {ctx.exposure_pct:.1%}/{MAX_TOTAL_EXPOSURE:.1%}"
         )
+
+    # ─── Service Circuit Breakers (3-state) ───
+    for status in all_statuses():
+        if status["state"] == "open":
+            ctx.risk_reasons.append(
+                f"Service {status['service']} circuit breaker OPEN"
+            )
+            # Polymarket CLOB being down should block trading
+            if status["service"] == "polymarket":
+                ctx.risk_blocked = True
 
     return ctx
 
@@ -159,3 +171,16 @@ def record_win(ctx: PolyContext) -> dict:
     return {
         "consecutive_losses": 0,
     }
+
+
+def protected_call(service_name: str, func, *args, **kwargs):
+    """Execute a function through the service circuit breaker.
+
+    Usage:
+        result = protected_call("polymarket", client.buy_shares, token_id=..., ...)
+        result = protected_call("gamma", gamma.get_markets, limit=100)
+
+    Raises CircuitBreakerOpen if service is down.
+    """
+    cb = get_circuit_breaker(service_name)
+    return cb.call(func, *args, **kwargs)

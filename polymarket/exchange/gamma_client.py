@@ -36,6 +36,22 @@ _TIMEOUT = 15  # seconds
 _USER_AGENT = "AXC-Trading/1.0"
 
 
+def _extract_event_id(raw: dict) -> str:
+    """Extract parent event ID from raw Gamma market response."""
+    events = raw.get("events", [])
+    if events and isinstance(events, list):
+        return str(events[0].get("id", ""))
+    return ""
+
+
+def _extract_event_slug(raw: dict) -> str:
+    """Extract parent event slug from raw Gamma market response."""
+    events = raw.get("events", [])
+    if events and isinstance(events, list):
+        return events[0].get("slug", "")
+    return ""
+
+
 class GammaClient:
     """Gamma API client for Polymarket market discovery.
 
@@ -263,6 +279,8 @@ class GammaClient:
             "icon": raw.get("icon", ""),
             "slug": raw.get("slug", ""),
             "neg_risk": raw.get("negRisk", False),
+            "event_id": _extract_event_id(raw),
+            "event_slug": _extract_event_slug(raw),
             "min_order_size": raw.get("orderMinSize", 5),
             "tick_size": raw.get("orderPriceMinTickSize", 0.01),
             "accepting_orders": raw.get("acceptingOrders", True),

@@ -190,6 +190,53 @@ class CheckPositionsStep:
         return ctx
 
 
+class MergeCheckStep:
+    """Step 5.5: Detect mergeable positions (YES+NO pairs).
+
+    Detection only — reports via ctx for Telegram notification.
+    On-chain merge execution is Phase 2 TODO.
+    """
+    name = "merge_check"
+
+    def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.risk.position_merger import detect_mergeable, format_merge_report
+
+        # Need a wallet address to check positions on Data API
+        # In dry-run, skip (no real positions to merge)
+        if ctx.dry_run:
+            if ctx.verbose:
+                print("    Merge check: skipped (dry-run)")
+            return ctx
+
+        # Get proxy wallet address from exchange client
+        address = ""
+        if ctx.exchange_client:
+            address = getattr(ctx.exchange_client, "proxy_address", "")
+            if not address:
+                address = getattr(ctx.exchange_client, "address", "")
+
+        if not address:
+            if ctx.verbose:
+                print("    Merge check: no wallet address")
+            return ctx
+
+        mergeables = detect_mergeable(address, verbose=ctx.verbose)
+
+        if mergeables:
+            report = format_merge_report(mergeables)
+            ctx.telegram_messages.append(report)
+            total = sum(m.reclaimable_usdc for m in mergeables)
+            if ctx.verbose:
+                print(
+                    f"    Merge check: {len(mergeables)} mergeable "
+                    f"→ ${total:.2f} reclaimable"
+                )
+        elif ctx.verbose:
+            print("    Merge check: no mergeable positions")
+
+        return ctx
+
+
 class ManagePositionsStep:
     """Step 6: Monitor positions for exit triggers (expiry, drift, PnL)."""
     name = "manage_positions"
@@ -264,6 +311,151 @@ class CloseHedgeStep:
         return ctx
 
 
+class ExecuteExitStep:
+    """Step 6.7: Execute sell orders for positions flagged to exit.
+
+    Iterates ctx.exit_signals where should_exit=True, sells via CLOB SDK,
+    removes exited positions from ctx.open_positions, and recalculates exposure.
+    Uses WAL for crash safety (same pattern as ExecuteTradesStep).
+    """
+    name = "execute_exits"
+
+    def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.state.trade_log import log_trade
+
+        exits = [sig for sig in ctx.exit_signals if sig.should_exit]
+        if not exits:
+            return ctx
+
+        exited_ids: set[str] = set()
+
+        for sig in exits:
+            pos = sig.position
+            trade_record = {
+                "condition_id": pos.condition_id,
+                "title": pos.title,
+                "category": pos.category,
+                "side": pos.side,
+                "action": "sell",
+                "shares": pos.shares,
+                "price": pos.current_price,
+                "pnl": pos.unrealized_pnl,
+                "reasons": sig.reasons,
+                "urgency": sig.urgency,
+            }
+
+            if ctx.dry_run:
+                trade_record["dry_run"] = True
+                if ctx.verbose:
+                    print(
+                        f"    DRY_RUN EXIT: would sell {pos.side} "
+                        f"{pos.title[:40]} ({sig.urgency}) "
+                        f"PnL=${pos.unrealized_pnl:+.2f}"
+                    )
+
+                log_trade(
+                    condition_id=pos.condition_id,
+                    title=pos.title,
+                    category=pos.category,
+                    side=pos.side,
+                    action="sell",
+                    shares=pos.shares,
+                    price=pos.current_price,
+                    amount_usdc=pos.market_value,
+                    reasoning="; ".join(sig.reasons),
+                    pnl=pos.unrealized_pnl,
+                    dry_run=True,
+                )
+                exited_ids.add(pos.condition_id)
+
+            else:
+                # ─── Live Exit with WAL ───
+                intent_id = None
+                try:
+                    if ctx.wal:
+                        intent_id = ctx.wal.log_intent(
+                            op="sell",
+                            pair=pos.condition_id,
+                            direction=pos.side,
+                            qty=pos.shares,
+                            price=pos.current_price,
+                            sl_price=0,
+                            platform="polymarket",
+                        )
+
+                    # FOK market sell (price=0) for immediate exit
+                    result = ctx.exchange_client.sell_shares(
+                        token_id=pos.token_id,
+                        shares=pos.shares,
+                        price=0,
+                    )
+
+                    order_id = result.get("orderID", result.get("id", ""))
+                    trade_record["order_id"] = order_id
+                    trade_record["dry_run"] = False
+
+                    if ctx.wal and intent_id:
+                        ctx.wal.log_done(intent_id, order_id)
+
+                    log_trade(
+                        condition_id=pos.condition_id,
+                        title=pos.title,
+                        category=pos.category,
+                        side=pos.side,
+                        action="sell",
+                        shares=pos.shares,
+                        price=pos.current_price,
+                        amount_usdc=pos.market_value,
+                        reasoning="; ".join(sig.reasons),
+                        order_id=order_id,
+                        pnl=pos.unrealized_pnl,
+                        dry_run=False,
+                    )
+
+                    if ctx.verbose:
+                        print(
+                            f"    LIVE EXIT: sold {pos.side} "
+                            f"{pos.title[:40]} → {order_id}"
+                        )
+
+                    exited_ids.add(pos.condition_id)
+
+                except Exception as e:
+                    if ctx.wal and intent_id:
+                        ctx.wal.log_failed(intent_id, str(e))
+                    trade_record["error"] = str(e)
+                    ctx.errors.append(
+                        f"Exit failed: {pos.title[:30]} — {e}"
+                    )
+                    logger.error("Exit execution failed: %s", e)
+                    continue
+
+            ctx.executed_trades.append(trade_record)
+
+        # Remove exited positions + recalculate exposure
+        if exited_ids:
+            ctx.open_positions = [
+                p for p in ctx.open_positions
+                if p.condition_id not in exited_ids
+            ]
+            ctx.total_exposure = sum(
+                p.cost_basis for p in ctx.open_positions
+            )
+            bankroll = ctx.usdc_balance + ctx.total_exposure
+            ctx.exposure_pct = (
+                ctx.total_exposure / bankroll if bankroll > 0 else 0.0
+            )
+
+            if ctx.verbose:
+                print(
+                    f"    Exited {len(exited_ids)} position(s). "
+                    f"Exposure: ${ctx.total_exposure:.2f} "
+                    f"({ctx.exposure_pct:.0%})"
+                )
+
+        return ctx
+
+
 class FindEdgeStep:
     """Step 7: AI probability assessment via Claude API.
 
@@ -307,6 +499,116 @@ class FindEdgeStep:
         return ctx
 
 
+class LogicalArbStep:
+    """Step 7.3: Detect logical arbitrage across related markets.
+
+    Zero AI cost. Groups markets by event_id, checks:
+    - NegRisk: sum(YES prices) should be ~1.0
+    - Ordering: higher threshold must have lower probability
+
+    Arb signals bypass GTO (mathematically guaranteed edge).
+    """
+    name = "logical_arb"
+
+    def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.strategy.logical_arb import detect_arb
+        from polymarket.core.context import EdgeAssessment
+
+        # Scan ALL markets (not just filtered) to see full event groups
+        # Pass gamma_client so negRisk events can fetch ALL sibling markets
+        all_markets = list(ctx.scanned_markets)
+        opps = detect_arb(
+            all_markets,
+            gamma_client=ctx.gamma_client,
+            verbose=ctx.verbose,
+        )
+        ctx.arb_opportunities = opps
+
+        if not opps:
+            if ctx.verbose:
+                print("    No logical arb opportunities")
+            return ctx
+
+        # Convert arb opportunities to EdgeAssessments
+        for opp in opps:
+            if opp.arb_type == "neg_risk_overpriced":
+                # Find the most overpriced outcome to sell NO on
+                most_overpriced = max(opp.markets, key=lambda m: m.yes_price)
+                ctx.edge_assessments.append(EdgeAssessment(
+                    condition_id=most_overpriced.condition_id,
+                    title=most_overpriced.title,
+                    category=most_overpriced.category or "arb",
+                    market_price=most_overpriced.yes_price,
+                    ai_probability=most_overpriced.yes_price - opp.edge_pct,
+                    edge=-opp.edge_pct,
+                    edge_pct=opp.edge_pct,
+                    confidence=0.95,  # math-based, high confidence
+                    side="NO",
+                    reasoning=f"Logical arb: {opp.detail}",
+                    signal_source="logical_arb",
+                    gto_approved=True,
+                    gto_reasoning="logical arb — GTO bypass",
+                    gto_order_type="LIMIT",
+                    is_dominant_strategy=True,
+                ))
+
+            elif opp.arb_type == "neg_risk_underpriced":
+                # Find the most underpriced outcome to buy YES on
+                most_underpriced = min(opp.markets, key=lambda m: m.yes_price)
+                ctx.edge_assessments.append(EdgeAssessment(
+                    condition_id=most_underpriced.condition_id,
+                    title=most_underpriced.title,
+                    category=most_underpriced.category or "arb",
+                    market_price=most_underpriced.yes_price,
+                    ai_probability=most_underpriced.yes_price + opp.edge_pct,
+                    edge=opp.edge_pct,
+                    edge_pct=opp.edge_pct,
+                    confidence=0.95,
+                    side="YES",
+                    reasoning=f"Logical arb: {opp.detail}",
+                    signal_source="logical_arb",
+                    gto_approved=True,
+                    gto_reasoning="logical arb — GTO bypass",
+                    gto_order_type="LIMIT",
+                    is_dominant_strategy=True,
+                ))
+
+            elif opp.arb_type == "ordering_violation":
+                # Two markets: sell the overpriced one (NO), buy the underpriced one (YES)
+                if len(opp.markets) >= 2:
+                    m_low, m_high = opp.markets[0], opp.markets[1]
+                    ctx.edge_assessments.append(EdgeAssessment(
+                        condition_id=m_high.condition_id,
+                        title=m_high.title,
+                        category=m_high.category or "arb",
+                        market_price=m_high.yes_price,
+                        ai_probability=m_low.yes_price,
+                        edge=-(m_high.yes_price - m_low.yes_price),
+                        edge_pct=opp.edge_pct,
+                        confidence=0.90,
+                        side="NO",
+                        reasoning=f"Ordering violation: {opp.detail}",
+                        signal_source="logical_arb",
+                        gto_approved=True,
+                        gto_reasoning="logical arb — GTO bypass",
+                        gto_order_type="LIMIT",
+                        is_dominant_strategy=True,
+                    ))
+
+        # Ensure arb markets are in filtered_markets so GenerateSignalsStep can find them
+        existing_cids = {m.condition_id for m in ctx.filtered_markets}
+        for opp in opps:
+            for m in opp.markets:
+                if m.condition_id and m.condition_id not in existing_cids:
+                    ctx.filtered_markets.append(m)
+                    existing_cids.add(m.condition_id)
+
+        if ctx.verbose:
+            print(f"    Logical arb: {len(opps)} opportunities → {len(opps)} edge assessments added")
+
+        return ctx
+
+
 class GTOFilterStep:
     """Step 7.5: GTO filter — adverse selection, Nash equilibrium, fill quality.
 
@@ -335,6 +637,10 @@ class GTOFilterStep:
         # Attach GTO fields to each EdgeAssessment
         blocked = 0
         for ea in ctx.edge_assessments:
+            # Logical arb signals are mathematically guaranteed — skip GTO
+            if ea.signal_source == "logical_arb":
+                continue
+
             gto = gto_results.get(ea.condition_id)
             if not gto:
                 # Fail-open: no market match → pass through with visibility
@@ -753,9 +1059,12 @@ def build_pipeline() -> Pipeline:
       3.   safety_check        — circuit breaker, daily loss, cooldown
       4.   scan_markets        — Gamma API → filter crypto/weather
       5.   check_positions     — sync positions + USDC balance
+      5.5  merge_check         — detect mergeable YES+NO pairs (report only)
       6.   manage_positions    — exit triggers (drift, PnL, expiry)
       6.5  close_hedge         — close HL hedge for resolved/exited positions
+      6.7  execute_exits       — sell positions flagged by exit triggers
       7.   find_edge           — Claude API probability assessment
+      7.3  logical_arb         — detect pricing contradictions across related markets
       7.5  gto_filter          — GTO: adverse selection, Nash eq, fill quality
       8.   generate_signals    — edge > threshold → PolySignal (skips GTO-blocked)
       9.   size_positions      — half Kelly (scaled by unexploitability)
@@ -769,9 +1078,12 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(SafetyCheckStep())       # 3
     pipeline.add_step(ScanMarketsStep())       # 4
     pipeline.add_step(CheckPositionsStep())    # 5
+    pipeline.add_step(MergeCheckStep())        # 5.5
     pipeline.add_step(ManagePositionsStep())   # 6
     pipeline.add_step(CloseHedgeStep())        # 6.5
+    pipeline.add_step(ExecuteExitStep())       # 6.7
     pipeline.add_step(FindEdgeStep())          # 7
+    pipeline.add_step(LogicalArbStep())        # 7.3
     pipeline.add_step(GTOFilterStep())         # 7.5
     pipeline.add_step(GenerateSignalsStep())   # 8
     pipeline.add_step(SizePositionsStep())     # 9

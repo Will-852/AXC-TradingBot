@@ -35,6 +35,8 @@ class PolyMarket:
     outcome_prices: dict[str, float] = field(default_factory=dict)
     outcome_tokens: dict[str, str] = field(default_factory=dict)
     neg_risk: bool = False
+    event_id: str = ""               # parent event (for logical arb grouping)
+    event_slug: str = ""
     tick_size: float = 0.01
     min_order_size: float = 5.0
 
@@ -147,6 +149,9 @@ class PolyContext:
 
     # ─── Positions ───
     open_positions: list[PolyPosition] = field(default_factory=list)
+
+    # ─── Logical Arbitrage ───
+    arb_opportunities: list = field(default_factory=list)  # list[ArbOpportunity]
 
     # ─── Edge Finding (AI) ───
     edge_assessments: list[EdgeAssessment] = field(default_factory=list)

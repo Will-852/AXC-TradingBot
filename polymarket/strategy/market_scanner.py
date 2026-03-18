@@ -73,6 +73,8 @@ def scan_markets(
             outcome_prices=parsed.get("outcome_prices", {}),
             outcome_tokens=parsed.get("outcome_tokens", {}),
             neg_risk=parsed.get("neg_risk", False),
+            event_id=parsed.get("event_id", ""),
+            event_slug=parsed.get("event_slug", ""),
             tick_size=parsed.get("tick_size", 0.01),
             min_order_size=parsed.get("min_order_size", 5),
             spread=abs((parsed["yes_price"] + parsed["no_price"]) - 1.0)

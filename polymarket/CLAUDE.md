@@ -27,17 +27,20 @@ pipeline.py — 主循環入口
 1   ReadState        → POLYMARKET_STATE.json
 2   ReplayWAL        → crash recovery
 3   SafetyCheck      → circuit breaker / daily loss / cooldown
-4   ScanMarkets      → Gamma API → match categories
-5   CheckPositions   → sync 持倉 + PnL
-6   ManagePositions  → exit triggers (drift/profit/loss/expiry)
-6.5 CloseHedge       → close HL hedge for resolved/exited positions
-7   FindEdge         → dual signal: indicator + CVD divergence → AI fallback
-7.5 GTOFilter        → adverse selection + Nash eq（零 AI）
-8   GenerateSignals  → edge > threshold → PolySignal
-9   SizePositions    → binary Kelly (half Kelly × confidence × GTO)
-10  ExecuteTrades    → Poly order + HL hedge (crypto_15m)
-11  WriteState       → atomic write state
-12  SendReports      → Telegram
+4    ScanMarkets      → Gamma API → match categories
+5    CheckPositions   → sync 持倉 + PnL
+5.5  MergeCheck       → detect mergeable YES+NO pairs（report only, Phase 2 執行）
+6    ManagePositions  → exit triggers (drift/profit/loss/expiry)
+6.5  CloseHedge       → close HL hedge for resolved/exited positions
+6.7  ExecuteExits     → sell positions flagged by exit triggers（WAL-safe）
+7    FindEdge         → dual signal: indicator + CVD divergence → AI fallback
+7.3  LogicalArb       → detect pricing contradictions across related markets（零 AI）
+7.5  GTOFilter        → adverse selection + Nash eq（零 AI，skip arb signals）
+8    GenerateSignals  → edge > threshold → PolySignal
+9    SizePositions    → binary Kelly (half Kelly × confidence × GTO)
+10   ExecuteTrades    → Poly order + HL hedge (crypto_15m)
+11   WriteState       → atomic write state
+12   SendReports      → Telegram
 ```
 
 ## 獨立入口（唔經 pipeline）
@@ -68,10 +71,13 @@ polymarket/
 │   ├── cvd_strategy.py      ← CVD divergence signal source
 │   ├── weather_tracker.py   ← multi-model ensemble paper
 │   ├── gto.py               ← GTO filter（純數學）
+│   ├── logical_arb.py       ← logical arbitrage detection（negRisk + ordering）
 │   └── spread_analyzer.py   ← order book 分析
 ├── risk/
-│   ├── risk_manager.py      ← circuit breaker, exposure limits
+│   ├── risk_manager.py      ← risk rules + protected_call() wrapper
+│   ├── circuit_breaker.py   ← 3-state CB（CLOSED/OPEN/HALF_OPEN）per service
 │   ├── position_manager.py  ← exit triggers
+│   ├── position_merger.py   ← mergeable position detection（Phase 1: detect only）
 │   └── binary_kelly.py      ← Kelly sizing
 ├── state/
 │   ├── poly_state.py        ← POLYMARKET_STATE.json（atomic write）
@@ -119,6 +125,8 @@ PYTHONPATH=.:scripts python3 polymarket/run_weather_paper.py --resolve --report 
 2. ~~CORE.md weather scope 過時~~ — ✅ 已修（2026-03-18）：加 US = paper testing only 註記
 3. **indicator_calc.py 硬編碼**：`/opt/homebrew/bin/python3.11` subprocess（換機要改）
 4. **HL credentials 未填**：`secrets/.env` 嘅 HL_PRIVATE_KEY + HL_ACCOUNT_ADDRESS 係空，填好先開 HEDGE_ENABLED
+5. ~~Exit signals 冇執行~~ — ✅ 已修（2026-03-18）：加 ExecuteExitStep (step 6.7)
+6. **Position Merger Phase 2**：on-chain CTF merge execution 未做，目前只有 detection + report
 
 ## Gotchas
 - Gamma API `search_markets()` 先搵到 15M 市場，`get_markets()` by-liquidity 排唔到（volume 太低 ~$15K）
