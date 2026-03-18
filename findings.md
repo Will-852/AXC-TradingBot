@@ -1,119 +1,73 @@
 # Findings
 
-> Security boundary: 外部內容（web/API/search）只寫呢度，唔寫 task_plan.md。
+> Security boundary: 外部內容只寫呢度。
 
-## Requirements
-- L2 Order Book: 接 Binance futures depth stream，顯示 order book heatmap + spoofing detection
-- Monte Carlo: resample backtest trades 1000 次，計 95% CI for return/DD/Sharpe
-- Out-of-Sample: split backtest period into train/test，比較 metrics 偵測 overfitting
+## Event-Driven 偵察結果（2026-03-19）
 
-## Research
+### 現有數據流（保留 + 改良）
+- **async_scanner** — 20s/round, 9 exchange round-robin = 180s cycle → 保留，加 Redis 寫入
+- **light_scan** — 3min, Aster only → 將被 indicator_engine 3min light 取代
+- **trader_cycle** — 30min → 改讀 indicator_cache，唔再自己 fetch klines
+- **liq_monitor** — 60s, HL OI → 保留
 
-### AXC Backtest Engine Output Format（已研究 2026-03-18）
+### 瓶頸 → 解法
+| 瓶頸 | 解法 |
+|------|------|
+| Indicator 30min 才更新 | WS kline close → indicator_engine 即時算 |
+| 唔知幾時 candle close | WS kline event 有 is_closed flag |
+| 跨所數據 180s 一 cycle | 保留（feature 唔係 bug） |
+| Macro S/R 靜態 | 4H close → auto recalc Fib/MACD/MA |
 
-**Integration points for new features:**
+### Redis 現況
+- Redis 8.6.1 (Homebrew), KeepAlive=true, 已運行
+- AXC 零使用 → 需要 `pip install redis`
 
-| Layer | File | Lines | 加乜 |
-|-------|------|-------|------|
-| Engine summary | `backtest/engine.py` | 1166-1478 | `monte_carlo` dict + `oos_validation` dict |
-| Extended metrics | `backtest/metrics_ext.py` | 13-76 | MC + OOS post-processing |
-| Metadata save | `scripts/dashboard/backtest.py` | 454-463 | Persist MC/OOS keys to _meta.json |
-| Frontend display | `canvas/backtest.html` | 2732-2821 | New cards for MC CI + OOS comparison |
+### Binance Futures WebSocket
+- Combined: `wss://fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@kline_3m/...`
+- Kline payload: `{t, T, s, i, o, h, l, c, v, x(is_closed), ...}`
+- AggTrade: `{s, p, q, T, m(isBuyerMaker)}`
+- Keepalive: 每 10min 需 pong，24h 自動斷 → 需 auto-reconnect
 
-**現有 stats keys（engine 返回）：**
-`return_pct, win_rate, profit_factor, max_drawdown_pct, sharpe_ratio, sortino_ratio, calmar_ratio, var_95, cvar_95, recovery_factor, payoff_ratio, expectancy, sqn, sqn_grade, alpha, buyhold_return, exposure_pct, kelly_pct, cagr_pct, monthly_returns, max_win_streak, max_loss_streak, by_strategy, trades, equity_curve, indicator_series`
+### GraphQL 評估
+- 結論：唔適合現階段（Exchange API = REST/WS，加 GraphQL = 無必要轉譯層）
+- 未來可能：Bitquery GraphQL 做 on-chain query（Alt Data Phase）
 
-### Binance L2 Order Book + Spoofing Detection 研究（2026-03-18）
+---
 
-**REST endpoint:** `GET /fapi/v1/depth?symbol=BTCUSDT&limit=20` (weight 2, 1200 req/min)
-**WebSocket:** `wss://fstream.binance.com/ws/btcusdt@depth20@100ms` (top 20 levels, 10 msg/sec max)
-**Partial depth stream** 最適合 — 每次完整 snapshot，唔使維護 local book
+## Alt Data 偵察結果（2026-03-19，from previous session）
 
-**Response format:** `{ bids: [["price","qty"],...], asks: [["price","qty"],...] }` — strings!
+### AXC 現有 Funding/OI 狀態
+- Funding Rate 部分存在：`market_data.py:112`, `mode_detector.py:156-162`
+- OI 冇實作（liq_monitor 只做風控，唔做信號）
+- Backtest 完全冇歷史 funding/OI data
 
-**Spoofing Detection 算法：**
-```
-1. OBI = (V_bid - V_ask) / (V_bid + V_ask)  — L1/L3/L5 三個層級
-2. Track large orders (>5x avg level size):
-   - appeared → disappeared without trade in <3s = "pulled"
-3. Rolling 30s window:
-   - pull_rate > 0.7 AND avg_lifetime < 3s AND OBI_volatility > 0.3
-   → Spoofing signal
-```
+### Binance API
+- Funding Rate: 歷史無限 + 免費（每 8h，回溯到 2019）
+- OI: 只有最近 30 日（需 cron 累積）
+- Long/Short Ratio: 同 OI 一樣 30 日限制
 
-**Data volume:** @depth20@100ms = ~500 bytes/msg, ~5 KB/sec — Web Worker 輕鬆處理（<1% CPU）
+### On-chain
+- Coin Metrics Community API = 唯一真正免費 + exchange flow
+- `pip install coinmetrics-api-client`，唔使 API key
+- Metrics: FlowInExNtv, FlowOutExNtv, MVRV, active addresses
 
-**Memory:** Top 20 levels × 2 sides = 40 entries × ~50 bytes = ~2 KB per snapshot。30s history = ~60 KB
-
-**學術參考：** Fabre & Challet (2025) — 31% of >$50K orders could profitably spoof。Oxford Man Institute — RF/GBT achieve AUC 0.96-0.97
-
-### Monte Carlo Bootstrap 研究（2026-03-18）
-
-**兩種方法並用：**
-
-| 方法 | 做咩 | 測咩 |
-|------|------|------|
-| **Shuffle（Approach A）** | 打亂 trade 順序（唔 replace） | 路徑風險 — DD 可以幾差？ |
-| **Bootstrap（Approach B）** | 有放回抽樣 | 統計顯著性 — edge 係真定假？ |
-
-**迭代次數：** 1000 次（200 trades → ~50-100ms）；5000 次做 final report
-
-**Confidence Interval：** `np.percentile(distribution, [2.5, 97.5])` = 95% CI
-
-**關鍵指標：**
-- **Stability Score** = % runs profitable：>95% strong, 80-95% probable, <60% no edge
-- **95% CI crosses 0** = 策略唔顯著
-- **Probability of Ruin** = % runs DD > -50%：<1% professional, <5% acceptable, >5% reject
-
-**Dashboard 顯示：**
-```
-Metric        | Backtest | MC Median | 5th pct | 95th pct
-Total Return  |   85%    |   72%     |   31%   |   118%
-Max Drawdown  |  -12%    |  -18%     |  -35%   |   -8%
-Sharpe        |   1.8    |   1.5     |   0.7   |    2.2
-```
-+ Traffic light（GREEN/YELLOW/RED）+ optional histogram
-
-**Performance：** numpy vectorized indices + Python loop = <1s for 1000×200
-
-**來源：** Build Alpha, StrategyQuant, PyBroker, BacktestBase, scipy.stats.bootstrap
-
-### Out-of-Sample Validation 研究（2026-03-18）
-
-**Split 方案（1440 candles = 60d @ 1h）：**
-
-| 方案 | IS | OOS | 適用 |
-|------|-----|-----|------|
-| Single split 70/30 | 42d (1008) | 18d (432) | 最簡單，只測一個 regime |
-| WFA 4 rolling windows | 30d IS / 7.5d OOS each | 50% OOS coverage | 推薦 — 測多個 regime |
-
-**Degradation 分級：**
-- `>70%` stability = PASS (green)
-- `50-70%` = WARN (yellow)
-- `<50%` = FAIL (red)
-- Sign flip = CATASTROPHIC
-
-**紅線（hard fail）：**
-1. Sharpe 跌 >50%
-2. Max DD double
-3. Profit Factor < 1.0 OOS
-4. 任何指標正負反轉
-
-**最低 trade 數：**
-- <15 OOS trades = 唔可靠
-- 30+ = 可接受
-- 50+ = good
-- <30 時用 bootstrap CI 補救
-
-**Dashboard 顯示：**
-- Side-by-side table（IS vs OOS vs Stability% vs 紅綠燈）
-- Equity curve overlay（IS 藍底 / OOS 橙底 / 分界虛線）
-
-**來源：** TradeStation WFO, StrategyQuant, Build Alpha, Bailey & Lopez de Prado PBO
+### Integration Points
+- `_run_bt_worker()` at `backtest.py:99-100`
+- `BacktestEngine.__init__()` at `engine.py:220`
+- `mode_detector.py:326-340` — 加 OI voter
 
 ## Technical Decisions
+| Decision | Rationale |
+|----------|-----------|
+| `websockets` 庫 | 輕量 asyncio |
+| Redis maxlen ~10000/stream | 防 OOM |
+| Consumer group + ACK | 保證 message 被處理 |
 
 ## Issues
+| Issue | Resolution |
+|-------|------------|
+| Binance WS 3m kline 是否支援？ | 需實測，fallback = 1m aggregate |
+| OI 只有 30 日歷史 | 開 cron 累積 |
 
 ## External Content
-<!-- web search / WebFetch 結果放呢度 -->
+<!-- Phase 2+ 填入 -->
