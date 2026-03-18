@@ -10,8 +10,10 @@ Design decisions:
 
 import logging
 import time
+from typing import Any
 
 import numpy as np
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -339,5 +341,144 @@ def run_monte_carlo(
         "original_return": round(original["return_pct"], 2),
         "original_max_dd": round(original["max_dd_pct"], 2),
         "original_sharpe": round(original["sharpe"], 2),
+        "grade": grade,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Noise Injection Monte Carlo
+# ---------------------------------------------------------------------------
+# Different from trade-level MC above: this re-runs the FULL backtest engine
+# on perturbed OHLC data. Tests whether signals are robust to small price
+# changes (±0.2% noise) or depend on exact price levels (= overfitting).
+
+NOISE_DEFAULT_ITERATIONS = 50   # each = full engine run (~0.5-1s), so 50 = ~30-50s
+NOISE_DEFAULT_STD = 0.002       # 0.2% std — typical 1H candle noise for BTC
+
+
+def _add_ohlc_noise(df: pd.DataFrame, noise_std: float, rng: np.random.Generator) -> pd.DataFrame:
+    """Add gaussian noise to OHLC columns while preserving candle validity.
+
+    Why per-column noise (not uniform): open/close get standard noise,
+    high gets only upward noise (can't be lower than max(open,close)),
+    low gets only downward noise (can't be higher than min(open,close)).
+    """
+    noisy = df.copy()
+    n = len(noisy)
+
+    for col in ("open", "close"):
+        noise = rng.normal(0, noise_std, n)
+        noisy[col] = noisy[col] * (1 + noise)
+
+    # High must be >= max(open, close)
+    high_noise = np.abs(rng.normal(0, noise_std, n))
+    noisy["high"] = noisy["high"] * (1 + high_noise)
+    noisy["high"] = noisy[["high", "open", "close"]].max(axis=1)
+
+    # Low must be <= min(open, close)
+    low_noise = np.abs(rng.normal(0, noise_std, n))
+    noisy["low"] = noisy["low"] * (1 - low_noise)
+    noisy["low"] = noisy[["low", "open", "close"]].min(axis=1)
+
+    return noisy
+
+
+def run_noise_mc(
+    df_1h: pd.DataFrame,
+    df_4h: pd.DataFrame,
+    engine_kwargs: dict[str, Any],
+    original_result: dict,
+    n_iterations: int = NOISE_DEFAULT_ITERATIONS,
+    noise_std: float = NOISE_DEFAULT_STD,
+    seed: int = DEFAULT_SEED,
+) -> dict:
+    """
+    Noise injection Monte Carlo: re-run backtest engine on perturbed OHLC data.
+
+    Args:
+        df_1h: original 1H OHLCV DataFrame
+        df_4h: original 4H OHLCV DataFrame
+        engine_kwargs: dict of BacktestEngine constructor kwargs
+                       (symbol, initial_balance, param_overrides, allowed_modes, etc.)
+        original_result: result dict from original (unperturbed) backtest
+        n_iterations: number of noisy reruns (default 50)
+        noise_std: standard deviation of price noise (default 0.002 = 0.2%)
+        seed: random seed
+
+    Returns dict with:
+        n_iterations, noise_std,
+        original_return, original_trades,
+        returns: [list of return_pct from each noisy run],
+        trade_counts: [list of trade counts],
+        median_return, ci_95_return,
+        trade_count_range: [min, max],
+        signal_stability: % of runs with trade count within ±20% of original,
+        grade: 'ROBUST' | 'FRAGILE' | 'UNSTABLE'
+    """
+    from backtest.engine import BacktestEngine
+
+    t0 = time.perf_counter()
+    rng = np.random.default_rng(seed)
+
+    orig_return = original_result.get("return_pct", 0)
+    orig_trades = original_result.get("total_trades", 0)
+
+    returns = []
+    trade_counts = []
+
+    for i in range(n_iterations):
+        noisy_1h = _add_ohlc_noise(df_1h, noise_std, rng)
+        noisy_4h = _add_ohlc_noise(df_4h, noise_std, rng)
+
+        try:
+            engine = BacktestEngine(
+                df_1h=noisy_1h, df_4h=noisy_4h, quiet=True,
+                **engine_kwargs,
+            )
+            result = engine.run()
+            returns.append(float(result.get("return_pct", 0)))
+            trade_counts.append(int(result.get("total_trades", 0)))
+        except Exception as e:
+            log.debug("Noise MC iteration %d failed: %s", i, e)
+            # Count as 0 return, 0 trades (engine crash = fragile)
+            returns.append(0.0)
+            trade_counts.append(0)
+
+    returns_arr = np.array(returns)
+    trades_arr = np.array(trade_counts)
+
+    median_return = round(float(np.median(returns_arr)), 2)
+    ci_lo, ci_hi = np.percentile(returns_arr, [2.5, 97.5])
+
+    # Signal stability: how many runs produce similar trade count?
+    if orig_trades > 0:
+        within_20pct = np.sum(np.abs(trades_arr - orig_trades) <= orig_trades * 0.2)
+        signal_stability = round(float(within_20pct / n_iterations) * 100, 1)
+    else:
+        signal_stability = 0.0
+
+    # Grade
+    if signal_stability >= 80 and ci_lo > 0:
+        grade = "ROBUST"
+    elif signal_stability >= 50:
+        grade = "FRAGILE"
+    else:
+        grade = "UNSTABLE"
+
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    log.info(
+        "Noise MC %d iterations (std=%.3f): %.1fs [grade=%s stability=%.0f%%]",
+        n_iterations, noise_std, elapsed_ms / 1000, grade, signal_stability,
+    )
+
+    return {
+        "n_iterations": n_iterations,
+        "noise_std": noise_std,
+        "original_return": round(orig_return, 2),
+        "original_trades": orig_trades,
+        "median_return": median_return,
+        "ci_95_return": [round(float(ci_lo), 2), round(float(ci_hi), 2)],
+        "trade_count_range": [int(trades_arr.min()), int(trades_arr.max())],
+        "signal_stability": signal_stability,
         "grade": grade,
     }

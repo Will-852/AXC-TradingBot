@@ -164,6 +164,26 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
         result = engine.run()
         result = extend_summary(result)
 
+        # Noise injection MC (opt-in: only if param_overrides has noise_mc=true)
+        _run_noise = (_po or {}).pop("noise_mc", False)
+        if _run_noise:
+            try:
+                from backtest.monte_carlo import run_noise_mc
+                _eng_kwargs = {
+                    "symbol": symbol, "initial_balance": balance,
+                    "param_overrides": _po, "allowed_modes": allowed_modes,
+                    "mode_confirmation": mode_confirmation, "quiet": True,
+                }
+                if _commission is not None:
+                    _eng_kwargs["commission_rate"] = float(_commission)
+                if _slippage is not None:
+                    _eng_kwargs["sl_slippage_pct"] = float(_slippage)
+                noise_result = run_noise_mc(df_1h, df_4h, _eng_kwargs, result)
+                result["noise_mc"] = noise_result
+            except Exception as e:
+                logging.warning("Noise MC failed: %s", e)
+                result["noise_mc"] = None
+
         # Attach alt data summary to result (for dashboard display)
         if alt_data:
             _alt_summary = {}
