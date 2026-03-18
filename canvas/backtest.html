@@ -1348,6 +1348,12 @@
       <div id="oos-body" style="font-size:.7rem"></div>
     </div>
 
+    <!-- Alt Data (Funding + OI + On-chain) -->
+    <div class="card-section" id="altdata-panel" style="display:none">
+      <h6>Alt Data Signals</h6>
+      <div id="altdata-body" style="font-size:.7rem"></div>
+    </div>
+
     <!-- Monthly heatmap -->
     <div class="card-section" id="monthly-heatmap" style="display:none">
       <h6>Monthly Returns</h6>
@@ -2851,6 +2857,7 @@ function updateStats(result) {
   // Monte Carlo + OOS panels
   renderMonteCarlo(result.monte_carlo);
   renderOOS(result.oos_validation);
+  renderAltData(result.alt_data);
 }
 
 // ══════════════════════════════════════════════════
@@ -2966,6 +2973,46 @@ function renderOOS(oos) {
     html += '</div>';
   }
 
+  body.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+//  Alt Data display (Funding + OI + On-chain)
+// ══════════════════════════════════════════════════
+function renderAltData(ad) {
+  var panel = document.getElementById('altdata-panel');
+  var body = document.getElementById('altdata-body');
+  if (!ad) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  var html = '<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px">';
+
+  if (ad.funding_rate) {
+    var fr = ad.funding_rate;
+    var frColor = Math.abs(fr.last) > 0.001 ? 'var(--neg)' : Math.abs(fr.last) > 0.0005 ? '#ff9800' : 'var(--pos)';
+    html += '<div style="color:var(--text-3);font-weight:600;grid-column:1/-1;margin-top:4px">FUNDING RATE</div>' +
+      '<div style="color:var(--text-2)">Last</div><div style="text-align:right;color:' + frColor + '">' + (fr.last * 100).toFixed(4) + '%</div>' +
+      '<div style="color:var(--text-2)">Mean</div><div style="text-align:right;color:var(--text-1)">' + (fr.mean * 100).toFixed(4) + '%</div>' +
+      '<div style="color:var(--text-2)">Extreme Count</div><div style="text-align:right;color:var(--text-1)">' + fr.extreme_count + '</div>';
+  }
+
+  if (ad.open_interest) {
+    var oi = ad.open_interest;
+    var oiColor = oi.change_pct > 10 ? '#ff9800' : oi.change_pct < -10 ? 'var(--neg)' : 'var(--text-1)';
+    html += '<div style="color:var(--text-3);font-weight:600;grid-column:1/-1;margin-top:6px">OPEN INTEREST</div>' +
+      '<div style="color:var(--text-2)">Last OI</div><div style="text-align:right;color:var(--text-1)">' + (oi.last_oi_usd >= 1e9 ? (oi.last_oi_usd/1e9).toFixed(1) + 'B' : (oi.last_oi_usd/1e6).toFixed(0) + 'M') + '</div>' +
+      '<div style="color:var(--text-2)">Change</div><div style="text-align:right;color:' + oiColor + '">' + (oi.change_pct >= 0 ? '+' : '') + oi.change_pct.toFixed(1) + '%</div>';
+  }
+
+  if (ad.onchain) {
+    var oc = ad.onchain;
+    var nfColor = oc.netflow_zscore > 1.5 ? 'var(--neg)' : oc.netflow_zscore < -1.5 ? 'var(--pos)' : 'var(--text-1)';
+    html += '<div style="color:var(--text-3);font-weight:600;grid-column:1/-1;margin-top:6px">ON-CHAIN</div>' +
+      '<div style="color:var(--text-2)">Netflow Z</div><div style="text-align:right;color:' + nfColor + '">' + oc.netflow_zscore.toFixed(2) + '</div>' +
+      '<div style="color:var(--text-2)">Addr Momentum</div><div style="text-align:right;color:var(--text-1)">' + oc.addr_momentum.toFixed(2) + '</div>';
+  }
+
+  html += '</div>';
   body.innerHTML = html;
 }
 

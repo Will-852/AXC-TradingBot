@@ -99,6 +99,26 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
     df_1h = fetch_klines_range(symbol, "1h", s1, e1, platform)
     df_4h = fetch_klines_range(symbol, "4h", s4, e4, platform)
 
+    # Fetch alt data (funding rate + OI + on-chain) — best effort, non-blocking
+    alt_data = {}
+    try:
+        from backtest.fetch_funding_oi import fetch_funding_rate_history, fetch_oi_history, fetch_longshort_ratio
+        alt_data["funding"] = fetch_funding_rate_history(symbol, s1, e1)
+        alt_data["oi"] = fetch_oi_history(symbol, s1, e1, period="1h")
+        alt_data["ls_ratio"] = fetch_longshort_ratio(symbol, s1, e1, period="1h")
+    except Exception as e:
+        logging.warning("Alt data (funding/OI) fetch failed: %s", e)
+    try:
+        from backtest.fetch_onchain import fetch_onchain_metrics, compute_onchain_signals
+        from datetime import datetime, timezone
+        _start_dt = datetime.fromtimestamp(s1 / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        _end_dt = datetime.fromtimestamp(e1 / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        _oc = fetch_onchain_metrics(symbol, _start_dt, _end_dt)
+        if not _oc.empty:
+            alt_data["onchain"] = compute_onchain_signals(_oc)
+    except Exception as e:
+        logging.warning("Alt data (on-chain) fetch failed: %s", e)
+
     # Monkey-patch strategy constants if overrides provided
     sp = strategy_params or {}
     _originals = {}
@@ -143,6 +163,38 @@ def _run_bt_worker(symbol: str, days: int, balance: float,
         )
         result = engine.run()
         result = extend_summary(result)
+
+        # Attach alt data summary to result (for dashboard display)
+        if alt_data:
+            _alt_summary = {}
+            if "funding" in alt_data and not alt_data["funding"].empty:
+                _fr = alt_data["funding"]
+                _alt_summary["funding_rate"] = {
+                    "count": len(_fr),
+                    "mean": round(float(_fr["funding_rate"].mean()), 6),
+                    "max": round(float(_fr["funding_rate"].max()), 6),
+                    "min": round(float(_fr["funding_rate"].min()), 6),
+                    "last": round(float(_fr["funding_rate"].iloc[-1]), 6),
+                    "extreme_count": int((_fr["funding_rate"].abs() > 0.001).sum()),
+                }
+            if "oi" in alt_data and not alt_data["oi"].empty:
+                _oi = alt_data["oi"]
+                _alt_summary["open_interest"] = {
+                    "count": len(_oi),
+                    "last_oi": round(float(_oi["oi"].iloc[-1]), 2),
+                    "last_oi_usd": round(float(_oi["oi_value"].iloc[-1]), 0),
+                    "change_pct": round(float((_oi["oi"].iloc[-1] / _oi["oi"].iloc[0] - 1) * 100), 2) if len(_oi) > 1 else 0,
+                }
+            if "onchain" in alt_data and not alt_data["onchain"].empty:
+                _oc = alt_data["onchain"]
+                _last = _oc.iloc[-1]
+                _alt_summary["onchain"] = {
+                    "netflow_zscore": round(float(_last.get("netflow_zscore", 0)), 2),
+                    "supply_ex_change": round(float(_last.get("supply_ex_change", 0)), 2),
+                    "addr_momentum": round(float(_last.get("addr_momentum", 1)), 2),
+                }
+            if _alt_summary:
+                result["alt_data"] = _alt_summary
     finally:
         # Restore monkey-patched constants
         for (mod, attr), orig_val in _originals.items():
