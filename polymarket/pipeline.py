@@ -2,7 +2,7 @@
 """
 main.py — Polymarket Prediction Market Pipeline 入口
 
-13-step pipeline for binary prediction market trading.
+14-step pipeline for binary prediction market trading.
 Independent from trader_cycle — shared infra lives in shared_infra/:
 - Pipeline + Step + CriticalError/RecoverableError
 - WriteAheadLog + FileLock
@@ -148,6 +148,9 @@ class CheckPositionsStep:
                 cost_basis=float(pos_data.get("cost_basis", 0)),
                 entry_time=pos_data.get("entry_time", ""),
                 end_date=pos_data.get("end_date", ""),
+                hedge_side=pos_data.get("hedge_side", ""),
+                hedge_size=float(pos_data.get("hedge_size", 0)),
+                hedge_entry_px=float(pos_data.get("hedge_entry_px", 0)),
             )
             # Update current price from scanned markets
             for m in ctx.scanned_markets:
@@ -208,6 +211,55 @@ class ManagePositionsStep:
                     f"    {sig.action.upper()} {sig.position.title[:40]} "
                     f"({sig.urgency}): {'; '.join(sig.reasons)}"
                 )
+
+        return ctx
+
+
+class CloseHedgeStep:
+    """Step 6.5: Close HL hedges for resolved/exited crypto_15m positions."""
+    name = "close_hedge"
+
+    def run(self, ctx: PolyContext) -> PolyContext:
+        from polymarket.config.settings import (
+            HEDGE_ENABLED, HEDGE_AUTO_CLOSE_ON_RESOLVE, HEDGE_SYMBOL,
+        )
+
+        if not HEDGE_ENABLED or not HEDGE_AUTO_CLOSE_ON_RESOLVE:
+            return ctx
+
+        # Check if any exit signals target hedged positions
+        hedged_exits = []
+        for sig in ctx.exit_signals:
+            pos = sig.position if hasattr(sig, "position") else None
+            if pos and pos.hedge_side:
+                hedged_exits.append(pos)
+
+        if not hedged_exits:
+            return ctx
+
+        try:
+            if ctx.hl_hedge_client is None:
+                from polymarket.exchange.hl_hedge_client import HLHedgeClient
+                ctx.hl_hedge_client = HLHedgeClient(dry_run=ctx.dry_run)
+
+            for pos in hedged_exits:
+                result = ctx.hl_hedge_client.close_hedge(HEDGE_SYMBOL)
+                status = result.get("status", "?")
+
+                if ctx.verbose:
+                    print(
+                        f"    HEDGE CLOSE ({status}): {pos.hedge_side} "
+                        f"{pos.title[:40]}"
+                    )
+
+                # Clear hedge fields
+                pos.hedge_side = ""
+                pos.hedge_size = 0.0
+                pos.hedge_entry_px = 0.0
+
+        except Exception as e:
+            logger.warning("HL hedge close failed: %s", e)
+            ctx.warnings.append(f"HL hedge close failed: {e}")
 
         return ctx
 
@@ -395,6 +447,7 @@ class GenerateSignalsStep:
                 edge=edge.edge,
                 confidence=edge.confidence,
                 reasoning=edge.reasoning,
+                signal_source=edge.signal_source,
                 # GTO fields
                 gto_type=edge.gto_type,
                 adverse_selection_score=edge.adverse_selection_score,
@@ -590,7 +643,66 @@ class ExecuteTradesStep:
 
             ctx.executed_trades.append(trade_record)
 
+            # ─── Hyperliquid Hedge (crypto_15m only) ───
+            self._try_open_hedge(ctx, signal, trade_record)
+
         return ctx
+
+    @staticmethod
+    def _try_open_hedge(ctx: PolyContext, signal, trade_record: dict):
+        """Open HL hedge after successful Poly trade (crypto_15m only)."""
+        from polymarket.config.settings import (
+            HEDGE_ENABLED, HEDGE_USD, HEDGE_LEVERAGE, HEDGE_SYMBOL, HEDGE_CATEGORIES,
+        )
+
+        if not HEDGE_ENABLED:
+            return
+        if signal.category not in HEDGE_CATEGORIES:
+            return
+        if trade_record.get("error"):
+            return
+
+        # Inverse direction: Poly YES (predict UP) → HL SHORT (hedge against UP being wrong)
+        hedge_direction = "SHORT" if signal.side == "YES" else "LONG"
+
+        try:
+            if ctx.hl_hedge_client is None:
+                from polymarket.exchange.hl_hedge_client import HLHedgeClient
+                ctx.hl_hedge_client = HLHedgeClient(dry_run=ctx.dry_run)
+
+            result = ctx.hl_hedge_client.open_hedge(
+                direction=hedge_direction,
+                usdc_size=HEDGE_USD,
+                leverage=HEDGE_LEVERAGE,
+                symbol=HEDGE_SYMBOL,
+            )
+
+            trade_record["hedge"] = {
+                "direction": hedge_direction,
+                "usdc_size": HEDGE_USD,
+                "leverage": HEDGE_LEVERAGE,
+                "status": result.get("status", "unknown"),
+            }
+
+            # Record hedge info on the position (last appended)
+            for pos in reversed(ctx.open_positions):
+                if pos.condition_id == signal.condition_id:
+                    pos.hedge_side = hedge_direction
+                    pos.hedge_size = result.get("qty", 0.0)
+                    pos.hedge_entry_px = result.get("mid_px", 0.0)
+                    break
+
+            if ctx.verbose:
+                status = result.get("status", "?")
+                print(
+                    f"    HEDGE ({status}): {hedge_direction} {HEDGE_SYMBOL} "
+                    f"${HEDGE_USD:.0f} at {HEDGE_LEVERAGE}x"
+                )
+
+        except Exception as e:
+            logger.warning("HL hedge open failed: %s", e)
+            trade_record["hedge_error"] = str(e)
+            ctx.warnings.append(f"HL hedge failed: {e}")
 
 
 class WriteStateStep:
@@ -633,7 +745,7 @@ class SendReportsStep:
 # ════════════════════════════════════════════════════════════════
 
 def build_pipeline() -> Pipeline:
-    """Build the 13-step Polymarket pipeline.
+    """Build the 14-step Polymarket pipeline.
 
     Pipeline order:
       1.   read_state          — POLYMARKET_STATE.json
@@ -642,11 +754,12 @@ def build_pipeline() -> Pipeline:
       4.   scan_markets        — Gamma API → filter crypto/weather
       5.   check_positions     — sync positions + USDC balance
       6.   manage_positions    — exit triggers (drift, PnL, expiry)
+      6.5  close_hedge         — close HL hedge for resolved/exited positions
       7.   find_edge           — Claude API probability assessment
       7.5  gto_filter          — GTO: adverse selection, Nash eq, fill quality
       8.   generate_signals    — edge > threshold → PolySignal (skips GTO-blocked)
       9.   size_positions      — half Kelly (scaled by unexploitability)
-     10.   execute_trades      — place orders on Polymarket
+     10.   execute_trades      — place orders on Polymarket + open HL hedge
      11.   write_state         — update POLYMARKET_STATE.json
      12.   send_reports        — Telegram notification
     """
@@ -657,6 +770,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(ScanMarketsStep())       # 4
     pipeline.add_step(CheckPositionsStep())    # 5
     pipeline.add_step(ManagePositionsStep())   # 6
+    pipeline.add_step(CloseHedgeStep())        # 6.5
     pipeline.add_step(FindEdgeStep())          # 7
     pipeline.add_step(GTOFilterStep())         # 7.5
     pipeline.add_step(GenerateSignalsStep())   # 8

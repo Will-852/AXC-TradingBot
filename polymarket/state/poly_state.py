@@ -92,6 +92,9 @@ def build_state_snapshot(ctx) -> dict:
             "unrealized_pnl_pct": round(p.unrealized_pnl_pct, 4),
             "entry_time": p.entry_time,
             "end_date": p.end_date,
+            "hedge_side": p.hedge_side,
+            "hedge_size": p.hedge_size,
+            "hedge_entry_px": p.hedge_entry_px,
         }
         for p in ctx.open_positions
     ]
