@@ -377,6 +377,18 @@ def main():
     save_data = {}
     for cfg_name, results in all_results.items():
         save_data[cfg_name] = {}
+        if cfg_name == "F_per_symbol":
+            save_data[cfg_name]["_meta"] = {
+                "desc": "Per-symbol optimal params",
+                "tuning_params": PER_SYMBOL_TUNING,
+                "param_overrides": {},
+            }
+        else:
+            save_data[cfg_name]["_meta"] = {
+                "desc": CONFIGS[cfg_name]["desc"],
+                "tuning_params": CONFIGS[cfg_name].get("tuning_params", {}),
+                "param_overrides": CONFIGS[cfg_name].get("param_overrides", {}),
+            }
         for pair, r in results.items():
             save_data[cfg_name][pair] = extract_stats(r)
     with open(out_path, "w") as f:

@@ -75,6 +75,7 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
     all_trades = []
     window_start = start_ms
     req_count = 0
+    throttle = _BASE_SLEEP  # adaptive: doubles on each 429, capped at 2s
 
     while window_start < end_ms:
         window_end = min(window_start + _WINDOW_MS - 1, end_ms)
@@ -90,13 +91,16 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
                 params["startTime"] = window_start
                 params["endTime"] = window_end
 
-            # Retry with exponential backoff on 429 / 5xx
-            for attempt in range(4):
+            # Retry with exponential backoff on 429 / 5xx (6 attempts)
+            for attempt in range(6):
                 resp = requests.get(url, params=params, timeout=15)
                 if resp.status_code == 429 or resp.status_code >= 500:
-                    wait = (2 ** attempt) * 2  # 2, 4, 8, 16 seconds
-                    log.warning("Binance %d on attempt %d, backing off %ds", resp.status_code, attempt + 1, wait)
+                    wait = (2 ** attempt) * 2  # 2, 4, 8, 16, 32, 64 seconds
+                    log.warning("Binance %d on attempt %d/%d, backing off %ds (throttle=%.2fs)",
+                                resp.status_code, attempt + 1, 6, wait, throttle)
                     time.sleep(wait)
+                    if resp.status_code == 429:
+                        throttle = min(throttle * 2, 2.0)
                     continue
                 break
             resp.raise_for_status()
@@ -125,10 +129,10 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
             if exceeded_window or len(data) < 1000:
                 break
 
-            time.sleep(_BASE_SLEEP)
+            time.sleep(throttle)
 
         window_start = window_end + 1
-        time.sleep(_BASE_SLEEP)
+        time.sleep(throttle)
 
     if not all_trades:
         log.warning("No aggTrades for %s on %s", symbol, day_str)

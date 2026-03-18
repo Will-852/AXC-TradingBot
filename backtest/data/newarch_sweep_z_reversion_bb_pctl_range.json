@@ -1,0 +1,1136 @@
+[
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -9.74,
+    "sharpe_ratio": -0.65,
+    "win_rate": 20.0,
+    "total_trades": 30,
+    "profit_factor": 0.5,
+    "max_drawdown_pct": 15.8,
+    "expectancy": -32.48
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -9.74,
+    "sharpe_ratio": -0.65,
+    "win_rate": 20.0,
+    "total_trades": 30,
+    "profit_factor": 0.5,
+    "max_drawdown_pct": 15.8,
+    "expectancy": -32.48
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.0,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -9.74,
+    "sharpe_ratio": -0.65,
+    "win_rate": 20.0,
+    "total_trades": 30,
+    "profit_factor": 0.5,
+    "max_drawdown_pct": 15.8,
+    "expectancy": -32.48
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -9.74,
+    "sharpe_ratio": -0.65,
+    "win_rate": 20.0,
+    "total_trades": 30,
+    "profit_factor": 0.5,
+    "max_drawdown_pct": 15.8,
+    "expectancy": -32.48
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.25,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -10.44,
+    "sharpe_ratio": -0.68,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.48,
+    "max_drawdown_pct": 16.4,
+    "expectancy": -33.69
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.5,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 1.75,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -9.44,
+    "sharpe_ratio": -0.61,
+    "win_rate": 18.8,
+    "total_trades": 32,
+    "profit_factor": 0.51,
+    "max_drawdown_pct": 15.1,
+    "expectancy": -29.5
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.0,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.25,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.5,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 2.75,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 10.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 15.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 20.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 25.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 30.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 35.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 40.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 45.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  },
+  {
+    "params": {
+      "z_reversion": 3.0,
+      "bb_pctl_range": 50.0
+    },
+    "long_only": false,
+    "return_pct": -8.74,
+    "sharpe_ratio": -0.57,
+    "win_rate": 19.4,
+    "total_trades": 31,
+    "profit_factor": 0.53,
+    "max_drawdown_pct": 14.5,
+    "expectancy": -28.2
+  }
+]

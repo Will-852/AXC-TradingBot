@@ -963,3 +963,85 @@ def handle_bt_aggtrades_status(qs: dict):
         return 200, result
     else:
         return 500, {"job_id": job_id, "status": "error", "error": job["result"].get("error", "unknown"), "elapsed": elapsed}
+
+
+# ── Shootout (Parameter Comparison) ──────────────────────────────
+
+def handle_bt_shootout_list():
+    """List all saved shootout JSON files with summary stats."""
+    results = []
+    if not os.path.isdir(BT_DATA_DIR):
+        return results
+    for fname in sorted(os.listdir(BT_DATA_DIR), reverse=True):
+        if not fname.startswith("shootout_") or not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(BT_DATA_DIR, fname)
+        try:
+            with open(fpath, encoding="utf-8") as f:
+                data = json.load(f)
+            configs = list(data.keys())
+            pairs = [k for k in data[configs[0]].keys() if k != "_meta"] if configs else []
+            # Compute total PnL per config (skip _meta key)
+            ranking = []
+            for cfg_name, cfg_data in data.items():
+                total = sum(v.get("pnl", 0) for k, v in cfg_data.items() if k != "_meta")
+                ranking.append({"config": cfg_name, "pnl": round(total, 2)})
+            ranking.sort(key=lambda x: x["pnl"], reverse=True)
+            # Parse timestamp from filename: shootout_YYYYMMDD_HHMM.json
+            ts_str = fname.replace("shootout_", "").replace(".json", "")
+            try:
+                ts = datetime.strptime(ts_str, "%Y%m%d_%H%M")
+                created = ts.strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                created = ts_str
+            results.append({
+                "file": fname,
+                "created": created,
+                "configs": configs,
+                "pairs": pairs,
+                "ranking": ranking,
+            })
+        except (OSError, json.JSONDecodeError, KeyError):
+            continue
+    return results
+
+
+def handle_bt_shootout_detail(qs: dict):
+    """Load a specific shootout file with full detail."""
+    fname = qs.get("file", [""])[0]
+    if not fname or not fname.startswith("shootout_") or not fname.endswith(".json"):
+        return 400, {"error": "invalid file parameter"}
+    fpath = os.path.join(BT_DATA_DIR, fname)
+    if not os.path.isfile(fpath):
+        return 404, {"error": "file not found"}
+    try:
+        with open(fpath, encoding="utf-8") as f:
+            data = json.load(f)
+        # Extract _meta per config and compute totals (skip _meta key in pair iteration)
+        summary = {}
+        params_dict = {}
+        for cfg_name, cfg_data in data.items():
+            if "_meta" in cfg_data:
+                params_dict[cfg_name] = cfg_data["_meta"]
+            total_pnl = 0
+            total_trades = 0
+            total_wins = 0
+            total_losses = 0
+            for pair_key, pair_data in cfg_data.items():
+                if pair_key == "_meta":
+                    continue
+                total_pnl += pair_data.get("pnl", 0)
+                total_trades += pair_data.get("trades", 0)
+                total_wins += pair_data.get("wins", 0)
+                total_losses += pair_data.get("losses", 0)
+            wr = round(total_wins / total_trades * 100, 1) if total_trades > 0 else 0
+            summary[cfg_name] = {
+                "total_pnl": round(total_pnl, 2),
+                "total_trades": total_trades,
+                "total_wins": total_wins,
+                "total_losses": total_losses,
+                "win_rate": wr,
+            }
+        return 200, {"file": fname, "data": data, "summary": summary, "params": params_dict}
+    except (OSError, json.JSONDecodeError) as e:
+        return 500, {"error": str(e)}

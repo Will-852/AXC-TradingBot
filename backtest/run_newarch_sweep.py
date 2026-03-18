@@ -57,6 +57,7 @@ DATA_4H = os.path.join(DATA_DIR, "BTCUSDT_4h_20240222_20260317.csv")
 DATA_1H = os.path.join(DATA_DIR, "BTCUSDT_1h_20240318_20260317.csv")
 
 # ─── Param Grid ───
+# Strategy params (entry logic)
 PARAM_RANGES: dict[str, list[float]] = {
     "z_pullback":    [round(v, 2) for v in np.arange(0.75, 2.75, 0.25)],   # 8 steps
     "z_reversion":   [round(v, 2) for v in np.arange(1.0, 3.25, 0.25)],    # 9 steps
@@ -64,7 +65,13 @@ PARAM_RANGES: dict[str, list[float]] = {
     "adx_deep_range":[float(v) for v in range(10, 35, 5)],                   # 5 steps
     "bb_pctl_dead":  [float(v) for v in range(0, 25, 5)],                    # 5 steps
     "bb_pctl_range": [float(v) for v in range(10, 55, 5)],                   # 9 steps
+    # Position params (exit logic) — prefix "pos_" to distinguish
+    "pos_sl_atr":    [1.0, 1.5, 2.0, 2.5, 3.0, 4.0],                       # 6 steps
+    "pos_min_rr":    [1.0, 1.5, 2.0, 2.5, 3.0],                             # 5 steps
 }
+
+# Params that go into position_overrides instead of strategy overrides
+_POS_PARAM_MAP = {"pos_sl_atr": "sl_atr_mult", "pos_min_rr": "min_rr"}
 
 # Walk-forward temporal split dates (ISO format for pd.Timestamp comparison)
 WF_TRAIN_END = "2025-06-01"    # train: start → 2025-06-01
@@ -108,11 +115,11 @@ def _slice_data(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Slice dataframes by timestamp range."""
     if start:
-        ts = pd.Timestamp(start, tz="UTC")
+        ts = pd.Timestamp(start)
         df_4h = df_4h[df_4h["timestamp"] >= ts].reset_index(drop=True)
         df_1h = df_1h[df_1h["timestamp"] >= ts].reset_index(drop=True)
     if end:
-        ts = pd.Timestamp(end, tz="UTC")
+        ts = pd.Timestamp(end)
         df_4h = df_4h[df_4h["timestamp"] < ts].reset_index(drop=True)
         df_1h = df_1h[df_1h["timestamp"] < ts].reset_index(drop=True)
     return df_4h, df_1h
@@ -121,11 +128,28 @@ def _slice_data(
 def _run_combo(params: dict[str, Any], long_only: bool = False,
                df_4h: pd.DataFrame | None = None,
                df_1h: pd.DataFrame | None = None) -> dict:
-    """Run a single param combo. Returns result dict with params attached."""
+    """Run a single param combo. Returns result dict with params attached.
+
+    設計決定：pos_ 前綴嘅 param 會被拆去 position_overrides（影響 SL/TP），
+    其餘入 strategy overrides（影響 entry logic）。
+    """
     if df_4h is None or df_1h is None:
         df_4h, df_1h = _load_data()
 
-    strategy = BTNewArchStrategy(overrides=params, long_only=long_only)
+    # Split params: pos_ → position_overrides, rest → strategy overrides
+    strat_ov = {}
+    pos_ov = {}
+    for k, v in params.items():
+        if k in _POS_PARAM_MAP:
+            pos_ov[_POS_PARAM_MAP[k]] = v   # e.g. pos_sl_atr → sl_atr_mult
+        else:
+            strat_ov[k] = v
+
+    strategy = BTNewArchStrategy(
+        overrides=strat_ov,
+        position_overrides=pos_ov,
+        long_only=long_only,
+    )
     null = _NullStrategy()
 
     engine = BacktestEngine(

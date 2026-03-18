@@ -1,0 +1,22 @@
+
+════════════════════════════════════════════════════════════
+  NewArch Parameter Sensitivity Sweep
+  Params: pos_sl_atr × pos_min_rr
+  Grid: 30 combos
+  Long-only: False
+  Workers: 4
+════════════════════════════════════════════════════════════
+
+  Sweep: 30 combos, 4 workers
+    [1/30] 426s elapsed, ~12364s ETA
+    [2/30] 427s elapsed, ~5977s ETA
+    [3/30] 427s elapsed, ~3846s ETA
+    [4/30] 429s elapsed, ~2790s ETA
+    [5/30] 844s elapsed, ~4220s ETA
+    [6/30] 844s elapsed, ~3377s ETA
+    [7/30] 846s elapsed, ~2780s ETA
+    [8/30] 848s elapsed, ~2333s ETA
+    [9/30] 1257s elapsed, ~2933s ETA
+    [10/30] 1259s elapsed, ~2519s ETA
+    [11/30] 1261s elapsed, ~2179s ETA
+    [12/30] 1263s elapsed, ~1895s ETA

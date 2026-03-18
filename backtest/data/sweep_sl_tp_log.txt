@@ -1,0 +1,61 @@
+
+════════════════════════════════════════════════════════════
+  NewArch Parameter Sensitivity Sweep
+  Params: pos_sl_atr × pos_min_rr
+  Grid: 30 combos
+  Long-only: False
+  Workers: 4
+════════════════════════════════════════════════════════════
+
+  Sweep: 30 combos, 4 workers
+    [1/30] 405s elapsed, ~11738s ETA
+    [2/30] 405s elapsed, ~5674s ETA
+    [3/30] 406s elapsed, ~3652s ETA
+    [4/30] 408s elapsed, ~2652s ETA
+    [5/30] 807s elapsed, ~4037s ETA
+    [6/30] 808s elapsed, ~3231s ETA
+    [7/30] 809s elapsed, ~2659s ETA
+    [8/30] 814s elapsed, ~2239s ETA
+    [9/30] 1240s elapsed, ~2893s ETA
+    [10/30] 1242s elapsed, ~2483s ETA
+    [11/30] 1242s elapsed, ~2145s ETA
+    [12/30] 1249s elapsed, ~1873s ETA
+    [13/30] 1665s elapsed, ~2178s ETA
+    [14/30] 1667s elapsed, ~1905s ETA
+    [15/30] 1669s elapsed, ~1669s ETA
+    [16/30] 1676s elapsed, ~1466s ETA
+    [17/30] 2081s elapsed, ~1591s ETA
+    [18/30] 2083s elapsed, ~1389s ETA
+    [19/30] 2085s elapsed, ~1207s ETA
+    [20/30] 2094s elapsed, ~1047s ETA
+    [21/30] 2496s elapsed, ~1070s ETA
+    [22/30] 2497s elapsed, ~908s ETA
+    [23/30] 2499s elapsed, ~761s ETA
+    [24/30] 2511s elapsed, ~628s ETA
+    [25/30] 2915s elapsed, ~583s ETA
+    [26/30] 2917s elapsed, ~449s ETA
+    [27/30] 2919s elapsed, ~324s ETA
+    [28/30] 2930s elapsed, ~209s ETA
+    [29/30] 3314s elapsed, ~114s ETA
+    [30/30] 3316s elapsed, ~0s ETA
+  Sweep complete: 3316.0s total
+  Results JSON → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr.json
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_return_pct.png
+  Heatmap → /Users/wai/projects/axc-trading/backtest/data/newarch_sweep_pos_sl_atr_pos_min_rr_sharpe_ratio.png
+
+  Top-10 Parameter Combos (by return):
+    #    pos_sl_atr    pos_min_rr    Return   Sharpe  Trades     WR     PF     MDD
+  ───────────────────────────────────────────────────────────────────────────
+    1           2.0           2.5   +15.07%     0.64     171  29.8%   1.25    8.6%
+    2           2.5           3.0    +7.95%     0.42      75  28.0%   1.31   14.2%
+    3           2.0           3.0    +7.94%     0.40      83  25.3%   1.23    9.5%
+    4           2.5           2.0    +4.68%     0.31      95  28.4%   1.16    8.0%
+    5           3.0           1.5    -0.06%     0.03      50  28.0%   1.00    7.6%
+    6           2.5           2.5    -0.08%     0.04      49  22.4%   1.00   10.5%
+    7           3.0           1.0    -0.21%     0.01      35  40.0%   0.98    7.6%
+    8           3.0           2.0    -0.22%     0.02      49  24.5%   0.99    6.4%
+    9           2.0           1.5    -0.25%     0.02      59  28.8%   0.99    8.6%
+   10           3.0           3.0    -0.55%     0.02      38  21.1%   0.97   15.5%
+
+  Diagnosis:
+  4/30 (13%) positive — Narrow edge region.

@@ -32,6 +32,7 @@ from scripts.dashboard.backtest import (
     handle_bt_run, handle_bt_export, handle_bt_import,
     handle_bt_aggtrades, handle_bt_aggtrades_status,
     handle_bt_nfs_fvz,
+    handle_bt_shootout_list, handle_bt_shootout_detail,
 )
 from scripts.dashboard.chat import handle_chat
 from scripts.dashboard.paper_trading import (
@@ -156,6 +157,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(code, data)
         elif path == "/api/backtest/export":
             code, data = handle_bt_export(qs)
+            self._json_response(code, data)
+        elif path == "/api/backtest/shootout/list":
+            self._json_response(200, handle_bt_shootout_list())
+        elif path == "/api/backtest/shootout/detail":
+            code, data = handle_bt_shootout_detail(qs)
             self._json_response(code, data)
         elif path == "/backtest":
             bt_path = os.path.join(HOME, "canvas/backtest.html")
