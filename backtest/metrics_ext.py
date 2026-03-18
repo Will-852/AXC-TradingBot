@@ -25,6 +25,31 @@ def extend_summary(result: dict) -> dict:
         "kelly_pct": kelly,
         "cagr_pct": cagr,
     })
+
+    # Derive initial balance: final_balance - total PnL
+    _total_pnl = sum(t.pnl for t in trades)
+    _init_bal = result.get("final_balance", 10000) - _total_pnl
+    if _init_bal <= 0:
+        _init_bal = 10000.0  # fallback if calculation yields nonsense
+
+    # Monte Carlo robustness test
+    try:
+        from backtest.monte_carlo import run_monte_carlo
+        mc = run_monte_carlo(trades, initial_balance=_init_bal)
+        result["monte_carlo"] = mc
+    except Exception as e:
+        log.warning("Monte Carlo failed: %s", e)
+        result["monte_carlo"] = None
+
+    # Out-of-sample validation
+    try:
+        from backtest.oos_validation import run_oos_validation
+        oos = run_oos_validation(trades, initial_balance=_init_bal)
+        result["oos_validation"] = oos
+    except Exception as e:
+        log.warning("OOS validation failed: %s", e)
+        result["oos_validation"] = None
+
     return result
 
 

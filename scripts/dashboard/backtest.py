@@ -460,6 +460,7 @@ def handle_bt_run(body: str):
             "buyhold_return", "exposure_pct",
             "kelly_pct", "cagr_pct",
             "monthly_returns",
+            "monte_carlo", "oos_validation",
         ) if result.get(k) is not None}
         _save_bt_metadata(symbol, days, balance,
                           strategy_params=strategy_params,

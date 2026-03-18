@@ -836,6 +836,15 @@
       <i class="fas fa-water"></i> Flow
     </button>
 
+    <button class="btn-livepos" id="btn-depth" onclick="toggleDepth()" title="L2 Order Book — OBI + Spoofing Detection（需要先開 Live）" disabled style="opacity:.5">
+      <i class="fas fa-layer-group"></i> OB
+    </button>
+
+    <span id="obi-bar" style="display:none;width:60px;height:18px;background:#1e222d;border:1px solid var(--border);border-radius:3px;overflow:hidden;position:relative;font-size:.55rem;line-height:18px;text-align:center;color:var(--text-3)">
+      <span id="obi-fill" style="position:absolute;top:0;left:50%;height:100%;background:rgba(38,166,154,.4);transition:width .2s,left .2s"></span>
+      <span id="obi-text" style="position:relative;z-index:1">OBI 0.00</span>
+    </span>
+
     <span id="status-pill" class="status-pill status-idle">IDLE</span>
   </div>
 
@@ -1317,6 +1326,18 @@
         </select>
       </div>
       <div id="shootout-body" style="font-size:.7rem"></div>
+    </div>
+
+    <!-- Monte Carlo Robustness -->
+    <div class="card-section" id="mc-panel" style="display:none">
+      <h6>Monte Carlo Robustness</h6>
+      <div id="mc-body" style="font-size:.7rem"></div>
+    </div>
+
+    <!-- Out-of-Sample Validation -->
+    <div class="card-section" id="oos-panel" style="display:none">
+      <h6>Out-of-Sample Validation</h6>
+      <div id="oos-body" style="font-size:.7rem"></div>
     </div>
 
     <!-- Monthly heatmap -->
@@ -2818,6 +2839,10 @@ function updateStats(result) {
 
   // Monthly heatmap
   renderMonthlyHeatmap(result.monthly_returns);
+
+  // Monte Carlo + OOS panels
+  renderMonteCarlo(result.monte_carlo);
+  renderOOS(result.oos_validation);
 }
 
 // ══════════════════════════════════════════════════
@@ -2843,6 +2868,97 @@ function renderMonthlyHeatmap(monthly) {
       '<div style="font-size:.6rem;color:var(--text-3)">' + m.substring(0,4) + '-' + label + '</div>' +
       '<div>' + (ret >= 0 ? '+' : '') + ret.toFixed(1) + '%</div></div>';
   }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  Monte Carlo + OOS Validation display
+// ══════════════════════════════════════════════════
+function renderMonteCarlo(mc) {
+  var panel = document.getElementById('mc-panel');
+  var body = document.getElementById('mc-body');
+  if (!mc) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  var gradeColors = { A: 'var(--pos)', B: '#26a69a', C: '#ff9800', F: 'var(--neg)' };
+  var gc = gradeColors[mc.grade] || 'var(--text-3)';
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+    '<span style="color:var(--text-3)">' + mc.n_iterations + ' runs × ' + mc.n_trades + ' trades</span>' +
+    '<span style="font-weight:700;color:' + gc + ';font-size:.85rem">Grade: ' + mc.grade + '</span></div>';
+
+  html += '<div style="display:grid;grid-template-columns:1fr auto auto;gap:1px 6px;margin-bottom:6px">' +
+    '<div style="color:var(--text-3);font-weight:600">Stat</div><div style="color:var(--text-3);font-weight:600;text-align:right">Value</div><div></div>' +
+    _mcRow('Stability', mc.stability_score + '%', mc.stability_score >= 80 ? 'var(--pos)' : mc.stability_score >= 60 ? '#ff9800' : 'var(--neg)') +
+    _mcRow('P(Ruin)', mc.prob_ruin + '%', mc.prob_ruin < 5 ? 'var(--pos)' : mc.prob_ruin < 10 ? '#ff9800' : 'var(--neg)') +
+    '</div>';
+
+  html += '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:1px 6px">' +
+    '<div style="color:var(--text-3);font-weight:600">Metric</div>' +
+    '<div style="color:var(--text-3);font-weight:600;text-align:right">Actual</div>' +
+    '<div style="color:var(--text-3);font-weight:600;text-align:right">Median</div>' +
+    '<div style="color:var(--text-3);font-weight:600;text-align:right">95% CI</div>';
+
+  var metrics = [
+    ['Return', mc.original_return, mc.median_return, mc.ci_95_return, '%'],
+    ['Max DD', mc.original_max_dd, mc.median_max_dd, mc.ci_95_max_dd, '%'],
+    ['Sharpe', mc.original_sharpe, mc.median_sharpe, mc.ci_95_sharpe, '']
+  ];
+  metrics.forEach(function(m) {
+    var suf = m[4];
+    html += '<div style="color:var(--text-2)">' + m[0] + '</div>' +
+      '<div style="text-align:right;color:var(--text-1)">' + (m[1] != null ? m[1].toFixed(1) + suf : '--') + '</div>' +
+      '<div style="text-align:right;color:var(--text-1)">' + (m[2] != null ? m[2].toFixed(1) + suf : '--') + '</div>' +
+      '<div style="text-align:right;color:var(--text-3);font-size:.6rem">[' + (m[3] ? m[3][0].toFixed(1) : '?') + ', ' + (m[3] ? m[3][1].toFixed(1) : '?') + ']</div>';
+  });
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+function _mcRow(label, val, color) {
+  return '<div style="color:var(--text-2)">' + label + '</div>' +
+    '<div style="text-align:right;color:' + color + ';font-weight:600">' + val + '</div><div></div>';
+}
+
+function renderOOS(oos) {
+  var panel = document.getElementById('oos-panel');
+  var body = document.getElementById('oos-body');
+  if (!oos) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  var gradeColors = { PASS: 'var(--pos)', WARN: '#ff9800', FAIL: 'var(--neg)', INSUFFICIENT: 'var(--text-3)' };
+  var gc = gradeColors[oos.grade] || 'var(--text-3)';
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+    '<span style="color:var(--text-3)">' + Math.round(oos.split_ratio * 100) + '/' + Math.round((1 - oos.split_ratio) * 100) +
+    ' split — ' + oos.is_trade_count + ' IS / ' + oos.oos_trade_count + ' OOS</span>' +
+    '<span style="font-weight:700;color:' + gc + ';font-size:.85rem">' + oos.grade + '</span></div>';
+
+  if (oos.is_stats && oos.oos_stats) {
+    html += '<div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:1px 6px">' +
+      '<div style="color:var(--text-3);font-weight:600">Metric</div>' +
+      '<div style="color:var(--text-3);font-weight:600;text-align:right">IS</div>' +
+      '<div style="color:var(--text-3);font-weight:600;text-align:right">OOS</div>' +
+      '<div style="color:var(--text-3);font-weight:600;text-align:right">Stab%</div>' +
+      '<div style="color:var(--text-3);font-weight:600;text-align:center">Grade</div>';
+
+    var keys = ['return_pct', 'sharpe', 'max_dd_pct', 'win_rate', 'profit_factor'];
+    var labels = ['Return %', 'Sharpe', 'Max DD %', 'Win Rate %', 'PF'];
+    keys.forEach(function(k, i) {
+      var isv = oos.is_stats[k], oosv = oos.oos_stats[k];
+      var stab = oos.stability ? oos.stability[k] : null;
+      var mg = oos.metric_grades ? oos.metric_grades[k] : '';
+      var mgc = mg === 'PASS' ? 'var(--pos)' : mg === 'WARN' ? '#ff9800' : 'var(--neg)';
+      var dot = mg === 'PASS' ? '●' : mg === 'WARN' ? '●' : '●';
+      html += '<div style="color:var(--text-2)">' + labels[i] + '</div>' +
+        '<div style="text-align:right;color:var(--text-1)">' + (isv != null ? isv.toFixed(1) : '--') + '</div>' +
+        '<div style="text-align:right;color:var(--text-1)">' + (oosv != null ? oosv.toFixed(1) : '--') + '</div>' +
+        '<div style="text-align:right;color:var(--text-1)">' + (stab != null ? stab.toFixed(0) + '%' : '--') + '</div>' +
+        '<div style="text-align:center;color:' + mgc + '">' + dot + '</div>';
+    });
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════
@@ -3641,11 +3757,14 @@ var _liveReconnectDelay = 1000;
 function toggleLive() {
   var btn = document.getElementById('btn-live');
   var flowBtn = document.getElementById('btn-live-flow');
+  var obBtn = document.getElementById('btn-depth');
   if (liveWs) {
     closeLiveWs();
-    // Stop order flow worker when live stops
+    // Stop workers when live stops
     if (liveOFActive) { closeLiveOFWorker(); flowBtn.classList.remove('active'); }
+    if (depthActive) { closeDepthWorker(); obBtn.classList.remove('active'); document.getElementById('obi-bar').style.display = 'none'; }
     flowBtn.disabled = true; flowBtn.style.opacity = '.5';
+    obBtn.disabled = true; obBtn.style.opacity = '.5';
     btn.classList.remove('active');
     btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live';
     return;
@@ -3653,6 +3772,7 @@ function toggleLive() {
   btn.classList.add('active');
   btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live ON';
   flowBtn.disabled = false; flowBtn.style.opacity = '1';
+  obBtn.disabled = false; obBtn.style.opacity = '1';
   // Load recent history first, then attach WS for live updates
   var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value) || 3;
@@ -3874,6 +3994,69 @@ function drawSingleLargeTradeMarker(t) {
     });
     largeTradeOverlays.push(id);
   } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════
+//  L2 Depth — Order Book Imbalance + Spoofing Detection
+// ══════════════════════════════════════════════════
+var depthWorker = null;
+var depthActive = false;
+
+function toggleDepth() {
+  var btn = document.getElementById('btn-depth');
+  if (depthActive) {
+    closeDepthWorker();
+    btn.classList.remove('active');
+    btn.style.opacity = '.5';
+    document.getElementById('obi-bar').style.display = 'none';
+    return;
+  }
+  if (!liveWs) { showToast('請先開 Live 模式', 'error'); return; }
+  depthActive = true;
+  btn.classList.add('active');
+  btn.style.opacity = '1';
+  startDepthWorker();
+}
+
+function startDepthWorker() {
+  if (depthWorker) closeDepthWorker();
+  var sym = document.getElementById('sel-symbol').value;
+  depthWorker = new Worker('depth-worker.js');
+  depthWorker.onmessage = handleDepthMessage;
+  depthWorker.onerror = function(e) { console.error('Depth Worker error:', e); };
+  depthWorker.postMessage({ type: 'start', symbol: sym });
+  document.getElementById('obi-bar').style.display = 'inline-block';
+  showToast('L2 Order Book 已連接 — ' + sym + ' @depth20', 'success');
+}
+
+function closeDepthWorker() {
+  depthActive = false;
+  if (depthWorker) { depthWorker.postMessage({ type: 'stop' }); depthWorker.terminate(); depthWorker = null; }
+}
+
+function handleDepthMessage(evt) {
+  var msg = evt.data;
+  if (!msg || !msg.type) return;
+
+  if (msg.type === 'book') {
+    // Update OBI bar
+    var obi = msg.obi_l5 || 0;
+    var fill = document.getElementById('obi-fill');
+    var text = document.getElementById('obi-text');
+    var pct = Math.abs(obi) * 50; // 0-50% width
+    if (obi >= 0) {
+      fill.style.left = '50%';
+      fill.style.width = pct + '%';
+      fill.style.background = 'rgba(38,166,154,' + (0.3 + Math.abs(obi) * 0.5) + ')';
+    } else {
+      fill.style.left = (50 - pct) + '%';
+      fill.style.width = pct + '%';
+      fill.style.background = 'rgba(239,83,80,' + (0.3 + Math.abs(obi) * 0.5) + ')';
+    }
+    text.textContent = 'OBI ' + obi.toFixed(2);
+  } else if (msg.type === 'spoof') {
+    showToast('Spoof detected: ' + msg.side + ' ' + msg.qty + ' @ ' + msg.price + ' (' + msg.lifetime_ms + 'ms)', 'warning');
+  }
 }
 
 // ══════════════════════════════════════════════════
