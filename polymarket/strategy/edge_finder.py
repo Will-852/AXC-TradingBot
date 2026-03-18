@@ -745,14 +745,14 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
     Weather dispatch: parse title → forecast → normal CDF → EdgeAssessment.
     Falls back to Claude AI if weather parse fails or forecast unavailable.
     """
-    # Crypto 15M: dual signal source (indicator + CVD) → AI fallback
+    # Crypto 15M: triple signal source (indicator + CVD + microstructure) → AI fallback
     if market.category == "crypto_15m":
         from .crypto_15m import (
             assess_crypto_15m_edge, build_15m_ai_context,
             _fetch_15m_indicators, _gather_btc_context,
             parse_crypto_15m_market,
         )
-        from polymarket.config.settings import CVD_ENABLED
+        from polymarket.config.settings import CVD_ENABLED, MICRO_ENABLED
 
         indicator_result = assess_crypto_15m_edge(market)
         if indicator_result is not None and not indicator_result.signal_source:
@@ -766,15 +766,25 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
             except Exception as e:
                 logger.warning("CVD assessment failed: %s", e)
 
-        # Take the candidate with highest edge (both must pass their own thresholds)
-        candidates = [r for r in [indicator_result, cvd_result] if r is not None]
+        micro_result = None
+        if MICRO_ENABLED:
+            try:
+                from .microstructure_strategy import assess_microstructure_edge
+                micro_result = assess_microstructure_edge(market)
+            except Exception as e:
+                logger.warning("Microstructure assessment failed: %s", e)
+
+        # Take the candidate with highest edge (all must pass their own thresholds)
+        candidates = [r for r in [indicator_result, cvd_result, micro_result] if r is not None]
         if candidates:
             best = max(candidates, key=lambda x: x.edge_pct)
             if len(candidates) > 1:
-                logger.info("15M dual signal: indicator=%.3f, cvd=%.3f → picked %s",
-                            indicator_result.edge_pct if indicator_result else 0,
-                            cvd_result.edge_pct if cvd_result else 0,
-                            best.signal_source)
+                parts = []
+                for label, res in [("indicator", indicator_result), ("cvd", cvd_result), ("micro", micro_result)]:
+                    if res is not None:
+                        parts.append(f"{label}={res.edge_pct:.3f}")
+                logger.info("15M multi-signal: %s → picked %s",
+                            ", ".join(parts), best.signal_source)
             return best
 
         logger.info("15M deterministic below threshold, using AI: %s",

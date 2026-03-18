@@ -14,7 +14,7 @@
 ## 業務範圍
 | 策略 | 狀態 | AI 成本 |
 |------|------|---------|
-| Crypto 15M | Paper | 低（deterministic 指標優先，AI fallback） |
+| Crypto 15M | Paper | 低（triple signal: indicator + CVD + microstructure，AI fallback） |
 | Weather | Paper | 零（ensemble forecast + CDF，無 AI） |
 | Crypto（一般） | Paper | 有（Claude sonnet 估概率） |
 
@@ -33,7 +33,7 @@ pipeline.py — 主循環入口
 6    ManagePositions  → exit triggers (drift/profit/loss/expiry)
 6.5  CloseHedge       → close HL hedge for resolved/exited positions
 6.7  ExecuteExits     → sell positions flagged by exit triggers（WAL-safe）
-7    FindEdge         → dual signal: indicator + CVD divergence → AI fallback
+7    FindEdge         → triple signal: indicator + CVD + microstructure → AI fallback
 7.3  LogicalArb       → detect pricing contradictions across related markets（零 AI）
 7.5  GTOFilter        → adverse selection + Nash eq（零 AI，skip arb signals）
 8    GenerateSignals  → edge > threshold → PolySignal
@@ -66,9 +66,10 @@ polymarket/
 │   └── hl_hedge_client.py   ← Hyperliquid hedge（需 HL_PRIVATE_KEY）
 ├── strategy/
 │   ├── market_scanner.py    ← scan + filter
-│   ├── edge_finder.py       ← 核心 edge 偵測（dual: indicator + CVD）
+│   ├── edge_finder.py       ← 核心 edge 偵測（triple: indicator + CVD + microstructure）
 │   ├── crypto_15m.py        ← BTC 15M 指標 pipeline
 │   ├── cvd_strategy.py      ← CVD divergence signal source
+│   ├── microstructure_strategy.py ← volume spike mean reversion（零 AI，1 API call）
 │   ├── weather_tracker.py   ← multi-model ensemble paper
 │   ├── gto.py               ← GTO filter（純數學）
 │   ├── logical_arb.py       ← logical arbitrage detection（negRisk + ordering）

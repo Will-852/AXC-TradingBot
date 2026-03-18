@@ -67,6 +67,13 @@ CVD_LOOKBACK_MINUTES = 20                # aggTrades lookback (covers 15m window
 CVD_STRENGTH_SCALE = 2.0                 # tanh scaling factor
 CVD_MIN_PRICE_CHANGE_USD = 5.0           # BTC noise filter for divergence detection
 
+# ─── Microstructure (Volume Spike Mean Reversion) ───
+MICRO_ENABLED = True                     # Enable microstructure signal source for crypto_15m
+MICRO_MIN_EDGE_PCT = 0.065              # Same threshold as indicator/CVD paths
+MICRO_MIN_VOL_RATIO = 1.5              # Min volume spike ratio vs 1h rolling avg
+MICRO_MIN_ABS_RET = 0.10               # Min |5m return %| to trigger signal
+MICRO_VOL_SPIKE_WINDOW = 12            # 12 × 5m = 1h rolling avg window
+
 # ─── Hyperliquid Hedge ───
 HEDGE_ENABLED = False                    # Phase 3 完成驗證後先開
 HEDGE_USD = 100.0                        # HL notional size per hedge ($100 at leverage)
