@@ -34,11 +34,31 @@ _EDGE_PREDICTION_LOG = os.path.join(LOG_DIR, "weather_edge_predictions.jsonl")
 # Total: GFS(31) + ECMWF(51) + ICON(40) = 122 members
 ENSEMBLE_MODELS = ["gfs_seamless", "ecmwf_ifs025", "icon_global"]
 
-# Resolution sources per city
+# Resolution sources per city — ALL use Wunderground, whole degrees, ROUND rule
+# Template is identical: "highest temp for all times on this day at [STATION]"
+# Rules checked once per 24h cycle; only station code varies (2026-03-19 scan)
 RESOLUTION_SOURCES = {
-    "seoul": {"type": "wunderground", "station": "RKSI", "precision": "whole"},
-    "shanghai": {"type": "wunderground", "station": "ZSPD", "precision": "whole"},
-    "hong kong": {"type": "hko", "station": "HKO_HQ", "precision": "decimal"},
+    # Asia
+    "tokyo": {"type": "wunderground", "station": "RJTT", "precision": "whole"},       # Haneda Airport
+    "seoul": {"type": "wunderground", "station": "RKSI", "precision": "whole"},        # Incheon Intl
+    "shanghai": {"type": "wunderground", "station": "ZSPD", "precision": "whole"},     # Pudong Intl
+    "hong kong": {"type": "wunderground", "station": "VHHH", "precision": "whole"},    # HK Intl
+    "singapore": {"type": "wunderground", "station": "WSSS", "precision": "whole"},    # Changi
+    "taipei": {"type": "wunderground", "station": "RCTP", "precision": "whole"},       # Taoyuan Intl
+    # Europe
+    "paris": {"type": "wunderground", "station": "LFPG", "precision": "whole"},        # CDG
+    "london": {"type": "wunderground", "station": "EGLC", "precision": "whole"},       # London City
+    "ankara": {"type": "wunderground", "station": "LTAC", "precision": "whole"},       # Esenboga
+    # Americas
+    "atlanta": {"type": "wunderground", "station": "KATL", "precision": "whole"},      # Hartsfield-Jackson
+    "chicago": {"type": "wunderground", "station": "KORD", "precision": "whole"},      # O'Hare
+    "seattle": {"type": "wunderground", "station": "KSEA", "precision": "whole"},      # Sea-Tac
+    "dallas": {"type": "wunderground", "station": "KDAL", "precision": "whole"},       # Love Field
+    "miami": {"type": "wunderground", "station": "KMIA", "precision": "whole"},        # Miami Intl
+    "toronto": {"type": "wunderground", "station": "CYYZ", "precision": "whole"},      # Pearson
+    "sao paulo": {"type": "wunderground", "station": "SBGR", "precision": "whole"},    # Guarulhos
+    # Oceania
+    "wellington": {"type": "wunderground", "station": "NZWN", "precision": "whole"},   # Wellington Intl
 }
 
 # Ensure Seoul is available for market parsing (not in WEATHER_CITIES by default)

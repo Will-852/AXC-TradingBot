@@ -102,9 +102,9 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab，try/ex
 - `hl_hedge_client.py` 直接用 `hyperliquid-python-sdk`（唔經 trader_cycle）
 
 ## 落注規則速查
-- Bankroll: **$100 USDC** | Max per bet: **$10** | Max exposure: **30%**
-- P(direction) < 55% → SKIP | Entry price > 0.55 → SKIP
-- Kelly: half Kelly × confidence × GTO unexploitability
+- Bankroll: **live balance** | Per bet: **1%** | Per market: **10%** | Max exposure: **30%**
+- Kelly: half Kelly × confidence × GTO × **capped at 1% bankroll**
+- Weather edge threshold: dynamic（tail ≤10¢ = 3%, peak >35¢ = 8%）
 - Daily loss > 15% → circuit breaker（6h cooldown）
 - 3 consecutive losses → circuit breaker
 
@@ -129,9 +129,17 @@ PYTHONPATH=.:scripts python3 polymarket/run_weather_paper.py --resolve --report 
 5. ~~Exit signals 冇執行~~ — ✅ 已修（2026-03-18）：加 ExecuteExitStep (step 6.7)
 6. **Position Merger Phase 2**：on-chain CTF merge execution 未做，目前只有 detection + report
 
+## ⛅ Weather Critical Rules（每次觸及天氣前必讀）
+- **ROUND rule**：Wunderground 用四捨五入（唔係截斷）→ bucket "13°C" = actual [12.5, 13.5)
+- **Resolution**: Wunderground airport station, "highest temp for ALL TIMES on this day" = 24h max
+- **Trading cutoff**: 當日 local time ~21:00（endDate = noon UTC）
+- **Discovery**: event slug `highest-temperature-in-{city}-on-{month}-{day}-{year}`（唔好用 tag filter）
+- **Dedup**: per-cycle 同一 condition_id 只買 1 次 + per-market cap 扣減已有持倉
+- **3 份城市列表**: 加新城市要改 `categories.py` + `market_scanner.py` + `weather_tracker.py`
+- 詳細 rules → `~/.claude/projects/-Users-wai/memory/trading/weather_market_rules.md`
+
 ## Gotchas
-- Gamma API `search_markets()` 先搵到 15M 市場，`get_markets()` by-liquidity 排唔到（volume 太低 ~$15K）
-- Weather ensemble 用 Open-Meteo（GFS+ECMWF+ICON = 122 members），唔係 normal CDF
+- Weather ensemble 用 Open-Meteo（GFS+ECMWF+ICON = 122 members）→ ensemble counting（唔係 CDF）
 - GTO live_event = 永遠 BLOCK（場內有人睇住比分，你永遠係 dumb money）
 - `_SHORT_KEYWORD_LEN=4`：短 keyword 用 word boundary regex（防 "sol" match "resolve"）
 - State file 喺 `shared/POLYMARKET_STATE.json`，唔係 polymarket/ 內（dashboard 要讀）
