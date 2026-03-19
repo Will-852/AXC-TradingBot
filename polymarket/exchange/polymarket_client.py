@@ -259,7 +259,7 @@ class PolymarketClient:
 
     # ─── Market Buy (spend USDC to buy shares) ───
 
-    @retry_quadratic()
+    # P0 #6 fix: NO RETRY on order submission (retry = double submit)
     def buy_shares(self, token_id: str, amount_usdc: float,
                    price: float = 0) -> dict:
         """Buy shares of an outcome token.
@@ -304,7 +304,7 @@ class PolymarketClient:
 
     # ─── Sell Shares ───
 
-    @retry_quadratic()
+    # P0 #6 fix: NO RETRY on order submission
     def sell_shares(self, token_id: str, shares: float,
                     price: float = 0) -> dict:
         """Sell shares of an outcome token.
