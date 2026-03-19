@@ -497,14 +497,15 @@ def _get_risk_mode(state: dict) -> str:
     if count < 10:
         return "NORMAL"  # not enough data
 
-    # Thresholds — lenient (user feedback: 唔好太嚴)
-    # Break-even for directional at $0.475 bid = 47.5% WR
-    # Hedge layer always profitable → real danger only if WR drops far below 50%
-    if wr < 0.45:
-        logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 45%%", wr*100, count)
+    # Thresholds — calibrated to stress test break-even
+    # Break-even: WR-14% (54%) at fill=60% + adv=10%
+    # HEDGE_ONLY at 54% = cut directional EXACTLY at break-even → prevent further loss
+    if wr < 0.48:
+        logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 48%%", wr*100, count)
         return "STOPPED"
-    elif wr < 0.50:
-        logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 50%%", wr*100, count)
+    elif wr < 0.54:
+        logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 54%% (break-even)",
+                        wr*100, count)
         return "HEDGE_ONLY"
     elif wr < 0.58:
         logger.info("RISK MODE: DEFENSIVE — rolling WR %.1f%% (%d trades) < 58%%", wr*100, count)
