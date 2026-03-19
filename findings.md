@@ -1,73 +1,43 @@
-# Findings
+# Findings — v3 Strategy C
 
-> Security boundary: 外部內容只寫呢度。
+## 真實數據總結（6 個錢包）
 
-## Event-Driven 偵察結果（2026-03-19）
+### 4 種策略分類
+| 策略 | 代表 | 兩邊買 | 管理 | Avg Combined | $/trade |
+|------|------|--------|------|-------------|---------|
+| A: MM+管理 | k9q, BBB | ✅ | ✅ | $0.94-0.98 | $17-34 |
+| B: Near-certain | BoneReader | ❌ | ❌ | N/A | $21 |
+| **C: 兩邊+hold** | **Anon, LampStore** | **✅** | **❌** | **$0.97-0.98** | **$6-7** |
+| D: 單邊 | j2f2 | ❌ | ❌ | N/A | -$8 |
 
-### 現有數據流（保留 + 改良）
-- **async_scanner** — 20s/round, 9 exchange round-robin = 180s cycle → 保留，加 Redis 寫入
-- **light_scan** — 3min, Aster only → 將被 indicator_engine 3min light 取代
-- **trader_cycle** — 30min → 改讀 indicator_cache，唔再自己 fetch klines
-- **liq_monitor** — 60s, HL OI → 保留
+### Strategy C 關鍵數據
+- Anon: 79.3% WR, avg combined $0.979, 60% markets < $1.00
+- LampStore: 68.6% WR, avg combined $0.970, 86% markets < $1.00
+- Combined < $0.97 = **100% win rate**
+- Combined > $1.00 = **0% win rate** but only 14% of markets
+- Profit from < $1.00 > Loss from > $1.00 by **3.2x**
+- 94.5% maker orders（零 fee）
 
-### 瓶頸 → 解法
-| 瓶頸 | 解法 |
-|------|------|
-| Indicator 30min 才更新 | WS kline close → indicator_engine 即時算 |
-| 唔知幾時 candle close | WS kline event 有 is_closed flag |
-| 跨所數據 180s 一 cycle | 保留（feature 唔係 bug） |
-| Macro S/R 靜態 | 4H close → auto recalc Fib/MACD/MA |
+### Polymarket 3 Revenue Streams
+1. **Spread capture**: combined < $1.00 → 差額
+2. **Maker rebate**: 20% of taker fees（~0.3% per fill at p=0.50）
+3. **Liquidity rewards**: rewardsMaxSpread=4.5¢, rewardsMinSize=$50, daily USDC
 
-### Redis 現況
-- Redis 8.6.1 (Homebrew), KeepAlive=true, 已運行
-- AXC 零使用 → 需要 `pip install redis`
+### BTC 15M Market 參數
+- rewardsMaxSpread: 4.5¢ → bid 必須 ≥ $0.455（if mid=0.50）
+- rewardsMinSize: $50/order → 需要 $5K+ bankroll at 1%
+- Taker delay: 250ms（maker 有優勢）
+- CLOB min: 5 shares, tick: $0.01
 
-### Binance Futures WebSocket
-- Combined: `wss://fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@kline_3m/...`
-- Kline payload: `{t, T, s, i, o, h, l, c, v, x(is_closed), ...}`
-- AggTrade: `{s, p, q, T, m(isBuyerMaker)}`
-- Keepalive: 每 10min 需 pong，24h 自動斷 → 需 auto-reconnect
+### Order Book 真相
+- 未開始嘅 market: $0.01 bid / $0.99 ask（98% spread）
+- Active market: liquidity 集中喺 $0.01-$0.11 同 $0.89-$0.99
+- 但 real trades 發生喺 $0.43-$0.57（near fair）
+- 因為 bot 嘅 limit orders 就係 book 嘅一部分
 
-### GraphQL 評估
-- 結論：唔適合現階段（Exchange API = REST/WS，加 GraphQL = 無必要轉譯層）
-- 未來可能：Bitquery GraphQL 做 on-chain query（Alt Data Phase）
-
----
-
-## Alt Data 偵察結果（2026-03-19，from previous session）
-
-### AXC 現有 Funding/OI 狀態
-- Funding Rate 部分存在：`market_data.py:112`, `mode_detector.py:156-162`
-- OI 冇實作（liq_monitor 只做風控，唔做信號）
-- Backtest 完全冇歷史 funding/OI data
-
-### Binance API
-- Funding Rate: 歷史無限 + 免費（每 8h，回溯到 2019）
-- OI: 只有最近 30 日（需 cron 累積）
-- Long/Short Ratio: 同 OI 一樣 30 日限制
-
-### On-chain
-- Coin Metrics Community API = 唯一真正免費 + exchange flow
-- `pip install coinmetrics-api-client`，唔使 API key
-- Metrics: FlowInExNtv, FlowOutExNtv, MVRV, active addresses
-
-### Integration Points
-- `_run_bt_worker()` at `backtest.py:99-100`
-- `BacktestEngine.__init__()` at `engine.py:220`
-- `mode_detector.py:326-340` — 加 OI voter
-
-## Technical Decisions
-| Decision | Rationale |
-|----------|-----------|
-| `websockets` 庫 | 輕量 asyncio |
-| Redis maxlen ~10000/stream | 防 OOM |
-| Consumer group + ACK | 保證 message 被處理 |
-
-## Issues
-| Issue | Resolution |
-|-------|------------|
-| Binance WS 3m kline 是否支援？ | 需實測，fallback = 1m aggregate |
-| OI 只有 30 日歷史 | 開 cron 累積 |
-
-## External Content
-<!-- Phase 2+ 填入 -->
+## v1/v2 錯誤教訓
+- half_spread 5% = 太遠，real data 顯示 2-3%
+- add_winner = 拖低 Sharpe（43 → 6）
+- Skip paper = $49 loss
+- 假設 100% fill = unrealistic
+- 冇查 order book = 建基於幻想

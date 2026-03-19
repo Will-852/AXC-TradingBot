@@ -116,7 +116,6 @@ def _vol_1m() -> float:
 
 def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, dict]]:
     """Find BTC 15M markets for current + next 4 windows via slug."""
-    import requests
     results = []
     now_s = int(time.time())
     now_et = datetime.now(tz=_ET)
@@ -132,9 +131,13 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
 
         slug = f"btc-updown-15m-{ts}"
         try:
-            data = requests.get("https://gamma-api.polymarket.com/markets",
-                               params={"slug": slug}, timeout=5).json()
-        except Exception:
+            _url = f"https://gamma-api.polymarket.com/markets?slug={slug}"
+            with urllib.request.urlopen(
+                    urllib.request.Request(_url, headers={"User-Agent": "AXC/1.0"}),
+                    timeout=5) as _resp:
+                data = json.loads(_resp.read())
+        except Exception as e:
+            logger.warning("Gamma slug fetch failed for %s: %s", slug, e)
             continue
         if not data or not isinstance(data, list):
             continue

@@ -1,52 +1,32 @@
-# Progress Log
+# Progress — v3 Strategy C
 
-## Session: 2026-03-19 (Event-Driven Upgrade)
+## Session: 2026-03-19
 
-### Phase 1: 偵察 + 設計 — complete
-### Phase 2: Redis 基礎 — complete
-### Phase 3: ws_manager — complete
-### Phase 4a: Indicator Engine core — complete
-### Phase 4b: Macro S/R — complete
-### Phase 4c: trader_cycle integration — complete
+### v1/v2 ❌ (廢棄 — $49 loss)
+### v3 Research ✅
 
-### Phase 5: Scanner Redis
-- **Status:** complete
-- `async_scanner.py` — added Redis XADD to write_scan_results()
-- Graceful: import fails → skip, Redis down → log.debug skip
+### Phase 1: market_maker.py v3 ✅
+- [x] 重寫：260 行，5 functions（v1 was 460 行 10 functions）
+- [x] 刪除：unwind, add_winner, management, estimate_edge, compute_fee
+- [x] half_spread 2.5%（from Anon/LampStore real data）
+- [x] 10% bankroll hard cap
+- [x] 2check: 10 scenarios, 0 bugs
 
-### Phase 6: 監控 + 驗證
-- **Status:** complete
-- `heartbeat.py` — added _check_event_driven_health()
-  - Redis ping + latency
-  - ws_manager heartbeat staleness
-  - indicator_engine heartbeat staleness
-  - indicator_cache freshness
-- Integration test (60s): ws + ie + Redis all green
-  - 656 klines, 31 tickers, 0 redis failures
-  - 1 × 3m kline close processed + recalced
-  - Cache source = "ws", all 37/37 fields × 4 TF
+### Phase 2: run_mm_live.py v3 ✅
+- [x] 重寫：520 行（v1 was 830 行）
+- [x] 刪除：management loop, expired market handling
+- [x] Slug-based discovery + outcome validation
+- [x] Bankroll refresh every cycle
+- [x] Kill switches: daily loss + consecutive 5 losses + cooldown
+- [x] 2check: 9 scenarios, 0 bugs
+- [x] Dry-run tested: discovery works, watchlist works, sizing correct
 
-### Phase 7: Dashboard — deferred
-### Phase 8: 交付 — **NEXT**
+### Phase 3: Backtest ✅
+- [x] 30d, $500, 1% bet, 2.5% spread
+- [x] 100% WR (mathematical guarantee if both fill)
+- [x] Train = Test (zero overfit)
+- [x] Fill rate sensitivity: 20% fill → $7.29/day
+- [x] vs real wallets: consistent (edge ~3% real vs 6.4% backtest)
 
-## Files Created/Modified
-| File | Action | Phase |
-|------|--------|-------|
-| `scripts/shared_infra/redis_bus.py` | NEW | 2 |
-| `requirements.txt` | MOD (+redis) | 2 |
-| `scripts/ws_manager.py` | NEW | 3 |
-| `ai.openclaw.wsmanager.plist` | NEW | 3 |
-| `scripts/indicator_engine.py` | NEW | 4a |
-| `ai.openclaw.indicatorengine.plist` | NEW | 4a |
-| `config/params.py` | MOD (+3m TF) | 4a |
-| `scripts/trader_cycle/exchange/market_data.py` | MOD (cache fast path) | 4c |
-| `ai.openclaw.tradercycle.plist` | MOD (1800→900) | 4c |
-| `scripts/async_scanner.py` | MOD (+Redis XADD) | 5 |
-| `scripts/heartbeat.py` | MOD (+event-driven health) | 6 |
-
-## Reboot Check
-| Question | Answer |
-|----------|--------|
-| 做緊咩？ | Phase 8: 交付 |
-| 目標？ | Update docs + handin |
-| 下一步？ | PROTOCOL.md update → commit-ready |
+### Phase 4: Paper 24h `status: next`
+### Phase 5: Live `status: pending`
