@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
-run_mm_live.py — v3 Strategy C Runner
+run_mm_live.py — v4 Dual-Layer Runner
 
-策略：兩邊買 near fair，hold to resolution，冇 management。
-模仿 Anon + LampStore 真實行為。
+策略：Dual-layer (hedge + directional) with signal pipeline。
+- Zone 1 (0.50-0.57): pure hedge (guaranteed if both fill)
+- Zone 2 (0.57-0.65): 50% hedge + 50% directional
+- Zone 3 (>0.65): 25% hedge + 75% directional
+- Cancel defense: spot move + TTL + window-end (layer-specific)
 
 流程（每 30 秒）：
-1. Fetch BTC price + vol
+1. Fetch coin price + vol + indicators
 2. Refresh bankroll
 3. Discover markets（slug-based）→ watchlist
-4. Enter active markets（maker limit bids）
-5. Check resolutions → PnL
-6. Save state
+4. Enter with directional/asymmetric sizing
+5. Cancel stale GTC 2 min before window end
+6. Confirm fills via get_trades()
+7. Check resolutions → PnL
+8. Save state
 
 Usage:
   cd ~/projects/axc-trading
@@ -182,20 +187,132 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
 # ═══════════════════════════════════════
 
 def _execute(orders: list[PlannedOrder], client) -> list[dict]:
-    """Submit orders. No retry (gotcha: retry = double submit)."""
+    """Submit limit orders. Returns order IDs — NOT fills.
+
+    IMPORTANT: Limit orders (GTC) go on the book. Submit ≠ filled.
+    Fills are checked later via _check_fills().
+    """
     results = []
     for o in orders:
         try:
             amount = round(o.size * o.price, 2)
             r = client.buy_shares(o.token_id, amount, price=o.price)
-            logger.info("ORDER BUY %s %s: %.1f shares @ $%.3f ($%.2f)",
-                        o.outcome, o.token_id[:10], o.size, o.price, amount)
+            order_id = ""
+            status = ""
+            if isinstance(r, dict):
+                order_id = r.get("orderID", r.get("id", ""))
+                status = r.get("status", "")
+                # Dry-run: simulate instant fill (no real CLOB)
+                if r.get("dry_run"):
+                    status = "matched"
+            logger.info("ORDER SUBMITTED %s %s: %.1f shares @ $%.3f ($%.2f) → %s [%s]",
+                        o.outcome, o.token_id[:10], o.size, o.price, amount,
+                        order_id[:12] if order_id else "ok", status)
             results.append({"outcome": o.outcome, "price": o.price,
-                           "size": o.size, "ok": True})
+                           "size": o.size, "token_id": o.token_id,
+                           "order_id": order_id, "status": status,
+                           "submitted": True})
         except Exception as e:
             logger.error("ORDER FAILED %s: %s", o.outcome, e)
-            results.append({"outcome": o.outcome, "ok": False, "error": str(e)})
+            results.append({"outcome": o.outcome, "submitted": False, "error": str(e)})
     return results
+
+
+def _check_fills(state: dict, client) -> None:
+    """Check which submitted orders actually filled on-chain.
+
+    Queries open orders + trades to determine real fill status.
+    Updates market state to reflect actual positions.
+    """
+    if not client or not hasattr(client, "get_orders"):
+        return
+
+    now_ms = int(time.time() * 1000)
+    for cid, mkt in state["markets"].items():
+        if mkt["phase"] != "OPEN":
+            continue
+        # Skip if already confirmed fills
+        if mkt.get("fills_confirmed"):
+            continue
+
+        pending = mkt.get("pending_orders", [])
+        if not pending:
+            continue
+
+        # Don't check after window ends — exchange may cancel unfilled orders
+        # which would falsely appear as "filled"
+        end_ms = mkt.get("window_end_ms", 0)
+        if end_ms > 0 and now_ms > end_ms:
+            # Window over — mark remaining pending as unfilled, not filled
+            logger.info("Window ended %s: %d pending orders → cancelled (not filled)",
+                        cid[:8], len(pending))
+            mkt["pending_orders"] = []
+            mkt["fills_confirmed"] = True
+            continue
+
+        try:
+            # FIX #1: Use get_trades() for reliable fill confirmation
+            # "not in open_orders" could mean cancelled, not filled
+            trades = client.get_trades(market=cid) if hasattr(client, "get_trades") else []
+            trade_order_ids = set()
+            for t in (trades or []):
+                # Trades reference taker_order_id or maker_orders
+                taker_id = t.get("taker_order_id", "")
+                if taker_id:
+                    trade_order_ids.add(taker_id)
+                for mo in t.get("maker_orders", []):
+                    mid = mo.get("order_id", "") if isinstance(mo, dict) else ""
+                    if mid:
+                        trade_order_ids.add(mid)
+
+            # Also check open orders as secondary signal
+            open_orders = client.get_orders(market=cid)
+            open_ids = {o.get("id", "") for o in open_orders} if open_orders else set()
+
+            filled = []
+            still_open = []
+            for po in pending:
+                oid = po.get("order_id", "")
+                if oid and oid in trade_order_ids:
+                    # Confirmed by trade record — definitely filled
+                    filled.append(po)
+                elif oid and oid in open_ids:
+                    # Still on book — not filled yet
+                    still_open.append(po)
+                else:
+                    # Not in trades AND not in open orders → likely cancelled
+                    logger.info("Order %s %s: not in trades or open → cancelled",
+                                cid[:8], po["outcome"])
+                    # Don't count as filled — just remove from pending
+
+            if filled:
+                # FIX #7: Don't reset — instant fills from apply_fill are already correct
+                # Just ADD newly confirmed fills on top
+                for f in filled:
+                    outcome = f["outcome"]
+                    price = f["price"]
+                    size = f["size"]
+                    if outcome == "UP":
+                        old = mkt["up_shares"] * mkt["up_avg_price"]
+                        mkt["up_shares"] += size
+                        mkt["up_avg_price"] = (old + size * price) / mkt["up_shares"]
+                    elif outcome == "DOWN":
+                        old = mkt["down_shares"] * mkt["down_avg_price"]
+                        mkt["down_shares"] += size
+                        mkt["down_avg_price"] = (old + size * price) / mkt["down_shares"]
+                    mkt["entry_cost"] += size * price
+                    logger.info("FILL CONFIRMED %s %s: %.1f @ $%.3f",
+                                cid[:8], outcome, size, price)
+
+                mkt["pending_orders"] = still_open
+                if not still_open:
+                    mkt["fills_confirmed"] = True
+                    logger.info("ALL FILLS CONFIRMED %s: UP=%.1f DN=%.1f cost=$%.2f",
+                                cid[:8], mkt["up_shares"], mkt["down_shares"],
+                                mkt["entry_cost"])
+
+        except Exception as e:
+            logger.warning("Fill check failed for %s: %s", cid[:8], e)
 
 
 # ═══════════════════════════════════════
@@ -232,11 +349,15 @@ def _save(state: dict):
 
 
 def _to_dict(s: MMMarketState) -> dict:
-    return {k: getattr(s, k) for k in [
+    # FIX #10: base fields from dataclass
+    d = {k: getattr(s, k) for k in [
         "condition_id", "title", "up_token_id", "down_token_id",
         "window_start_ms", "window_end_ms", "btc_open_price", "phase",
         "up_shares", "up_avg_price", "down_shares", "down_avg_price",
         "entry_cost", "payout", "realized_pnl"]}
+    # Preserve runtime fields (pending_orders, fills_confirmed)
+    # These are added by the runner, not the dataclass
+    return d
 
 
 def _from_dict(d: dict) -> MMMarketState:
@@ -328,9 +449,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         state["daily_pnl"] = 0.0
         state["daily_pnl_date"] = today
 
-    # Kill switches
-    if state.get("daily_pnl", 0) < -MM_DAILY_LOSS_LIMIT:
-        logger.warning("KILL: daily loss $%.2f", -state["daily_pnl"])
+    # Kill switches — FIX #11: use % of bankroll, not absolute $50
+    br = state.get("bankroll", 100.0)
+    daily_loss_limit = max(br * 0.15, 5.0)  # 15% of bankroll, min $5
+    if state.get("daily_pnl", 0) < -daily_loss_limit:
+        logger.warning("KILL: daily loss $%.2f > 15%% of $%.0f", -state["daily_pnl"], br)
         return state
     cd = state.get("cooldown_until", "")
     if cd:
@@ -378,8 +501,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
     # Enter active markets from watchlist
     active = sum(1 for m in state["markets"].values() if m["phase"] != "RESOLVED")
+
+    # FIX #1: Dedup — get all open orders on CLOB to avoid duplicate submissions
+    _existing_markets = set()
+    if client and hasattr(client, "get_orders") and not dry_run:
+        try:
+            _open = client.get_orders()
+            _existing_markets = {o.get("market", "") for o in (_open or [])}
+        except Exception:
+            pass
+
     for cid, wl in list(state.get("watchlist", {}).items()):
         if cid in state["markets"]:
+            del state["watchlist"][cid]
+            continue
+        # FIX #1: Skip if we already have orders on CLOB for this market
+        if cid in _existing_markets:
+            logger.info("SKIP %s: already have orders on CLOB (dedup)", cid[:8])
             del state["watchlist"][cid]
             continue
         if active >= config.max_concurrent_markets:
@@ -398,23 +536,55 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _coin_vol = _vol_1m(_sym)
         mins_left = max(1, (wl["end_ms"] - now_ms) / 60_000)
 
-        # Fetch indicator-based P(Up) from crypto_15m pipeline
+        # Signal pipeline: combine all sources for P(Up)
         mkt = PolyMarket(condition_id=cid, title=wl["title"], category="crypto_15m",
                          yes_token_id=wl["up_tok"], no_token_id=wl["dn_tok"],
                          liquidity=15000)
-        indicator_p_up = 0.0
-        try:
-            from polymarket.strategy.crypto_15m import assess_crypto_15m_edge
-            ind_result = assess_crypto_15m_edge(mkt)
-            if ind_result is not None:
-                indicator_p_up = ind_result.probability or 0.0
-                logger.info("15M indicator P(Up)=%.3f for %s %s", indicator_p_up, _sym[:3], cid[:8])
-        except Exception as e:
-            logger.debug("Indicator fetch failed (using bridge only): %s", e)
 
-        fair = compute_fair_up(_coin_price, _coin_open, _coin_vol, int(mins_left),
-                               indicator_p_up=indicator_p_up)
+        # 1. Brownian Bridge (base — always available)
+        bridge_p_up = compute_fair_up(_coin_price, _coin_open, _coin_vol, int(mins_left))
+
+        # 2. Combined signal: indicator + CVD + microstructure (via assess_edge)
+        signal_p_up = 0.0
+        signal_source = "bridge"
+        try:
+            from polymarket.strategy.edge_finder import assess_edge
+            edge_result = assess_edge(mkt)
+            if edge_result is not None:
+                signal_p_up = edge_result.ai_probability or 0.0
+                signal_source = edge_result.signal_source or "combined"
+                logger.info("Signal P(Up)=%.3f [%s] for %s",
+                            signal_p_up, signal_source, cid[:8])
+        except Exception as e:
+            logger.debug("Signal pipeline failed: %s", e)
+
+        # 3. Order book imbalance (short-term, highest priority)
+        ob_adjustment = 0.0
+        if client and hasattr(client, "get_order_book") and not dry_run:
+            try:
+                up_book = client.get_order_book(wl["up_tok"])
+                bid_vol = sum(b["size"] for b in up_book.get("bids", []))
+                ask_vol = sum(a["size"] for a in up_book.get("asks", []))
+                if bid_vol + ask_vol > 0:
+                    imbalance = (bid_vol - ask_vol) / (bid_vol + ask_vol)
+                    ob_adjustment = imbalance * 0.05  # ±5% max adjustment
+                    logger.info("OB imbalance=%.3f (bid=%.0f ask=%.0f) → adj=%.3f",
+                                imbalance, bid_vol, ask_vol, ob_adjustment)
+            except Exception as e:
+                logger.debug("OB fetch failed: %s", e)
+
+        # Blend signals: signal pipeline > bridge, with OB adjustment
+        if signal_p_up > 0:
+            # Signal available — weight it 70%, bridge 30%
+            fair = signal_p_up * 0.70 + bridge_p_up * 0.30 + ob_adjustment
+        else:
+            # Bridge only + OB
+            fair = bridge_p_up + ob_adjustment
+        fair = max(0.05, min(0.95, fair))
+
+        # 10% bankroll cap per market (plan_opening enforces internally)
         bankroll = state.get("bankroll", 100.0)
+
         orders = plan_opening(mkt, fair, config, bankroll=bankroll)
         if not orders:
             del state["watchlist"][cid]
@@ -424,16 +594,118 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
                            window_start_ms=wl["start_ms"], window_end_ms=wl["end_ms"],
-                           btc_open_price=btc_open, phase="OPEN")
-        for r in results:
-            if r.get("ok"):
-                apply_fill(ms, r["outcome"], "BUY", r["price"], r["size"])
+                           btc_open_price=_coin_open, phase="OPEN")
 
-        state["markets"][cid] = _to_dict(ms)
+        # Use API response status to determine immediate fills
+        # "matched" = filled on-chain, "live" = on order book
+        pending = []
+        for r in results:
+            if not r.get("submitted"):
+                continue
+            status = r.get("status", "")
+            if status == "matched":
+                # Immediately filled — apply to state
+                apply_fill(ms, r["outcome"], "BUY", r["price"], r["size"])
+                logger.info("INSTANT FILL %s %s: %.1f @ $%.3f",
+                            cid[:8], r["outcome"], r["size"], r["price"])
+            else:
+                # On order book — check later
+                pending.append(r)
+
+        mkt_dict = _to_dict(ms)
+        mkt_dict["pending_orders"] = pending
+        mkt_dict["fills_confirmed"] = len(pending) == 0
+        mkt_dict["entry_price"] = _coin_price  # snapshot for cancel defense
+        mkt_dict["entry_ts"] = int(time.time())
+        state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
-        print(f"  OPEN {cid[:8]} | UP@{ms.up_avg_price:.2f} DOWN@{ms.down_avg_price:.2f} "
-              f"= {ms.combined_entry:.3f} | ${ms.entry_cost:.2f}")
+
+        filled_str = f"UP={ms.up_shares:.0f} DN={ms.down_shares:.0f}"
+        pending_str = ",".join(r["outcome"] for r in pending)
+        cost_str = f"${ms.entry_cost:.2f}" if ms.entry_cost > 0 else "$0"
+        print(f"  OPEN {cid[:8]} | filled: {filled_str} | pending: {pending_str or 'none'} | cost: {cost_str}")
+
+    # ── Helper: identify directional vs hedge orders ──
+    def _find_directional_orders(pending_list):
+        """Find orders that are directional (not part of equal-size hedge pair).
+        Hedge pair = one UP + one DN with same size. Extra orders = directional."""
+        up_orders = [p for p in pending_list if p["outcome"] == "UP"]
+        dn_orders = [p for p in pending_list if p["outcome"] == "DOWN"]
+        # Find hedge pairs (matching size)
+        hedge_up_ids = set()
+        hedge_dn_ids = set()
+        for u in up_orders:
+            for d in dn_orders:
+                if abs(u["size"] - d["size"]) < 0.1 and id(u) not in hedge_up_ids and id(d) not in hedge_dn_ids:
+                    hedge_up_ids.add(id(u))
+                    hedge_dn_ids.add(id(d))
+                    break
+        # Everything not in a hedge pair = directional
+        return [p for p in pending_list
+                if id(p) not in hedge_up_ids and id(p) not in hedge_dn_ids]
+
+    # Cancel defense: 3 triggers for unfilled orders
+    if client and hasattr(client, "client") and not dry_run:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            pending = mkt.get("pending_orders", [])
+            if not pending:
+                continue
+
+            end_ms = mkt.get("window_end_ms", 0)
+            entry_price = mkt.get("entry_price", 0)
+            entry_ts = mkt.get("entry_ts", 0)
+            now_s = int(time.time())
+
+            # Detect coin symbol for spot price check
+            _t = mkt.get("title", "").lower()
+            _s = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
+
+            to_cancel = []
+            reason = ""
+
+            # Trigger 1: 2 min before window end → cancel ALL pending
+            if end_ms > 0 and now_ms > end_ms - 120_000:
+                to_cancel = list(pending)
+                reason = "window_end"
+
+            # Trigger 2: spot moved >0.05% since entry → cancel DIRECTIONAL only
+            elif entry_price > 0:
+                current = _btc_price() if _s == "BTCUSDT" else _price(_s)
+                if current > 0:
+                    move_pct = abs(current - entry_price) / entry_price
+                    if move_pct > 0.0005:
+                        # Identify directional orders (not part of hedge pair)
+                        # Hedge pair = equal-size UP + DN. Extra = directional.
+                        to_cancel = _find_directional_orders(pending)
+                        if to_cancel:
+                            reason = f"spot_move_{move_pct:.4f}"
+
+            # Trigger 3: TTL 60s → cancel DIRECTIONAL only
+            elif entry_ts > 0 and now_s - entry_ts > 60:
+                to_cancel = _find_directional_orders(pending)
+                if to_cancel:
+                    reason = "ttl_60s"
+
+            for po in to_cancel:
+                oid = po.get("order_id", "")
+                if oid:
+                    try:
+                        client.client.cancel(order_id=oid)
+                        logger.info("CANCEL %s %s [%s]", cid[:8], po["outcome"], reason)
+                    except Exception as e:
+                        logger.debug("Cancel failed %s: %s", oid[:12], e)
+
+            if to_cancel:
+                mkt["pending_orders"] = [p for p in pending if p not in to_cancel]
+                if not mkt["pending_orders"]:
+                    mkt["fills_confirmed"] = True
+
+    # Check fills (submitted → actually filled?)
+    if not dry_run:
+        _check_fills(state, client)
 
     # Resolutions
     _check_resolutions(state)

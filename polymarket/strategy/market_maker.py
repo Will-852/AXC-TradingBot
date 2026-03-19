@@ -1,22 +1,18 @@
 """
-market_maker.py — Strategy C: 兩邊買，hold to resolution（v3）
+market_maker.py — v4 Dual-Layer Strategy
 
-模仿 Anon + LampStore 嘅真實策略：
-- 兩邊掛 maker limit bid near fair price
-- 唔做任何管理（冇 unwind，冇 add_winner）
-- Hold to resolution → winning side $1.00, losing side $0
-- 3 收入來源：spread capture + maker rebate (20%) + liquidity rewards
+Dual-layer: hedge (guaranteed) + directional (EV play)。
+- Layer 1 HEDGE: equal shares UP + DN, combined < $1 → guaranteed if both fill
+- Layer 2 DIRECTIONAL: naked shares on likely side, 68% accuracy → +EV
+- Zone 1 (0.50-0.57): pure hedge
+- Zone 2 (0.57-0.65): 50% hedge + 50% directional
+- Zone 3 (>0.65): 25% hedge + 75% directional
+- 10% bankroll hard cap per market
+- CLOB minimum 5 shares per order
 
-真實數據驗證：
-- Anon:      $16K / 2,241 markets / avg combined $0.979 / WR 79%
-- LampStore: $115K / 19,504 markets / avg combined $0.970 / WR 69%
-- 兩個都 94.5% maker orders，冇 SELL trades
-
-參數來源：
-- half_spread 2.5% → bid $0.475（Anon 買 $0.47-$0.49）
-- rewardsMaxSpread 4.5¢ → $0.475 在 reward zone 內
-- rewardsMinSize $50 → 需要 $5K+ bankroll for rewards
-- CLOB minimum 5 shares → 需要 $450+ bankroll at 1%
+Signal priority (15M timeframe):
+1. Order book imbalance + CVD + M1 momentum (short-term)
+2. RSI/MACD/BB etc (background context, lower weight)
 
 用法：
     from polymarket.strategy.market_maker import (
@@ -46,7 +42,7 @@ _norm = NormalDist()
 
 @dataclass
 class MMConfig:
-    """Strategy C parameters — from Anon/LampStore real data.
+    """v4 Dual-Layer parameters — from Anon/LampStore real data.
 
     half_spread 2.5%:
       bid = fair - 0.025 = $0.475 at open (fair=0.50)
@@ -156,8 +152,8 @@ def compute_fair_up(btc_current: float, btc_open: float,
 
     # Blend with indicator score if available
     if indicator_p_up > 0:
-        # Indicator weight: higher when less time remaining (more data accumulated)
-        ind_weight = max(0.2, min(0.7, 1.0 - minutes_remaining / 20.0))
+        # Indicator weight: max 30%. Bridge is near-deterministic at T≤2min.
+        ind_weight = max(0.10, min(0.30, 0.30 - minutes_remaining / 50.0))
         fair = bridge * (1 - ind_weight) + indicator_p_up * ind_weight
         return max(0.005, min(0.995, fair))
 
@@ -170,66 +166,148 @@ def compute_fair_up(btc_current: float, btc_open: float,
 
 def plan_opening(market: PolyMarket, fair_up: float,
                  config: MMConfig, bankroll: float = 0) -> list[PlannedOrder]:
-    """Generate two maker limit bids, one each side.
+    """Dual-layer: hedge (guaranteed) + directional (EV play).
 
-    Entry logic:
-      UP bid  = fair_up - half_spread
-      DOWN bid = (1 - fair_up) - half_spread
-      Combined < 1.0 → positive EV
+    Layer 1 — HEDGE: Equal shares UP + DN at informed prices.
+      Combined < $1 → guaranteed profit if both fill.
+      Needs 5 shares each side → minimum ~$4.75 budget.
 
-    Sizing:
-      shares = bankroll × bet_pct / combined
-      Must ≥ min_order_size (5 shares)
+    Layer 2 — DIRECTIONAL: Extra naked shares on likely side.
+      Bid at fair - spread (same pricing as hedge side).
+      Only when fair outside 0.50-0.57.
+
+    Zones:
+      0.43-0.50: skip (no edge either direction)
+      0.50-0.57: Zone 1 — pure hedge (if bankroll allows) or skip
+      0.57-0.65: Zone 2 — 50% hedge + 50% directional
+      >0.65:     Zone 3 — 25% hedge + 75% directional
+
+    Bankroll gates (CLOB 5-share minimum per order):
+      < $48: hedge impossible → directional only (Zone 2/3) or skip (Zone 1)
+      $48+:  full dual-layer
 
     Returns [] if no edge or bankroll too small.
     """
-    fair_down = 1.0 - fair_up
-    up_price = round(max(0.01, fair_up - config.half_spread), 2)
-    down_price = round(max(0.01, fair_down - config.half_spread), 2)
+    ZONE_1_BOUND = 0.57   # below: pure hedge (or skip)
+    ZONE_2_BOUND = 0.65   # above: strong directional
 
-    combined = up_price + down_price
-    if combined >= 1.0:
+    fair_down = 1.0 - fair_up
+    confidence = max(fair_up, fair_down)
+
+    # No edge zone
+    if confidence < 0.50:
         return []
 
-    # Sizing
+    # Total budget (10% hard cap)
     if bankroll > 0:
-        max_cost = bankroll * config.bet_pct
+        total_cost = min(bankroll * config.bet_pct, bankroll * 0.10)
     else:
-        max_cost = 5.0  # safe fallback
+        total_cost = 5.0
 
-    shares_per_side = max_cost / combined  # equal shares both sides
+    # Hedge layer pricing (informed, but EQUAL shares)
+    up_bid = round(max(0.01, fair_up - config.half_spread), 2)
+    dn_bid = round(max(0.01, fair_down - config.half_spread), 2)
+    combined = up_bid + dn_bid  # always < 1.0 with 2.5% spread
 
-    # Clamp to min_order_size (5 shares) — small bankroll still trades at minimum
-    # Safety: don't let clamp exceed user's chosen bet_pct (they control their risk)
-    if shares_per_side < config.min_order_size:
-        min_cost = config.min_order_size * combined
-        # Use bet_pct × 2 as ceiling — user chose their risk level, respect it
-        # but don't go completely unbounded
-        ceiling = max(bankroll * config.bet_pct * 2, bankroll * 0.10) if bankroll > 0 else min_cost
-        if min_cost > ceiling:
-            logger.warning("skip %s: min order $%.2f > ceiling $%.2f (bankroll $%.0f)",
-                           market.condition_id[:8], min_cost, ceiling, bankroll)
-            return []
-        shares_per_side = config.min_order_size
-        logger.info("clamp %s to min %d shares (cost $%.2f, bankroll $%.0f)",
-                    market.condition_id[:8], config.min_order_size,
-                    shares_per_side * combined, bankroll)
+    # Can we afford hedge? (5 shares each side)
+    hedge_min_cost = config.min_order_size * combined
+    can_hedge = total_cost >= hedge_min_cost
 
-    shares_per_side = round(shares_per_side, 2)
+    # Direction
+    if fair_up >= fair_down:
+        dir_side = "UP"
+        dir_bid = up_bid
+        dir_token = market.yes_token_id
+        hedge_token = market.no_token_id
+    else:
+        dir_side = "DOWN"
+        dir_bid = dn_bid
+        dir_token = market.no_token_id
+        hedge_token = market.yes_token_id
 
-    # Log cost for transparency (no hard cap — user decides bet_pct)
-    actual_cost = shares_per_side * (up_price + down_price)
+    # Zone classification
+    if confidence <= ZONE_1_BOUND:
+        # Zone 1: pure hedge only
+        hedge_pct, dir_pct = 1.0, 0.0
+    elif confidence <= ZONE_2_BOUND:
+        # Zone 2: 50/50
+        hedge_pct, dir_pct = 0.50, 0.50
+    else:
+        # Zone 3: 25/75
+        hedge_pct, dir_pct = 0.25, 0.75
 
-    orders = [
-        PlannedOrder(token_id=market.yes_token_id, side="BUY",
-                     price=up_price, size=shares_per_side, outcome="UP"),
-        PlannedOrder(token_id=market.no_token_id, side="BUY",
-                     price=down_price, size=shares_per_side, outcome="DOWN"),
-    ]
+    orders = []
 
-    logger.info("plan %s: UP@%.2f + DOWN@%.2f = %.3f | %d shares | $%.2f",
-                market.condition_id[:8], up_price, down_price, combined,
-                shares_per_side, actual_cost)
+    # ── Layer 1: Hedge (equal shares both sides) ──
+    if can_hedge and hedge_pct > 0:
+        hedge_budget = total_cost * hedge_pct
+        hedge_shares = hedge_budget / combined
+        if hedge_shares >= config.min_order_size:
+            hedge_shares = round(hedge_shares, 2)
+            orders.append(PlannedOrder(
+                token_id=market.yes_token_id, side="BUY",
+                price=up_bid, size=hedge_shares, outcome="UP"))
+            orders.append(PlannedOrder(
+                token_id=market.no_token_id, side="BUY",
+                price=dn_bid, size=hedge_shares, outcome="DOWN"))
+
+    # ── Layer 2: Directional (naked, likely side) ──
+    if dir_pct > 0 and confidence > ZONE_1_BOUND:
+        dir_budget = total_cost * dir_pct
+        # If hedge couldn't fire, give full budget to directional
+        if not orders:
+            dir_budget = total_cost
+        dir_shares = dir_budget / dir_bid
+        if dir_shares >= config.min_order_size:
+            dir_shares = round(dir_shares, 2)
+            orders.append(PlannedOrder(
+                token_id=dir_token, side="BUY",
+                price=dir_bid, size=dir_shares, outcome=dir_side))
+        elif dir_budget > 0:
+            # Clamp to minimum if within 10% cap
+            min_cost = config.min_order_size * dir_bid
+            if bankroll <= 0 or min_cost <= bankroll * 0.10:
+                orders.append(PlannedOrder(
+                    token_id=dir_token, side="BUY",
+                    price=dir_bid, size=config.min_order_size, outcome=dir_side))
+
+    if not orders:
+        if confidence <= ZONE_1_BOUND:
+            logger.info("skip %s: Zone 1 but bankroll $%.0f too small for hedge",
+                        market.condition_id[:8], bankroll)
+        else:
+            logger.info("skip %s: bankroll $%.0f too small",
+                        market.condition_id[:8], bankroll)
+        return []
+
+    # Merge duplicate token+price orders (hedge UP + directional UP at same price)
+    merged = {}
+    for o in orders:
+        key = (o.token_id, o.price)
+        if key in merged:
+            merged[key] = PlannedOrder(
+                token_id=o.token_id, side=o.side, price=o.price,
+                size=round(merged[key].size + o.size, 2), outcome=o.outcome)
+        else:
+            merged[key] = o
+    orders = list(merged.values())
+
+    # Log
+    actual = sum(o.size * o.price for o in orders)
+    hedge_count = sum(1 for o in orders if o.outcome != dir_side or
+                      (sum(1 for x in orders if x.outcome == o.outcome) > 1))
+    has_hedge = any(o.outcome == "UP" for o in orders) and any(o.outcome == "DOWN" for o in orders)
+    zone = 1 if confidence <= ZONE_1_BOUND else (2 if confidence <= ZONE_2_BOUND else 3)
+    mode = f"Z{zone}"
+    if has_hedge:
+        mode += " H+D" if dir_pct > 0 and confidence > ZONE_1_BOUND else " HEDGE"
+    else:
+        mode += " DIR"
+    sides = " + ".join(f"{o.outcome}@{o.price:.2f}×{o.size:.1f}" for o in orders)
+    logger.info("plan %s: %s %s | $%.2f (%.0f%%) | conf=%.3f",
+                market.condition_id[:8], mode, sides,
+                actual, actual / bankroll * 100 if bankroll > 0 else 0,
+                confidence)
     return orders
 
 

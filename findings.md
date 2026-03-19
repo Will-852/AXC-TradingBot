@@ -1,43 +1,62 @@
-# Findings — v3 Strategy C
+# Findings — MM v4
 
-## 真實數據總結（6 個錢包）
+## 用戶核心策略方向（2026-03-19 確認）
 
-### 4 種策略分類
-| 策略 | 代表 | 兩邊買 | 管理 | Avg Combined | $/trade |
-|------|------|--------|------|-------------|---------|
-| A: MM+管理 | k9q, BBB | ✅ | ✅ | $0.94-0.98 | $17-34 |
-| B: Near-certain | BoneReader | ❌ | ❌ | N/A | $21 |
-| **C: 兩邊+hold** | **Anon, LampStore** | **✅** | **❌** | **$0.97-0.98** | **$6-7** |
-| D: 單邊 | j2f2 | ❌ | ❌ | N/A | -$8 |
+- 唔係強制單邊，唔係 equal 兩邊
+- Hybrid asymmetric：信心高 → 偏重方向；信心低 → 接近 equal；冇 edge → skip
+- 15 分鐘 zero-sum game — 短期 signal（order book, CVD, M1）比傳統 indicator 更 relevant
+- 從過往數據驗證判斷準確度
+- 用 order book + 最新成交判斷 10-15 分鐘趨勢
 
-### Strategy C 關鍵數據
-- Anon: 79.3% WR, avg combined $0.979, 60% markets < $1.00
-- LampStore: 68.6% WR, avg combined $0.970, 86% markets < $1.00
-- Combined < $0.97 = **100% win rate**
-- Combined > $1.00 = **0% win rate** but only 14% of markets
-- Profit from < $1.00 > Loss from > $1.00 by **3.2x**
-- 94.5% maker orders（零 fee）
+## Signal Pipeline（7 sources 全部可用但 MM 冇接入）
 
-### Polymarket 3 Revenue Streams
-1. **Spread capture**: combined < $1.00 → 差額
-2. **Maker rebate**: 20% of taker fees（~0.3% per fill at p=0.50）
-3. **Liquidity rewards**: rewardsMaxSpread=4.5¢, rewardsMinSize=$50, daily USDC
+### 短期 signal（HIGH priority for 15M）
 
-### BTC 15M Market 參數
-- rewardsMaxSpread: 4.5¢ → bid 必須 ≥ $0.455（if mid=0.50）
-- rewardsMinSize: $50/order → 需要 $5K+ bankroll at 1%
-- Taker delay: 250ms（maker 有優勢）
-- CLOB min: 5 shares, tick: $0.01
+**Order Book** — `get_order_book(token_id)`
+- bids/asks with price + size
+- Imbalance = bid_depth / (bid_depth + ask_depth) → 買方力量
+- `get_midpoint()`, `get_spread()`
 
-### Order Book 真相
-- 未開始嘅 market: $0.01 bid / $0.99 ask（98% spread）
-- Active market: liquidity 集中喺 $0.01-$0.11 同 $0.89-$0.99
-- 但 real trades 發生喺 $0.43-$0.57（near fair）
-- 因為 bot 嘅 limit orders 就係 book 嘅一部分
+**CVD (Cumulative Volume Delta)** — `assess_cvd_edge()`
+- 20m Binance aggTrades → divergence detection
+- `compute_dollar_imbalance()`: 5m buy_ratio - 15m buy_ratio
+- 55-sec cache TTL
+- Output: P(Up) via tanh [0.15, 0.85]
 
-## v1/v2 錯誤教訓
-- half_spread 5% = 太遠，real data 顯示 2-3%
-- add_winner = 拖低 Sharpe（43 → 6）
-- Skip paper = $49 loss
-- 假設 100% fill = unrealistic
-- 冇查 order book = 建基於幻想
+**Minute-1 Momentum**
+- BTC price at minute 1 vs open
+- |M1 ret| > 0.10% = stronger directional signal（+2.6% accuracy in backtest）
+
+### 傳統 indicator（LOW priority — background context）
+
+**assess_crypto_15m_edge()** → EdgeAssessment
+- Field: `ai_probability`（唔係 `probability`）
+- 8 indicators: RSI 20%, MACD 15%, BB 15%, EMA 10%, Stoch 10%, VWAP 10%, Funding 10%, Sentiment 10%
+- tanh compression → P(Up) ∈ [0.15, 0.85]
+
+### Microstructure — `assess_microstructure_edge()`
+- 25 × 5m klines → vol_ratio, ret_5m
+- Lookup table from 90-day OOS backtest
+
+## Backtest Reference（另一個 agent，OOS verified）
+
+- Hybrid >0.55: 75.8% WR, $14.3/day, Sharpe 68.9
+- Hybrid >0.60: 86.2% WR, $13.2/day, Sharpe 79.0
+- |M1 ret| > 0.10% filter: +2.6% accuracy, -30% trades
+- Train ≈ Test（唔係 overfit）
+
+## Opus Code Review — 12 Issues
+
+### RED (5)
+1. Cancelled orders counted as fills → phantom shares
+2. Dedup "market" field may not match condition_id
+4. `ind_result.probability` doesn't exist → indicator never used
+8. No GTC cancel before window end → adverse selection
+9. Entry filter contradicts MIN_CONFIDENCE → almost no trades
+
+### YELLOW (5)
+5. Docstrings outdated
+7. Fill reset wipes instant fills (latent)
+10. _to_dict strips pending_orders
+11. $50 absolute daily loss limit (should be %)
+12. Binance ≠ Chainlink resolution
