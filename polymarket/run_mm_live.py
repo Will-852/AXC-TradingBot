@@ -64,25 +64,30 @@ _BINANCE = "https://fapi.binance.com"
 
 _cache: dict = {}
 
-def _btc_price() -> float:
-    """Latest BTC price. Cached 25s."""
+def _price(symbol: str = "BTCUSDT") -> float:
+    """Latest price for any symbol. Cached 25s per symbol."""
+    key = f"price_{symbol}"
     now = time.time()
-    if "btc" in _cache and now - _cache["btc"][1] < 25:
-        return _cache["btc"][0]
-    url = f"{_BINANCE}/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=1"
+    if key in _cache and now - _cache[key][1] < 25:
+        return _cache[key][0]
+    url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=1"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=8) as r:
             price = float(json.loads(r.read())[0][4])
-            _cache["btc"] = (price, now)
+            _cache[key] = (price, now)
             return price
     except Exception as e:
-        logger.warning("BTC price fetch failed: %s", e)
-        return _cache.get("btc", (0, 0))[0]
+        logger.warning("%s price fetch failed: %s", symbol, e)
+        return _cache.get(key, (0, 0))[0]
 
 
-def _btc_open_at(start_ms: int) -> float:
-    """BTC price at a specific timestamp."""
-    url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime={start_ms}&limit=1"
+def _btc_price() -> float:
+    return _price("BTCUSDT")
+
+
+def _open_at(start_ms: int, symbol: str = "BTCUSDT") -> float:
+    """Price at a specific timestamp for any symbol."""
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1m&startTime={start_ms}&limit=1"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=5) as r:
             return float(json.loads(r.read())[0][1])
@@ -90,24 +95,29 @@ def _btc_open_at(start_ms: int) -> float:
         return 0.0
 
 
-def _vol_1m() -> float:
-    """Per-minute vol. Cached 5 min."""
+def _btc_open_at(start_ms: int) -> float:
+    return _open_at(start_ms, "BTCUSDT")
+
+
+def _vol_1m(symbol: str = "BTCUSDT") -> float:
+    """Per-minute vol. Cached 5 min per symbol."""
+    key = f"vol_{symbol}"
     now = time.time()
-    if "vol" in _cache and now - _cache["vol"][1] < 300:
-        return _cache["vol"][0]
-    url = f"{_BINANCE}/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=60"
+    if key in _cache and now - _cache[key][1] < 300:
+        return _cache[key][0]
+    url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=60"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=10) as r:
             closes = [float(k[4]) for k in json.loads(r.read())]
         if len(closes) < 20:
-            return _cache.get("vol", (0.001, 0))[0]
+            return _cache.get(key, (0.001, 0))[0]
         rets = [math.log(closes[i] / closes[i-1]) for i in range(1, len(closes)) if closes[i-1] > 0]
         mean = sum(rets) / len(rets)
         vol = max(0.0001, math.sqrt(sum((r - mean)**2 for r in rets) / len(rets)))
-        _cache["vol"] = (vol, now)
+        _cache[key] = (vol, now)
         return vol
     except Exception:
-        return _cache.get("vol", (0.001, 0))[0]
+        return _cache.get(key, (0.001, 0))[0]
 
 
 # ═══════════════════════════════════════
@@ -115,12 +125,14 @@ def _vol_1m() -> float:
 # ═══════════════════════════════════════
 
 def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, dict]]:
-    """Find BTC 15M markets for current + next 4 windows via slug."""
+    """Find BTC + ETH 15M markets for current + next 4 windows via slug."""
     results = []
     now_s = int(time.time())
     now_et = datetime.now(tz=_ET)
     slot = (now_et.minute // 15) * 15
     base = now_et.replace(minute=0, second=0, microsecond=0)
+
+    _COINS = [("btc", "bitcoin"), ("eth", "ethereum")]
 
     for i in range(5):
         ws = base + timedelta(minutes=slot + i * 15)
@@ -129,38 +141,39 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
         if now_s > te + 120:
             continue
 
-        slug = f"btc-updown-15m-{ts}"
-        try:
-            _url = f"https://gamma-api.polymarket.com/markets?slug={slug}"
-            with urllib.request.urlopen(
-                    urllib.request.Request(_url, headers={"User-Agent": "AXC/1.0"}),
-                    timeout=5) as _resp:
-                data = json.loads(_resp.read())
-        except Exception as e:
-            logger.warning("Gamma slug fetch failed for %s: %s", slug, e)
-            continue
-        if not data or not isinstance(data, list):
-            continue
-
-        parsed = gamma.parse_market(data[0])
-        outcomes = parsed.get("outcomes", [])
-        if outcomes and isinstance(outcomes, list) and len(outcomes) >= 2:
-            if outcomes[0].lower() not in ("up", "yes"):
-                logger.error("OUTCOME SWAPPED %s: %s", slug, outcomes)
+        for coin_slug, coin_title_kw in _COINS:
+            slug = f"{coin_slug}-updown-15m-{ts}"
+            try:
+                _url = f"https://gamma-api.polymarket.com/markets?slug={slug}"
+                with urllib.request.urlopen(
+                        urllib.request.Request(_url, headers={"User-Agent": "AXC/1.0"}),
+                        timeout=5) as _resp:
+                    data = json.loads(_resp.read())
+            except Exception as e:
+                logger.warning("Gamma slug fetch failed for %s: %s", slug, e)
+                continue
+            if not data or not isinstance(data, list):
                 continue
 
-        pm = PolyMarket(
-            condition_id=parsed["condition_id"], title=parsed["title"],
-            category="crypto_15m", end_date=we.isoformat(),
-            yes_token_id=parsed.get("yes_token_id", ""),
-            no_token_id=parsed.get("no_token_id", ""),
-            yes_price=parsed.get("yes_price", 0.5),
-            no_price=parsed.get("no_price", 0.5),
-            liquidity=parsed.get("liquidity", 0),
-        )
-        if should_enter_market(pm, config):
-            results.append((pm, {"start_ms": ts * 1000, "end_ms": te * 1000,
-                                  "end_time": we.isoformat()}))
+            parsed = gamma.parse_market(data[0])
+            outcomes = parsed.get("outcomes", [])
+            if outcomes and isinstance(outcomes, list) and len(outcomes) >= 2:
+                if outcomes[0].lower() not in ("up", "yes"):
+                    logger.error("OUTCOME SWAPPED %s: %s", slug, outcomes)
+                    continue
+
+            pm = PolyMarket(
+                condition_id=parsed["condition_id"], title=parsed["title"],
+                category="crypto_15m", end_date=we.isoformat(),
+                yes_token_id=parsed.get("yes_token_id", ""),
+                no_token_id=parsed.get("no_token_id", ""),
+                yes_price=parsed.get("yes_price", 0.5),
+                no_price=parsed.get("no_price", 0.5),
+                liquidity=parsed.get("liquidity", 0),
+            )
+            if should_enter_market(pm, config):
+                results.append((pm, {"start_ms": ts * 1000, "end_ms": te * 1000,
+                                      "end_time": we.isoformat()}))
     return results
 
 
@@ -258,8 +271,11 @@ def _check_resolutions(state: dict):
 
         dur = end_ms - start_ms
         interval = "5m" if dur <= 5*60_000 else "15m" if dur <= 15*60_000 else "1h"
+        # Detect symbol from market title
+        _title = md.get("title", "").lower()
+        _sym = "ETHUSDT" if "ethereum" in _title else "BTCUSDT"
         url = (f"https://api.binance.com/api/v3/klines"
-               f"?symbol=BTCUSDT&interval={interval}&startTime={start_ms}&limit=1")
+               f"?symbol={_sym}&interval={interval}&startTime={start_ms}&limit=1")
         try:
             with urllib.request.urlopen(
                     urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=10) as r:
@@ -374,8 +390,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
             continue
 
-        # Enter
-        btc_open = _btc_open_at(wl["start_ms"]) or btc
+        # Enter — detect coin from title
+        _title_lower = wl["title"].lower()
+        _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
+        _coin_price = _price(_sym)
+        _coin_open = _open_at(wl["start_ms"], _sym) or _coin_price
+        _coin_vol = _vol_1m(_sym)
         mins_left = max(1, (wl["end_ms"] - now_ms) / 60_000)
 
         # Fetch indicator-based P(Up) from crypto_15m pipeline
@@ -387,13 +407,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             from polymarket.strategy.crypto_15m import assess_crypto_15m_edge
             ind_result = assess_crypto_15m_edge(mkt)
             if ind_result is not None:
-                # ind_result.probability is P(Up) from indicator scoring
                 indicator_p_up = ind_result.probability or 0.0
-                logger.info("15M indicator P(Up)=%.3f for %s", indicator_p_up, cid[:8])
+                logger.info("15M indicator P(Up)=%.3f for %s %s", indicator_p_up, _sym[:3], cid[:8])
         except Exception as e:
             logger.debug("Indicator fetch failed (using bridge only): %s", e)
 
-        fair = compute_fair_up(btc, btc_open, vol, int(mins_left),
+        fair = compute_fair_up(_coin_price, _coin_open, _coin_vol, int(mins_left),
                                indicator_p_up=indicator_p_up)
         bankroll = state.get("bankroll", 100.0)
         orders = plan_opening(mkt, fair, config, bankroll=bankroll)

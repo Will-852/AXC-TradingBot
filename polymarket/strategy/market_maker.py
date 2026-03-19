@@ -276,10 +276,10 @@ def resolve_market(state: MMMarketState, result: str) -> float:
 # ═══════════════════════════════════════
 
 def should_enter_market(market: PolyMarket, config: MMConfig) -> bool:
-    """BTC 15M only."""
+    """BTC + ETH 15M binary markets."""
     if market.category != "crypto_15m":
         return False
     if market.liquidity < config.min_liquidity:
         return False
     t = market.title.lower()
-    return "bitcoin" in t and "up or down" in t
+    return ("bitcoin" in t or "ethereum" in t) and "up or down" in t
