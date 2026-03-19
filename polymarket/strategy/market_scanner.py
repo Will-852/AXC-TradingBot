@@ -275,6 +275,7 @@ def _scan_weather_events(
                 continue
 
             raw_markets = event.get("markets", [])
+            parent_event_id = str(event.get("id", ""))  # from parent event, not individual market
             for raw in raw_markets:
                 if not raw.get("active", False):
                     continue
@@ -297,7 +298,7 @@ def _scan_weather_events(
                     outcome_prices=parsed.get("outcome_prices", {}),
                     outcome_tokens=parsed.get("outcome_tokens", {}),
                     neg_risk=parsed.get("neg_risk", False),
-                    event_id=parsed.get("event_id", ""),
+                    event_id=parent_event_id,  # critical: arb groups by this
                     event_slug=event_slug,
                     tick_size=parsed.get("tick_size", 0.01),
                     min_order_size=parsed.get("min_order_size", 5),
