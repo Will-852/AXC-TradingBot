@@ -123,6 +123,24 @@ LOSS_CUT_PCT = 0.50            # 持倉跌 50% → 考慮止損（舊 0.30 對�
 COOLDOWN_AFTER_LOSS_MIN = 60   # 虧損後冷卻 60 分鐘
 COOLDOWN_AFTER_CIRCUIT_MIN = 360  # 熔斷後冷卻 6 小時
 
+# ─── Market Making (k9q-style) ───
+# Backtest: 90d Sharpe 9.48, 30d Sharpe 6.92, train→test decay 10%
+# Fee model: non-linear, maker = zero fee + 20% rebate
+MM_ENABLED = False                  # Phase 5 micro-test 時先開
+MM_HALF_SPREAD = 0.05              # 5% each side (backtest best: hs5%)
+MM_LOTS_PER_SIDE = 5               # 5 lots per side
+MM_LOT_SIZE = 41.0                 # k9q 15M standard
+MM_UNWIND_TRIGGER = 0.20           # start unwind at -20% (backtest best: ut20%)
+MM_UNWIND_STEP = 0.08              # 1 lot per additional 8% drop (us8%)
+MM_MAX_UNWIND_LOTS = 4             # keep ≥1 lot residual
+MM_ADD_WINNER_PCT = 0.15           # add when winner up 15%
+MM_ADD_WINNER_LOTS = 2
+MM_USE_POST_ONLY = True            # maker = zero fee + rebate
+MM_MAX_COST_PER_MARKET = 10.0      # micro-test: $10/market
+MM_MAX_CONCURRENT = 3              # max 3 markets at once
+MM_DAILY_LOSS_LIMIT = 50.0         # kill switch: stop if daily loss > $50
+MM_CYCLE_INTERVAL_S = 30           # main loop interval
+
 # ─── Weather Data ───
 OPEN_METEO_BASE = "https://api.open-meteo.com/v1"
 OWM_BASE = "https://api.openweathermap.org/data/2.5"
