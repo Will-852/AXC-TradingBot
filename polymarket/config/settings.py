@@ -148,7 +148,7 @@ OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
 
 # Forecast uncertainty σ (°C) by lead days — conservative estimates
 # Higher σ → flatter distribution → more conservative probability
-WEATHER_SIGMA_BY_LEAD = {1: 1.2, 2: 1.8, 3: 2.3, 4: 2.8, 5: 2.8, 6: 3.5, 7: 3.5}
+WEATHER_SIGMA_BY_LEAD = {0: 0.8, 1: 1.2, 2: 1.8, 3: 2.3, 4: 2.8, 5: 2.8, 6: 3.5, 7: 3.5}
 
 # Confidence decay by lead days — shorter lead = more confident
 WEATHER_CONFIDENCE_BY_LEAD = {

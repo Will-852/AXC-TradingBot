@@ -243,7 +243,8 @@ _WEATHER_SLUGS = {
     # Americas
     "seattle": "seattle", "atlanta": "atlanta", "chicago": "chicago",
     "dallas": "dallas", "miami": "miami", "toronto": "toronto",
-    "new york": "new-york-city", "sao paulo": "sao-paulo",
+    "new york": "new-york-city", "los angeles": "los-angeles",
+    "phoenix": "phoenix", "sao paulo": "sao-paulo",
     "buenos aires": "buenos-aires",
     # Oceania
     "wellington": "wellington", "sydney": "sydney",

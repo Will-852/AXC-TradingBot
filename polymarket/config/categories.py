@@ -47,7 +47,7 @@ WEATHER_CITIES: dict[str, tuple[float, float, str]] = {
     "chicago": (41.974, -87.907, "F"),       # KORD O'Hare
     "new york": (40.640, -73.779, "F"),      # KJFK
     "seattle": (47.449, -122.309, "F"),      # KSEA
-    "dallas": (32.897, -97.038, "F"),        # KDFW
+    "dallas": (32.847, -96.852, "F"),        # KDAL Love Field (Polymarket resolution station)
     "miami": (25.796, -80.287, "F"),         # KMIA
     "los angeles": (33.943, -118.408, "F"),  # KLAX
     "phoenix": (33.437, -112.008, "F"),      # KPHX Sky Harbor
@@ -63,7 +63,7 @@ WEATHER_CITIES: dict[str, tuple[float, float, str]] = {
     "toronto": (43.677, -79.631, "C"),       # CYYZ Pearson
     "shanghai": (31.143, 121.805, "C"),      # ZSPD Pudong
     "sao paulo": (-23.435, -46.473, "C"),    # SBGR Guarulhos
-    "london": (51.471, -0.462, "C"),         # EGLL Heathrow
+    "london": (51.505, 0.055, "C"),          # EGLC London City (Polymarket resolution station)
     "sydney": (-33.946, 151.177, "C"),       # YSSY Kingsford Smith
     "seoul": (37.469, 126.451, "C"),         # RKSI Incheon
 }

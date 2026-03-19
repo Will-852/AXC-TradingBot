@@ -525,7 +525,7 @@ def _fetch_multi_source_forecast(
 
 def _get_forecast_sigma(lead_days: int) -> float:
     """Forecast uncertainty σ by lead time. Falls back to max σ for >7 days."""
-    clamped = max(1, min(lead_days, 7))
+    clamped = max(0, min(lead_days, 7))
     return WEATHER_SIGMA_BY_LEAD.get(clamped, 3.5)
 
 
@@ -885,13 +885,21 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
         context_data = build_15m_ai_context(market, indicators, btc_ctx)
         # Fall through to AI call below
 
-    # Weather: try deterministic path first (zero AI cost)
+    # Weather: deterministic only (zero AI cost, no fallback to Claude)
+    # If deterministic fails (parse error, API down, entry price too high), skip — don't waste AI
     elif market.category == "weather":
         result = assess_weather_edge(market)
         if result is not None:
             return result
-        logger.info("Weather deterministic failed, falling back to AI: %s",
-                     market.title[:50])
+        logger.debug("Weather deterministic returned None, skipping: %s",
+                      market.title[:50])
+        return EdgeAssessment(
+            condition_id=market.condition_id,
+            title=market.title,
+            category=market.category,
+            market_price=market.yes_price,
+            confidence=0.0,
+        )  # zero confidence = filtered out by GenerateSignalsStep
 
     # Gather context data based on category
     # (crypto_15m already set context_data above via build_15m_ai_context)
