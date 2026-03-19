@@ -516,7 +516,7 @@ def _compute_bucket_probability(
     Both set → range/exact bucket [low, high), e.g. "13°C" → [12.5, 13.5)
     """
     if bucket_low is None and bucket_high is not None:
-        # Floor: P(T < high) — high already includes +1 for FLOOR rule
+        # Floor: P(T < high) — high = X+0.5 per ROUND rule
         return _normal_cdf((bucket_high - forecast_temp) / sigma)
     elif bucket_high is None and bucket_low is not None:
         # Ceiling: P(T ≥ low)
