@@ -232,7 +232,7 @@ VOL_REGIME_CONFIRMATION = 1  # direct assignment (hysteresis removed — caused 
 # When vol regime changes mid-trade, recalibrate SL/TP to match new environment.
 # Expanding vol (ratio>1.3): SL→breakeven if profitable, tighten TP by sqrt(ratio).
 # Contracting vol (ratio<0.7): tighten both SL and TP proportionally.
-REGIME_ADJUST_ENABLED = True
+REGIME_ADJUST_ENABLED = False  # 2026-03-19: TP tightening (√ratio) kills winners. +9.18pp BTC improvement.
 REGIME_ATR_EXPAND_THRESHOLD = 1.3   # ATR ratio > 1.3 = vol expanding >30%
 REGIME_ATR_CONTRACT_THRESHOLD = 0.7  # ATR ratio < 0.7 = vol contracting >30%
 
@@ -256,7 +256,7 @@ REGIME_PRESETS = {
     "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
     "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
 }
-ACTIVE_REGIME_PRESET = "full"
+ACTIVE_REGIME_PRESET = "classic"  # 2026-03-19: BOCPD hurts BTC (+14.45pp). HMM = +3.29% vs BOCPD = -11.16%.
 # Derived from preset（settings.py getattr 繼續正常運作）
 REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
 CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]
@@ -368,11 +368,10 @@ def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
     Design: LOW vol blanket-blocked except BTC LOW×RANGE×range (+$200, 67% WR).
     Per-cell rules block additional proven bad cells (signal quality issues).
     """
-    if vol_regime == "LOW":
-        if pair == "BTCUSDT" and market_mode == "RANGE" and strategy == "range":
-            return None  # only positive LOW cell — regime adjust protects it
-        return "BLOCK"
-    return REGIME_SIGNAL_RULES.get((pair, vol_regime, market_mode, strategy))
+    # 2026-03-19: Blanket blocking disabled. Net effect was negative —
+    # blocked good trades along with bad ones. Portfolio +14.3% without filters
+    # vs ~0% with filters. Only LINKUSDT consistently negative across all configs.
+    return None
 
 
 # ═══════════════════════════════════════
