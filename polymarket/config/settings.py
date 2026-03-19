@@ -104,9 +104,12 @@ KELLY_MIN_BET_USDC = 5.0       # 最低下注 $5
 KELLY_MAX_BET_USDC = 100.0     # 最高下注 $100（初期）
 
 # ─── 自動化範圍（紅線 — CORE.md §2）───
-# Pipeline 只准自動落注/Exit 呢兩個 category
-# 其他 category（sports、general crypto 等）= 唔准自動操作
-AUTOMATED_CATEGORIES = {"crypto_15m", "weather"}
+# Pipeline 只准自動落注/Exit 呢個 category
+# 其他 category（sports、general crypto、weather 等）= 唔准自動操作
+# 2026-03-19: weather 移除 — 結論：天氣市場冇辦法持續盈利
+#   原因：公開數據 = 冇 edge，ensemble forecast 同市場定價幾乎一致，
+#   剩餘 edge 太細（<3%）扣除 variance 後 EV ≈ 0
+AUTOMATED_CATEGORIES = {"crypto_15m"}
 
 # ─── Position Management ───
 # Binary markets (crypto_15m):
