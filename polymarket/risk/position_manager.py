@@ -139,23 +139,22 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
             signal.action = ""
         return signal
 
-    # ─── 3. Weather Early Exit（forecast convergence profit lock）───
-    # Weather ≠ BTC 15M: forecast converges → market catches up → edge disappears
-    # Math: when remaining_edge < 5% and profit > 100%, Sharpe = 0.12 → not worth holding
-    # Sell → lock profit → redeploy capital → compound faster
-    if pos.category == "weather":
+    # ─── 3. Weather Early Exit（only for ultra-cheap shares ≤5¢）───
+    # Entry ≤ 5¢ (20×+ payout): exit at 500%+ profit → lock 6× return
+    # Entry > 5¢: HOLD to resolution — need full $1 payout to compensate losses
+    # Why 5¢ cutoff: cheaper shares have extreme payout (20-100×) but very low
+    #   win rate (~5-15%). A 500% paper gain = forecast converged significantly.
+    #   Remaining hold has Sharpe < 0.15 → not worth the binary risk.
+    if pos.category == "weather" and pos.avg_price <= 0.05:
         profit_pct = pos.unrealized_pnl_pct
-        # remaining_edge ≈ model_prob - current_price (simplified: use drift as proxy)
-        # If price moved UP significantly (profit > 100%), edge has been consumed
-        if profit_pct > 1.0:  # > 100% profit
-            # Price has roughly doubled → market caught up with our model
+        if profit_pct >= 5.0:  # ≥ 500% profit
             signal.reasons.append(
-                f"Weather early exit: profit {profit_pct:.0%} > 100% — lock convergence profit"
+                f"Weather cheap exit: entry {pos.avg_price:.0%}, "
+                f"profit {profit_pct:.0%} > 500% — lock convergence gain"
             )
             signal.urgency = "high"
             signal.action = "exit"
             return signal
-        # Weather loss cut: same as other long-term markets (fall through below)
 
     # ══════════════════════════════════════════════
     # 以下只適用於長期市場（weather, general crypto 等）
