@@ -229,12 +229,18 @@ def plan_opening(market: PolyMarket, fair_up: float,
         full_budget = 5.0
     total_cost = full_budget / max(1, total_tranches)
 
-    # Max bid $0.475 — guaranteed maker. But bid LOWER when market is lower.
-    # bid = min($0.475, fair - spread) → never overpay, capture dips
+    # Bid pricing: min($0.475, fair - spread)
+    # $0.475 = max bid (guaranteed maker)
+    # $0.35 = min bid floor (below this, market says we're wrong)
     MAX_BID = 0.475
-    up_bid = round(min(MAX_BID, max(0.01, fair_up - config.half_spread)), 2)
-    dn_bid = round(min(MAX_BID, max(0.01, fair_down - config.half_spread)), 2)
+    MIN_BID = 0.35   # if fair - spread < this, market disagrees with our direction
+    up_bid = round(min(MAX_BID, max(MIN_BID, fair_up - config.half_spread)), 2)
+    dn_bid = round(min(MAX_BID, max(MIN_BID, fair_down - config.half_spread)), 2)
     combined = up_bid + dn_bid  # always <= $0.95
+
+    # Sanity: if our directional side bid = MIN_BID, market strongly disagrees
+    # Fair-spread < 0.35 means fair < 0.375 → market says <37.5% chance
+    # Our bridge might say otherwise but respect the market's view
 
     # Can we afford hedge? (5 shares each side)
     hedge_min_cost = config.min_order_size * combined

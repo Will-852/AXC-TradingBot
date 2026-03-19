@@ -721,7 +721,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
-        # 10% bankroll cap, phased entry across tranches
+        # Time cutoff: don't enter with < 5 min remaining (not enough time)
+        if now_ms > wl["end_ms"] - 300_000:
+            logger.info("SKIP %s: < 5 min remaining, too late to enter", cid[:8])
+            del state["watchlist"][cid]
+            continue
+
+        # Market midpoint sanity: if Polymarket mid for our side < $0.35,
+        # market strongly disagrees with our direction → skip
+        if client and hasattr(client, "get_midpoint") and not dry_run:
+            _dir_tok = wl["up_tok"] if fair > 0.50 else wl["dn_tok"]
+            _mid = _poly_midpoint(client, _dir_tok)
+            if 0 < _mid < 0.38:
+                logger.info("SKIP %s: market mid=%.3f < 0.38 → market disagrees with our direction",
+                            cid[:8], _mid)
+                continue  # keep in watchlist, might recover
+
+        # 5% bankroll cap, phased entry across tranches
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
 
@@ -794,6 +810,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _v2 = _vol_1m(_s2)
             _ml2 = max(1, (end_ms - now_ms) / 60_000)
             fair2 = compute_fair_up(_p2, _o2, _v2, int(_ml2))
+
+            # Market midpoint sanity for tranches
+            if client and hasattr(client, "get_midpoint") and not dry_run:
+                orig_dir_tok = mkt_d.get("up_token_id", "") if mkt_d.get("original_dir") == "UP" else mkt_d.get("down_token_id", "")
+                _t_mid = _poly_midpoint(client, orig_dir_tok) if orig_dir_tok else 0
+                if 0 < _t_mid < 0.38:
+                    logger.info("ABORT tranche %s: market mid=%.3f < 0.38 → market says we're wrong",
+                                cid[:8], _t_mid)
+                    mkt_d["tranches_done"] = t_total
+                    continue
 
             # Keep original direction — only abort if REVERSED
             orig_dir = mkt_d.get("original_dir", "UP")
