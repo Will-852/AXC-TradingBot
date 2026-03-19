@@ -67,6 +67,11 @@ class MMConfig:
     max_consecutive_losses: int = 5
     cooldown_hours: int = 24
 
+    # Phased entry: split budget across multiple orders over time
+    # Tranche count adapts to bankroll (more money = more splits)
+    max_tranches: int = 4        # max splits per market
+    tranche_interval_s: int = 30 # seconds between tranches
+
 
 # ═══════════════════════════════════════
 #  State
@@ -164,8 +169,27 @@ def compute_fair_up(btc_current: float, btc_open: float,
 #  Plan Opening
 # ═══════════════════════════════════════
 
+def calc_tranches(bankroll: float, config: MMConfig) -> int:
+    """How many tranches can we split the 5% market budget into?
+    Each tranche must afford at least min_order_size shares.
+
+    5% cap per market:
+    $55  → 1 tranche  ($2.75)
+    $110 → 2 tranches ($2.75 each)
+    $165 → 3 tranches
+    $220 → 4 tranches (max)
+    """
+    total = min(bankroll * config.bet_pct, bankroll * 0.05)
+    min_per_tranche = config.min_order_size * 0.55  # ~$2.75 at typical bid
+    if total <= 0 or min_per_tranche <= 0:
+        return 1
+    n = int(total / min_per_tranche)
+    return max(1, min(n, config.max_tranches))
+
+
 def plan_opening(market: PolyMarket, fair_up: float,
-                 config: MMConfig, bankroll: float = 0) -> list[PlannedOrder]:
+                 config: MMConfig, bankroll: float = 0,
+                 tranche: int = 0, total_tranches: int = 1) -> list[PlannedOrder]:
     """Dual-layer: hedge (guaranteed) + directional (EV play).
 
     Layer 1 — HEDGE: Equal shares UP + DN at informed prices.
@@ -198,11 +222,12 @@ def plan_opening(market: PolyMarket, fair_up: float,
     if confidence < 0.50:
         return []
 
-    # Total budget (10% hard cap)
+    # Total budget: 5% hard cap per market (2 markets × 5% = 10% max exposure)
     if bankroll > 0:
-        total_cost = min(bankroll * config.bet_pct, bankroll * 0.10)
+        full_budget = min(bankroll * config.bet_pct, bankroll * 0.05)
     else:
-        total_cost = 5.0
+        full_budget = 5.0
+    total_cost = full_budget / max(1, total_tranches)
 
     # Hedge layer pricing (informed, but EQUAL shares)
     up_bid = round(max(0.01, fair_up - config.half_spread), 2)
@@ -266,7 +291,7 @@ def plan_opening(market: PolyMarket, fair_up: float,
         elif dir_budget > 0:
             # Clamp to minimum if within 10% cap
             min_cost = config.min_order_size * dir_bid
-            if bankroll <= 0 or min_cost <= bankroll * 0.10:
+            if bankroll <= 0 or min_cost <= bankroll * 0.05:
                 orders.append(PlannedOrder(
                     token_id=dir_token, side="BUY",
                     price=dir_bid, size=config.min_order_size, outcome=dir_side))

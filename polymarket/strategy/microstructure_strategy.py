@@ -254,7 +254,10 @@ def assess_microstructure_edge(market: PolyMarket) -> EdgeAssessment | None:
     if not MICRO_ENABLED:
         return None
 
-    df = _fetch_5m_klines()
+    # Detect symbol from market title (ETH uses ETHUSDT, default BTC)
+    _t = market.title.lower() if market.title else ""
+    _sym = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
+    df = _fetch_5m_klines(symbol=_sym)
     if df.empty:
         return None
 

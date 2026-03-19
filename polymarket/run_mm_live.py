@@ -45,7 +45,7 @@ for p in [_AXC, os.path.join(_AXC, "scripts")]:
 from polymarket.strategy.market_maker import (
     MMConfig, MMMarketState, PlannedOrder,
     compute_fair_up, plan_opening, apply_fill,
-    resolve_market, should_enter_market,
+    resolve_market, should_enter_market, calc_tranches,
 )
 from polymarket.core.context import PolyMarket
 from polymarket.exchange.gamma_client import GammaClient
@@ -58,28 +58,73 @@ _ET = ZoneInfo("America/New_York")
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
-_CYCLE_S = 30
-_SCAN_S = 300
+_CYCLE_S = 5           # 5s main loop — fast reaction
+_SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
+_HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
 _BINANCE = "https://fapi.binance.com"
+_BINANCE_SPOT = "https://api.binance.com"
+
+# Rate limit safety: track API calls per minute
+_api_calls: dict = {}  # {"binance": [(ts, count), ...]}
+_API_LIMIT_PER_MIN = 200  # conservative: 200/min out of 2400 limit
+
+
+def _rate_ok(source: str = "binance") -> bool:
+    """Check if we're within safe API call rate."""
+    now = time.time()
+    calls = _api_calls.get(source, [])
+    # Remove calls older than 60s
+    calls = [(t, c) for t, c in calls if now - t < 60]
+    _api_calls[source] = calls
+    total = sum(c for _, c in calls)
+    return total < _API_LIMIT_PER_MIN
+
+
+def _track_call(source: str = "binance", n: int = 1):
+    """Track an API call for rate limiting."""
+    _api_calls.setdefault(source, []).append((time.time(), n))
 
 
 # ═══════════════════════════════════════
-#  Data
+#  Data — High-Frequency Layer (3-5s cache)
 # ═══════════════════════════════════════
 
 _cache: dict = {}
 
+
 def _price(symbol: str = "BTCUSDT") -> float:
-    """Latest price for any symbol. Cached 25s per symbol."""
+    """Latest price. Cached 3s — fast enough for cancel defense."""
     key = f"price_{symbol}"
     now = time.time()
-    if key in _cache and now - _cache[key][1] < 25:
+    if key in _cache and now - _cache[key][1] < 3:
         return _cache[key][0]
+    if not _rate_ok("binance"):
+        return _cache.get(key, (0, 0))[0]
+    # Use book ticker for fastest price (best bid+ask, single call)
+    url = f"{_BINANCE_SPOT}/api/v3/ticker/bookTicker?symbol={symbol}"
+    try:
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=3) as r:
+            data = json.loads(r.read())
+            bid = float(data.get("bidPrice", 0))
+            ask = float(data.get("askPrice", 0))
+            price = (bid + ask) / 2 if bid > 0 and ask > 0 else 0
+            if price > 0:
+                _cache[key] = (price, now)
+                _track_call("binance")
+                return price
+    except Exception:
+        pass
+    # Fallback to kline
     url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=1"
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=8) as r:
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=5) as r:
             price = float(json.loads(r.read())[0][4])
             _cache[key] = (price, now)
+            _track_call("binance")
             return price
     except Exception as e:
         logger.warning("%s price fetch failed: %s", symbol, e)
@@ -91,11 +136,19 @@ def _btc_price() -> float:
 
 
 def _open_at(start_ms: int, symbol: str = "BTCUSDT") -> float:
-    """Price at a specific timestamp for any symbol."""
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1m&startTime={start_ms}&limit=1"
+    """Price at a specific timestamp. Cached permanently (historical)."""
+    key = f"open_{symbol}_{start_ms}"
+    if key in _cache:
+        return _cache[key][0]
+    url = f"{_BINANCE_SPOT}/api/v3/klines?symbol={symbol}&interval=1m&startTime={start_ms}&limit=1"
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=5) as r:
-            return float(json.loads(r.read())[0][1])
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=5) as r:
+            price = float(json.loads(r.read())[0][1])
+            _cache[key] = (price, time.time())
+            _track_call("binance")
+            return price
     except Exception:
         return 0.0
 
@@ -105,15 +158,20 @@ def _btc_open_at(start_ms: int) -> float:
 
 
 def _vol_1m(symbol: str = "BTCUSDT") -> float:
-    """Per-minute vol. Cached 5 min per symbol."""
+    """Per-minute vol. Cached 60s — slow-moving, no need for fast refresh."""
     key = f"vol_{symbol}"
     now = time.time()
-    if key in _cache and now - _cache[key][1] < 300:
+    if key in _cache and now - _cache[key][1] < 60:
         return _cache[key][0]
+    if not _rate_ok("binance"):
+        return _cache.get(key, (0.001, 0))[0]
     url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=60"
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}), timeout=10) as r:
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=10) as r:
             closes = [float(k[4]) for k in json.loads(r.read())]
+        _track_call("binance")
         if len(closes) < 20:
             return _cache.get(key, (0.001, 0))[0]
         rets = [math.log(closes[i] / closes[i-1]) for i in range(1, len(closes)) if closes[i-1] > 0]
@@ -123,6 +181,46 @@ def _vol_1m(symbol: str = "BTCUSDT") -> float:
         return vol
     except Exception:
         return _cache.get(key, (0.001, 0))[0]
+
+
+def _poly_midpoint(client, token_id: str) -> float:
+    """Polymarket midpoint for a token. Cached 5s."""
+    key = f"mid_{token_id[:16]}"
+    now = time.time()
+    if key in _cache and now - _cache[key][1] < 5:
+        return _cache[key][0]
+    if not client or not hasattr(client, "get_midpoint"):
+        return 0.0
+    try:
+        mid = client.get_midpoint(token_id)
+        if mid > 0:
+            _cache[key] = (mid, now)
+            _track_call("clob")
+        return mid
+    except Exception:
+        return _cache.get(key, (0, 0))[0]
+
+
+def _poly_ob_imbalance(client, up_token: str) -> float:
+    """Order book imbalance for UP token. Cached 5s. Returns -1 to +1."""
+    key = f"obi_{up_token[:16]}"
+    now = time.time()
+    if key in _cache and now - _cache[key][1] < 5:
+        return _cache[key][0]
+    if not client or not hasattr(client, "get_order_book"):
+        return 0.0
+    try:
+        book = client.get_order_book(up_token)
+        bid_vol = sum(b["size"] for b in book.get("bids", []))
+        ask_vol = sum(a["size"] for a in book.get("asks", []))
+        if bid_vol + ask_vol > 0:
+            imb = (bid_vol - ask_vol) / (bid_vol + ask_vol)
+            _cache[key] = (imb, now)
+            _track_call("clob")
+            return imb
+    except Exception:
+        pass
+    return _cache.get(key, (0, 0))[0]
 
 
 # ═══════════════════════════════════════
@@ -435,13 +533,21 @@ def _check_resolutions(state: dict):
 
 
 # ═══════════════════════════════════════
-#  Main Cycle
+#  Main Cycle — 5s fast loop + 30s heavy ops
 # ═══════════════════════════════════════
+
+_last_heavy_ts: float = 0  # module-level for heavy operation throttle
+
 
 def run_cycle(state: dict, gamma: GammaClient, client,
               config: MMConfig, dry_run: bool) -> dict:
+    global _last_heavy_ts
     now = datetime.now(tz=_HKT)
     now_ms = int(time.time() * 1000)
+    now_s = time.time()
+
+    # Is this a heavy cycle? (every 30s: discovery, signal pipeline, new entries)
+    is_heavy = (now_s - _last_heavy_ts) >= _HEAVY_INTERVAL_S
 
     # Daily reset
     today = now.strftime("%Y-%m-%d")
@@ -465,20 +571,40 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         state["consecutive_losses"] = 0
         state["cooldown_until"] = ""
 
-    # Data
+    # ── FAST OPS (every 5s): price, cancel defense, fill check, resolution ──
+
+    # Price (3s cache — always fresh)
     btc = _btc_price()
     if btc <= 0:
         return state
-    vol = _vol_1m()
 
-    # Refresh bankroll
-    if client and hasattr(client, "get_usdc_balance") and not dry_run:
-        try:
-            state["bankroll"] = client.get_usdc_balance()
-        except Exception:
-            pass
+    # Refresh bankroll (every heavy cycle only — CLOB call)
+    if is_heavy:
+        vol = _vol_1m()  # 60s cache
+        if client and hasattr(client, "get_usdc_balance") and not dry_run:
+            try:
+                state["bankroll"] = client.get_usdc_balance()
+            except Exception:
+                pass
 
-    # Discover → watchlist
+    # ── FAST MONITORING (every 5s): OB imbalance for active positions ──
+    if not dry_run:
+        for _cid, _mkt in state["markets"].items():
+            if _mkt["phase"] == "OPEN" and _mkt.get("up_token_id"):
+                _obi = _poly_ob_imbalance(client, _mkt["up_token_id"])
+                _mid = _poly_midpoint(client, _mkt["up_token_id"])
+                if abs(_obi) > 0.3 or _mid > 0:
+                    logger.debug("MONITOR %s: OBI=%.2f mid=%.3f", _cid[:8], _obi, _mid)
+
+    # ── HEAVY OPS (every 30s): discovery, signal pipeline, new entries ──
+    if is_heavy:
+        _last_heavy_ts = now_s
+    else:
+        # Fast cycle: skip discovery + entry, go to cancel/fill/resolve
+        # Find the cancel defense section below
+        pass
+
+    # Discover → watchlist (gated by is_heavy via _SCAN_S check)
     last = state.get("last_scan", "")
     since = 999
     if last:
@@ -499,8 +625,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 logger.info("watchlist + %s (%.0fm): %s", cid[:8], lead, mkt.title[:45])
         state["last_scan"] = now.isoformat()
 
-    # Enter active markets from watchlist
+    # Enter active markets from watchlist (heavy cycle only — signal pipeline is slow)
     active = sum(1 for m in state["markets"].values() if m["phase"] != "RESOLVED")
+    if not is_heavy:
+        active = config.max_concurrent_markets  # skip entry on fast cycles
 
     # FIX #1: Dedup — get all open orders on CLOB to avoid duplicate submissions
     _existing_markets = set()
@@ -575,17 +703,28 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # Blend signals: signal pipeline > bridge, with OB adjustment
         if signal_p_up > 0:
-            # Signal available — weight it 70%, bridge 30%
+            # Check for direction conflict: signal says one way, bridge says opposite
+            signal_up = signal_p_up > 0.50
+            bridge_up = bridge_p_up > 0.50
+            if signal_up != bridge_up and abs(signal_p_up - 0.50) > 0.03:
+                logger.info("SKIP %s: signal/bridge CONFLICT (signal=%.3f %s, bridge=%.3f %s)",
+                            cid[:8], signal_p_up, "UP" if signal_up else "DN",
+                            bridge_p_up, "UP" if bridge_up else "DN")
+                continue  # Keep in watchlist — might resolve later
+
+            # No conflict — blend
             fair = signal_p_up * 0.70 + bridge_p_up * 0.30 + ob_adjustment
         else:
             # Bridge only + OB
             fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
-        # 10% bankroll cap per market (plan_opening enforces internally)
+        # 10% bankroll cap, phased entry across tranches
         bankroll = state.get("bankroll", 100.0)
+        n_tranches = calc_tranches(bankroll, config)
 
-        orders = plan_opening(mkt, fair, config, bankroll=bankroll)
+        orders = plan_opening(mkt, fair, config, bankroll=bankroll,
+                              tranche=0, total_tranches=n_tranches)
         if not orders:
             del state["watchlist"][cid]
             continue
@@ -597,34 +736,107 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                            btc_open_price=_coin_open, phase="OPEN")
 
         # Use API response status to determine immediate fills
-        # "matched" = filled on-chain, "live" = on order book
         pending = []
         for r in results:
             if not r.get("submitted"):
                 continue
             status = r.get("status", "")
             if status == "matched":
-                # Immediately filled — apply to state
                 apply_fill(ms, r["outcome"], "BUY", r["price"], r["size"])
                 logger.info("INSTANT FILL %s %s: %.1f @ $%.3f",
                             cid[:8], r["outcome"], r["size"], r["price"])
             else:
-                # On order book — check later
                 pending.append(r)
 
         mkt_dict = _to_dict(ms)
         mkt_dict["pending_orders"] = pending
         mkt_dict["fills_confirmed"] = len(pending) == 0
-        mkt_dict["entry_price"] = _coin_price  # snapshot for cancel defense
+        mkt_dict["entry_price"] = _coin_price
         mkt_dict["entry_ts"] = int(time.time())
+        mkt_dict["tranches_done"] = 1
+        mkt_dict["tranches_total"] = n_tranches
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
 
+        t_str = f" T1/{n_tranches}" if n_tranches > 1 else ""
         filled_str = f"UP={ms.up_shares:.0f} DN={ms.down_shares:.0f}"
         pending_str = ",".join(r["outcome"] for r in pending)
         cost_str = f"${ms.entry_cost:.2f}" if ms.entry_cost > 0 else "$0"
-        print(f"  OPEN {cid[:8]} | filled: {filled_str} | pending: {pending_str or 'none'} | cost: {cost_str}")
+        print(f"  OPEN {cid[:8]} | {filled_str} | pend: {pending_str or '-'} | {cost_str}{t_str}")
+
+    # ── Phased entry: add tranches to existing markets ──
+    if is_heavy:
+        for cid, mkt_d in list(state["markets"].items()):
+            if mkt_d["phase"] != "OPEN":
+                continue
+            t_done = mkt_d.get("tranches_done", 1)
+            t_total = mkt_d.get("tranches_total", 1)
+            if t_done >= t_total:
+                continue
+            # Check timing: at least tranche_interval since entry
+            entry_ts = mkt_d.get("entry_ts", 0)
+            if time.time() - entry_ts < config.tranche_interval_s * t_done:
+                continue
+            # Check: enough time left (>3 min before window end)
+            end_ms = mkt_d.get("window_end_ms", 0)
+            if end_ms > 0 and now_ms > end_ms - 180_000:
+                continue
+
+            # Re-evaluate fair price for this tranche
+            _t2 = mkt_d.get("title", "").lower()
+            _s2 = "ETHUSDT" if "ethereum" in _t2 else "BTCUSDT"
+            _p2 = _price(_s2)
+            _o2 = mkt_d.get("btc_open_price", _p2)
+            _v2 = _vol_1m(_s2)
+            _ml2 = max(1, (end_ms - now_ms) / 60_000)
+            fair2 = compute_fair_up(_p2, _o2, _v2, int(_ml2))
+            confidence2 = max(fair2, 1.0 - fair2)
+
+            # Abort remaining tranches if confidence dropped
+            if confidence2 < 0.50:
+                logger.info("ABORT tranche %s: confidence=%.3f dropped", cid[:8], confidence2)
+                mkt_d["tranches_done"] = t_total  # mark complete
+                continue
+
+            mkt2 = PolyMarket(
+                condition_id=cid, title=mkt_d.get("title", ""),
+                category="crypto_15m",
+                yes_token_id=mkt_d.get("up_token_id", ""),
+                no_token_id=mkt_d.get("down_token_id", ""),
+                liquidity=15000)
+            bankroll2 = state.get("bankroll", 100.0)
+            orders2 = plan_opening(mkt2, fair2, config, bankroll=bankroll2,
+                                   tranche=t_done, total_tranches=t_total)
+            if not orders2:
+                mkt_d["tranches_done"] = t_total
+                continue
+
+            results2 = _execute(orders2, client)
+            for r in results2:
+                if not r.get("submitted"):
+                    continue
+                status = r.get("status", "")
+                if status == "matched":
+                    outcome = r["outcome"]
+                    price = r["price"]
+                    size = r["size"]
+                    if outcome == "UP":
+                        old = mkt_d["up_shares"] * mkt_d["up_avg_price"]
+                        mkt_d["up_shares"] += size
+                        mkt_d["up_avg_price"] = (old + size * price) / mkt_d["up_shares"] if mkt_d["up_shares"] > 0 else 0
+                    elif outcome == "DOWN":
+                        old = mkt_d["down_shares"] * mkt_d["down_avg_price"]
+                        mkt_d["down_shares"] += size
+                        mkt_d["down_avg_price"] = (old + size * price) / mkt_d["down_shares"] if mkt_d["down_shares"] > 0 else 0
+                    mkt_d["entry_cost"] += size * price
+                else:
+                    mkt_d.setdefault("pending_orders", []).append(r)
+                    mkt_d["fills_confirmed"] = False
+
+            mkt_d["tranches_done"] = t_done + 1
+            logger.info("TRANCHE %d/%d %s | cost=$%.2f",
+                        t_done + 1, t_total, cid[:8], mkt_d["entry_cost"])
 
     # ── Helper: identify directional vs hedge orders ──
     def _find_directional_orders(pending_list):
@@ -672,19 +884,17 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 reason = "window_end"
 
             # Trigger 2: spot moved >0.05% since entry → cancel DIRECTIONAL only
-            elif entry_price > 0:
+            if not to_cancel and entry_price > 0:
                 current = _btc_price() if _s == "BTCUSDT" else _price(_s)
                 if current > 0:
                     move_pct = abs(current - entry_price) / entry_price
                     if move_pct > 0.0005:
-                        # Identify directional orders (not part of hedge pair)
-                        # Hedge pair = equal-size UP + DN. Extra = directional.
                         to_cancel = _find_directional_orders(pending)
                         if to_cancel:
                             reason = f"spot_move_{move_pct:.4f}"
 
-            # Trigger 3: TTL 60s → cancel DIRECTIONAL only
-            elif entry_ts > 0 and now_s - entry_ts > 60:
+            # Trigger 3: TTL 60s → cancel DIRECTIONAL only (independent check)
+            if not to_cancel and entry_ts > 0 and now_s - entry_ts > 60:
                 to_cancel = _find_directional_orders(pending)
                 if to_cancel:
                     reason = "ttl_60s"
@@ -728,7 +938,7 @@ def _status(state: dict):
     active = {c: m for c, m in state["markets"].items() if m["phase"] != "RESOLVED"}
     resolved = {c: m for c, m in state["markets"].items() if m["phase"] == "RESOLVED"}
     print(f"\n{'='*55}")
-    print(f"  MM v3 Status — {datetime.now(tz=_HKT):%Y-%m-%d %H:%M HKT}")
+    print(f"  MM v4 Status — {datetime.now(tz=_HKT):%Y-%m-%d %H:%M HKT}")
     print(f"{'='*55}")
     print(f"  Bankroll:  ${state.get('bankroll', 0):.2f}")
     print(f"  Watchlist: {len(wl)} | Active: {len(active)} | Resolved: {len(resolved)}")
@@ -789,6 +999,17 @@ def main():
             from polymarket.exchange.polymarket_client import PolymarketClient
             client = PolymarketClient(dry_run=False)
             print("  CLOB: connected")
+            # Startup safety: cancel ALL existing orders (orphan protection)
+            try:
+                existing = client.get_orders()
+                if existing:
+                    for o in existing:
+                        oid = o.get("id", "")
+                        if oid:
+                            client.client.cancel(order_id=oid)
+                    print(f"  STARTUP: cancelled {len(existing)} orphan orders")
+            except Exception as e:
+                logger.warning("Startup cancel failed: %s", e)
         except Exception as e:
             print(f"  CLOB failed: {e} → dry-run")
             dry_run = True

@@ -253,7 +253,9 @@ def assess_cvd_edge(market: PolyMarket) -> EdgeAssessment | None:
     if not market.outcomes or market.outcomes[0].lower() not in ("up", "yes"):
         return None
 
-    symbol = "BTCUSDT"  # Only BTC for now
+    # Detect symbol from market title (ETH uses ETHUSDT, default BTC)
+    _t = market.title.lower() if market.title else ""
+    symbol = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
 
     # ── Try cache first ──
     cached = _get_cached_cvd_data(symbol)
