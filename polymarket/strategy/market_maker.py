@@ -128,20 +128,40 @@ class MMMarketState:
 # ═══════════════════════════════════════
 
 def compute_fair_up(btc_current: float, btc_open: float,
-                    vol_1m: float, minutes_remaining: int) -> float:
-    """P(BTC close >= open) — Polymarket: flat = UP wins."""
+                    vol_1m: float, minutes_remaining: int,
+                    indicator_p_up: float = 0.0) -> float:
+    """P(BTC close >= open) — blended: Brownian Bridge + indicator score.
+
+    If indicator_p_up > 0 (from crypto_15m._score_direction), blend it
+    with the Brownian Bridge estimate. Indicator weight increases as
+    minutes_remaining decreases (more data = more confident).
+
+    Weights:
+      T=15 min left: 80% bridge, 20% indicator (little data)
+      T=5  min left: 50% bridge, 50% indicator
+      T=1  min left: 30% bridge, 70% indicator (price almost decided)
+    """
     if minutes_remaining <= 0:
         return 0.995 if btc_current >= btc_open else 0.005
 
     if vol_1m <= 0 or btc_current <= 0 or btc_open <= 0:
-        return 0.5
+        return indicator_p_up if indicator_p_up > 0 else 0.5
 
     sigma = vol_1m * math.sqrt(minutes_remaining)
     if sigma < 1e-10:
         return 0.995 if btc_current >= btc_open else 0.005
 
     d = math.log(btc_current / btc_open) / sigma
-    return max(0.005, min(0.995, _norm.cdf(d)))
+    bridge = max(0.005, min(0.995, _norm.cdf(d)))
+
+    # Blend with indicator score if available
+    if indicator_p_up > 0:
+        # Indicator weight: higher when less time remaining (more data accumulated)
+        ind_weight = max(0.2, min(0.7, 1.0 - minutes_remaining / 20.0))
+        fair = bridge * (1 - ind_weight) + indicator_p_up * ind_weight
+        return max(0.005, min(0.995, fair))
+
+    return bridge
 
 
 # ═══════════════════════════════════════
@@ -180,12 +200,15 @@ def plan_opening(market: PolyMarket, fair_up: float,
     shares_per_side = max_cost / combined  # equal shares both sides
 
     # Clamp to min_order_size (5 shares) — small bankroll still trades at minimum
-    # but check actual cost doesn't exceed 10% of bankroll (hard safety cap)
+    # Safety: don't let clamp exceed user's chosen bet_pct (they control their risk)
     if shares_per_side < config.min_order_size:
         min_cost = config.min_order_size * combined
-        if bankroll > 0 and min_cost > bankroll * 0.10:
-            logger.warning("skip %s: min order $%.2f > 10%% bankroll $%.0f",
-                           market.condition_id[:8], min_cost, bankroll)
+        # Use bet_pct × 2 as ceiling — user chose their risk level, respect it
+        # but don't go completely unbounded
+        ceiling = max(bankroll * config.bet_pct * 2, bankroll * 0.10) if bankroll > 0 else min_cost
+        if min_cost > ceiling:
+            logger.warning("skip %s: min order $%.2f > ceiling $%.2f (bankroll $%.0f)",
+                           market.condition_id[:8], min_cost, ceiling, bankroll)
             return []
         shares_per_side = config.min_order_size
         logger.info("clamp %s to min %d shares (cost $%.2f, bankroll $%.0f)",
