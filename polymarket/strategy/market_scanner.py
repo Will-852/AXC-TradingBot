@@ -31,8 +31,9 @@ _15M_WINDOW_S = 900
 _15M_SLUG_PREFIX = {
     "bitcoin": "btc",
 }
-# How many future windows to fetch (next 2 = current running + upcoming)
-_15M_LOOKAHEAD = 3
+# How many windows to fetch: current (running) + next (upcoming)
+# 95% focus on NOW and NEXT — don't predict too far like weather
+_15M_LOOKAHEAD = 2
 
 
 def scan_markets(
@@ -112,7 +113,8 @@ def scan_markets(
 
         # 5M markets: scan only (price reference), do NOT trade
         # Only 15M windows are backtested + calibrated
-        if market.category == "crypto_15m" and "5m" in market.slug:
+        # Note: check "-5m-" not "5m" to avoid matching "15m"
+        if market.category == "crypto_15m" and "-5m-" in market.slug:
             continue
 
         filtered.append(market)
