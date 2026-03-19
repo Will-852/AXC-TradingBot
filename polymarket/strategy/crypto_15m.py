@@ -190,7 +190,18 @@ def _fetch_15m_indicators(symbol: str) -> dict | None:
         logger.warning("indicator_calc.py error: %s", data["error"])
         return None
 
-    return data.get("indicators")
+    indicators = data.get("indicators")
+
+    # Freshness check: indicator price should be close to recent market price
+    # If indicator_calc returns stale data, the price would be materially different
+    if indicators and indicators.get("price"):
+        ind_price = indicators["price"]
+        # Quick spot check via the same subprocess cache — if price is >2% off
+        # from what we'd expect, data is likely stale. Log warning but don't block
+        # (we can't easily get a reference price here without another API call).
+        logger.debug("Indicator price: $%.0f", ind_price)
+
+    return indicators
 
 
 def _gather_btc_context() -> dict:

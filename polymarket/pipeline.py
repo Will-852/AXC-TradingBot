@@ -385,6 +385,8 @@ class ExecuteExitStep:
     def run(self, ctx: PolyContext) -> PolyContext:
         from polymarket.state.trade_log import log_trade
 
+        from polymarket.config.settings import AUTOMATED_CATEGORIES
+
         exits = [sig for sig in ctx.exit_signals if sig.should_exit]
         if not exits:
             return ctx
@@ -393,6 +395,14 @@ class ExecuteExitStep:
 
         for sig in exits:
             pos = sig.position
+
+            # ─── Scope guard: 只操作 automated categories ───
+            if pos.category not in AUTOMATED_CATEGORIES:
+                logger.warning(
+                    "SKIP EXIT: %s category=%s 唔喺自動化範圍 (%s)",
+                    pos.title[:30], pos.category, AUTOMATED_CATEGORIES,
+                )
+                continue
             trade_record = {
                 "condition_id": pos.condition_id,
                 "title": pos.title,
@@ -528,17 +538,10 @@ class FindEdgeStep:
     name = "find_edge"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.config.settings import MAX_MARKETS_FOR_AI, SCAN_INTERVAL_SEC
+        from polymarket.config.settings import (
+            MAX_MARKETS_FOR_AI, SCAN_INTERVAL_SEC, WEATHER_MAX_ASSESSMENTS,
+        )
         from polymarket.strategy.edge_finder import assess_markets
-
-        # ─── Time gate: skip if recent ───
-        last_edge_ts = ctx.state.get("last_edge_ts", 0)
-        elapsed = time.time() - last_edge_ts
-        if elapsed < SCAN_INTERVAL_SEC:
-            if ctx.verbose:
-                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
-                print(f"    Edge finding skipped (gate: {skip_sec}s left)")
-            return ctx
 
         if ctx.risk_blocked:
             if ctx.verbose:
@@ -550,16 +553,39 @@ class FindEdgeStep:
                 print("    No markets to assess")
             return ctx
 
-        if ctx.verbose:
-            print(f"    Assessing up to {MAX_MARKETS_FOR_AI} markets via Claude...")
+        # ─── Weather: always run (zero AI cost, deterministic forecast) ───
+        weather_markets = [m for m in ctx.filtered_markets if m.category == "weather"]
+        non_weather = [m for m in ctx.filtered_markets if m.category != "weather"]
 
-        ctx.edge_assessments = assess_markets(
-            ctx.filtered_markets,
-            max_assessments=MAX_MARKETS_FOR_AI,
-            verbose=ctx.verbose,
-        )
+        weather_edges = []
+        if weather_markets:
+            weather_edges = assess_markets(
+                weather_markets,
+                max_assessments=WEATHER_MAX_ASSESSMENTS,
+                verbose=ctx.verbose,
+            )
+            if ctx.verbose:
+                print(f"    Weather: {len(weather_edges)} edges (no gate, zero AI cost)")
 
-        ctx.state_updates["last_edge_ts"] = time.time()
+        # ─── Non-weather: time-gated (Claude API cost) ───
+        non_weather_edges = []
+        last_edge_ts = ctx.state.get("last_edge_ts", 0)
+        elapsed = time.time() - last_edge_ts
+        if elapsed < SCAN_INTERVAL_SEC:
+            if ctx.verbose and non_weather:
+                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
+                print(f"    Non-weather edge skipped (gate: {skip_sec}s left)")
+        elif non_weather:
+            if ctx.verbose:
+                print(f"    Assessing up to {MAX_MARKETS_FOR_AI} non-weather markets via Claude...")
+            non_weather_edges = assess_markets(
+                non_weather,
+                max_assessments=MAX_MARKETS_FOR_AI,
+                verbose=ctx.verbose,
+            )
+            ctx.state_updates["last_edge_ts"] = time.time()
+
+        ctx.edge_assessments = weather_edges + non_weather_edges
 
         if ctx.verbose:
             print(f"    Edge assessments: {len(ctx.edge_assessments)}")
@@ -767,6 +793,7 @@ class GenerateSignalsStep:
             MIN_EDGE_PCT, EDGE_CONFIDENCE_THRESHOLD, MAX_SIGNALS_PER_CYCLE,
             MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
             CRYPTO_15M_MIN_EDGE_PCT, CRYPTO_15M_CONFIDENCE_THRESHOLD,
+            weather_min_edge,
         )
         from polymarket.core.context import PolySignal
         from polymarket.strategy.spread_analyzer import analyze_spread
@@ -781,10 +808,15 @@ class GenerateSignalsStep:
                     print(f"      Skipped (GTO): {edge.title[:40]} — {edge.gto_reasoning}")
                 continue
 
-            # Category-aware thresholds: 15M markets have lower bars
+            # Category-aware thresholds
             if edge.category == "crypto_15m":
                 min_edge = CRYPTO_15M_MIN_EDGE_PCT
                 min_conf = CRYPTO_15M_CONFIDENCE_THRESHOLD
+            elif edge.category == "weather":
+                # Dynamic threshold: lower bar for cheap tail buckets (high payout)
+                entry = edge.market_price if edge.side == "YES" else (1 - edge.market_price)
+                min_edge = weather_min_edge(entry)
+                min_conf = EDGE_CONFIDENCE_THRESHOLD
             else:
                 min_edge = MIN_EDGE_PCT
                 min_conf = EDGE_CONFIDENCE_THRESHOLD
@@ -803,8 +835,8 @@ class GenerateSignalsStep:
             if not market:
                 continue
 
-            # 15M markets use taker orders — skip spread/depth check
-            if edge.category != "crypto_15m":
+            # 15M + weather use taker/limit orders on thin books — skip spread/depth check
+            if edge.category not in ("crypto_15m", "weather"):
                 spread_info = analyze_spread(
                     market, ctx.exchange_client, MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
                     side=edge.side,
@@ -888,12 +920,39 @@ class ExecuteTradesStep:
         from polymarket.state.trade_log import log_trade
         from polymarket.core.context import PolyPosition
 
+        from polymarket.config.settings import AUTOMATED_CATEGORIES
+
         if not ctx.signals:
             return ctx
 
         for signal in ctx.signals:
             if signal.bet_size_usdc <= 0:
                 continue
+
+            # ─── Scope guard: 只落注 automated categories ───
+            if signal.category not in AUTOMATED_CATEGORIES:
+                logger.warning(
+                    "SKIP TRADE: %s category=%s 唔喺自動化範圍 (%s)",
+                    signal.title[:30], signal.category, AUTOMATED_CATEGORIES,
+                )
+                continue
+
+            # ─── Pre-exec liquidity re-check (crypto_15m only) ───
+            # Scan-time liquidity can be up to 180s stale; re-check before real money
+            if signal.category == "crypto_15m" and not ctx.dry_run:
+                try:
+                    from polymarket.exchange.gamma_client import GammaClient
+                    _g = ctx.gamma_client or GammaClient()
+                    fresh_market = _g.get_market(signal.condition_id)
+                    fresh_liq = float(fresh_market.get("liquidityNum", 0) or 0)
+                    if fresh_liq < 100:
+                        logger.warning(
+                            "SKIP TRADE: %s liquidity dried up ($%.0f < $100)",
+                            signal.title[:30], fresh_liq,
+                        )
+                        continue
+                except Exception as e:
+                    logger.warning("Pre-exec liquidity check failed: %s (proceeding)", e)
 
             trade_record = {
                 "condition_id": signal.condition_id,

@@ -292,6 +292,14 @@ def assess_cvd_edge(market: PolyMarket) -> EdgeAssessment | None:
         ))
         cvd_by_ts = {int(k): v["cvd"] for k, v in minute_cvd_raw.items()}
 
+        # Freshness check: latest 1m kline must be within 3 minutes of now
+        if len(ts_1m) >= 2:
+            latest_ts_ms = ts_1m[-1]
+            age_s = (now_ms - latest_ts_ms) / 1000
+            if age_s > 180:  # 3 min stale
+                logger.warning("CVD: 1m klines stale (%.0fs old), skipping", age_s)
+                return None
+
         # Use second-to-last 1m kline (last one may be incomplete)
         if len(ts_1m) < 3:
             return None

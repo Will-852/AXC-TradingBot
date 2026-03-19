@@ -6,14 +6,26 @@
 - 答唔到 → 你係 dumb money，對面有 edge 你冇
 - 呢條問題貫穿所有決策：入場、加注、持倉、離場
 
-## 2. 業務範圍
-| 策略 | 市場 | 狀態 |
-|------|------|------|
-| Crypto 15M | BTC Up/Down 5-min window (24/7) | Paper |
-| Weather | 亞洲每日最高溫 — Tokyo, HK, Shanghai | Paper |
-| Crypto（一般） | 各類 crypto 預測 | Paper |
+## 2. 業務範圍（紅線 — 禁止踩過界）
 
+**自動化只限以下兩個市場，其他一律唔准自動操作：**
+
+| 策略 | 市場 | 時間框架 | 狀態 |
+|------|------|---------|------|
+| Crypto 15M | BTC Up/Down | 15 分鐘 window (24/7) | Paper → Live |
+| Weather | 全球最高溫 — 21 城市（亞洲優先） | 24 小時 | Paper → Live |
+
+> **嚴禁**：
+> - 自動操作用戶手動落嘅注（sports、general crypto、任何非上面兩個市場）
+> - Pipeline/watcher 只管自己 create 嘅 positions
+> - 用戶手動加入 state 嘅 position = 只讀監控，唔准 exit/sell
+> - 信號指向上面兩個以外嘅市場 → SKIP，唔落單
+>
 > **Weather scope**：亞洲為主。categories.py 有 US cities = paper testing only，唔係正式 scope。
+>
+> **違規案例（2026-03-19）**：Pipeline 自動賣出用戶手動落嘅 NBA Nets 注，
+> 虧損 $1.82。原因：position 被加入 state 後被 drift exit rule 觸發。
+> 教訓：非自動化範圍嘅 position 唔應該被 pipeline exit rules 管。
 
 ## 3. 交易決策流程
 1. **方向 > Edge** — 確定啱邊先落注，big edge + wrong side = 0

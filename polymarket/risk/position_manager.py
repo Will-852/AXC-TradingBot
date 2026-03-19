@@ -1,14 +1,16 @@
 """
 position_manager.py — Monitor existing positions for exit triggers
 
-Checks:
-1. Probability drift — market moved significantly since entry
-2. Approaching resolution — market about to close
-3. Profit taking — position in profit beyond threshold
-4. Loss cutting — position in loss beyond threshold
-5. Resolution — market has resolved, record outcome
+Binary prediction markets (crypto_15m): asymmetric SL=9% + hold winners.
+hybrid_backtest 證明 asymmetric SL 大幅優於 HOLD 同 symmetric exit：
+  - HOLD:          +$91, Sharpe 0.244, DD 6.9%
+  - Symmetric 25%: +$69, Sharpe 0.228, DD 6.7%
+  - SL=9% (ours):  +$150, Sharpe 0.457, DD 3.4% ★
 
-唔直接執行 exit（Phase 5），只標記需要 review 嘅 positions。
+核心邏輯：cut losers fast (9% SL at 5m+10m), let winners ride to resolution.
+W/L ratio = 2.27, Kelly = 33.2%.
+
+長期市場（weather、general crypto）用 drift + loss cut。
 """
 
 import logging
@@ -16,20 +18,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from ..config.settings import (
+    BINARY_SL_PCT,
     EXIT_PROBABILITY_DRIFT,
     PROFIT_TAKE_PCT,
     LOSS_CUT_PCT,
     MIN_DAYS_TO_RESOLUTION,
+    TAKE_PROFIT_TOKEN_PRICE,
 )
-
-# Token price take-profit — 達到就走，唔等 resolution
-try:
-    from ..config.settings import TAKE_PROFIT_TOKEN_PRICE
-except ImportError:
-    TAKE_PROFIT_TOKEN_PRICE = 0.93
 from ..core.context import PolyPosition
 
 logger = logging.getLogger(__name__)
+
+# Binary markets: asymmetric SL=9% at checkpoints, hold winners to resolution
+# hybrid_backtest: SL9% +$150 / Sharpe 0.457 vs HOLD +$91 / Sharpe 0.244
+_BINARY_SL_CATEGORIES = {"crypto_15m"}
 
 
 @dataclass
@@ -74,42 +76,46 @@ def evaluate_positions(
 
 
 def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
-    """Evaluate a single position."""
+    """Evaluate a single position.
+
+    Binary markets (crypto_15m): asymmetric SL=9% + hold winners.
+    其他市場: drift + loss cut（threshold 較寬鬆）。
+    """
     signal = ExitSignal(position=pos)
+    is_binary_sl = pos.category in _BINARY_SL_CATEGORIES
 
-    # ─── 1. Probability Drift ───
-    # probability_drift = current_price - avg_price
-    # For YES: current_price = yes_price, positive drift = good
-    # For NO: current_price = no_price, positive drift = good (NO token gained value)
-    # Both sides: negative drift = price dropped = against us
-    drift = pos.probability_drift
-    drift_against = False
-
-    if drift < -EXIT_PROBABILITY_DRIFT:
-        drift_against = True
-
-    if drift_against:
-        signal.reasons.append(f"Probability drift {abs(drift):.1%} against us")
-        signal.urgency = "medium"
-
-    # ─── 2. Approaching Resolution ───
+    # ─── 1. Resolution Check（全部 category）───
+    # Try datetime-level parse first (15M markets have intra-day end times),
+    # fall back to date-level for longer markets.
     if pos.end_date:
         try:
-            end = datetime.strptime(pos.end_date, "%Y-%m-%d")
-            days_left = (end - now).days
-            if days_left < 0:
-                signal.reasons.append("Market resolved")
-                signal.urgency = "high"
-                signal.action = "exit"
-                return signal  # resolved → always exit
-            elif days_left < MIN_DAYS_TO_RESOLUTION:
-                signal.reasons.append(f"Expiry in {days_left}d")
-                signal.urgency = "medium"
+            # Try ISO datetime first (e.g., "2026-03-19T16:50:00Z")
+            try:
+                end = datetime.fromisoformat(pos.end_date.replace("Z", "+00:00"))
+                # Make now timezone-aware if end is
+                now_aware = now if now.tzinfo else now.replace(tzinfo=end.tzinfo)
+                time_left = end - now_aware
+                if time_left.total_seconds() < 0:
+                    signal.reasons.append("Market resolved")
+                    signal.urgency = "high"
+                    signal.action = "exit"
+                    return signal
+            except (ValueError, AttributeError):
+                # Fall back to date-only (e.g., "2026-03-19")
+                end = datetime.strptime(pos.end_date[:10], "%Y-%m-%d")
+                days_left = (end - now).days
+                if days_left < 0:
+                    signal.reasons.append("Market resolved")
+                    signal.urgency = "high"
+                    signal.action = "exit"
+                    return signal
+                elif not is_binary_sl and days_left < MIN_DAYS_TO_RESOLUTION:
+                    signal.reasons.append(f"Expiry in {days_left}d")
+                    signal.urgency = "medium"
         except (ValueError, TypeError):
             pass
 
-    # ─── 3a. Token Price Take Profit ───
-    # 買入嘅 token 市價去到 93%+ → 鎖定利潤，唔等 resolution
+    # ─── 2. Token Price Take Profit（全部 category）───
     current_token_price = pos.current_price if pos.current_price > 0 else 0.0
     if current_token_price >= TAKE_PROFIT_TOKEN_PRICE:
         signal.reasons.append(
@@ -117,28 +123,53 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
         )
         signal.urgency = "high"
         signal.action = "exit"
-        return signal  # immediate exit, no further checks
+        return signal
 
-    # ─── 3b. Profit Taking (PnL %) ───
+    # ─── 3. Binary SL=9% (crypto_15m) ───
+    # Asymmetric: cut losers fast, let winners ride to resolution.
+    # hybrid_backtest: SL9% PnL +$150 vs HOLD +$91 (Sharpe 0.457 vs 0.244)
+    if is_binary_sl:
+        if pos.unrealized_pnl_pct < -BINARY_SL_PCT:
+            signal.reasons.append(
+                f"Binary SL: unrealized {pos.unrealized_pnl_pct:.1%} < -{BINARY_SL_PCT:.0%}"
+            )
+            signal.urgency = "high"
+            signal.action = "exit"
+        else:
+            signal.action = ""
+        return signal
+
+    # ══════════════════════════════════════════════
+    # 以下只適用於長期市場（weather, general crypto 等）
+    # ══════════════════════════════════════════════
+
+    # ─── 3. Probability Drift ───
+    drift = pos.probability_drift
+    drift_against = False
+    if drift < -EXIT_PROBABILITY_DRIFT:
+        drift_against = True
+        signal.reasons.append(f"Probability drift {abs(drift):.1%} against us")
+        signal.urgency = "medium"
+
+    # ─── 4. Profit Taking (PnL %) ───
     if pos.unrealized_pnl_pct > PROFIT_TAKE_PCT:
         signal.reasons.append(f"Profit {pos.unrealized_pnl_pct:.1%} > {PROFIT_TAKE_PCT:.1%}")
         signal.urgency = "low"
 
-    # ─── 4. Loss Cutting ───
+    # ─── 5. Loss Cutting ───
     if pos.unrealized_pnl_pct < -LOSS_CUT_PCT:
         signal.reasons.append(f"Loss {pos.unrealized_pnl_pct:.1%} > {-LOSS_CUT_PCT:.1%}")
         signal.urgency = "high"
 
     # ─── Determine Action ───
     if not signal.reasons:
-        signal.action = ""  # no action needed
+        signal.action = ""
     elif signal.urgency == "high":
         signal.action = "exit"
-    elif drift_against and pos.unrealized_pnl_pct < 0:
-        # Drift against us AND losing → exit
+    elif drift_against and pos.unrealized_pnl_pct < -LOSS_CUT_PCT * 0.5:
+        # Drift against + significant loss → exit
         signal.action = "exit"
     elif len(signal.reasons) >= 2:
-        # Multiple triggers → exit
         signal.action = "exit"
     else:
         signal.action = "monitor"

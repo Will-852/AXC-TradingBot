@@ -42,29 +42,30 @@ CRYPTO_15M_COINS: dict[str, str] = {
 #   "F" = US cities, °F 2°F range buckets
 #   "C" = International, °C 1°C exact buckets
 WEATHER_CITIES: dict[str, tuple[float, float, str]] = {
-    # US (°F, 2°F buckets)
-    "atlanta": (33.749, -84.388, "F"),
-    "chicago": (41.878, -87.630, "F"),
-    "new york": (40.713, -74.006, "F"),
-    "seattle": (47.607, -122.332, "F"),
-    "dallas": (32.777, -96.797, "F"),
-    "miami": (25.762, -80.192, "F"),
-    "los angeles": (34.052, -118.244, "F"),
-    "phoenix": (33.448, -112.074, "F"),
-    # International (°C, 1°C buckets)
-    "tokyo": (35.676, 139.650, "C"),
-    "hong kong": (22.319, 114.169, "C"),
-    "taipei": (25.033, 121.565, "C"),
-    "singapore": (1.352, 103.820, "C"),
-    "wellington": (-41.287, 174.776, "C"),
-    "paris": (48.857, 2.352, "C"),
-    "milan": (45.464, 9.190, "C"),
-    "ankara": (39.934, 32.866, "C"),
-    "toronto": (43.651, -79.347, "C"),
-    "shanghai": (31.230, 121.474, "C"),
-    "sao paulo": (-23.551, -46.634, "C"),
-    "london": (51.507, -0.128, "C"),
-    "sydney": (-33.869, 151.209, "C"),
+    # US (°F, 2°F buckets) — airport coordinates for Wunderground match
+    "atlanta": (33.637, -84.428, "F"),       # KATL
+    "chicago": (41.974, -87.907, "F"),       # KORD O'Hare
+    "new york": (40.640, -73.779, "F"),      # KJFK
+    "seattle": (47.449, -122.309, "F"),      # KSEA
+    "dallas": (32.897, -97.038, "F"),        # KDFW
+    "miami": (25.796, -80.287, "F"),         # KMIA
+    "los angeles": (33.943, -118.408, "F"),  # KLAX
+    "phoenix": (33.437, -112.008, "F"),      # KPHX Sky Harbor
+    # International (°C, 1°C buckets) — airport coordinates for Wunderground match
+    "tokyo": (35.553, 139.781, "C"),         # RJTT Haneda
+    "hong kong": (22.309, 113.915, "C"),     # VHHH
+    "taipei": (25.080, 121.232, "C"),        # RCTP Taoyuan
+    "singapore": (1.350, 103.994, "C"),      # WSSS Changi
+    "wellington": (-41.327, 174.805, "C"),   # NZWN
+    "paris": (49.013, 2.551, "C"),           # LFPG CDG
+    "milan": (45.630, 8.723, "C"),           # LIMC Malpensa
+    "ankara": (40.128, 32.995, "C"),         # LTAC Esenboga
+    "toronto": (43.677, -79.631, "C"),       # CYYZ Pearson
+    "shanghai": (31.143, 121.805, "C"),      # ZSPD Pudong
+    "sao paulo": (-23.435, -46.473, "C"),    # SBGR Guarulhos
+    "london": (51.471, -0.462, "C"),         # EGLL Heathrow
+    "sydney": (-33.946, 151.177, "C"),       # YSSY Kingsford Smith
+    "seoul": (37.469, 126.451, "C"),         # RKSI Incheon
 }
 
 

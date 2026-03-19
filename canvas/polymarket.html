@@ -130,6 +130,39 @@ tr.live-row { background:var(--live-bg); }
 .arb-edge { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--pos); min-width:60px; }
 
 #error-banner { display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:10px 16px; border-radius:var(--radius); margin-bottom:12px; font-size:13px; }
+
+/* ── Stats Cards ── */
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.stats-row{grid-template-columns:1fr}}
+.stat-card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 16px; display:flex; align-items:flex-start; gap:12px; transition:box-shadow var(--transition); }
+.stat-card:hover { box-shadow:var(--shadow-md); }
+.stat-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stat-icon svg { width:18px; height:18px; }
+.stat-icon.teal { background:rgba(13,148,136,0.1); color:var(--accent); }
+.stat-icon.blue { background:rgba(59,130,246,0.1); color:#3b82f6; }
+.stat-icon.purple { background:rgba(139,92,246,0.1); color:#8b5cf6; }
+.stat-icon.amber { background:rgba(245,158,11,0.1); color:#f59e0b; }
+.stat-info { flex:1; min-width:0; }
+.stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; font-weight:600; }
+.stat-value { font-size:20px; font-weight:700; font-family:var(--mono); margin-top:2px; letter-spacing:-0.5px; }
+.stat-change { font-size:11px; font-family:var(--mono); margin-top:3px; font-weight:500; }
+
+/* ── Numeric Scrubber ── */
+.scrubber-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; padding:12px 16px; }
+@media(max-width:600px){.scrubber-grid{grid-template-columns:1fr}}
+.scrubber { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8faf9; border-radius:var(--radius-sm); border:1px solid var(--border-light); transition:border-color var(--transition); }
+.scrubber:hover { border-color:var(--accent); }
+.scrubber-label { font-size:12px; color:var(--text-2); font-weight:500; min-width:90px; }
+.scrubber-track { flex:1; position:relative; height:28px; display:flex; align-items:center; }
+.scrubber-bar { width:100%; height:4px; background:var(--border-light); border-radius:2px; position:relative; cursor:ew-resize; }
+.scrubber-fill { height:100%; border-radius:2px; background:var(--accent); transition:width 0.1s; }
+.scrubber-thumb { position:absolute; top:50%; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:var(--accent); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.15); cursor:ew-resize; transition:transform 0.1s; z-index:1; }
+.scrubber-thumb:hover, .scrubber-thumb.active { transform:translate(-50%,-50%) scale(1.2); }
+.scrubber-val { font-family:var(--mono); font-size:13px; font-weight:600; min-width:56px; text-align:right; color:var(--text); padding:2px 6px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:text; }
+.scrubber-val:hover { border-color:var(--border); background:#fff; }
+.scrubber-val:focus { outline:none; border-color:var(--accent); background:#fff; }
+.scrubber-unit { font-size:11px; color:var(--muted); min-width:20px; }
 </style>
 </head>
 <body>
@@ -173,6 +206,26 @@ tr.live-row { background:var(--live-bg); }
 
   <!-- ═══ TAB: 主控 ═══ -->
   <div id="tab-main" class="tab-panel active">
+    <!-- Stats Overview -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-info"><div class="stat-label">總損益</div><div class="stat-value" id="stat-pnl">$0.00</div><div class="stat-change" id="stat-pnl-change">--</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <div class="stat-info"><div class="stat-label">勝率</div><div class="stat-value" id="stat-winrate">--%</div><div class="stat-change" id="stat-winrate-detail">--</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+        <div class="stat-info"><div class="stat-label">總交易</div><div class="stat-value" id="stat-trades">0</div><div class="stat-change" id="stat-trades-detail">--</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8l-4 4-4-4"/><path d="M12 12v4"/></svg></div>
+        <div class="stat-info"><div class="stat-label">可用資金</div><div class="stat-value" id="stat-available">$--</div><div class="stat-change" id="stat-available-detail">--</div></div>
+      </div>
+    </div>
+
     <!-- KPIs -->
     <div class="kpi-row">
       <div class="kpi"><div class="label">結餘</div><div class="value" id="kpi-balance">$--</div></div>
@@ -219,6 +272,37 @@ tr.live-row { background:var(--live-bg); }
 
   <!-- ═══ TAB: 工具 ═══ -->
   <div id="tab-tools" class="tab-panel">
+    <!-- 參數調整 -->
+    <div class="card">
+      <div class="card-header">參數調整 <span class="tag">LIVE</span></div>
+      <div class="scrubber-grid">
+        <div class="scrubber" data-key="max_bet" data-min="1" data-max="20" data-step="0.5" data-unit="$">
+          <span class="scrubber-label">最大落注</span>
+          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+          <span class="scrubber-val" contenteditable="true">10.0</span>
+          <span class="scrubber-unit">$</span>
+        </div>
+        <div class="scrubber" data-key="take_profit" data-min="0.80" data-max="0.99" data-step="0.01" data-unit="">
+          <span class="scrubber-label">止賺價格</span>
+          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+          <span class="scrubber-val" contenteditable="true">0.93</span>
+          <span class="scrubber-unit"></span>
+        </div>
+        <div class="scrubber" data-key="min_edge" data-min="0.01" data-max="0.20" data-step="0.01" data-unit="">
+          <span class="scrubber-label">最低 Edge</span>
+          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+          <span class="scrubber-val" contenteditable="true">0.08</span>
+          <span class="scrubber-unit"></span>
+        </div>
+        <div class="scrubber" data-key="max_exposure" data-min="10" data-max="50" data-step="1" data-unit="%">
+          <span class="scrubber-label">最大敞口</span>
+          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+          <span class="scrubber-val" contenteditable="true">30</span>
+          <span class="scrubber-unit">%</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 市場掃描 -->
     <div class="card">
       <div class="card-header">市場掃描 <span class="tag" id="scanner-tag">--</span></div>
@@ -516,11 +600,118 @@ async function refresh(){
   if(!data){err.style.display='block';err.textContent='連唔到 API — server 開咗未？';document.getElementById('status-dot').className='pulse-dot error';return}
   err.style.display='none';
   const s=data.state||{};
-  renderKPIs(s);renderPositions(s.positions);renderRisk(s);renderTrades(data.trades||[]);
+  renderKPIs(s);renderStats(s,data.trades||[]);renderPositions(s.positions);renderRisk(s);renderTrades(data.trades||[]);
   renderCalibration(data.calibration);renderCB(data.circuit_breakers||[]);renderStrategy(data.strategy_breakdown||{});updateChart(data.pnl_series||[]);
 }
 
-initChart();refresh();setInterval(refresh,REFRESH_MS);
+// ── Stats Cards ──
+function renderStats(D, trades) {
+  // Total PnL from trades
+  const allTrades = trades || [];
+  let totalPnl = 0, wins = 0, losses = 0;
+  for (const t of allTrades) {
+    const pnl = t.pnl || 0;
+    totalPnl += pnl;
+    if (pnl > 0) wins++;
+    else if (pnl < 0) losses++;
+  }
+  const totalResolved = wins + losses;
+  const winRate = totalResolved > 0 ? (wins / totalResolved * 100) : 0;
+
+  // Unrealized PnL from positions
+  let unrealPnl = 0;
+  for (const p of (D.positions || [])) unrealPnl += (p.unrealized_pnl || 0);
+
+  const pnlEl = document.getElementById('stat-pnl');
+  pnlEl.textContent = '$' + totalPnl.toFixed(2);
+  pnlEl.className = 'stat-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
+  const pnlChange = document.getElementById('stat-pnl-change');
+  if (unrealPnl !== 0) {
+    pnlChange.textContent = (unrealPnl >= 0 ? '+' : '') + '$' + unrealPnl.toFixed(2) + ' 未實現';
+    pnlChange.className = 'stat-change ' + (unrealPnl >= 0 ? 'pos' : 'neg');
+  } else { pnlChange.textContent = '冇未實現損益'; pnlChange.className = 'stat-change'; }
+
+  document.getElementById('stat-winrate').textContent = totalResolved > 0 ? winRate.toFixed(0) + '%' : '--%';
+  document.getElementById('stat-winrate-detail').textContent = totalResolved > 0 ? wins + 'W / ' + losses + 'L' : '未有已結算交易';
+
+  const buys = allTrades.filter(t => t.action === 'buy').length;
+  const sells = allTrades.filter(t => t.action === 'sell').length;
+  document.getElementById('stat-trades').textContent = allTrades.length;
+  document.getElementById('stat-trades-detail').textContent = buys + ' 買 / ' + sells + ' 賣';
+
+  const bal = D.usdc_balance || 0;
+  const exp = D.exposure_pct || 0;
+  const avail = bal * (1 - exp);
+  document.getElementById('stat-available').textContent = '$' + avail.toFixed(0);
+  document.getElementById('stat-available-detail').textContent = '結餘 $' + bal.toFixed(0) + ' · 敞口 ' + (exp * 100).toFixed(0) + '%';
+}
+
+// ── Numeric Scrubbers ──
+function initScrubbers() {
+  document.querySelectorAll('.scrubber').forEach(el => {
+    const min = parseFloat(el.dataset.min);
+    const max = parseFloat(el.dataset.max);
+    const step = parseFloat(el.dataset.step);
+    const bar = el.querySelector('.scrubber-bar');
+    const fill = el.querySelector('.scrubber-fill');
+    const thumb = el.querySelector('.scrubber-thumb');
+    const valEl = el.querySelector('.scrubber-val');
+
+    function getVal() { return parseFloat(valEl.textContent) || min; }
+    function setVal(v) {
+      v = Math.round(v / step) * step;
+      v = Math.max(min, Math.min(max, v));
+      const decimals = step < 1 ? (step < 0.1 ? 2 : 1) : 0;
+      valEl.textContent = v.toFixed(decimals);
+      const pct = (v - min) / (max - min) * 100;
+      fill.style.width = pct + '%';
+      thumb.style.left = pct + '%';
+    }
+
+    // Init position
+    setVal(getVal());
+
+    // Drag on bar/thumb
+    let dragging = false;
+    function startDrag(e) {
+      e.preventDefault();
+      dragging = true;
+      thumb.classList.add('active');
+      onDrag(e);
+    }
+    function onDrag(e) {
+      if (!dragging) return;
+      const rect = bar.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      setVal(min + pct * (max - min));
+    }
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove('active');
+    }
+    bar.addEventListener('mousedown', startDrag);
+    thumb.addEventListener('mousedown', startDrag);
+    bar.addEventListener('touchstart', startDrag, { passive: false });
+    thumb.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('touchmove', onDrag, { passive: false });
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+
+    // Direct edit on value
+    valEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); valEl.blur(); }
+    });
+    valEl.addEventListener('blur', () => {
+      const v = parseFloat(valEl.textContent);
+      if (!isNaN(v)) setVal(v); else setVal(getVal());
+    });
+  });
+}
+
+initChart(); initScrubbers(); refresh(); setInterval(refresh, REFRESH_MS);
 logCmd('指揮台啟動 — 每 '+(REFRESH_MS/1000)+' 秒刷新');
 </script>
 </body>

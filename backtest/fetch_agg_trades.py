@@ -159,12 +159,15 @@ def fetch_agg_trades_day(symbol: str, day: datetime) -> pd.DataFrame:
             # Retry with exponential backoff on 429 / 5xx (6 attempts)
             for attempt in range(6):
                 resp = requests.get(url, params=params, timeout=15)
-                if resp.status_code == 429 or resp.status_code >= 500:
+                if resp.status_code in (418, 429) or resp.status_code >= 500:
+                    # 418 = IP banned (WAF), 429 = rate limit, 5xx = server error
                     wait = (2 ** attempt) * 2  # 2, 4, 8, 16, 32, 64 seconds
+                    if resp.status_code == 418:
+                        wait = max(wait, 30)  # 418 needs longer cooldown
                     log.warning("Binance %d on attempt %d/%d, backing off %ds (throttle=%.2fs)",
                                 resp.status_code, attempt + 1, 6, wait, throttle)
                     time.sleep(wait)
-                    if resp.status_code == 429:
+                    if resp.status_code in (418, 429):
                         throttle = min(throttle * 2, 2.0)
                     continue
                 break

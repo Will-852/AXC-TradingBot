@@ -23,6 +23,7 @@ from ..config.settings import (
     KELLY_FRACTION,
     KELLY_MIN_BET_USDC,
     KELLY_MAX_BET_USDC,
+    MAX_PER_BET,
     MAX_PER_MARKET,
     MAX_TOTAL_EXPOSURE,
     MAX_PER_CATEGORY,
@@ -126,12 +127,13 @@ def compute_kelly_bet(
     if max_available <= 0:
         return 0.0
 
-    max_per_market = bankroll * MAX_PER_MARKET
+    max_bet = bankroll * MAX_PER_BET           # 1% per individual bet
+    max_per_market = bankroll * MAX_PER_MARKET  # 10% per market/event
     max_per_cat = bankroll * MAX_PER_CATEGORY - category_exposure
 
-    bet = min(bet, max_available, max_per_market, max_per_cat)
+    bet = min(bet, max_available, max_bet, max_per_market, max_per_cat)
 
-    # Clamp to absolute min/max
+    # Clamp to absolute min/max (fallback hard limits)
     bet = max(KELLY_MIN_BET_USDC, min(KELLY_MAX_BET_USDC, bet))
 
     # Final check: don't bet more than available
@@ -156,7 +158,7 @@ def size_signals(
     """Size all signals using Kelly criterion.
 
     Modifies signals in place (sets bet_size_usdc and kelly_fraction).
-    Respects aggregate exposure limits.
+    Respects aggregate exposure limits INCLUDING existing positions per market.
     """
     # Current exposure
     total_exposure = sum(p.cost_basis for p in positions)
@@ -166,7 +168,37 @@ def size_signals(
     for p in positions:
         cat_exposure[p.category] = cat_exposure.get(p.category, 0) + p.cost_basis
 
+    # Per-market exposure from existing positions (condition_id → total cost)
+    market_exposure: dict[str, float] = {}
+    for p in positions:
+        market_exposure[p.condition_id] = (
+            market_exposure.get(p.condition_id, 0) + p.cost_basis
+        )
+
+    # Track which condition_ids we've already sized THIS cycle (1 buy per market per cycle)
+    sized_this_cycle: set[str] = set()
+
     for signal in signals:
+        cid = signal.condition_id
+
+        # ── Dedup: only 1 buy per market per cycle ──
+        # Forecast doesn't change between cycles → same signal fires repeatedly
+        # Spreading budget over time lets us capture better odds later
+        if cid in sized_this_cycle:
+            signal.bet_size_usdc = 0.0
+            signal.kelly_fraction = 0.0
+            logger.debug("Skip duplicate signal for %s (already sized this cycle)", cid)
+            continue
+
+        # ── Per-market cap: subtract existing position ──
+        existing = market_exposure.get(cid, 0.0)
+        max_for_market = bankroll * MAX_PER_MARKET - existing
+        if max_for_market <= 0:
+            signal.bet_size_usdc = 0.0
+            signal.kelly_fraction = 0.0
+            logger.info("Skip %s: per-market cap reached ($%.2f existing)", cid, existing)
+            continue
+
         cat_exp = cat_exposure.get(signal.category, 0.0)
 
         bet = compute_kelly_bet(
@@ -182,6 +214,9 @@ def size_signals(
             from ..config.settings import CRYPTO_15M_MAX_BET_USDC
             bet = min(bet, CRYPTO_15M_MAX_BET_USDC)
 
+        # Enforce per-market remaining budget
+        bet = min(bet, max_for_market)
+
         signal.bet_size_usdc = bet
         signal.kelly_fraction = bet / bankroll if bankroll > 0 else 0.0
 
@@ -189,5 +224,7 @@ def size_signals(
         if bet > 0:
             total_exposure += bet
             cat_exposure[signal.category] = cat_exp + bet
+            market_exposure[cid] = existing + bet
+            sized_this_cycle.add(cid)
 
     return signals

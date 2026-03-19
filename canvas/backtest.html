@@ -461,10 +461,11 @@
        ═══════════════════════════════════════════ */
     .chart-header {
       display: flex; align-items: center; gap: 2px;
-      padding: 5px 12px; background: #1e222d;
+      padding: 4px 8px; background: #1e222d;
       border-bottom: 1px solid #2a2e39;
-      font-size: .75rem; flex-wrap: wrap;
-      min-height: 32px; position: relative;
+      font-size: .72rem; flex-wrap: wrap;
+      min-height: 28px; position: relative;
+      overflow: visible;
     }
     .interval-tabs { display: flex; gap: 1px; margin-right: 8px; }
     .itab {
@@ -481,10 +482,10 @@
 
     /* ── Indicator Toggles ── */
     .chart-header label {
-      display: flex; align-items: center; gap: 3px;
+      display: flex; align-items: center; gap: 2px;
       cursor: pointer; font-weight: 500; color: #787b86; margin: 0;
-      user-select: none; font-size: .7rem; padding: 2px 4px;
-      border-radius: 3px; transition: color .15s;
+      user-select: none; font-size: .65rem; padding: 1px 3px;
+      border-radius: 3px; transition: color .15s; white-space: nowrap;
     }
     .chart-header label:hover { color: #b2b5be; }
     .chart-header label input { margin: 0; accent-color: var(--accent); }
@@ -824,28 +825,27 @@
       <i class="fas fa-play"></i> 執行回測
     </button>
 
-    <button class="btn-live" id="btn-live" onclick="toggleLive()">
+    <span id="status-pill" class="status-pill status-idle">IDLE</span>
+  </div>
+
+  <!-- Live toolbar — fixed top-right, isolated from backtest controls -->
+  <div id="live-toolbar" style="position:fixed;top:8px;right:12px;z-index:200;display:flex;align-items:center;gap:6px;background:rgba(19,23,34,0.92);border:1px solid #2a2e39;border-radius:8px;padding:4px 8px;backdrop-filter:blur(8px)">
+    <button class="btn-live" id="btn-live" onclick="toggleLive()" style="font-size:.72rem;padding:5px 10px">
       <i class="fas fa-broadcast-tower"></i> Live
     </button>
-
-    <button class="btn-livepos" id="btn-livepos" onclick="toggleLivePos()" title="喺圖上顯示你真實嘅交易所持倉（入場價、止損、止盈線）">
-      <i class="fas fa-crosshairs"></i> Live Pos
+    <button class="btn-livepos" id="btn-livepos" onclick="toggleLivePos()" title="Live 持倉" style="font-size:.7rem;padding:4px 8px">
+      <i class="fas fa-crosshairs"></i> Pos
     </button>
-
-    <button class="btn-livepos" id="btn-live-flow" onclick="toggleLiveOrderFlow()" title="實時 Order Flow（需要先開 Live）" disabled style="opacity:.5">
+    <button class="btn-livepos" id="btn-live-flow" onclick="toggleLiveOrderFlow()" title="Order Flow" disabled style="opacity:.5;font-size:.7rem;padding:4px 8px">
       <i class="fas fa-water"></i> Flow
     </button>
-
-    <button class="btn-livepos" id="btn-depth" onclick="toggleDepth()" title="L2 Order Book — OBI + Spoofing Detection（需要先開 Live）" disabled style="opacity:.5">
+    <button class="btn-livepos" id="btn-depth" onclick="toggleDepth()" title="Order Book + Trades" disabled style="opacity:.5;font-size:.7rem;padding:4px 8px">
       <i class="fas fa-layer-group"></i> OB
     </button>
-
-    <span id="obi-bar" style="display:none;width:60px;height:18px;background:#1e222d;border:1px solid var(--border);border-radius:3px;overflow:hidden;position:relative;font-size:.55rem;line-height:18px;text-align:center;color:var(--text-3)">
+    <span id="obi-bar" style="display:none;width:55px;height:16px;background:#1e222d;border:1px solid var(--border);border-radius:3px;overflow:hidden;position:relative;font-size:.5rem;line-height:16px;text-align:center;color:var(--text-3)">
       <span id="obi-fill" style="position:absolute;top:0;left:50%;height:100%;background:rgba(38,166,154,.4);transition:width .2s,left .2s"></span>
       <span id="obi-text" style="position:relative;z-index:1">OBI 0.00</span>
     </span>
-
-    <span id="status-pill" class="status-pill status-idle">IDLE</span>
   </div>
 
   <!-- Order Book + Trade Tape Panel (toggled by OB button) -->
@@ -1569,10 +1569,7 @@ function initChart() {
         }
       },
       indicator: {
-        tooltip: { text: { color: '#d1d4dc' } },
-        bars: [
-          { upColor: 'rgba(38,166,154,0.5)', downColor: 'rgba(239,83,80,0.5)' }
-        ]
+        tooltip: { text: { color: '#d1d4dc' } }
       },
       xAxis: {
         axisLine: { color: '#2a2e39' },
@@ -1813,7 +1810,12 @@ function _onFpError(myVersion, e) {
   var volBtn = document.querySelector('.vol-preset-btn');
   if (volBtn) volBtn.classList.remove('active');
   var errMsg = (e && e.message) ? e.message : String(e);
-  showToast('AggTrades 載入失敗: ' + errMsg, 'error');
+  var isRateLimit = errMsg.indexOf('418') !== -1 || errMsg.indexOf('429') !== -1;
+  if (isRateLimit) {
+    showToast('Binance rate limit — 等幾分鐘再試', 'warning');
+  } else {
+    showToast('AggTrades 載入失敗: ' + errMsg, 'error');
+  }
 }
 
 function applyFootprintFeature(feature) {
@@ -2320,9 +2322,23 @@ function registerBackendIndicators() {
     }
   });
 
-  // ── Footprint Heatmap (colored blocks behind candles) ──
-  // Design: blue=buy dominant, yellow=sell dominant (matching VP color scheme)
-  // Higher alpha + outlined blocks for visibility
+  // ── Footprint Chart (TradingView spec: Sell LEFT | Buy RIGHT, 4-stop gradient) ──
+  // Ref: tradingview.com/support/solutions/43000726164
+  // Colors: Buy #089981 (teal), Sell #F23645 (red)
+  // Gradient: 4 stops based on per-candle max (15% → 35% → 60% → 100%)
+  // Imbalance: diagonal comparison, 3x threshold, vertical line on cell edge
+  // POC: white border on highest-volume level per candle
+  var _fpGradient = function(base, ratio) {
+    // 4-stop gradient: ratio 0→1 maps to opacity 0.12→1.0
+    var a;
+    if (ratio >= 0.8) a = 1.0;
+    else if (ratio >= 0.5) a = 0.60;
+    else if (ratio >= 0.25) a = 0.35;
+    else if (ratio >= 0.05) a = 0.18;
+    else a = 0.08;
+    return base + a.toFixed(2) + ')';
+  };
+
   klinecharts.registerIndicator({
     name: 'AXC_HEATMAP',
     shortName: '',
@@ -2342,30 +2358,24 @@ function registerBackendIndicators() {
       var from = Math.max(0, visibleRange.from || 0);
       var to = Math.min(dataList.length, visibleRange.to || dataList.length);
 
-      // Find max volume across all visible candles for color scaling
-      var globalMax = 0;
-      for (var i = from; i < to; i++) {
-        var d = dataList[i];
-        if (!d) continue;
-        var levels = hm[String(d.timestamp)];
-        if (!levels) continue;
-        levels.forEach(function(lv) { if (lv && lv.total_vol > globalMax) globalMax = lv.total_vol; });
-      }
-      if (globalMax === 0) return false;
-
-      // Estimate candle width from adjacent timestamps
+      // Candle width
       var candleW = 10;
       if (from + 1 < dataList.length && dataList[from] && dataList[from+1]) {
         var x1 = xAxis.convertToPixel(from);
         var x2 = xAxis.convertToPixel(from + 1);
         if (x1 != null && x2 != null && !isNaN(x1) && !isNaN(x2)) {
-          candleW = Math.max(6, Math.abs(x2 - x1) * 0.85);
+          candleW = Math.max(6, Math.abs(x2 - x1) * 0.92);
         }
       }
 
+      var isBubble = fpMode === 'bubble';
+      var halfW = candleW / 2;
+      // Color bases (without closing paren — _fpGradient adds alpha + ')')
+      var BUY_BASE = 'rgba(8,153,129,';   // #089981 teal
+      var SELL_BASE = 'rgba(242,54,69,';   // #F23645 red
+      var GRAY_BASE = 'rgba(120,123,134,'; // neutral
+
       ctx.save();
-      // Draw ON TOP of candles (not behind) — professional footprint style
-      // Low alpha ensures candles remain visible through the heatmap
 
       for (var j = from; j < to; j++) {
         var dd = dataList[j];
@@ -2376,6 +2386,7 @@ function registerBackendIndicators() {
         var cx = xAxis.convertToPixel(j);
         if (cx == null || isNaN(cx)) continue;
 
+        // Bucket pixel height
         var bucketPx = 0;
         if (lvls.length > 1) {
           var py1 = yAxis.convertToPixel(lvls[0].price);
@@ -2386,85 +2397,158 @@ function registerBackendIndicators() {
         }
         if (bucketPx < 3) bucketPx = 5;
 
-        var showText = bucketPx > 14;  // zoom threshold for text mode
+        var cellGap = Math.max(0.5, bucketPx * 0.05);
+        var showText = bucketPx > 12 && candleW > 28;
 
-        var isBubble = fpMode === 'bubble';
-        // Bubble mode: max radius = half of candle width or bucket height
-        var maxR = isBubble ? Math.min(candleW, bucketPx) * 0.48 : 0;
+        // Per-candle max for gradient (each candle independent)
+        var candleBuyMax = 0, candleSellMax = 0, pocIdx = 0, pocVol = 0;
+        var candleDelta = 0, candleTotal = 0;
+        lvls.forEach(function(lv, idx) {
+          if (!lv) return;
+          if (lv.buy_vol > candleBuyMax) candleBuyMax = lv.buy_vol;
+          if (lv.sell_vol > candleSellMax) candleSellMax = lv.sell_vol;
+          if (lv.total_vol > pocVol) { pocVol = lv.total_vol; pocIdx = idx; }
+          candleDelta += (lv.buy_vol - lv.sell_vol);
+          candleTotal += lv.total_vol;
+        });
+        if (candleBuyMax === 0 && candleSellMax === 0) continue;
 
-        lvls.forEach(function(lv) {
-          if (!lv || typeof lv.total_vol !== 'number') return;
-          var py = yAxis.convertToPixel(lv.price);
-          if (py == null || isNaN(py)) return;
-          var intensity = lv.total_vol / globalMax;
-          var alpha = 0.25 + intensity * 0.50;  // boosted min alpha for visibility on top of candles
-
-          var isBuyDom = lv.buy_vol >= lv.sell_vol;
-          var buyColor = 'rgba(66,133,244,';
-          var sellColor = 'rgba(255,193,7,';
-          var baseColor = isBuyDom ? buyColor : sellColor;
-
-          if (isBubble) {
-            // ── Bubble mode: circle with radius ∝ volume ──
-            var r = Math.max(2, Math.sqrt(intensity) * maxR);
+        if (isBubble) {
+          // ── Bubble mode ──
+          var maxR = Math.min(candleW, bucketPx) * 0.45;
+          lvls.forEach(function(lv) {
+            if (!lv || !lv.total_vol) return;
+            var py = yAxis.convertToPixel(lv.price);
+            if (py == null || isNaN(py)) return;
+            var ratio = pocVol > 0 ? lv.total_vol / pocVol : 0;
+            var r = Math.max(2, Math.sqrt(ratio) * maxR);
+            var isBuyDom = lv.buy_vol >= lv.sell_vol;
             ctx.beginPath();
             ctx.arc(cx, py, r, 0, Math.PI * 2);
-            ctx.fillStyle = baseColor + Math.min(0.75, alpha + 0.1).toFixed(2) + ')';
+            ctx.fillStyle = _fpGradient(isBuyDom ? BUY_BASE : SELL_BASE, ratio);
             ctx.fill();
-            // Imbalance ring
-            if (lv.imbalance) {
-              ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.9)' : 'rgba(225,29,72,0.9)';
-              ctx.lineWidth = 1.5;
+            if (showText && r > 8) {
+              ctx.font = 'bold ' + Math.max(7, Math.min(10, r * 0.6)) + 'px sans-serif';
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#D1D4DC';
+              ctx.fillText(_fmtVolShort(lv.total_vol), cx, py);
+            }
+          });
+        } else {
+          // ── Footprint mode (TradingView spec) ──
+          // Sell cells LEFT of center, Buy cells RIGHT of center
+          var leftX = cx - halfW;       // sell cell left edge
+          var midX = cx;                // center divider
+          var rightX = cx + halfW;      // buy cell right edge
+          var cellW = halfW - 1;        // each side width (1px gap in center)
+
+          // Center divider (subtle vertical line between sell/buy columns)
+          if (bucketPx > 4) {
+            var topPy = yAxis.convertToPixel(lvls[lvls.length - 1].price);
+            var botPy = yAxis.convertToPixel(lvls[0].price);
+            if (topPy != null && botPy != null && !isNaN(topPy) && !isNaN(botPy)) {
+              ctx.strokeStyle = 'rgba(42,46,57,0.8)';
+              ctx.lineWidth = 0.5;
+              ctx.beginPath();
+              ctx.moveTo(midX, Math.min(topPy, botPy) - bucketPx / 2);
+              ctx.lineTo(midX, Math.max(topPy, botPy) + bucketPx / 2);
               ctx.stroke();
             }
-            // Bubble text: show delta when zoomed in
-            if (showText && r > 10) {
-              var bFontSize = Math.max(7, Math.min(10, r * 0.7));
-              ctx.font = 'bold ' + bFontSize + 'px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#d1d4dc';
-              ctx.fillText(_fmtVolShort(lv.delta > 0 ? lv.delta : -lv.delta), cx, py);
-            }
-          } else {
-            // ── Block mode (original) ──
-            var bx = cx - candleW / 2;
-            var by = py - bucketPx / 2;
-            ctx.fillStyle = baseColor + alpha.toFixed(2) + ')';
-            ctx.fillRect(bx, by, candleW, bucketPx);
-
-            if (lv.imbalance) {
-              ctx.strokeStyle = isBuyDom ? 'rgba(13,148,136,0.85)' : 'rgba(225,29,72,0.85)';
-              ctx.lineWidth = 1.5;
-              ctx.strokeRect(bx, by, candleW, bucketPx);
-            } else if (intensity > 0.4) {
-              ctx.strokeStyle = baseColor + Math.min(0.6, alpha + 0.15).toFixed(2) + ')';
-              ctx.lineWidth = 0.5;
-              ctx.strokeRect(bx, by, candleW, bucketPx);
-            }
-
-            // Text mode: show buy_vol × sell_vol when zoomed in enough
-            if (showText && candleW > 24) {
-              var fontSize = Math.max(8, Math.min(11, bucketPx * 0.55));
-              ctx.font = fontSize + 'px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              var midY = by + bucketPx / 2;
-              var bStr = _fmtVolShort(lv.buy_vol);
-              var sStr = _fmtVolShort(lv.sell_vol);
-              ctx.fillStyle = 'rgba(13,148,136,0.9)';
-              ctx.fillText(bStr, bx + candleW * 0.28, midY);
-              ctx.fillStyle = 'rgba(148,163,184,0.6)';
-              ctx.fillText('×', bx + candleW * 0.5, midY);
-              ctx.fillStyle = 'rgba(225,29,72,0.9)';
-              ctx.fillText(sStr, bx + candleW * 0.72, midY);
-            }
           }
-        });
+
+          lvls.forEach(function(lv, idx) {
+            if (!lv || !lv.total_vol) return;
+            var py = yAxis.convertToPixel(lv.price);
+            if (py == null || isNaN(py)) return;
+            var by = py - bucketPx / 2 + cellGap;
+            var bh = bucketPx - cellGap * 2;
+
+            var buyRatio = candleBuyMax > 0 ? lv.buy_vol / candleBuyMax : 0;
+            var sellRatio = candleSellMax > 0 ? lv.sell_vol / candleSellMax : 0;
+
+            // Sell cell (LEFT)
+            ctx.fillStyle = lv.sell_vol > 0 ? _fpGradient(SELL_BASE, sellRatio) : _fpGradient(GRAY_BASE, 0);
+            ctx.fillRect(leftX, by, cellW, bh);
+
+            // Buy cell (RIGHT)
+            ctx.fillStyle = lv.buy_vol > 0 ? _fpGradient(BUY_BASE, buyRatio) : _fpGradient(GRAY_BASE, 0);
+            ctx.fillRect(midX + 1, by, cellW, bh);
+
+            // POC highlight — white border on highest volume level
+            if (idx === pocIdx) {
+              ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(leftX, by, candleW, bh);
+            }
+
+            // Imbalance markers (diagonal comparison: buy[i] vs sell[i-1], threshold 3x)
+            if (idx > 0 && lvls[idx - 1]) {
+              var prevSell = lvls[idx - 1].sell_vol || 0;
+              if (prevSell > 0 && lv.buy_vol >= prevSell * 3) {
+                // Buy imbalance → teal line on right edge
+                ctx.fillStyle = '#089981';
+                ctx.fillRect(rightX - 3, by, 3, bh);
+              }
+              var prevBuy = lvls[idx - 1].buy_vol || 0;
+              if (prevBuy > 0 && lv.sell_vol >= prevBuy * 3) {
+                // Sell imbalance → red line on left edge
+                ctx.fillStyle = '#F23645';
+                ctx.fillRect(leftX, by, 3, bh);
+              }
+            }
+
+            // Volume text with shadow for readability on bright cells
+            if (showText) {
+              var fontSize = Math.max(7, Math.min(10, bh * 0.55));
+              ctx.font = fontSize + 'px sans-serif';
+              ctx.textBaseline = 'middle';
+              ctx.shadowColor = 'rgba(0,0,0,0.6)';
+              ctx.shadowBlur = 2;
+              var midY = by + bh / 2;
+
+              // Sell text (left cell)
+              if (lv.sell_vol > 0) {
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#D1D4DC';
+                ctx.fillText(_fmtVolShort(lv.sell_vol), leftX + cellW / 2, midY);
+              }
+              // Buy text (right cell)
+              if (lv.buy_vol > 0) {
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#D1D4DC';
+                ctx.fillText(_fmtVolShort(lv.buy_vol), midX + 1 + cellW / 2, midY);
+              }
+              ctx.shadowColor = 'transparent';
+              ctx.shadowBlur = 0;
+            }
+          });
+        }
+
+        // ── Delta + Total below candle ──
+        if (showText && lvls.length > 0) {
+          // Find bottom-most visible level
+          var bottomPy = -Infinity;
+          lvls.forEach(function(lv) {
+            if (!lv) return;
+            var py = yAxis.convertToPixel(lv.price);
+            if (py != null && !isNaN(py) && py > bottomPy) bottomPy = py;
+          });
+          if (bottomPy > -Infinity) {
+            var sumY = bottomPy + bucketPx / 2 + 10;
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            // Delta line
+            ctx.fillStyle = candleDelta >= 0 ? '#089981' : '#F23645';
+            ctx.fillText('Delta ' + (candleDelta >= 0 ? '' : '-') + _fmtVolShort(Math.abs(candleDelta)), cx, sumY);
+            // Total line
+            ctx.fillStyle = '#B2B5BE';
+            ctx.fillText('Total ' + _fmtVolShort(candleTotal), cx, sumY + 12);
+          }
+        }
       }
 
       ctx.restore();
-      return false;  // overlay mode
+      return false;
     }
   });
 

@@ -155,25 +155,57 @@ class GammaClient:
             return result
         return result.get("data", result.get("events", []))
 
+    @retry_quadratic()
+    def get_event_by_slug(self, slug: str) -> dict | None:
+        """Fetch a single event by slug. Returns event dict with nested markets, or None."""
+        result = self._get("/events", {"slug": slug})
+        if isinstance(result, list) and result:
+            return result[0]
+        if isinstance(result, dict) and result.get("id"):
+            return result
+        return None
+
     # ─── Convenience ───
 
     def get_markets_by_tag(self, tag: str, limit: int = 50) -> list[dict]:
         """Get active markets filtered by tag."""
         return self.get_markets(limit=limit, active=True, tag=tag)
 
+    def get_recent_markets(self, limit: int = 50, **kwargs) -> list[dict]:
+        """Fetch most recently created markets (catches low-volume series like 15M/5M).
+
+        設計決定：15M/5M 市場 liquidity ~$14K，排唔入 top-N by volume/liquidity。
+        Sort by startDate desc 保證最新嘅 slot 一定出現。
+        """
+        return self.get_markets(limit=limit, active=True, order="startDate",
+                                ascending=False, **kwargs)
+
     def search_markets(self, query: str, limit: int = 20) -> list[dict]:
         """Search markets by text query.
 
-        Gamma API 唔支援 full-text search endpoint，
-        所以拉全部再本地 filter。
+        搜索兩個來源再合併：
+        1. Top markets by volume（大市場）
+        2. Recent markets by startDate（低流動性 series 如 15M/5M）
         """
-        markets = self.get_markets(limit=100, active=True)
+        sources = [
+            self.get_markets(limit=100, active=True),
+            self.get_recent_markets(limit=100),
+        ]
+        seen: set[str] = set()
+        all_markets: list[dict] = []
+        for batch in sources:
+            for m in batch:
+                cid = m.get("conditionId", "")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    all_markets.append(m)
+
         query_lower = query.lower()
         matched = []
-        for m in markets:
+        for m in all_markets:
             title = (m.get("question", "") or "").lower()
-            desc = (m.get("description", "") or "").lower()
-            if query_lower in title or query_lower in desc:
+            slug = (m.get("slug", "") or "").lower()
+            if query_lower in title or query_lower in slug:
                 matched.append(m)
                 if len(matched) >= limit:
                     break

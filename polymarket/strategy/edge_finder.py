@@ -30,6 +30,7 @@ from ..config.settings import (
     WEATHER_MAX_LEAD_DAYS, WEATHER_ENTRY_PRICE_CAP, LOG_DIR,
 )
 from ..core.context import PolyMarket, EdgeAssessment
+from ..strategy.weather_tracker import fetch_ensemble_forecast, compute_bucket_probabilities
 
 logger = logging.getLogger(__name__)
 
@@ -326,15 +327,18 @@ def _parse_weather_market(title: str) -> dict | None:
         m_ceil = _RE_CEIL_C.search(title)
         if m_floor:
             bucket_type = "floor"
-            threshold_high = float(m_floor.group(1))
+            # ROUND rule: "≤10°C" → round(actual) ≤ 10 → actual < 10.5
+            threshold_high = float(m_floor.group(1)) + 0.5
         elif m_ceil:
             bucket_type = "ceiling"
-            threshold_low = float(m_ceil.group(1))
+            # ROUND rule: "≥15°C" → round(actual) ≥ 15 → actual ≥ 14.5
+            threshold_low = float(m_ceil.group(1)) - 0.5
         else:
             m_exact = _RE_EXACT_C.search(title)
             if m_exact:
                 bucket_type = "exact"
                 val = float(m_exact.group(1))
+                # ROUND rule: "13°C" → round(actual) = 13 → actual in [12.5, 13.5)
                 threshold_low = val - 0.5
                 threshold_high = val + 0.5
     else:  # "F"
@@ -343,12 +347,15 @@ def _parse_weather_market(title: str) -> dict | None:
         m_ceil = _RE_CEIL_F.search(title)
         if m_floor:
             bucket_type = "floor"
-            threshold_high = float(m_floor.group(1))
+            # ROUND rule: "≤55°F" → actual < 55.5
+            threshold_high = float(m_floor.group(1)) + 0.5
         elif m_ceil:
             bucket_type = "ceiling"
-            threshold_low = float(m_ceil.group(1))
+            # ROUND rule: "≥60°F" → actual ≥ 59.5
+            threshold_low = float(m_ceil.group(1)) - 0.5
         elif m_range:
             bucket_type = "range"
+            # ROUND rule: "56-57°F" → actual in [55.5, 57.5)
             threshold_low = float(m_range.group(1)) - 0.5
             threshold_high = float(m_range.group(2)) + 0.5
         else:
@@ -356,6 +363,7 @@ def _parse_weather_market(title: str) -> dict | None:
             if m_exact:
                 bucket_type = "exact"
                 val = float(m_exact.group(1))
+                # ROUND rule: "58°F" → actual in [57.5, 58.5)
                 threshold_low = val - 0.5
                 threshold_high = val + 0.5
 
@@ -411,12 +419,13 @@ def _fetch_open_meteo_forecast(lat: float, lon: float, target_date: str,
         return None
 
 
-def _fetch_owm_forecast(lat: float, lon: float, target_date: str,
-                        fahrenheit: bool = False) -> float | None:
+def fetch_owm_forecast(lat: float, lon: float, target_date: str,
+                       fahrenheit: bool = False) -> float | None:
     """Fetch daily high from OWM 5-day/3h forecast API.
 
     OWM 返回 3h 間隔 → filter 到 target_date → 取當日所有 temp_max 嘅最大值。
     需要 OWM_API_KEY；冇 key 或 API 失敗 → return None（graceful fallback）。
+    Public API for staggered scheduler (weather paper tracker).
     """
     if not OWM_API_KEY:
         return None
@@ -467,7 +476,7 @@ def _fetch_multi_source_forecast(
     Per-source temps returned for calibration logging（Phase 2）。
     """
     om_temp = _fetch_open_meteo_forecast(lat, lon, target_date, fahrenheit)
-    owm_temp = _fetch_owm_forecast(lat, lon, target_date, fahrenheit)
+    owm_temp = fetch_owm_forecast(lat, lon, target_date, fahrenheit)
 
     if om_temp is not None and owm_temp is not None:
         avg = (om_temp + owm_temp) / 2.0
@@ -501,12 +510,13 @@ def _compute_bucket_probability(
 ) -> float:
     """P(temp falls in bucket) using normal CDF.
 
-    bucket_low=None → floor bucket (−∞, high]
-    bucket_high=None → ceiling bucket [low, +∞)
-    Both set → range/exact bucket [low, high)
+    Boundaries follow ROUND rule (Wunderground rounds to nearest whole degree):
+    bucket_low=None → floor bucket (−∞, high), e.g. "≤10°C" → high=10.5
+    bucket_high=None → ceiling bucket [low, +∞), e.g. "≥15°C" → low=14.5
+    Both set → range/exact bucket [low, high), e.g. "13°C" → [12.5, 13.5)
     """
     if bucket_low is None and bucket_high is not None:
-        # Floor: P(T ≤ high)
+        # Floor: P(T < high) — high already includes +1 for FLOOR rule
         return _normal_cdf((bucket_high - forecast_temp) / sigma)
     elif bucket_high is None and bucket_low is not None:
         # Ceiling: P(T ≥ low)
@@ -523,7 +533,8 @@ def _compute_bucket_probability(
 def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     """Deterministic weather edge assessment — no Claude API needed.
 
-    Parse title → fetch forecast → compute probability via normal CDF.
+    Parse title → fetch ensemble forecast → count members in bucket → probability.
+    Falls back to normal CDF if ensemble fetch fails.
     Returns EdgeAssessment on success, None if parse/fetch fails (→ fallback to AI).
     """
     parsed = _parse_weather_market(market.title)
@@ -556,15 +567,45 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     if forecast_temp is None:
         return None
 
-    # Compute probability
-    sigma = _get_forecast_sigma(lead_days)
-    # °F cities: σ in °C needs conversion to °F (×1.8)
-    if fahrenheit:
-        sigma *= 1.8
+    # Compute probability — ensemble counting (primary), CDF (fallback)
+    prob_method = "cdf"  # track which method was used
+    ai_prob = None
 
-    ai_prob = _compute_bucket_probability(
-        forecast_temp, sigma, parsed["threshold_low"], parsed["threshold_high"],
-    )
+    # Primary: ensemble counting (122 members from GFS+ECMWF+ICON)
+    try:
+        ensemble_data = fetch_ensemble_forecast(
+            parsed["lat"], parsed["lon"], parsed["date"], fahrenheit=fahrenheit,
+        )
+        if ensemble_data:
+            # Flatten all model members into one list
+            all_members = [t for members in ensemble_data.values() for t in members]
+            if all_members:
+                # Build single-bucket boundary tuple
+                bucket_boundaries = [
+                    ("target", parsed["threshold_low"], parsed["threshold_high"])
+                ]
+                probs = compute_bucket_probabilities(all_members, bucket_boundaries)
+                if "target" in probs:
+                    ai_prob = probs["target"]
+                    prob_method = "ensemble"
+                    logger.info(
+                        "Ensemble probability: %.3f (%d members) for %s",
+                        ai_prob, len(all_members), market.title[:50],
+                    )
+    except Exception as e:
+        logger.warning("Ensemble fetch/compute failed, falling back to CDF: %s", e)
+
+    # Fallback: normal CDF (original method)
+    if ai_prob is None:
+        sigma = _get_forecast_sigma(lead_days)
+        # °F cities: σ in °C needs conversion to °F (×1.8)
+        if fahrenheit:
+            sigma *= 1.8
+        ai_prob = _compute_bucket_probability(
+            forecast_temp, sigma, parsed["threshold_low"], parsed["threshold_high"],
+        )
+        logger.info("CDF fallback probability: %.3f for %s", ai_prob, market.title[:50])
+
     ai_prob = max(0.01, min(0.99, ai_prob))
 
     # Confidence from lookup table
@@ -587,15 +628,20 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     if side == "NO" and (1 - entry_price) > WEATHER_ENTRY_PRICE_CAP:
         return None
 
+    if prob_method == "ensemble":
+        method_detail = f"ensemble {len(all_members)} members"
+    else:
+        method_detail = f"CDF σ={sigma:.1f}"
     reasoning = (
         f"Forecast: {forecast_temp:.1f}°{'F' if fahrenheit else 'C'} "
-        f"(lead {lead_days}d, σ={sigma:.1f}). "
+        f"(lead {lead_days}d, {method_detail}). "
         f"Bucket [{parsed['threshold_low']}, {parsed['threshold_high']}] "
         f"({parsed['bucket_type']}). "
         f"P={ai_prob:.3f} vs market={market.yes_price:.3f}"
     )
 
     # Phase 2: Log per-source prediction for calibration
+    # sigma is only set in CDF fallback path; use 0.0 for ensemble
     _log_edge_prediction(
         city=parsed["city"],
         target_date=parsed["date"],
@@ -608,7 +654,7 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         market_price=market.yes_price,
         side=side,
         edge_pct=edge_pct,
-        sigma=sigma,
+        sigma=sigma if prob_method == "cdf" else 0.0,
         bucket_type=parsed["bucket_type"],
         threshold_low=parsed["threshold_low"],
         threshold_high=parsed["threshold_high"],
@@ -626,7 +672,7 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         confidence=confidence,
         side=side,
         reasoning=reasoning,
-        data_sources=sources + [f"lead_{lead_days}d"],
+        data_sources=sources + [f"lead_{lead_days}d", prob_method],
     )
 
 
@@ -780,15 +826,29 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
             best = max(candidates, key=lambda x: x.edge_pct)
             if len(candidates) > 1:
                 parts = []
+                sides = set()
                 for label, res in [("indicator", indicator_result), ("cvd", cvd_result), ("micro", micro_result)]:
                     if res is not None:
-                        parts.append(f"{label}={res.edge_pct:.3f}")
-                logger.info("15M multi-signal: %s → picked %s",
-                            ", ".join(parts), best.signal_source)
+                        parts.append(f"{label}={res.side}@{res.edge_pct:.3f}")
+                        sides.add(res.side)
+                # Warn if signals disagree on direction
+                if len(sides) > 1:
+                    logger.warning("15M SIGNAL CONFLICT: %s → picked %s (%s)",
+                                   ", ".join(parts), best.signal_source, best.side)
+                else:
+                    logger.info("15M multi-signal: %s → picked %s",
+                                ", ".join(parts), best.signal_source)
             return best
 
         logger.info("15M deterministic below threshold, using AI: %s",
                      market.title[:50])
+        # Outcome order safety check — same guard as crypto_15m.py:477
+        # Without this, reversed outcomes ("Down","Up") would cause AI to buy wrong direction
+        if market.outcomes and market.outcomes[0].lower() not in ("up", "yes"):
+            logger.warning("15M AI fallback: outcome[0]=%s (expected up/yes), skipping",
+                           market.outcomes[0] if market.outcomes else "empty")
+            return None
+
         # Prepare rich context for AI fallback — use parsed symbol, not hardcoded BTC
         parsed_15m = parse_crypto_15m_market(market.title)
         symbol = parsed_15m["symbol"] if parsed_15m else "BTCUSDT"

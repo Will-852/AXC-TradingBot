@@ -60,6 +60,7 @@ CRYPTO_15M_CONFIDENCE_THRESHOLD = 0.55
 CRYPTO_15M_INDICATOR_THRESHOLD = 0.55            # P(Up) 需要偏離 0.5 至少 5%
 CRYPTO_15M_MAX_ASSESSMENTS = 3                   # 每 cycle 最多 3 個 AI 評估
 CRYPTO_15M_MIN_LIQUIDITY = 200                   # 15M 市場流動性門檻較低
+WEATHER_MIN_LIQUIDITY = 100                      # 天氣 per-bucket 流動性低但正常（$200-$1500）
 CRYPTO_15M_MAX_BET_USDC = 50.0                   # 快市場 → 細注
 
 # ─── CVD Strategy (Cumulative Volume Delta) ───
@@ -90,7 +91,8 @@ MIN_BOOK_DEPTH_USDC = 500      # 最低 order book 深度
 
 # ─── Risk — Hard Limits (非 negotiable) ───
 MAX_TOTAL_EXPOSURE = 0.30      # 最多 30% bankroll 放預測市場
-MAX_PER_MARKET = 0.10          # 每個市場最多 10%
+MAX_PER_BET = 0.01             # 每注最多 1% bankroll（百分比 cap）
+MAX_PER_MARKET = 0.10          # 每個市場/event 最多 10%
 MAX_PER_CATEGORY = 0.20        # 每類最多 20%
 MAX_DAILY_LOSS_PCT = 0.15      # 日損 15% 熔斷
 MAX_OPEN_POSITIONS = 5         # 最多 5 個同時持倉
@@ -101,11 +103,21 @@ KELLY_FRACTION = 0.5           # 半 Kelly（保守）
 KELLY_MIN_BET_USDC = 5.0       # 最低下注 $5
 KELLY_MAX_BET_USDC = 100.0     # 最高下注 $100（初期）
 
+# ─── 自動化範圍（紅線 — CORE.md §2）───
+# Pipeline 只准自動落注/Exit 呢兩個 category
+# 其他 category（sports、general crypto 等）= 唔准自動操作
+AUTOMATED_CATEGORIES = {"crypto_15m", "weather"}
+
 # ─── Position Management ───
-EXIT_PROBABILITY_DRIFT = 0.15  # 概率漂移 >15% 觸發 exit review
+# Binary markets (crypto_15m):
+#   SL=9% at 5m+10m checkpoints, no TP (hold winners to resolution)
+#   hybrid_backtest: SL9% +$150 vs HOLD +$91 (+65% improvement, Sharpe 0.457 vs 0.244)
+# 以下 drift/loss threshold 只用於長期市場（weather, general crypto）
+BINARY_SL_PCT = 0.09           # Binary market stop-loss: 9% of unrealized (5m+10m checkpoints)
+EXIT_PROBABILITY_DRIFT = 0.30  # 概率漂移 >30 cents 觸發（舊 0.15 太敏感）
 PROFIT_TAKE_PCT = 0.50         # 持倉升 50% → 考慮止盈
-TAKE_PROFIT_TOKEN_PRICE = 0.93 # token price ≥ 93% → 即走鎖定利潤
-LOSS_CUT_PCT = 0.30            # 持倉跌 30% → 考慮止損
+TAKE_PROFIT_TOKEN_PRICE = 0.93 # token price ≥ 93% → 即走鎖定利潤（全 category）
+LOSS_CUT_PCT = 0.50            # 持倉跌 50% → 考慮止損（舊 0.30 對預測市場太敏感）
 
 # ─── Cooldown ───
 COOLDOWN_AFTER_LOSS_MIN = 60   # 虧損後冷卻 60 分鐘
@@ -125,11 +137,28 @@ WEATHER_CONFIDENCE_BY_LEAD = {
     1: 0.90, 2: 0.80, 3: 0.70, 4: 0.60, 5: 0.55, 6: 0.50, 7: 0.45,
 }
 
-# Weather edge threshold — lower than crypto because forecast-based (more deterministic)
-WEATHER_MIN_EDGE_PCT = 0.08
+# Weather edge threshold — dynamic by price (low price tail = lower bar, high payout compensates)
+# Rationale: weather data is public → large edges are rare, but tail bucket payouts are 10-25x
+WEATHER_EDGE_BY_PRICE = {
+    0.10: 0.03,   # ≤10¢ (tail): 10x+ payout, 3% edge enough
+    0.20: 0.04,   # 11-20¢: 5-9x payout
+    0.35: 0.06,   # 21-35¢ (peak): 2.9-4.8x payout
+    1.00: 0.08,   # >35¢: low payout, need bigger edge
+}
 WEATHER_MAX_LEAD_DAYS = 3         # Lead >3d σ too large → unreliable edge, hurts Sharpe
 WEATHER_ENTRY_PRICE_CAP = 0.70    # Entry >$0.70 = <1.43x odds, one miss wipes gains
 WEATHER_MAX_ASSESSMENTS = 15      # Weather = zero AI cost, scan more for edge
+
+
+def weather_min_edge(market_price: float) -> float:
+    """Return minimum edge threshold based on market price (dynamic).
+
+    Lower price → lower threshold because payout multiplier compensates.
+    """
+    for price_cap, min_edge in sorted(WEATHER_EDGE_BY_PRICE.items()):
+        if market_price <= price_cap:
+            return min_edge
+    return 0.08  # fallback
 
 # ─── GTO (Game Theory Optimal) ───
 GTO_ADVERSE_BLOCK_THRESHOLD = 0.80    # adverse selection > 80% → block

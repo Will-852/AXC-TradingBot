@@ -90,15 +90,20 @@ class PolymarketClient:
             )
 
     def _init_client(self):
-        """Initialize ClobClient: L1 → derive creds → L2."""
+        """Initialize ClobClient: L1 → derive creds → L2.
+
+        POLY_PROXY (signature_type=1) 需要 funder = proxy wallet address
+        （POLY_WALLET_ADDRESS），否則 order signing 會 invalid signature。
+        """
         try:
-            # Start as L1 (can sign orders)
-            # signature_type=1 (POLY_PROXY) — Polymarket UI 開嘅帳戶用 proxy wallet
+            # funder = proxy wallet address (where USDC lives)
+            funder = os.getenv("POLY_WALLET_ADDRESS", "")
             self.client = ClobClient(
                 CLOB_HOST,
                 chain_id=CHAIN_ID,
                 key=self.private_key,
                 signature_type=1,
+                funder=funder or None,
             )
 
             # Try loading cached API creds

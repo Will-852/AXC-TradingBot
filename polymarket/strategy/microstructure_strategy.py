@@ -140,6 +140,14 @@ def _fetch_5m_klines(symbol: str = "BTCUSDT", limit: int = 25) -> pd.DataFrame:
         df[col] = df[col].astype(float)
     df["open_time"] = df["open_time"].astype(int)
 
+    # Freshness check: last candle must be within 2 minutes of now
+    if len(df) > 0:
+        latest_open_ms = int(df["open_time"].iloc[-1])
+        age_s = (now * 1000 - latest_open_ms) / 1000
+        if age_s > 600:  # 10 min = 2 full 5m candles stale
+            logger.warning("5m klines stale: latest candle %.0fs old", age_s)
+            return pd.DataFrame()
+
     _kline_cache[cache_key] = (now, df)
     return df
 

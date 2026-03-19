@@ -28,9 +28,9 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)                       # for shared_infra.*
 
 from polymarket.config.categories import WEATHER_CITIES
-from polymarket.config.settings import LOG_DIR, WEATHER_SIGMA_BY_LEAD
+from polymarket.config.settings import LOG_DIR, WEATHER_SIGMA_BY_LEAD, weather_min_edge
 from polymarket.exchange.gamma_client import GammaClient
-from polymarket.strategy.edge_finder import _parse_weather_market
+from polymarket.strategy.edge_finder import _parse_weather_market, fetch_owm_forecast
 from polymarket.strategy.weather_tracker import (
     ENSEMBLE_MODELS,
     RESOLUTION_SOURCES,
@@ -53,8 +53,12 @@ logging.basicConfig(
 )
 log = logging.getLogger("weather_paper_track")
 
-def _run_predict(dry_run: bool = False) -> None:
-    """Scan weather markets → ensemble forecast → log predictions."""
+def _run_predict(dry_run: bool = False, source: str = "ensemble") -> None:
+    """Scan weather markets → forecast → log predictions.
+
+    source: 'ensemble' (Open-Meteo 122-member), 'owm' (OWM single-point + CDF),
+            'both' (ensemble primary, OWM logged for comparison).
+    """
     gamma = GammaClient()
     log.info("Fetching weather markets from Gamma API...")
     # No tag filter — pipeline-style fetch, parse titles locally
@@ -106,24 +110,53 @@ def _run_predict(dry_run: bool = False) -> None:
             "precision": "whole" if unit == "F" else "whole",
         })
 
-        # Fetch ensemble forecast (°F for US cities)
-        log.info("Fetching ensemble for %s %s (lead=%dd)...", city, target_date, lead_days)
-        ensemble_data = fetch_ensemble_forecast(lat, lon, target_date, fahrenheit=(unit == "F"))
-        if not ensemble_data:
-            log.warning("No ensemble data for %s %s", city, target_date)
-            continue
+        # ── Fetch forecast based on source ──
+        fahrenheit = (unit == "F")
 
-        # Flatten all members across models
-        all_members = []
-        models_used = []
-        for model, members in ensemble_data.items():
-            all_members.extend(members)
-            models_used.append(model)
+        if source == "owm":
+            # OWM single-point → synthetic members via normal distribution
+            log.info("Fetching OWM for %s %s (lead=%dd)...", city, target_date, lead_days)
+            owm_temp = fetch_owm_forecast(lat, lon, target_date, fahrenheit=fahrenheit)
+            if owm_temp is None:
+                log.warning("No OWM data for %s %s", city, target_date)
+                continue
+            # Generate synthetic members around OWM forecast using configured σ
+            sigma = WEATHER_SIGMA_BY_LEAD.get(min(max(1, lead_days), 7), 3.5)
+            if fahrenheit:
+                sigma *= 1.8
+            import random
+            rng = random.Random(42)  # deterministic for reproducibility
+            all_members = [owm_temp + rng.gauss(0, sigma) for _ in range(100)]
+            models_used = ["owm_synthetic"]
+        else:
+            # Ensemble (default) or both
+            log.info("Fetching ensemble for %s %s (lead=%dd)...", city, target_date, lead_days)
+            ensemble_data = fetch_ensemble_forecast(lat, lon, target_date, fahrenheit=fahrenheit)
+            if not ensemble_data:
+                log.warning("No ensemble data for %s %s", city, target_date)
+                continue
 
-        if not all_members:
-            continue
+            all_members = []
+            models_used = []
+            for model, members in ensemble_data.items():
+                all_members.extend(members)
+                models_used.append(model)
 
-        # Build bucket boundaries from parsed markets
+            if not all_members:
+                continue
+
+            # If 'both': also fetch OWM and log for comparison
+            if source == "both":
+                owm_temp = fetch_owm_forecast(lat, lon, target_date, fahrenheit=fahrenheit)
+                if owm_temp is not None:
+                    ens_mean = statistics.mean(all_members)
+                    divergence = abs(ens_mean - owm_temp)
+                    log.info("Source comparison: ensemble=%.1f, OWM=%.1f, Δ=%.1f",
+                             ens_mean, owm_temp, divergence)
+                    if divergence > 2.0:
+                        log.warning("⚠️  Source divergence >2°C for %s %s!", city, target_date)
+
+        # ── Build bucket boundaries from parsed markets ──
         boundaries = []
         market_prices = {}
         for bm in sorted(bucket_markets, key=lambda x: x.get("threshold_low") or -999):
@@ -132,17 +165,20 @@ def _run_predict(dry_run: bool = False) -> None:
             high = bm["threshold_high"]
 
             if bt == "floor":
-                label = str(int(high)) + "_or_below"
+                # ROUND rule: high = X+0.5, label uses X
+                label = str(int(high - 0.5)) + "_or_below"
                 boundaries.append((label, None, high))
             elif bt == "ceiling":
-                label = str(int(low)) + "_or_above"
+                # ROUND rule: low = X-0.5, label uses X
+                label = str(int(low + 0.5)) + "_or_above"
                 boundaries.append((label, low, None))
             elif bt == "exact":
-                # For °C: exact val with ±0.5 parsed → reconstruct [val, val+1)
+                # ROUND rule: low=val-0.5, high=val+0.5 → [val-0.5, val+0.5)
                 mid = (low + high) / 2
                 label = str(int(mid))
-                boundaries.append((label, mid - 0.5, mid + 0.5))
+                boundaries.append((label, low, high))
             elif bt == "range":
+                # ROUND rule: low=val_low-0.5, high=val_high+0.5
                 label = f"{int(low + 0.5)}-{int(high - 0.5)}"
                 boundaries.append((label, low, high))
 
@@ -152,7 +188,7 @@ def _run_predict(dry_run: bool = False) -> None:
         if not boundaries:
             continue
 
-        # Compute ensemble bucket probabilities
+        # Compute bucket probabilities
         probs = compute_bucket_probabilities(all_members, boundaries)
 
         # Build buckets dict with edge
@@ -184,7 +220,16 @@ def _run_predict(dry_run: bool = False) -> None:
         print(f"  {'Bucket':<15} {'Ensemble':>10} {'Market':>10} {'Edge':>10}")
         print(f"  {'-'*45}")
         for label, bd in sorted(buckets.items(), key=lambda x: -x[1]["edge"]):
-            flag = " ***" if bd["edge"] > 0.05 else ""
+            mp = bd["market_price"]
+            edge = bd["edge"]
+            # Dynamic threshold: cheap tail buckets need less edge
+            min_e = weather_min_edge(mp) if mp > 0 else 0.08
+            if edge >= min_e:
+                flag = " ★★★ BET"
+            elif edge > 0:
+                flag = " +"
+            else:
+                flag = ""
             print(f"  {label:<15} {bd['ensemble_prob']:>10.1%} "
                   f"{bd['market_price']:>10.1%} {bd['edge']:>+10.1%}{flag}")
         print(f"  Best edge: {best_edge_bucket} ({best_edge_pct:+.1%})")
@@ -456,11 +501,13 @@ def main() -> None:
     group.add_argument("--calibrate", action="store_true",
                        help="Edge calibration: per-source accuracy + σ table")
     parser.add_argument("--dry-run", action="store_true", help="Print only, no log write")
+    parser.add_argument("--source", choices=["ensemble", "owm", "both"], default="ensemble",
+                        help="Data source: ensemble (default), owm, or both")
 
     args = parser.parse_args()
 
     if args.predict:
-        _run_predict(dry_run=args.dry_run)
+        _run_predict(dry_run=args.dry_run, source=args.source)
     elif args.resolve:
         _run_resolve()
     elif args.report:
