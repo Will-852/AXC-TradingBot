@@ -30,7 +30,10 @@ from ..config.settings import (
     WEATHER_MAX_LEAD_DAYS, WEATHER_ENTRY_PRICE_CAP, LOG_DIR,
 )
 from ..core.context import PolyMarket, EdgeAssessment
-from ..strategy.weather_tracker import fetch_ensemble_forecast, compute_bucket_probabilities
+from ..strategy.weather_tracker import (
+    fetch_ensemble_forecast, compute_bucket_probabilities,
+    fetch_metar_temp, RESOLUTION_SOURCES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -541,6 +544,30 @@ def _get_forecast_sigma(lead_days: int) -> float:
     return WEATHER_SIGMA_BY_LEAD.get(clamped, 3.5)
 
 
+def _time_of_day_sigma_mult(lon: float) -> float:
+    """Adjust σ for lead=0 based on local time of day.
+
+    Daily max temp typically peaks at 14:00-16:00 local time.
+    Morning: peak hours away → high uncertainty → inflate σ.
+    Afternoon: near/past peak → low uncertainty → deflate σ.
+    Evening: day nearly done → minimal uncertainty.
+
+    Timezone estimated from longitude (±1h error acceptable here).
+    """
+    from datetime import datetime, timezone
+    utc_hour = datetime.now(timezone.utc).hour
+    local_hour = (utc_hour + round(lon / 15)) % 24
+
+    if local_hour < 10:
+        return 1.8   # morning: peak 4-8h away, σ_eff ≈ 1.44°C
+    elif local_hour < 14:
+        return 1.0   # midday: approaching peak, keep base σ
+    elif local_hour < 18:
+        return 0.5   # afternoon: peak likely passed, σ_eff ≈ 0.4°C
+    else:
+        return 0.3   # evening: day nearly done, σ_eff ≈ 0.24°C
+
+
 def _compute_bucket_probability(
     forecast_temp: float,
     sigma: float,
@@ -637,6 +664,9 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
     # Fallback: normal CDF (original method)
     if ai_prob is None:
         sigma = _get_forecast_sigma(lead_days)
+        # Lead=0: adjust σ by time of day (morning=uncertain, evening=almost known)
+        if lead_days == 0:
+            sigma *= _time_of_day_sigma_mult(parsed["lon"])
         # °F cities: σ in °C needs conversion to °F (×1.8)
         if fahrenheit:
             sigma *= 1.8
@@ -646,6 +676,49 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         logger.info("CDF fallback probability: %.3f for %s", ai_prob, market.title[:50])
 
     ai_prob = max(0.01, min(0.99, ai_prob))
+
+    # ── METAR reality check (lead=0 only) ──
+    # Current observation overrides forecast when temperature already confirms/busts bucket.
+    # Uses current temp (not 24h max) to avoid cross-day contamination.
+    # Safe: max_today ≥ current_temp is always true → one-directional override.
+    if lead_days == 0:
+        res_src = RESOLUTION_SOURCES.get(parsed["city"])
+        if res_src:
+            metar_c = fetch_metar_temp(res_src["station"])
+            if metar_c is not None:
+                metar_obs = metar_c * 9 / 5 + 32 if fahrenheit else metar_c
+                low, high = parsed["threshold_low"], parsed["threshold_high"]
+                unit_label = "°F" if fahrenheit else "°C"
+
+                if high is None and low is not None and metar_obs >= low:
+                    # Ceiling [low, ∞): current ≥ threshold → max ≥ current ≥ threshold
+                    old_prob = ai_prob
+                    ai_prob = max(ai_prob, 0.95)
+                    sources.append("metar_confirmed")
+                    logger.info(
+                        "METAR %.1f%s confirms ceiling ≥%.1f → P %.3f→%.3f",
+                        metar_obs, unit_label, low, old_prob, ai_prob,
+                    )
+                elif low is not None and high is not None and metar_obs >= high:
+                    # Exact/range [low, high): current ≥ high → max ≥ high → outside bucket
+                    old_prob = ai_prob
+                    ai_prob = min(ai_prob, 0.05)
+                    sources.append("metar_busted")
+                    logger.info(
+                        "METAR %.1f%s busts [%.1f,%.1f) → P %.3f→%.3f",
+                        metar_obs, unit_label, low, high, old_prob, ai_prob,
+                    )
+                elif high is not None and low is None and metar_obs >= high:
+                    # Floor (-∞, high): current ≥ high → max ≥ high → outside bucket
+                    old_prob = ai_prob
+                    ai_prob = min(ai_prob, 0.05)
+                    sources.append("metar_busted")
+                    logger.info(
+                        "METAR %.1f%s busts floor <%.1f → P %.3f→%.3f",
+                        metar_obs, unit_label, high, old_prob, ai_prob,
+                    )
+                else:
+                    sources.append(f"metar_{metar_obs:.1f}")
 
     # Confidence from lookup table
     lead_clamped = max(1, min(lead_days, 7))
