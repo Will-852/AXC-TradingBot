@@ -87,19 +87,20 @@
 |--|---------|---------|
 | 時間框架 | 15 分鐘 | 24-72 小時 |
 | 價格行為 | 隨機行走（唔可預測） | Forecast convergence（可預測） |
-| Exit 策略 | **HOLD to resolution** | **Early exit when edge consumed** |
-| 原因 | 冇 convergence signal → exit = 放棄 upside | Forecast 收斂 → market catch up → edge 消失 |
-| Backtest | HOLD +91% vs exit +69% | 數學計算支持 early exit（Sharpe 0.12 = 唔值得 hold） |
+| Exit 策略 | **HOLD to resolution** | **HOLD（大部分）+ ultra-cheap early exit** |
+| 原因 | 冇 convergence signal → exit = 放棄 upside | Tail bucket 需要 full $1 payout 補償 80% losses |
+| Backtest | HOLD +91% vs exit +69% | BMD: 100% exit cap kills tail bucket strategy |
 
-### Weather Early Exit Rule（2026-03-19 數學驗證）
+### Weather Exit Rule（2026-03-19）
 ```
-SELL when:
-  remaining_edge < 5% AND profit > 100%
+Entry ≤ 5¢ + profit ≥ 500%  → SELL（lock 6× return，唔賭 binary resolution）
+Entry > 5¢                   → HOLD to resolution（需要 full $1 payout）
+All categories               → token price ≥ 93% → SELL
 
-原因：
-  Edge 5% 嘅 Sharpe = 0.12（垃圾 risk/reward）
-  不如 lock profit → 資金回籠 → 搵新 edge
-  資本效率：automatedAI portfolio $2K + PnL $77K = 快速 turnover compound
+點解唔做一般 early exit：
+  Tail bucket (5-15¢) win rate ~15-25%
+  需要 $0.95 big payout 補償 75-85% losses
+  100% profit cap → win/loss ratio = 1:1 → negative EV
 ```
 
 ### BTC 15M Exit Rule
