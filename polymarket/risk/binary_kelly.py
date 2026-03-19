@@ -133,12 +133,10 @@ def compute_kelly_bet(
 
     bet = min(bet, max_available, max_bet, max_per_market, max_per_cat)
 
-    # Clamp to absolute min/max (fallback hard limits)
-    bet = max(KELLY_MIN_BET_USDC, min(KELLY_MAX_BET_USDC, bet))
+    # Clamp to absolute max (never exceed hard limit)
+    bet = min(bet, KELLY_MAX_BET_USDC)
 
-    # Final check: don't bet more than available
-    if bet > max_available:
-        bet = max_available
+    # Floor at min bet — but NEVER exceed percentage caps above
     if bet < KELLY_MIN_BET_USDC:
         return 0.0  # too small to bother
 

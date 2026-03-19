@@ -270,7 +270,11 @@ def _scan_weather_events(
             month = d.strftime("%B").lower()
             event_slug = f"highest-temperature-in-{slug}-on-{month}-{d.day}-{d.year}"
 
-            event = gamma.get_event_by_slug(event_slug)
+            try:
+                event = gamma.get_event_by_slug(event_slug)
+            except Exception as e:
+                logger.debug("Weather slug fetch failed (%s): %s", event_slug, e)
+                continue
             if not event:
                 continue
 

@@ -58,10 +58,12 @@ def detect_arb(
     """
     opportunities: list[ArbOpportunity] = []
 
-    # Group markets by event_id
+    # Group markets by event_id (exclude weather — thin book friction ≠ arb)
+    # Weather sum(YES) deviates from 100% due to illiquidity, not mispricing.
+    # False arb on weather caused HK 21°C incident (2026-03-19).
     event_groups: dict[str, list[PolyMarket]] = defaultdict(list)
     for m in markets:
-        if m.event_id:
+        if m.event_id and m.category != "weather":
             event_groups[m.event_id].append(m)
 
     # Pre-fetch all markets once for negRisk sibling resolution
