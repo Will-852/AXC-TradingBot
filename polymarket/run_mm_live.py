@@ -1062,6 +1062,21 @@ def main():
                 time.sleep(_CYCLE_S)
         except KeyboardInterrupt:
             print("\n  Shutting down...")
+            # Cancel all open orders on CLOB (prevent orphans)
+            if client and hasattr(client, "get_orders") and not dry_run:
+                try:
+                    remaining = client.get_orders()
+                    for o in (remaining or []):
+                        oid = o.get("id", "")
+                        if oid:
+                            try:
+                                client.client.cancel(order_id=oid)
+                            except Exception:
+                                pass
+                    if remaining:
+                        print(f"  Cancelled {len(remaining)} open orders")
+                except Exception:
+                    pass
             _save(state)
             _status(state)
 
