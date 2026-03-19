@@ -97,6 +97,11 @@ def scan_markets(
         if not _passes_quality_filter(market, verbose):
             continue
 
+        # 5M markets: scan only (price reference), do NOT trade
+        # Only 15M windows are backtested + calibrated
+        if market.category == "crypto_15m" and "5m" in market.slug:
+            continue
+
         filtered.append(market)
 
     # ── Weather: targeted event slug scan (bypasses liquidity ranking) ──
