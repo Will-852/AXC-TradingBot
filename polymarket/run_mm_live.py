@@ -583,7 +583,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         vol = _vol_1m()  # 60s cache
         if client and hasattr(client, "get_usdc_balance") and not dry_run:
             try:
-                state["bankroll"] = client.get_usdc_balance()
+                bal = client.get_usdc_balance()
+                if bal is not None and bal > 0:
+                    state["bankroll"] = bal
             except Exception:
                 pass
 
@@ -899,17 +901,21 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if to_cancel:
                     reason = "ttl_60s"
 
+            actually_cancelled = []
             for po in to_cancel:
                 oid = po.get("order_id", "")
                 if oid:
                     try:
                         client.client.cancel(order_id=oid)
                         logger.info("CANCEL %s %s [%s]", cid[:8], po["outcome"], reason)
+                        actually_cancelled.append(po)
                     except Exception as e:
-                        logger.debug("Cancel failed %s: %s", oid[:12], e)
+                        logger.warning("Cancel FAILED %s %s: %s — keeping in pending",
+                                       cid[:8], po["outcome"], e)
 
-            if to_cancel:
-                mkt["pending_orders"] = [p for p in pending if p not in to_cancel]
+            # Only remove successfully cancelled orders from pending
+            if actually_cancelled:
+                mkt["pending_orders"] = [p for p in pending if p not in actually_cancelled]
                 if not mkt["pending_orders"]:
                     mkt["fills_confirmed"] = True
 
@@ -1003,13 +1009,18 @@ def main():
             try:
                 existing = client.get_orders()
                 if existing:
+                    cancelled = 0
                     for o in existing:
                         oid = o.get("id", "")
                         if oid:
-                            client.client.cancel(order_id=oid)
-                    print(f"  STARTUP: cancelled {len(existing)} orphan orders")
+                            try:
+                                client.client.cancel(order_id=oid)
+                                cancelled += 1
+                            except Exception as ce:
+                                logger.warning("Startup cancel failed for %s: %s", oid[:12], ce)
+                    print(f"  STARTUP: cancelled {cancelled}/{len(existing)} orphan orders")
             except Exception as e:
-                logger.warning("Startup cancel failed: %s", e)
+                logger.warning("Startup orphan check failed: %s", e)
         except Exception as e:
             print(f"  CLOB failed: {e} → dry-run")
             dry_run = True
