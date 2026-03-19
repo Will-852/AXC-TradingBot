@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 news_sentiment.py — 新聞情緒分析
-讀 shared/news_feed.json → LLM 情緒分類（fallback chain: Haiku → gpt-5.4） → 原子寫入 shared/news_sentiment.json
+讀 shared/news_feed.json → LLM 情緒分類（fallback chain: Haiku → gpt-5.2） → 原子寫入 shared/news_sentiment.json
 
 只分析最近 1 小時嘅文章（避免分析過期舊聞影響決策）。
 已分析文章 URL hash 記錄在 sentiment 輸出，下次跳過。
@@ -44,7 +44,7 @@ PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
 PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
-MODEL_CHAIN = ["claude-haiku-4-5-20251001", "gpt-5.4"]  # try in order
+MODEL_CHAIN = ["claude-haiku-4-5-20251001", "gpt-5.2"]  # try in order
 
 logging.basicConfig(
     level=logging.INFO,

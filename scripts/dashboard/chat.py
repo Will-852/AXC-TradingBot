@@ -17,8 +17,8 @@ from scripts.dashboard.constants import (
 )
 
 # ── Chat Constants ───────────────────────────────────────────────────
-_CHAT_MODEL_CHAIN_FAST = ["claude-haiku-4-5-20251001", "gpt-5.4"]
-_CHAT_MODEL_CHAIN_DEEP = ["claude-sonnet-4-6", "gpt-5.4"]
+_CHAT_MODEL_CHAIN_FAST = ["claude-haiku-4-5-20251001", "gpt-5.2"]
+_CHAT_MODEL_CHAIN_DEEP = ["claude-sonnet-4-6", "gpt-5.2"]
 _CHAT_ANALYSIS_KW = {"分析", "點解", "策略", "比較", "評估", "建議"}
 _CHAT_SONNET_DAILY_CAP = 15
 _SONNET_USAGE_PATH = os.path.join(HOME, "shared", "sonnet_usage.json")

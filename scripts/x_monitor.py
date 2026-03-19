@@ -44,7 +44,7 @@ PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
 PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
-FALLBACK_MODEL = "gpt-5.4"
+FALLBACK_MODEL = "gpt-5.2"
 
 logging.basicConfig(
     level=logging.INFO,

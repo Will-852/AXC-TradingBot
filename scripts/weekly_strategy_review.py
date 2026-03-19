@@ -36,7 +36,10 @@ if ENV_PATH.exists():
 
 PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
+PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
+PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
 CLAUDE_MODEL = "claude-sonnet-4-6"
+FALLBACK_MODEL = "gpt-5.2"
 TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
@@ -177,31 +180,59 @@ def build_prompt(trades: list[dict], analyses: list[dict], params: dict) -> tupl
 
 
 def call_claude(system_prompt: str, user_prompt: str) -> str:
-    """Call Claude Sonnet via proxy. Returns response text."""
-    if not PROXY_API_KEY:
-        raise ValueError("PROXY_API_KEY not set")
+    """Call LLM with fallback chain. Returns response text.
 
-    url = f"{PROXY_BASE_URL}/messages"
-    payload = json.dumps({
-        "model": CLAUDE_MODEL,
-        "max_tokens": 4096,
-        "system": system_prompt,
-        "messages": [{"role": "user", "content": user_prompt}],
-    }).encode("utf-8")
+    Chain: Claude Sonnet (PROXY1) → GPT fallback (PROXY1 → PROXY2).
+    """
+    if not PROXY_API_KEY and not PROXY2_API_KEY:
+        raise ValueError("No proxy API key configured")
 
-    req = urllib.request.Request(url, data=payload, method="POST", headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
-    })
+    messages = [{"role": "user", "content": user_prompt}]
 
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read().decode())
+    for model in [CLAUDE_MODEL, FALLBACK_MODEL]:
+        is_anthropic = model.startswith("claude-")
+        proxies = [(PROXY_BASE_URL, PROXY_API_KEY)]
+        if not is_anthropic and PROXY2_BASE_URL and PROXY2_API_KEY:
+            proxies.append((PROXY2_BASE_URL, PROXY2_API_KEY))
 
-    # Extract text from response
-    content = data.get("content", [])
-    parts = [block.get("text", "") for block in content if block.get("type") == "text"]
-    return "\n".join(parts)
+        for proxy_url, proxy_key in proxies:
+            try:
+                if is_anthropic:
+                    url = f"{proxy_url}/messages"
+                    payload = json.dumps({
+                        "model": model, "max_tokens": 4096,
+                        "system": system_prompt, "messages": messages,
+                    }).encode("utf-8")
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}",
+                               "anthropic-version": "2023-06-01"}
+                else:
+                    url = f"{proxy_url}/chat/completions"
+                    oai_msgs = [{"role": "system", "content": system_prompt}] + messages
+                    payload = json.dumps({
+                        "model": model, "max_tokens": 4096,
+                        "messages": oai_msgs,
+                    }).encode("utf-8")
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}"}
+
+                log.info(f"[LLM] model={model} via {proxy_url}")
+                req = urllib.request.Request(url, data=payload, method="POST",
+                                             headers=headers)
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    data = json.loads(resp.read().decode())
+
+                if is_anthropic:
+                    content = data.get("content", [])
+                    parts = [b.get("text", "") for b in content if b.get("type") == "text"]
+                    return "\n".join(parts)
+                else:
+                    return data["choices"][0]["message"]["content"]
+            except Exception as e:
+                log.warning(f"[LLM] {model} via {proxy_url} failed: {e}")
+                continue
+
+    raise RuntimeError("All models in fallback chain failed")
 
 
 def atomic_write(path: Path, content: str):

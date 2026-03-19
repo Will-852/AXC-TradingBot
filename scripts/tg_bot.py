@@ -64,8 +64,11 @@ TG_TOKEN        = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "0"))
 PROXY_API_KEY   = os.environ.get("PROXY_API_KEY", "")
 PROXY_BASE_URL  = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
+PROXY2_API_KEY  = os.environ.get("PROXY2_API_KEY", "")
+PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
 MODEL_HAIKU     = "claude-haiku-4-5-20251001"
 MODEL_SONNET    = "claude-sonnet-4-6"
+FALLBACK_MODEL  = "gpt-5.2"
 CLAUDE_MODEL    = MODEL_HAIKU  # backward compat default
 
 # Sonnet 日限（避免成本失控）
@@ -373,49 +376,70 @@ def call_claude(user_msg: str, context: str, system: str = None,
                 max_tokens: int = 1200,
                 history: list[dict] | None = None,
                 model: str = None) -> str:
-    """Call Claude via proxy (Anthropic messages format).
+    """Call LLM via proxy with fallback chain.
 
+    Chain: Claude (PROXY1) → GPT fallback (PROXY1 → PROXY2).
     model: 指定模型。None = 用 CLAUDE_MODEL (Haiku)。傳 MODEL_SONNET 用 Sonnet。
     history: 可選嘅多輪對話 [{role, content}, ...]，會放喺當前訊息前面。
     """
     use_model = model or CLAUDE_MODEL
-    url = f"{PROXY_BASE_URL}/messages"
+    sys_prompt = system or SYSTEM_PROMPT
     # 組裝 messages：history + 當前用戶訊息（context 塞入第一條）
     messages = []
     if history:
-        for i, m in enumerate(history):
+        for m in history:
             messages.append({"role": m["role"], "content": m["content"]})
-        messages.append({
-            "role": "user",
-            "content": f"{context}\n\n---\n\n用戶：{user_msg}",
-        })
-    else:
-        messages = [{
-            "role": "user",
-            "content": f"{context}\n\n---\n\n用戶：{user_msg}",
-        }]
-    body = json.dumps({
-        "model": use_model,
-        "max_tokens": max_tokens,
-        "system": system or SYSTEM_PROMPT,
-        "messages": messages,
-    }).encode()
-
-    log.info(f"[Claude] model={use_model} max_tokens={max_tokens} msg_len={len(messages)}")
-
-    req = urllib.request.Request(url, body, headers={
-        "Content-Type":      "application/json",
-        "Authorization":     f"Bearer {PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
+    messages.append({
+        "role": "user",
+        "content": f"{context}\n\n---\n\n用戶：{user_msg}",
     })
 
-    try:
-        resp = urllib.request.urlopen(req, timeout=30)
-        data = json.loads(resp.read())
-        return data["content"][0]["text"]
-    except Exception as e:
-        log.error(f"Claude API failed: {e}")
-        return f"Claude API 錯誤: {e}"
+    # Model chain: requested model first, then GPT fallback
+    chain = [use_model]
+    if use_model.startswith("claude-"):
+        chain.append(FALLBACK_MODEL)
+
+    for mdl in chain:
+        is_anthropic = mdl.startswith("claude-")
+        proxies = [(PROXY_BASE_URL, PROXY_API_KEY)]
+        if not is_anthropic and PROXY2_BASE_URL and PROXY2_API_KEY:
+            proxies.append((PROXY2_BASE_URL, PROXY2_API_KEY))
+
+        for proxy_url, proxy_key in proxies:
+            try:
+                if is_anthropic:
+                    url = f"{proxy_url}/messages"
+                    body = json.dumps({
+                        "model": mdl, "max_tokens": max_tokens,
+                        "system": sys_prompt, "messages": messages,
+                    }).encode()
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}",
+                               "anthropic-version": "2023-06-01"}
+                else:
+                    url = f"{proxy_url}/chat/completions"
+                    oai_msgs = [{"role": "system", "content": sys_prompt}] + messages
+                    body = json.dumps({
+                        "model": mdl, "max_tokens": max_tokens,
+                        "messages": oai_msgs,
+                    }).encode()
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}"}
+
+                log.info(f"[LLM] model={mdl} via {proxy_url}")
+                req = urllib.request.Request(url, body, headers=headers)
+                resp = urllib.request.urlopen(req, timeout=30)
+                data = json.loads(resp.read())
+
+                if is_anthropic:
+                    return data["content"][0]["text"]
+                else:
+                    return data["choices"][0]["message"]["content"]
+            except Exception as e:
+                log.warning(f"[LLM] {mdl} via {proxy_url} failed: {e}")
+                continue
+
+    return "所有 AI 模型都失敗，請稍後重試"
 
 
 def read_local_context() -> str:
