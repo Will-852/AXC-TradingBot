@@ -56,6 +56,7 @@ class EdgeAssessment:
     reasoning: str = ""             # AI 解釋
     data_sources: list[str] = field(default_factory=list)  # what data informed the assessment
     signal_source: str = ""  # "indicator" / "cvd" / "ai" — which strategy produced this
+    lead_days: int = -1      # weather: days until resolution (-1 = not weather)
     # ─── GTO fields (populated by GTOFilterStep) ───
     gto_type: str = ""
     adverse_selection_score: float = 0.0

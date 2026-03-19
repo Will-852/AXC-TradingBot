@@ -222,8 +222,8 @@ def _run_predict(dry_run: bool = False, source: str = "ensemble") -> None:
         for label, bd in sorted(buckets.items(), key=lambda x: -x[1]["edge"]):
             mp = bd["market_price"]
             edge = bd["edge"]
-            # Dynamic threshold: cheap tail buckets need less edge
-            min_e = weather_min_edge(mp) if mp > 0 else 0.08
+            # Dynamic threshold: price × lead time
+            min_e = weather_min_edge(mp, lead_days=lead_days) if mp > 0 else 0.08
             if edge >= min_e:
                 flag = " ★★★ BET"
             elif edge > 0:

@@ -813,9 +813,10 @@ class GenerateSignalsStep:
                 min_edge = CRYPTO_15M_MIN_EDGE_PCT
                 min_conf = CRYPTO_15M_CONFIDENCE_THRESHOLD
             elif edge.category == "weather":
-                # Dynamic threshold: lower bar for cheap tail buckets (high payout)
+                # Dynamic threshold: price × lead time (longer lead = bigger threshold)
                 entry = edge.market_price if edge.side == "YES" else (1 - edge.market_price)
-                min_edge = weather_min_edge(entry)
+                lead = max(0, edge.lead_days) if edge.lead_days >= 0 else 1
+                min_edge = weather_min_edge(entry, lead_days=lead)
                 min_conf = EDGE_CONFIDENCE_THRESHOLD
             else:
                 min_edge = MIN_EDGE_PCT

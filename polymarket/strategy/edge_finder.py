@@ -700,6 +700,7 @@ def assess_weather_edge(market: PolyMarket) -> EdgeAssessment | None:
         side=side,
         reasoning=reasoning,
         data_sources=sources + [f"lead_{lead_days}d", prob_method],
+        lead_days=lead_days,
     )
 
 

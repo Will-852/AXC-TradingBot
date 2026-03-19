@@ -145,20 +145,33 @@ WEATHER_EDGE_BY_PRICE = {
     0.35: 0.06,   # 21-35¢ (peak): 2.9-4.8x payout
     1.00: 0.08,   # >35¢: low payout, need bigger edge
 }
+# Lead-time edge multiplier: longer lead = less reliable forecast = need bigger edge
+# Data: lead ≥2d forecast drifts >1°C in 27-30% of cases (A/B test 2026-03-19)
+WEATHER_LEAD_EDGE_MULT = {
+    0: 1.0,   # same day: forecast stable, use base threshold
+    1: 1.0,   # 1 day: avg drift 0.33°C, 6% >1°C → reliable
+    2: 2.0,   # 2 days: avg drift 0.77°C, 27% >1°C → double threshold
+    3: 3.0,   # 3 days: avg drift 0.76°C, 30% >1°C → triple threshold
+}
 WEATHER_MAX_LEAD_DAYS = 3         # Lead >3d σ too large → unreliable edge, hurts Sharpe
 WEATHER_ENTRY_PRICE_CAP = 0.70    # Entry >$0.70 = <1.43x odds, one miss wipes gains
 WEATHER_MAX_ASSESSMENTS = 15      # Weather = zero AI cost, scan more for edge
 
 
-def weather_min_edge(market_price: float) -> float:
-    """Return minimum edge threshold based on market price (dynamic).
+def weather_min_edge(market_price: float, lead_days: int = 1) -> float:
+    """Return minimum edge threshold based on market price × lead time.
 
-    Lower price → lower threshold because payout multiplier compensates.
+    Lower price → lower threshold (payout compensates).
+    Longer lead → higher threshold (forecast less reliable).
+    Data: lead ≥2d forecasts drift >1°C in 27-30% of cases.
     """
+    base = 0.08  # fallback
     for price_cap, min_edge in sorted(WEATHER_EDGE_BY_PRICE.items()):
         if market_price <= price_cap:
-            return min_edge
-    return 0.08  # fallback
+            base = min_edge
+            break
+    lead_mult = WEATHER_LEAD_EDGE_MULT.get(min(lead_days, 3), 3.0)
+    return base * lead_mult
 
 # ─── GTO (Game Theory Optimal) ───
 GTO_ADVERSE_BLOCK_THRESHOLD = 0.80    # adverse selection > 80% → block
