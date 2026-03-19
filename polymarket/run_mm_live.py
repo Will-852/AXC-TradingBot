@@ -472,6 +472,47 @@ def _log_trade(record: dict):
         f.write(json.dumps(record, default=str) + "\n")
 
 
+def _get_rolling_wr(state: dict, window: int = 30) -> tuple[float, int]:
+    """Rolling win rate over last N resolved markets.
+    Returns (wr, count). If count < 10, returns (0.68, count) = assume baseline.
+    """
+    resolved = [m for m in state["markets"].values() if m["phase"] == "RESOLVED"]
+    recent = resolved[-window:] if len(resolved) > window else resolved
+    if len(recent) < 10:
+        return 0.68, len(recent)  # not enough data, assume baseline
+    wins = sum(1 for m in recent if m.get("realized_pnl", 0) > 0)
+    return wins / len(recent), len(recent)
+
+
+def _get_risk_mode(state: dict) -> str:
+    """Determine risk mode based on rolling WR.
+
+    NORMAL (WR >= 62%):  full dual-layer (hedge + directional)
+    DEFENSIVE (55-62%):  shift budget toward hedge
+    HEDGE_ONLY (<55%):   no directional, pure hedge
+    STOPPED (<50%):      stop trading completely
+    """
+    wr, count = _get_rolling_wr(state, window=30)
+
+    if count < 10:
+        return "NORMAL"  # not enough data
+
+    # Thresholds — lenient (user feedback: 唔好太嚴)
+    # Break-even for directional at $0.475 bid = 47.5% WR
+    # Hedge layer always profitable → real danger only if WR drops far below 50%
+    if wr < 0.45:
+        logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 45%%", wr*100, count)
+        return "STOPPED"
+    elif wr < 0.50:
+        logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 50%%", wr*100, count)
+        return "HEDGE_ONLY"
+    elif wr < 0.58:
+        logger.info("RISK MODE: DEFENSIVE — rolling WR %.1f%% (%d trades) < 58%%", wr*100, count)
+        return "DEFENSIVE"
+    else:
+        return "NORMAL"
+
+
 # ═══════════════════════════════════════
 #  Resolution
 # ═══════════════════════════════════════
@@ -598,12 +639,19 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if abs(_obi) > 0.3 or _mid > 0:
                     logger.debug("MONITOR %s: OBI=%.2f mid=%.3f", _cid[:8], _obi, _mid)
 
+    # ── Risk mode check (rolling WR adaptive) ──
+    risk_mode = _get_risk_mode(state) if is_heavy else state.get("_risk_mode", "NORMAL")
+    if is_heavy:
+        state["_risk_mode"] = risk_mode
+    if risk_mode == "STOPPED":
+        logger.warning("STOPPED: WR < 50%% — no trading until manual review")
+        return state
+
     # ── HEAVY OPS (every 30s): discovery, signal pipeline, new entries ──
     if is_heavy:
         _last_heavy_ts = now_s
     else:
         # Fast cycle: skip discovery + entry, go to cancel/fill/resolve
-        # Find the cancel defense section below
         pass
 
     # Discover → watchlist (gated by is_heavy via _SCAN_S check)
@@ -742,7 +790,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         n_tranches = calc_tranches(bankroll, config)
 
         orders = plan_opening(mkt, fair, config, bankroll=bankroll,
-                              tranche=0, total_tranches=n_tranches)
+                              tranche=0, total_tranches=n_tranches,
+                              risk_mode=risk_mode)
         if not orders:
             del state["watchlist"][cid]
             continue

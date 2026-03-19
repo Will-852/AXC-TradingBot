@@ -189,7 +189,8 @@ def calc_tranches(bankroll: float, config: MMConfig) -> int:
 
 def plan_opening(market: PolyMarket, fair_up: float,
                  config: MMConfig, bankroll: float = 0,
-                 tranche: int = 0, total_tranches: int = 1) -> list[PlannedOrder]:
+                 tranche: int = 0, total_tranches: int = 1,
+                 risk_mode: str = "NORMAL") -> list[PlannedOrder]:
     """Dual-layer: hedge (guaranteed) + directional (EV play).
 
     Layer 1 — HEDGE: Equal shares UP + DN at informed prices.
@@ -257,16 +258,24 @@ def plan_opening(market: PolyMarket, fair_up: float,
         hedge_token = market.yes_token_id
     dir_bid = up_bid if dir_side == "UP" else dn_bid
 
-    # Zone classification
-    if confidence <= ZONE_1_BOUND:
-        # Zone 1: pure hedge only
+    # Zone classification — adjusted by risk mode
+    # NORMAL: standard allocation
+    # DEFENSIVE: shift budget toward hedge (reduce directional exposure)
+    # HEDGE_ONLY: no directional at all
+    if risk_mode == "HEDGE_ONLY":
+        hedge_pct, dir_pct = 1.0, 0.0
+    elif confidence <= ZONE_1_BOUND:
         hedge_pct, dir_pct = 1.0, 0.0
     elif confidence <= ZONE_2_BOUND:
-        # Zone 2: 50/50
-        hedge_pct, dir_pct = 0.50, 0.50
+        if risk_mode == "DEFENSIVE":
+            hedge_pct, dir_pct = 0.70, 0.30  # shift toward hedge
+        else:
+            hedge_pct, dir_pct = 0.50, 0.50
     else:
-        # Zone 3: 25/75
-        hedge_pct, dir_pct = 0.25, 0.75
+        if risk_mode == "DEFENSIVE":
+            hedge_pct, dir_pct = 0.40, 0.60  # shift toward hedge
+        else:
+            hedge_pct, dir_pct = 0.25, 0.75
 
     orders = []
 
