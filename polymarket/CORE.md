@@ -21,7 +21,7 @@
 > - 用戶手動加入 state 嘅 position = 只讀監控，唔准 exit/sell
 > - 信號指向上面兩個以外嘅市場 → SKIP，唔落單
 >
-> **Weather scope**：亞洲為主。categories.py 有 US cities = paper testing only，唔係正式 scope。
+> **Weather scope**：全球 21 城市，亞洲優先。同一套 ensemble + ROUND rule 適用所有城市。
 >
 > **違規案例（2026-03-19）**：Pipeline 自動賣出用戶手動落嘅 NBA Nets 注，
 > 虧損 $1.82。原因：position 被加入 state 後被 drift exit rule 觸發。

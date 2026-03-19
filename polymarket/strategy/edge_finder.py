@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 load_dotenv(SECRETS_PATH)
 _PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://tao.plus7.plus/v1")
 _PROXY_API_KEY = os.environ.get("PROXY_API_KEY", "")
+_PROXY2_BASE_URL = os.environ.get("PROXY2_BASE_URL", "")
+_PROXY2_API_KEY = os.environ.get("PROXY2_API_KEY", "")
+_FALLBACK_MODEL = "gpt-5.2"
 _API_TIMEOUT = 60  # seconds per call
 
 # ─── Edge Prediction Logging (Phase 2 calibration) ───
@@ -124,50 +127,74 @@ Output format:
 
 
 def _call_claude(system: str, user: str) -> dict:
-    """Call Claude via proxy API. Returns parsed JSON response."""
-    if not _PROXY_API_KEY:
-        raise RuntimeError("PROXY_API_KEY not set — cannot call Claude")
+    """Call LLM with fallback chain. Returns parsed JSON response.
 
-    url = f"{_PROXY_BASE_URL}/messages"
-    payload = json.dumps({
-        "model": AI_MODEL,
-        "max_tokens": AI_MAX_TOKENS,
-        "temperature": AI_TEMPERATURE,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-    }).encode("utf-8")
+    Chain: Claude Sonnet (PROXY1) → GPT fallback (PROXY1 → PROXY2).
+    """
+    if not _PROXY_API_KEY and not _PROXY2_API_KEY:
+        raise RuntimeError("No proxy API key configured")
 
-    req = urllib.request.Request(url, data=payload, method="POST", headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {_PROXY_API_KEY}",
-        "anthropic-version": "2023-06-01",
-    })
+    messages = [{"role": "user", "content": user}]
 
-    try:
-        with urllib.request.urlopen(req, timeout=_API_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()[:500] if hasattr(e, "read") else ""
-        raise RuntimeError(f"Claude API error {e.code}: {body}")
-    except (urllib.error.URLError, TimeoutError) as e:
-        raise RuntimeError(f"Claude API connection error: {e}")
+    for model in [AI_MODEL, _FALLBACK_MODEL]:
+        is_anthropic = model.startswith("claude-")
+        proxies = [(_PROXY_BASE_URL, _PROXY_API_KEY)]
+        if not is_anthropic and _PROXY2_BASE_URL and _PROXY2_API_KEY:
+            proxies.append((_PROXY2_BASE_URL, _PROXY2_API_KEY))
 
-    # Extract text from Anthropic response
-    content = data.get("content", [])
-    parts = [block.get("text", "") for block in content if block.get("type") == "text"]
-    text = "\n".join(parts).strip()
+        for proxy_url, proxy_key in proxies:
+            try:
+                if is_anthropic:
+                    url = f"{proxy_url}/messages"
+                    payload = json.dumps({
+                        "model": model, "max_tokens": AI_MAX_TOKENS,
+                        "temperature": AI_TEMPERATURE,
+                        "system": system, "messages": messages,
+                    }).encode("utf-8")
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}",
+                               "anthropic-version": "2023-06-01"}
+                else:
+                    url = f"{proxy_url}/chat/completions"
+                    oai_msgs = [{"role": "system", "content": system}] + messages
+                    payload = json.dumps({
+                        "model": model, "max_tokens": AI_MAX_TOKENS,
+                        "temperature": AI_TEMPERATURE,
+                        "messages": oai_msgs,
+                    }).encode("utf-8")
+                    headers = {"Content-Type": "application/json",
+                               "Authorization": f"Bearer {proxy_key}"}
 
-    # Parse JSON from response (handle markdown code blocks)
-    if text.startswith("```"):
-        # Strip ```json ... ```
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+                req = urllib.request.Request(url, data=payload, method="POST",
+                                             headers=headers)
+                with urllib.request.urlopen(req, timeout=_API_TIMEOUT) as resp:
+                    data = json.loads(resp.read().decode())
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning("Claude returned non-JSON: %s", text[:200])
-        return {"probability": 0.5, "confidence": 0.0, "reasoning": "Parse error"}
+                # Extract text
+                if is_anthropic:
+                    content = data.get("content", [])
+                    parts = [b.get("text", "") for b in content if b.get("type") == "text"]
+                    text = "\n".join(parts).strip()
+                else:
+                    text = data["choices"][0]["message"]["content"].strip()
+
+                logger.info("Model %s succeeded via %s", model, proxy_url)
+
+                # Parse JSON (handle markdown code blocks)
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    logger.warning("Model %s returned non-JSON: %s", model, text[:200])
+                    continue  # try next model/proxy
+            except Exception as e:
+                logger.warning("Model %s via %s failed: %s", model, proxy_url, e)
+                continue
+
+    logger.error("All models in fallback chain failed")
+    return {"probability": 0.5, "confidence": 0.0, "reasoning": "All models failed"}
 
 
 # ─── Data Gatherers ───
