@@ -112,15 +112,13 @@ def parse_crypto_15m_market(title: str) -> dict | None:
         logger.debug("Invalid date/time in 15M title: %s", title[:60])
         return None
 
-    # Lead time
+    # Lead time (informational — 15M markets are continuous, no strict window)
     lead_seconds = (start_time - now).total_seconds()
     lead_minutes = lead_seconds / 60
 
-    if lead_minutes < CRYPTO_15M_MIN_LEAD_MIN:
-        logger.debug("15M market too soon: %.0f min lead", lead_minutes)
-        return None
-    if lead_minutes > CRYPTO_15M_MAX_LEAD_MIN:
-        logger.debug("15M market too far: %.0f min lead", lead_minutes)
+    # Skip markets that already ended (negative lead beyond window duration)
+    if lead_minutes < -15:
+        logger.debug("15M market already resolved: %.0f min ago", -lead_minutes)
         return None
 
     return {

@@ -6,7 +6,8 @@ Can be used standalone for market exploration.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+import time
+from datetime import date, datetime, timedelta, timezone
 
 from ..config.settings import (
     MAX_MARKETS_TO_SCAN, MIN_LIQUIDITY_USDC, MIN_VOLUME_24H,
@@ -14,12 +15,24 @@ from ..config.settings import (
     PRICE_FLOOR, PRICE_CEILING,
     CRYPTO_15M_MIN_LIQUIDITY, WEATHER_MIN_LIQUIDITY,
     WEATHER_MAX_LEAD_DAYS,
+    CRYPTO_15M_ENABLED_COINS,
 )
-from ..config.categories import match_category, WEATHER_CITIES
+from ..config.categories import match_category, WEATHER_CITIES, CRYPTO_15M_COINS
 from ..core.context import PolyMarket
 from ..exchange.gamma_client import GammaClient
 
 logger = logging.getLogger(__name__)
+
+# ─── 15M Direct Slug Discovery ───
+# Markets are continuous (24/7), slug = {coin}-updown-15m-{unix_timestamp}
+# Timestamp aligned to 15-min boundaries (900s)
+_15M_WINDOW_S = 900
+# Coin → slug prefix mapping
+_15M_SLUG_PREFIX = {
+    "bitcoin": "btc",
+}
+# How many future windows to fetch (next 2 = current running + upcoming)
+_15M_LOOKAHEAD = 3
 
 
 def scan_markets(
@@ -104,6 +117,17 @@ def scan_markets(
 
         filtered.append(market)
 
+    # ── 15M: direct slug scan (continuous markets, bypasses search) ──
+    crypto_scanned, crypto_filtered = _scan_15m_direct(gamma, verbose)
+    existing_ids = {m.condition_id for m in scanned}
+    for m in crypto_scanned:
+        if m.condition_id not in existing_ids:
+            scanned.append(m)
+    existing_ids = {m.condition_id for m in filtered}
+    for m in crypto_filtered:
+        if m.condition_id not in existing_ids:
+            filtered.append(m)
+
     # ── Weather: targeted event slug scan (bypasses liquidity ranking) ──
     weather_scanned, weather_filtered = _scan_weather_events(gamma, verbose)
     # De-duplicate by condition_id (avoid double-counting if also found in general scan)
@@ -115,6 +139,90 @@ def scan_markets(
     for m in weather_filtered:
         if m.condition_id not in existing_ids:
             filtered.append(m)
+
+    return scanned, filtered
+
+
+# ─── 15M Direct Slug Scanner ───
+
+def _scan_15m_direct(
+    gamma: GammaClient, verbose: bool = False,
+) -> tuple[list[PolyMarket], list[PolyMarket]]:
+    """Fetch current + next 15M windows by direct slug calculation.
+
+    設計決定：15M 市場係 continuous（24/7 每 15 min），slug = {coin}-updown-15m-{unix_ts}。
+    唔用 search — 直接計算 timestamp → construct slug → fetch event。
+    """
+    scanned: list[PolyMarket] = []
+    filtered: list[PolyMarket] = []
+
+    now_ts = int(time.time())
+    current_window = now_ts // _15M_WINDOW_S * _15M_WINDOW_S
+
+    for coin in CRYPTO_15M_ENABLED_COINS:
+        prefix = _15M_SLUG_PREFIX.get(coin)
+        if not prefix:
+            continue
+
+        for offset in range(0, _15M_LOOKAHEAD):
+            window_ts = current_window + offset * _15M_WINDOW_S
+            slug = f"{prefix}-updown-15m-{window_ts}"
+
+            try:
+                event = gamma.get_event_by_slug(slug)
+            except Exception as e:
+                logger.debug("15M slug fetch failed (%s): %s", slug, e)
+                continue
+
+            if not event:
+                continue
+
+            # Parse markets within this event
+            raw_markets = event.get("markets", [])
+            if not raw_markets:
+                continue
+
+            for raw in raw_markets:
+                parsed = gamma.parse_market(raw)
+                category = match_category(parsed["title"])
+                if category != "crypto_15m":
+                    continue
+
+                market = PolyMarket(
+                    condition_id=parsed["condition_id"],
+                    title=parsed["title"],
+                    description=parsed.get("description", ""),
+                    category=category,
+                    end_date=parsed["end_date"],
+                    yes_token_id=parsed["yes_token_id"],
+                    no_token_id=parsed["no_token_id"],
+                    yes_price=parsed["yes_price"],
+                    no_price=parsed["no_price"],
+                    volume=parsed["volume"],
+                    volume_24h=parsed["volume_24h"],
+                    liquidity=parsed["liquidity"],
+                    slug=parsed.get("slug", slug),
+                    outcomes=parsed.get("outcomes", []),
+                    outcome_prices=parsed.get("outcome_prices", {}),
+                    outcome_tokens=parsed.get("outcome_tokens", {}),
+                    neg_risk=parsed.get("neg_risk", False),
+                    event_id=parsed.get("event_id", ""),
+                    event_slug=parsed.get("event_slug", slug),
+                    tick_size=parsed.get("tick_size", 0.01),
+                    min_order_size=parsed.get("min_order_size", 5),
+                    spread=abs((parsed["yes_price"] + parsed["no_price"]) - 1.0)
+                           if parsed["yes_price"] > 0 and parsed["no_price"] > 0
+                           else 0.0,
+                )
+                scanned.append(market)
+
+                if _passes_quality_filter(market, verbose):
+                    # 5M block doesn't apply here (we only construct 15M slugs)
+                    filtered.append(market)
+
+            if verbose:
+                logger.info("15M direct: %s → %d markets", slug,
+                            len([m for m in scanned if slug in m.slug]))
 
     return scanned, filtered
 
