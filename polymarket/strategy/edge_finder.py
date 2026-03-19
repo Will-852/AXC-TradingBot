@@ -271,19 +271,27 @@ _RE_EXACT_C = re.compile(
     r"(?:be\s+)?(\d+)\s*°?\s*[Cc]", re.IGNORECASE,
 )
 _RE_FLOOR_C = re.compile(
-    r"(?:≤|<=|below|under|at most)\s*(\d+)\s*°?\s*[Cc]", re.IGNORECASE,
+    r"(?:≤|<=|below|under|at most)\s*(\d+)\s*°?\s*[Cc]"
+    r"|(\d+)\s*°?\s*[Cc]\s+or\s+(?:below|lower|less|under)",
+    re.IGNORECASE,
 )
 _RE_CEIL_C = re.compile(
-    r"(?:≥|>=|above|over|at least)\s*(\d+)\s*°?\s*[Cc]", re.IGNORECASE,
+    r"(?:≥|>=|above|over|at least)\s*(\d+)\s*°?\s*[Cc]"
+    r"|(\d+)\s*°?\s*[Cc]\s+or\s+(?:above|higher|more|over)",
+    re.IGNORECASE,
 )
 _RE_RANGE_F = re.compile(
     r"(\d+)\s*[-–]\s*(\d+)\s*°?\s*[Ff]", re.IGNORECASE,
 )
 _RE_FLOOR_F = re.compile(
-    r"(?:≤|<=|below|under|at most)\s*(\d+)\s*°?\s*[Ff]", re.IGNORECASE,
+    r"(?:≤|<=|below|under|at most)\s*(\d+)\s*°?\s*[Ff]"
+    r"|(\d+)\s*°?\s*[Ff]\s+or\s+(?:below|lower|less|under)",
+    re.IGNORECASE,
 )
 _RE_CEIL_F = re.compile(
-    r"(?:≥|>=|above|over|at least)\s*(\d+)\s*°?\s*[Ff]", re.IGNORECASE,
+    r"(?:≥|>=|above|over|at least)\s*(\d+)\s*°?\s*[Ff]"
+    r"|(\d+)\s*°?\s*[Ff]\s+or\s+(?:above|higher|more|over)",
+    re.IGNORECASE,
 )
 _RE_EXACT_F = re.compile(
     r"(?:be\s+)?(\d+)\s*°?\s*[Ff]", re.IGNORECASE,
@@ -354,12 +362,14 @@ def _parse_weather_market(title: str) -> dict | None:
         m_ceil = _RE_CEIL_C.search(title)
         if m_floor:
             bucket_type = "floor"
-            # ROUND rule: "≤10°C" → round(actual) ≤ 10 → actual < 10.5
-            threshold_high = float(m_floor.group(1)) + 0.5
+            # ROUND rule: "≤10°C" or "10°C or below" → actual < 10.5
+            val = float(m_floor.group(1) or m_floor.group(2))
+            threshold_high = val + 0.5
         elif m_ceil:
             bucket_type = "ceiling"
-            # ROUND rule: "≥15°C" → round(actual) ≥ 15 → actual ≥ 14.5
-            threshold_low = float(m_ceil.group(1)) - 0.5
+            # ROUND rule: "≥15°C" or "15°C or above" → actual ≥ 14.5
+            val = float(m_ceil.group(1) or m_ceil.group(2))
+            threshold_low = val - 0.5
         else:
             m_exact = _RE_EXACT_C.search(title)
             if m_exact:
@@ -374,12 +384,14 @@ def _parse_weather_market(title: str) -> dict | None:
         m_ceil = _RE_CEIL_F.search(title)
         if m_floor:
             bucket_type = "floor"
-            # ROUND rule: "≤55°F" → actual < 55.5
-            threshold_high = float(m_floor.group(1)) + 0.5
+            # ROUND rule: "≤55°F" or "55°F or below" → actual < 55.5
+            val = float(m_floor.group(1) or m_floor.group(2))
+            threshold_high = val + 0.5
         elif m_ceil:
             bucket_type = "ceiling"
-            # ROUND rule: "≥60°F" → actual ≥ 59.5
-            threshold_low = float(m_ceil.group(1)) - 0.5
+            # ROUND rule: "≥60°F" or "60°F or higher" → actual ≥ 59.5
+            val = float(m_ceil.group(1) or m_ceil.group(2))
+            threshold_low = val - 0.5
         elif m_range:
             bucket_type = "range"
             # ROUND rule: "56-57°F" → actual in [55.5, 57.5)

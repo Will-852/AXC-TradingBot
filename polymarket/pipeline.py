@@ -938,18 +938,20 @@ class ExecuteTradesStep:
                 )
                 continue
 
-            # ─── Pre-exec liquidity re-check (crypto_15m only) ───
+            # ─── Pre-exec liquidity re-check ───
             # Scan-time liquidity can be up to 180s stale; re-check before real money
-            if signal.category == "crypto_15m" and not ctx.dry_run:
+            if signal.category in ("crypto_15m", "weather") and not ctx.dry_run:
+                from polymarket.config.settings import WEATHER_MIN_LIQUIDITY
                 try:
                     from polymarket.exchange.gamma_client import GammaClient
                     _g = ctx.gamma_client or GammaClient()
                     fresh_market = _g.get_market(signal.condition_id)
                     fresh_liq = float(fresh_market.get("liquidityNum", 0) or 0)
-                    if fresh_liq < 100:
+                    min_liq = WEATHER_MIN_LIQUIDITY if signal.category == "weather" else 100
+                    if fresh_liq < min_liq:
                         logger.warning(
-                            "SKIP TRADE: %s liquidity dried up ($%.0f < $100)",
-                            signal.title[:30], fresh_liq,
+                            "SKIP TRADE: %s liquidity dried up ($%.0f < $%.0f)",
+                            signal.title[:30], fresh_liq, min_liq,
                         )
                         continue
                 except Exception as e:
@@ -1068,6 +1070,29 @@ class ExecuteTradesStep:
                         order_id=order_id,
                         dry_run=False,
                     )
+
+                    # ── Track position for state persistence + cross-cycle dedup ──
+                    shares = signal.bet_size_usdc / signal.price if signal.price > 0 else 0
+                    end_date = ""
+                    for m in ctx.filtered_markets:
+                        if m.condition_id == signal.condition_id:
+                            end_date = m.end_date
+                            break
+                    pos = PolyPosition(
+                        condition_id=signal.condition_id,
+                        title=signal.title,
+                        category=signal.category,
+                        side=signal.side,
+                        token_id=signal.token_id,
+                        shares=shares,
+                        avg_price=signal.price,
+                        current_price=signal.price,
+                        cost_basis=signal.bet_size_usdc,
+                        market_value=signal.bet_size_usdc,
+                        entry_time=ctx.timestamp_str,
+                        end_date=end_date,
+                    )
+                    ctx.open_positions.append(pos)
 
                     if ctx.verbose:
                         print(f"    LIVE: bought {signal.side} {signal.title[:40]} ${signal.bet_size_usdc:.2f} → {order_id}")
