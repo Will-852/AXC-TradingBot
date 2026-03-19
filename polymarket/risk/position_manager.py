@@ -92,8 +92,11 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
             # Try ISO datetime first (e.g., "2026-03-19T16:50:00Z")
             try:
                 end = datetime.fromisoformat(pos.end_date.replace("Z", "+00:00"))
-                # Make now timezone-aware if end is
-                now_aware = now if now.tzinfo else now.replace(tzinfo=end.tzinfo)
+                # Convert now to end's timezone (gotcha: .replace() labels, .astimezone() converts)
+                if now.tzinfo:
+                    now_aware = now.astimezone(end.tzinfo)
+                else:
+                    now_aware = now.replace(tzinfo=end.tzinfo)
                 time_left = end - now_aware
                 if time_left.total_seconds() < 0:
                     signal.reasons.append("Market resolved")

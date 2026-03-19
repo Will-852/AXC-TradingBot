@@ -164,5 +164,5 @@ def send_poly_report(ctx: Any, no_telegram: bool = False) -> None:
     for msg in ctx.telegram_messages:
         try:
             send_telegram(msg)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Queued telegram msg failed: %s", e)

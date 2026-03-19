@@ -69,7 +69,8 @@ def check_safety(ctx: PolyContext) -> PolyContext:
                 ctx.risk_reasons.append(
                     f"Cooldown after loss: {remaining:.0f}min remaining"
                 )
-                # Soft block — allow position management but not new entries
+                # Soft block — allow position management but block new entries
+                ctx.entry_blocked = True
         except (ValueError, TypeError):
             pass
 
@@ -108,7 +109,9 @@ def filter_signals(ctx: PolyContext) -> list[PolySignal]:
     - Category exposure limit
     - Zero bet size
     """
-    if ctx.risk_blocked:
+    if ctx.risk_blocked or ctx.entry_blocked:
+        if ctx.entry_blocked and not ctx.risk_blocked:
+            logger.info("Risk: entry blocked (cooldown after loss)")
         return []
 
     # Markets we already have positions in

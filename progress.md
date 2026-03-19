@@ -61,5 +61,11 @@
 - [x] Train/Test OOS: 66.4% vs 66.1% (drift 0.3% ✅ no overfit)
 - [x] 76% positive days, Sharpe 12-13
 - [x] Bridge-only baseline — real system adds indicator+CVD+OB for higher accuracy
+### Stress Test ✅
+- [x] 360d Monte Carlo: Realistic scenario +$18.7K, Pessimistic +$7.9K
+- [x] Break-even: WR can drop 14% at fill=60% + adv=10%
+- [x] Strategy robust: single factor degradation never causes loss
+- [x] Death condition: WR-10% + fill 40% + adv 20% simultaneous (极端)
+
 ### Phase 5: Paper 24h `status: pending`
 ### Phase 6: Live `status: pending`

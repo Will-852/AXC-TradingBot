@@ -30,6 +30,7 @@ if _scripts_dir not in sys.path:
 from polymarket.config.settings import (
     HKT, POLY_STATE_PATH, POLY_PIPELINE_LOCK_PATH,
     TAKE_PROFIT_TOKEN_PRICE, WATCHER_INTERVAL_SEC, LOG_DIR,
+    AUTOMATED_CATEGORIES,
 )
 from polymarket.state.poly_state import read_state, write_state
 from polymarket.state.trade_log import log_trade
@@ -54,6 +55,11 @@ def _check_positions(client, dry_run: bool, verbose: bool) -> int:
     for pos in positions:
         token_id = pos.get("token_id", "")
         if not token_id:
+            continue
+
+        # ─── Scope guard: only auto-sell AUTOMATED_CATEGORIES ───
+        category = pos.get("category", "")
+        if category not in AUTOMATED_CATEGORIES:
             continue
 
         title = pos.get("title", "?")[:40]
@@ -135,8 +141,8 @@ def _check_positions(client, dry_run: bool, verbose: bool) -> int:
                 f"Mid: {midpoint:.4f} ≥ {TAKE_PROFIT_TOKEN_PRICE}\n"
                 f"PnL: ${pnl:+.2f}"
             )
-        except Exception:
-            pass  # Telegram failure is non-critical
+        except Exception as e:
+            logger.debug("Telegram send failed: %s", e)
 
     # ─── Update state: remove exited positions ───
     if exited_ids:

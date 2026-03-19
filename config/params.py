@@ -256,7 +256,7 @@ REGIME_PRESETS = {
     "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
     "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
 }
-ACTIVE_REGIME_PRESET = "classic"  # 2026-03-19: BOCPD hurts BTC (+14.45pp). HMM = +3.29% vs BOCPD = -11.16%.
+ACTIVE_REGIME_PRESET = "full"  # 2026-03-19: BOCPD hurts BTC (+14.45pp). HMM = +3.29% vs BOCPD = -11.16%.
 # Derived from preset（settings.py getattr 繼續正常運作）
 REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
 CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]

@@ -165,6 +165,7 @@ class PolyContext:
 
     # ─── Risk ───
     risk_blocked: bool = False
+    entry_blocked: bool = False       # soft block: allow exits but no new entries (cooldown)
     risk_reasons: list[str] = field(default_factory=list)
     daily_pnl: float = 0.0
     circuit_breaker_active: bool = False

@@ -45,6 +45,20 @@
 - |M1 ret| > 0.10% filter: +2.6% accuracy, -30% trades
 - Train ≈ Test（唔係 overfit）
 
+## Stress Test (360d Monte Carlo, $4/trade fixed)
+
+| Scenario | WR drop | Fill | Adverse | Result | Status |
+|----------|---------|------|---------|--------|--------|
+| Ideal | 0% | 100% | 0% | +$35,133 | ✅ |
+| Realistic | -3% | 80% | -5% | +$18,707 | ✅ |
+| Pessimistic | -5% | 60% | -10% | +$7,886 | ✅ |
+| Very bad | -8% | 50% | -15% | +$663 | ⚠️ |
+| Nightmare | -10% | 40% | -20% | -$3,588 | 🔴 |
+
+Break-even: fill=60% + adv=10% → WR can drop 14% (68→54%) before losing.
+Hedge layer = safety net: guaranteed profit regardless of directional accuracy.
+Strategy dies only if WR-10% + Fill 40% + Adverse 20% ALL happen simultaneously.
+
 ## Opus Code Review — 12 Issues
 
 ### RED (5)

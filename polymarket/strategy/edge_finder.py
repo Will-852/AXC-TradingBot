@@ -988,12 +988,11 @@ def assess_edge(market: PolyMarket) -> EdgeAssessment:
 
     # Gather context data based on category
     # (crypto_15m already set context_data above via build_15m_ai_context)
+    # Weather always returns from deterministic path above — never reaches here
     if market.category == "crypto_15m":
         pass  # context_data already set
     elif market.category == "crypto":
         context_data = _get_crypto_context()
-    elif market.category == "weather":
-        context_data = _get_weather_context(market.title)
     else:
         context_data = "No specific data available for this category."
 
@@ -1071,6 +1070,9 @@ def assess_markets(markets: list[PolyMarket], max_assessments: int = 5,
             print(f"      [{i+1}/{len(candidates)}] Assessing: {market.title[:50]}...")
 
         assessment = assess_edge(market)
+        if assessment is None:
+            logger.warning("assess_edge returned None for %s — skipping", market.title[:40])
+            continue
         assessments.append(assessment)
 
         if verbose:

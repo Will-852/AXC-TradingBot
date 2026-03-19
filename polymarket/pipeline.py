@@ -240,10 +240,11 @@ class CheckPositionsStep:
         else:
             ctx.usdc_balance = ctx.state.get("usdc_balance", 1000.0)  # default $1000 for dry-run
 
-        # Calculate exposure
+        # Calculate exposure (denominator = total bankroll, not just cash)
         ctx.total_exposure = sum(p.cost_basis for p in ctx.open_positions)
-        if ctx.usdc_balance > 0:
-            ctx.exposure_pct = ctx.total_exposure / ctx.usdc_balance
+        bankroll = ctx.usdc_balance + ctx.total_exposure
+        if bankroll > 0:
+            ctx.exposure_pct = ctx.total_exposure / bankroll
 
         if ctx.verbose:
             print(f"    Balance: ${ctx.usdc_balance:,.2f}")
@@ -998,6 +999,11 @@ class ExecuteTradesStep:
 
                 # Add simulated position for state tracking
                 shares = signal.bet_size_usdc / signal.price if signal.price > 0 else 0
+                end_date = ""
+                for m in ctx.filtered_markets:
+                    if m.condition_id == signal.condition_id:
+                        end_date = m.end_date
+                        break
                 pos = PolyPosition(
                     condition_id=signal.condition_id,
                     title=signal.title,
@@ -1010,7 +1016,7 @@ class ExecuteTradesStep:
                     cost_basis=signal.bet_size_usdc,
                     market_value=signal.bet_size_usdc,
                     entry_time=ctx.timestamp_str,
-                    end_date="",
+                    end_date=end_date,
                 )
                 ctx.open_positions.append(pos)
 
@@ -1030,18 +1036,14 @@ class ExecuteTradesStep:
                             platform="polymarket",
                         )
 
-                    # Execute buy via SDK — respect GTO order type
-                    # MARKET → price=0 (FOK taker); LIMIT → price=signal.price (GTC)
-                    exec_price = 0 if signal.gto_order_type == "MARKET" else signal.price
-                    if signal.gto_limit_offset and signal.gto_order_type == "LIMIT":
-                        logger.info(
-                            "GTO limit_offset=%.4f logged (orderbook mid TBD Phase 2)",
-                            signal.gto_limit_offset,
-                        )
+                    # Execute buy via SDK — ALWAYS use FOK (market order)
+                    # GTC limit orders assumed filled = phantom shares (gotcha 🔴)
+                    # GTO may recommend LIMIT, but pipeline uses FOK for safety.
+                    # Maker limit orders belong in run_mm_live.py, not here.
                     result = ctx.exchange_client.buy_shares(
                         token_id=signal.token_id,
                         amount_usdc=signal.bet_size_usdc,
-                        price=exec_price,
+                        price=0,  # FOK — fills or fails atomically
                     )
 
                     order_id = result.get("orderID", result.get("id", ""))
@@ -1212,12 +1214,12 @@ class SendReportsStep:
 def build_pipeline() -> Pipeline:
     """Build the 14-step Polymarket pipeline.
 
-    Pipeline order:
+    Pipeline order (safety check AFTER positions loaded — gotcha fix):
       1.   read_state          — POLYMARKET_STATE.json
       2.   replay_wal          — WAL crash recovery (live only)
-      3.   safety_check        — circuit breaker, daily loss, cooldown
-      4.   scan_markets        — Gamma API → filter crypto/weather
-      5.   check_positions     — sync positions + USDC balance
+      3.   scan_markets        — Gamma API → filter crypto/weather
+      4.   check_positions     — sync positions + USDC balance
+      5.   safety_check        — circuit breaker, daily loss, cooldown, position limits
       5.5  merge_check         — detect mergeable YES+NO pairs (report only)
       6.   manage_positions    — exit triggers (drift, PnL, expiry)
       6.5  close_hedge         — close HL hedge for resolved/exited positions
@@ -1234,9 +1236,9 @@ def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
     pipeline.add_step(ReadStateStep())         # 1
     pipeline.add_step(ReplayWALStep())         # 2
-    pipeline.add_step(SafetyCheckStep())       # 3
-    pipeline.add_step(ScanMarketsStep())       # 4
-    pipeline.add_step(CheckPositionsStep())    # 5
+    pipeline.add_step(ScanMarketsStep())       # 3 (was 4)
+    pipeline.add_step(CheckPositionsStep())    # 4 (was 5)
+    pipeline.add_step(SafetyCheckStep())       # 5 (was 3, moved after positions loaded)
     pipeline.add_step(MergeCheckStep())        # 5.5
     pipeline.add_step(ManagePositionsStep())   # 6
     pipeline.add_step(CloseHedgeStep())        # 6.5
@@ -1303,8 +1305,8 @@ def main():
     ts_str = now.strftime("%Y-%m-%d %H:%M")
 
     # ─── Pipeline Mutex ───
+    _pipeline_lock = FileLock(POLY_PIPELINE_LOCK_PATH, timeout=0.1)
     try:
-        _pipeline_lock = FileLock(POLY_PIPELINE_LOCK_PATH, timeout=0.1)
         _pipeline_lock.__enter__()
     except TimeoutError:
         logger.info("Poly pipeline mutex held — exiting cleanly")
@@ -1359,7 +1361,14 @@ def main():
     if args.verbose:
         print(f"  Pipeline steps: {pipeline.get_step_names()}")
 
-    ctx = pipeline.run(ctx)
+    try:
+        ctx = pipeline.run(ctx)
+    finally:
+        # Always release pipeline lock (gotcha: lock never released)
+        try:
+            _pipeline_lock.__exit__(None, None, None)
+        except Exception:
+            pass
 
     # ─── Output summary ───
     summary = {

@@ -97,13 +97,18 @@ class PolymarketClient:
         """
         try:
             # funder = proxy wallet address (where USDC lives)
+            # signature_type=1 REQUIRES funder — gotcha: empty funder = invalid signature at runtime
             funder = os.getenv("POLY_WALLET_ADDRESS", "")
+            if not funder:
+                raise CriticalError(
+                    "POLY_WALLET_ADDRESS required for proxy mode (signature_type=1)"
+                )
             self.client = ClobClient(
                 CLOB_HOST,
                 chain_id=CHAIN_ID,
                 key=self.private_key,
                 signature_type=1,
-                funder=funder or None,
+                funder=funder,
             )
 
             # Try loading cached API creds
@@ -275,8 +280,7 @@ class PolymarketClient:
 
         try:
             if price > 0:
-                # Limit order
-                tick_size = self.client.get_tick_size(token_id)
+                # Limit order (GTC)
                 size = amount_usdc / price  # shares = dollars / price_per_share
                 args = OrderArgs(
                     token_id=token_id,

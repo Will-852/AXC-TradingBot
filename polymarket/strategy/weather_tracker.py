@@ -61,10 +61,6 @@ RESOLUTION_SOURCES = {
     "wellington": {"type": "wunderground", "station": "NZWN", "precision": "whole"},   # Wellington Intl
 }
 
-# Ensure Seoul is available for market parsing (not in WEATHER_CITIES by default)
-if "seoul" not in WEATHER_CITIES:
-    WEATHER_CITIES["seoul"] = (37.566, 126.978, "C")
-
 _ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
 _ARCHIVE_API = "https://archive-api.open-meteo.com/v1/archive"
 _HKO_API = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php"
