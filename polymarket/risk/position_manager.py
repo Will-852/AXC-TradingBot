@@ -139,22 +139,13 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
             signal.action = ""
         return signal
 
-    # ─── 3. Weather Early Exit（only for ultra-cheap shares ≤5¢）───
-    # Entry ≤ 5¢ (20×+ payout): exit at 500%+ profit → lock 6× return
-    # Entry > 5¢: HOLD to resolution — need full $1 payout to compensate losses
-    # Why 5¢ cutoff: cheaper shares have extreme payout (20-100×) but very low
-    #   win rate (~5-15%). A 500% paper gain = forecast converged significantly.
-    #   Remaining hold has Sharpe < 0.15 → not worth the binary risk.
-    if pos.category == "weather" and pos.avg_price <= 0.05:
-        profit_pct = pos.unrealized_pnl_pct
-        if profit_pct >= 5.0:  # ≥ 500% profit
-            signal.reasons.append(
-                f"Weather cheap exit: entry {pos.avg_price:.0%}, "
-                f"profit {profit_pct:.0%} > 500% — lock convergence gain"
-            )
-            signal.urgency = "high"
-            signal.action = "exit"
-            return signal
+    # ─── 3. Weather: NO EXIT — hold to resolution ───
+    # Weather = binary, resolves in 1-3 days, $1.42 per bet (1% bankroll).
+    # Selling on thin books ($200-$1500 liquidity) costs more than it saves.
+    # ColdMath ($77K PnL) holds $70K portfolio = he holds everything.
+    # Token ≥93% still applies above (step 2), but that's all.
+    if pos.category == "weather":
+        return signal  # no exit evaluation — hold to resolution
 
     # ══════════════════════════════════════════════
     # 以下只適用於長期市場（weather, general crypto 等）

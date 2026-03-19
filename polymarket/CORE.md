@@ -87,20 +87,21 @@
 |--|---------|---------|
 | 時間框架 | 15 分鐘 | 24-72 小時 |
 | 價格行為 | 隨機行走（唔可預測） | Forecast convergence（可預測） |
-| Exit 策略 | **HOLD to resolution** | **HOLD（大部分）+ ultra-cheap early exit** |
-| 原因 | 冇 convergence signal → exit = 放棄 upside | Tail bucket 需要 full $1 payout 補償 80% losses |
-| Backtest | HOLD +91% vs exit +69% | BMD: 100% exit cap kills tail bucket strategy |
+| Exit 策略 | **HOLD to resolution** | **HOLD to resolution** |
+| 原因 | 冇 convergence signal → exit = 放棄 upside | Liquidity 太薄 sell → slippage > edge savings |
+| Backtest | HOLD +91% vs exit +69% | ColdMath $70K portfolio = holds everything |
 
-### Weather Exit Rule（2026-03-19）
+### Weather Exit Rule（2026-03-19 final）
 ```
-Entry ≤ 5¢ + profit ≥ 500%  → SELL（lock 6× return，唔賭 binary resolution）
-Entry > 5¢                   → HOLD to resolution（需要 full $1 payout）
-All categories               → token price ≥ 93% → SELL
+HOLD to resolution — 冇 exit
+唯一 exception: token price ≥ 93%（all categories 共用）
 
-點解唔做一般 early exit：
-  Tail bucket (5-15¢) win rate ~15-25%
-  需要 $0.95 big payout 補償 75-85% losses
-  100% profit cap → win/loss ratio = 1:1 → negative EV
+點解唔做 early exit：
+  1. Liquidity $200-$1500 → sell slippage 2-5¢ > edge savings
+  2. 結算只需 1-3 日 → 等就得
+  3. 每注 $1.42 (1% bankroll) → 最差 lose $1.42
+  4. Tail bucket 需要 full $1 payout → cap winners = kill strategy
+  5. ColdMath ($77K PnL, portfolio $70K) = holds to resolution
 ```
 
 ### BTC 15M Exit Rule
