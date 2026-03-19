@@ -68,8 +68,94 @@ if "seoul" not in WEATHER_CITIES:
 _ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
 _ARCHIVE_API = "https://archive-api.open-meteo.com/v1/archive"
 _HKO_API = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php"
+_METAR_API = "https://aviationweather.gov/api/data/metar"
 _UA = "AXC-Trading/1.0"
 _TIMEOUT = 15
+
+
+# ─── Function 0: Fetch METAR Live Temperature ───
+
+def fetch_metar_temp(station: str) -> float | None:
+    """Fetch current temperature from aviation METAR observation.
+
+    Returns current temp in °C, or None on failure.
+    Used for lead=0d: if METAR already shows ≥X°C, "≥X°C" bucket is confirmed.
+    METAR updates hourly (SPECI for significant changes).
+    US stations include T-group (0.1°C); international = whole °C.
+    """
+    import re
+    url = f"{_METAR_API}?ids={station}&format=raw"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            raw = resp.read().decode().strip()
+
+        if not raw:
+            return None
+
+        # Try T-group first (0.1°C precision, US ASOS stations)
+        tg_match = re.search(r"T(\d{4})\d{4}", raw)
+        if tg_match:
+            t_raw = tg_match.group(1)
+            sign = -1 if t_raw[0] == "1" else 1
+            return sign * int(t_raw[1:]) / 10.0
+
+        # Fallback: main body whole °C (international)
+        temp_match = re.search(r"\s(M?\d{2})/M?\d{2}\s", raw)
+        if temp_match:
+            t = temp_match.group(1)
+            return -int(t[1:]) if t.startswith("M") else int(t)
+
+        return None
+    except (urllib.error.URLError, TimeoutError) as e:
+        logger.warning("METAR fetch error for %s: %s", station, e)
+        return None
+
+
+def fetch_metar_max_today(station: str) -> float | None:
+    """Fetch max temperature recorded TODAY from METAR 24h history.
+
+    Scans all observations in the last 24 hours, returns the highest temp.
+    Key for lead=0d: if max_today ≥ X, "≥X°C" bucket is already confirmed.
+    """
+    import re
+    url = f"{_METAR_API}?ids={station}&hours=24&format=raw"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            raw = resp.read().decode().strip()
+
+        if not raw:
+            return None
+
+        max_temp = None
+        for line in raw.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+
+            # T-group (0.1°C)
+            tg_match = re.search(r"T(\d{4})\d{4}", line)
+            if tg_match:
+                t_raw = tg_match.group(1)
+                sign = -1 if t_raw[0] == "1" else 1
+                temp = sign * int(t_raw[1:]) / 10.0
+            else:
+                # Main body whole °C
+                temp_match = re.search(r"\s(M?\d{2})/M?\d{2}\s", line)
+                if temp_match:
+                    t = temp_match.group(1)
+                    temp = -int(t[1:]) if t.startswith("M") else int(t)
+                else:
+                    continue
+
+            if max_temp is None or temp > max_temp:
+                max_temp = temp
+
+        return max_temp
+    except (urllib.error.URLError, TimeoutError) as e:
+        logger.warning("METAR 24h fetch error for %s: %s", station, e)
+        return None
 
 
 # ─── Function 1: Fetch Ensemble Forecast ───

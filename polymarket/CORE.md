@@ -81,13 +81,37 @@
   - 開頭 5 分鐘嘅 signal ≠ 最後 2 分鐘嘅 signal
 - **唔推演身份**：唔猜「邊個在賣」→ 只睇「賣壓有冇被吸收」
 
-## 6. 落注規則
-- Bankroll: $100 USDC
-- Max per bet: $10
-- Max total exposure: 30%
-- 0.45 ≤ P(Up) ≤ 0.55 → SKIP
-- Lead period contradicts model → SKIP
-- Entry price > 0.55 → SKIP (price cap)
+## 6. 兩個策略嘅根本差異
+
+| | BTC 15M | Weather |
+|--|---------|---------|
+| 時間框架 | 15 分鐘 | 24-72 小時 |
+| 價格行為 | 隨機行走（唔可預測） | Forecast convergence（可預測） |
+| Exit 策略 | **HOLD to resolution** | **Early exit when edge consumed** |
+| 原因 | 冇 convergence signal → exit = 放棄 upside | Forecast 收斂 → market catch up → edge 消失 |
+| Backtest | HOLD +91% vs exit +69% | 數學計算支持 early exit（Sharpe 0.12 = 唔值得 hold） |
+
+### Weather Early Exit Rule（2026-03-19 數學驗證）
+```
+SELL when:
+  remaining_edge < 5% AND profit > 100%
+
+原因：
+  Edge 5% 嘅 Sharpe = 0.12（垃圾 risk/reward）
+  不如 lock profit → 資金回籠 → 搵新 edge
+  資本效率：automatedAI portfolio $2K + PnL $77K = 快速 turnover compound
+```
+
+### BTC 15M Exit Rule
+```
+HOLD to resolution（唔做 early exit）
+唯一 exception: TAKE_PROFIT_TOKEN_PRICE ≥ 93% → 走
+```
+
+## 7. 落注規則
+- Bankroll: **live balance** | Per bet: **1%** | Per market: **10%** | Max exposure: **30%**
+- Kelly: half Kelly × confidence × GTO × capped at 1% bankroll
+- Weather edge: dynamic threshold (tail 3%, peak 8%) × lead multiplier
 - Daily loss > 15% → circuit breaker（6h cooldown）
 - 3 consecutive losses → circuit breaker
 

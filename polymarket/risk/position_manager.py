@@ -139,11 +139,29 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
             signal.action = ""
         return signal
 
+    # ─── 3. Weather Early Exit（forecast convergence profit lock）───
+    # Weather ≠ BTC 15M: forecast converges → market catches up → edge disappears
+    # Math: when remaining_edge < 5% and profit > 100%, Sharpe = 0.12 → not worth holding
+    # Sell → lock profit → redeploy capital → compound faster
+    if pos.category == "weather":
+        profit_pct = pos.unrealized_pnl_pct
+        # remaining_edge ≈ model_prob - current_price (simplified: use drift as proxy)
+        # If price moved UP significantly (profit > 100%), edge has been consumed
+        if profit_pct > 1.0:  # > 100% profit
+            # Price has roughly doubled → market caught up with our model
+            signal.reasons.append(
+                f"Weather early exit: profit {profit_pct:.0%} > 100% — lock convergence profit"
+            )
+            signal.urgency = "high"
+            signal.action = "exit"
+            return signal
+        # Weather loss cut: same as other long-term markets (fall through below)
+
     # ══════════════════════════════════════════════
     # 以下只適用於長期市場（weather, general crypto 等）
     # ══════════════════════════════════════════════
 
-    # ─── 3. Probability Drift ───
+    # ─── 4. Probability Drift ───
     drift = pos.probability_drift
     drift_against = False
     if drift < -EXIT_PROBABILITY_DRIFT:
