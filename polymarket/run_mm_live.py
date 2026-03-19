@@ -757,6 +757,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         mkt_dict["entry_ts"] = int(time.time())
         mkt_dict["tranches_done"] = 1
         mkt_dict["tranches_total"] = n_tranches
+        mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
@@ -793,13 +794,26 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _v2 = _vol_1m(_s2)
             _ml2 = max(1, (end_ms - now_ms) / 60_000)
             fair2 = compute_fair_up(_p2, _o2, _v2, int(_ml2))
-            confidence2 = max(fair2, 1.0 - fair2)
 
-            # Abort remaining tranches if confidence dropped
-            if confidence2 < 0.50:
-                logger.info("ABORT tranche %s: confidence=%.3f dropped", cid[:8], confidence2)
-                mkt_d["tranches_done"] = t_total  # mark complete
+            # Keep original direction — only abort if REVERSED
+            orig_dir = mkt_d.get("original_dir", "UP")
+            if orig_dir == "UP" and fair2 < 0.45:
+                logger.info("ABORT tranche %s: direction REVERSED (fair=%.3f, was UP)",
+                            cid[:8], fair2)
+                mkt_d["tranches_done"] = t_total
                 continue
+            elif orig_dir == "DOWN" and fair2 > 0.55:
+                logger.info("ABORT tranche %s: direction REVERSED (fair=%.3f, was DOWN)",
+                            cid[:8], fair2)
+                mkt_d["tranches_done"] = t_total
+                continue
+
+            # Use original direction with current price (buy the dip)
+            # Override fair to force original direction
+            if orig_dir == "UP" and fair2 < 0.50:
+                fair2 = max(fair2, 0.50 + 0.001)  # nudge to keep UP direction
+            elif orig_dir == "DOWN" and fair2 > 0.50:
+                fair2 = min(fair2, 0.50 - 0.001)
 
             mkt2 = PolyMarket(
                 condition_id=cid, title=mkt_d.get("title", ""),

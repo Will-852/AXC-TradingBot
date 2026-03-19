@@ -229,12 +229,12 @@ def plan_opening(market: PolyMarket, fair_up: float,
         full_budget = 5.0
     total_cost = full_budget / max(1, total_tranches)
 
-    # Fixed $0.475 bid — guaranteed maker, max profit per fill
-    # combined = $0.475 + $0.475 = $0.95 < $1.00 ✅
-    FIXED_BID = 0.475
-    up_bid = FIXED_BID
-    dn_bid = FIXED_BID
-    combined = up_bid + dn_bid  # $0.95
+    # Max bid $0.475 — guaranteed maker. But bid LOWER when market is lower.
+    # bid = min($0.475, fair - spread) → never overpay, capture dips
+    MAX_BID = 0.475
+    up_bid = round(min(MAX_BID, max(0.01, fair_up - config.half_spread)), 2)
+    dn_bid = round(min(MAX_BID, max(0.01, fair_down - config.half_spread)), 2)
+    combined = up_bid + dn_bid  # always <= $0.95
 
     # Can we afford hedge? (5 shares each side)
     hedge_min_cost = config.min_order_size * combined
@@ -249,7 +249,7 @@ def plan_opening(market: PolyMarket, fair_up: float,
         dir_side = "DOWN"
         dir_token = market.no_token_id
         hedge_token = market.yes_token_id
-    dir_bid = FIXED_BID
+    dir_bid = up_bid if dir_side == "UP" else dn_bid
 
     # Zone classification
     if confidence <= ZONE_1_BOUND:
