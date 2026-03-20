@@ -486,6 +486,53 @@ def render_polymarket_page():
             else:
                 ui.label('No circuit breakers').classes('text-gray-600 text-sm')
 
+    # ── Live Monitor (direct CLOB query, independent of pipeline state file) ──
+    ui.separator().classes('bg-gray-700 mt-4')
+    ui.label('LIVE WALLET MONITOR').classes('text-xs text-gray-500 uppercase tracking-wide')
+    live_container = ui.column().classes('w-full gap-1')
+    live_ts = ui.label('').classes('text-[10px] text-gray-600 font-mono')
+
+    async def refresh_live():
+        from scripts.dashboard_ng.utils.poly_live import query_live
+        from datetime import datetime
+        data = await run.io_bound(query_live)
+        live_container.clear()
+        with live_container:
+            if not data:
+                ui.label('Could not query CLOB').classes('text-gray-600 text-sm')
+                return
+
+            # Balance
+            bal = data.get('balance', 0)
+            with ui.row().classes('items-center gap-4'):
+                with ui.column().classes('gap-0'):
+                    ui.label('USDC BALANCE').classes('text-[10px] text-gray-600 uppercase')
+                    ui.label(f'${bal:.2f}').classes('text-xl font-mono font-bold text-green-400')
+
+                with ui.column().classes('gap-0'):
+                    ui.label('OPEN ORDERS').classes('text-[10px] text-gray-600 uppercase')
+                    ui.label(str(data.get('open_orders', 0))).classes('text-xl font-mono font-bold')
+
+                with ui.column().classes('gap-0'):
+                    ui.label('TOTAL TRADES').classes('text-[10px] text-gray-600 uppercase')
+                    ui.label(str(data.get('total_trades', 0))).classes('text-xl font-mono font-bold')
+
+            # Open orders
+            orders = data.get('orders', [])
+            if orders:
+                ui.label('LIVE ORDERS').classes('text-[10px] text-gray-600 uppercase tracking-wide mt-2')
+                for o in orders:
+                    with ui.row().classes('items-center gap-2 py-0.5'):
+                        ui.badge(o.get('status', ''), color='green').classes('text-[9px]')
+                        ui.badge(o.get('side', ''), color='blue' if o.get('side') == 'BUY' else 'orange').classes('text-[9px]')
+                        ui.label(f"size: {o.get('size', '?')}").classes('text-[11px] font-mono text-gray-400')
+                        ui.label(f"@ ${o.get('price', '?')}").classes('text-[11px] font-mono text-gray-300')
+
+        live_ts.text = f'Live query: {datetime.now().strftime("%H:%M:%S")}'
+
+    ui.timer(1, refresh_live, once=True)
+    ui.timer(30, refresh_live)
+
     # ── Pipeline diagram ──
     ui.separator().classes('bg-gray-700 mt-4')
     from scripts.dashboard_ng.components.diagrams import render_polymarket_pipeline
