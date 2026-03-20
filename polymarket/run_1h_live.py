@@ -55,7 +55,7 @@ _GAMMA = "https://gamma-api.polymarket.com"
 _BINANCE = "https://api.binance.com/api/v3"
 
 _CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
-_HEAVY_INTERVAL_S = 60  # heavy ops every 60s
+_HEAVY_INTERVAL_S = 20  # heavy ops every 20s (3x from 60s, 12 req/min, 50% total budget)
 _SCAN_INTERVAL_S = 300   # discovery every 5 min
 _TOTAL_LOSS_FUSE_PCT = 0.22  # 22% of initial bankroll → permanent stop live
 

@@ -63,7 +63,7 @@ _SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # OB + cross-exchange 
 _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle: submit/fill/cancel/post_fill
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
-_HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
+_HEAVY_INTERVAL_S = 10 # heavy ops every 10s (3x from 30s, 24 req/min, 50% total budget)
 
 # Newbie protection: first N hours of live trading, cap exposure
 _PROTECTION_HOURS = 3
@@ -269,10 +269,10 @@ def _vol_1m(symbol: str = "BTCUSDT") -> float:
 
 def _cvd_buy_ratio(symbol: str = "BTCUSDT", minutes: int = 3) -> float:
     """Taker buy ratio over last N minutes. >0.55 = buying pressure, <0.45 = selling.
-    Uses Binance spot 1m klines (taker_buy_volume included). Cached 30s."""
+    Uses Binance spot 1m klines (taker_buy_volume included). Cached 15s (was 30s)."""
     key = f"cvd_{symbol}_{minutes}"
     now = time.time()
-    if key in _cache and now - _cache[key][1] < 30:
+    if key in _cache and now - _cache[key][1] < 15:
         return _cache[key][0]
     if not _rate_ok("binance"):
         return _cache.get(key, (0.5, 0))[0]
