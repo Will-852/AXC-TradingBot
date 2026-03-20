@@ -67,6 +67,14 @@ def render_polymarket_page():
 
     async def refresh():
         poly_data['data'] = await run.io_bound(_get_poly_data)
+        # Also fetch live balance to override stale state file
+        try:
+            from scripts.dashboard_ng.utils.poly_live import query_live
+            live = await run.io_bound(query_live)
+            if live and live.get('balance'):
+                poly_data['live'] = live
+        except Exception:
+            pass
         update_all()
 
     # ── KPI row ──
@@ -314,6 +322,11 @@ def render_polymarket_page():
                     wins += 1
         win_rate = (wins / resolved * 100) if resolved > 0 else 0
 
+        # Use live balance if available (state file may be stale)
+        live = poly_data.get('live', {})
+        live_bal = live.get('balance')
+        if live_bal and isinstance(live_bal, (int, float)):
+            bal = live_bal
         kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
         pnl_color = 'text-green-400' if total_pnl >= 0 else 'text-red-400'
         kpi_labels['total_pnl'].text = f'${total_pnl:+.2f}'
@@ -538,6 +551,6 @@ def render_polymarket_page():
     from scripts.dashboard_ng.components.diagrams import render_polymarket_pipeline
     render_polymarket_pipeline()
 
-    # Initial load + timer
+    # Initial load + timer (20s refresh — includes live balance query)
     ui.timer(0.1, refresh, once=True)
-    ui.timer(30, refresh)
+    ui.timer(20, refresh)
