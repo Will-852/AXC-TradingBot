@@ -1272,7 +1272,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 # LOSING → always sell
                 if pnl_pct < -_EXIT_STOP_PCT:
                     try:
-                        client.sell_shares(tok, shares, price=round(mid - 0.02, 2))
+                        _sell_price = round(max(0.01, mid * 0.97), 2)  # 3% below mid
+                        client.sell_shares(tok, shares, price=_sell_price)
                         logger.info("STOP LOSS %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%)",
                                     cid[:8], side, shares, mid, avg, pnl_pct * 100)
                         mkt[shares_key] = 0
@@ -1285,7 +1286,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 # WINNING + EARLY → take profit (direction could reverse)
                 elif pnl_pct > _EXIT_EARLY_TARGET_PCT and not is_late:
                     try:
-                        client.sell_shares(tok, shares, price=round(mid - 0.01, 2))
+                        _sell_price = round(max(0.01, mid * 0.98), 2)  # 2% below mid
+                        client.sell_shares(tok, shares, price=_sell_price)
                         logger.info("EARLY TAKE %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) [early]",
                                     cid[:8], side, shares, mid, avg, pnl_pct * 100)
                         mkt[shares_key] = 0
