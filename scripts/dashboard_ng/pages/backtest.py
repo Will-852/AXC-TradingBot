@@ -1,17 +1,17 @@
 """Backtest studio page — embeds original backtest.html self-contained.
 
-Injects CSS overrides to optimize layout:
-- Right panel default 250px (was 300px)
-- Control bar more compact
-- Sidebar starts collapsed for more chart space
-- TradingView-style proportions
+Injects CSS to force horizontal top-bar layout (TradingView style):
+- Control bar: single horizontal line, no wrapping
+- Parameters panel: collapsed by default
+- Right panel: 240px
+- Chart gets maximum space
 """
 
 from nicegui import ui
 
 
 def render_backtest_page():
-    """Render the backtest studio — full height, layout-optimized iframe."""
+    """Render the backtest studio — full height, TradingView layout."""
     ui.add_head_html('''
         <style>
         .backtest-frame {
@@ -28,7 +28,7 @@ def render_backtest_page():
         'src="/backtest.html" id="bt-frame"'
     ).classes('backtest-frame')
 
-    # Inject layout fixes into iframe after load (same-origin, allowed)
+    # Inject layout overrides into iframe (same-origin)
     ui.add_body_html('''
         <script>
         (function() {
@@ -39,123 +39,161 @@ def render_backtest_page():
                     var doc = frame.contentDocument;
                     if (!doc) return;
 
-                    // Inject CSS overrides for better proportions
                     var style = doc.createElement('style');
                     style.textContent = `
-                        /* ── AXC NiceGUI Layout Overrides ── */
+                        /* ═══════════════════════════════════════
+                           TradingView-style: controls on TOP
+                           Chart fills full width below
+                           ═══════════════════════════════════════ */
 
-                        /* Narrower right panel (250px, was 300px) */
-                        .main-grid {
-                            grid-template-columns: 1fr 6px var(--rp-width, 250px) !important;
-                        }
-
-                        /* More compact control bar */
+                        /* Control bar — force single horizontal line */
                         .control-bar {
-                            padding: 4px 10px !important;
+                            flex-wrap: nowrap !important;
+                            overflow-x: auto !important;
+                            padding: 3px 8px !important;
                             gap: 6px !important;
-                            font-size: 13px !important;
+                            white-space: nowrap !important;
+                            min-height: 0 !important;
                         }
-                        .control-bar select,
-                        .control-bar input {
-                            height: 28px !important;
+                        .control-bar select {
+                            height: 26px !important;
                             font-size: 12px !important;
-                            padding: 2px 6px !important;
+                            padding: 1px 4px !important;
+                            min-width: 0 !important;
+                        }
+                        .control-bar input[type="number"] {
+                            height: 26px !important;
+                            width: 70px !important;
+                            font-size: 12px !important;
+                            padding: 1px 4px !important;
                         }
                         .control-bar .btn-run {
-                            height: 30px !important;
+                            height: 28px !important;
                             font-size: 12px !important;
-                            padding: 4px 12px !important;
+                            padding: 2px 10px !important;
+                        }
+                        .control-bar .btn-load,
+                        .control-bar .btn-load-existing {
+                            height: 26px !important;
+                            font-size: 11px !important;
+                            padding: 2px 8px !important;
+                        }
+                        .control-bar button {
+                            height: 26px !important;
+                            font-size: 11px !important;
+                            padding: 2px 6px !important;
+                        }
+                        /* Hide labels that waste space */
+                        .control-bar label {
+                            font-size: 11px !important;
                         }
 
-                        /* Compact topbar (hide "AXC" brand — NiceGUI header handles it) */
+                        /* Topbar — more compact */
                         .topbar {
-                            height: 32px !important;
-                            padding: 0 12px !important;
+                            height: 30px !important;
+                            padding: 0 10px !important;
                             font-size: 12px !important;
                         }
-                        .topbar .brand {
-                            font-size: 13px !important;
-                        }
 
-                        /* Tighter param panel */
+                        /* Param panel — compact, collapsed by default */
                         .param-panel {
                             font-size: 12px !important;
                         }
-                        .param-body {
-                            padding: 6px 10px !important;
-                            gap: 4px !important;
-                        }
-                        .param-body label {
-                            font-size: 11px !important;
-                        }
-                        .param-body input, .param-body select {
-                            height: 26px !important;
-                            font-size: 11px !important;
-                        }
-
-                        /* Chart header bar — more compact */
-                        .chart-header {
-                            padding: 2px 8px !important;
-                            gap: 4px !important;
-                            font-size: 11px !important;
-                        }
-                        .itab {
-                            padding: 2px 6px !important;
-                            font-size: 11px !important;
-                        }
-
-                        /* Draw toolbar compact */
-                        .draw-toolbar {
-                            padding: 2px 8px !important;
-                            gap: 4px !important;
-                        }
-
-                        /* Right panel — tighter spacing */
-                        .right-panel {
+                        .param-toggle {
+                            padding: 3px 8px !important;
                             font-size: 12px !important;
                         }
-                        .right-panel .card-section {
-                            padding: 8px !important;
+                        .param-body {
+                            padding: 4px 8px !important;
+                            font-size: 11px !important;
+                        }
+                        .param-body input,
+                        .param-body select {
+                            height: 24px !important;
+                            font-size: 11px !important;
+                        }
+
+                        /* Right panel — narrower */
+                        .main-grid {
+                            grid-template-columns: 1fr 4px var(--rp-width, 240px) !important;
+                        }
+
+                        /* Chart header — TradingView compact */
+                        .chart-header {
+                            padding: 1px 6px !important;
+                            gap: 2px !important;
+                            font-size: 11px !important;
+                            min-height: 0 !important;
+                        }
+                        .itab {
+                            padding: 2px 5px !important;
+                            font-size: 11px !important;
+                        }
+                        .interval-tabs {
+                            gap: 1px !important;
+                        }
+
+                        /* Draw toolbar */
+                        .draw-toolbar {
+                            padding: 1px 6px !important;
+                            gap: 2px !important;
+                            font-size: 11px !important;
+                        }
+                        .draw-btn {
+                            padding: 2px 5px !important;
+                            font-size: 11px !important;
+                        }
+
+                        /* Right panel content — dense */
+                        .right-panel {
+                            font-size: 12px !important;
+                            overflow-y: auto !important;
+                        }
+                        .card-section {
+                            padding: 6px !important;
+                            margin-bottom: 4px !important;
                         }
                         .stat-grid {
-                            gap: 4px !important;
+                            gap: 3px !important;
                         }
                         .stat-item {
-                            padding: 4px 6px !important;
+                            padding: 3px 5px !important;
                         }
                         .stat-label {
-                            font-size: 10px !important;
+                            font-size: 9px !important;
                         }
                         .stat-value {
                             font-size: 13px !important;
                         }
-
-                        /* Trade log compact */
                         .trade-row {
-                            padding: 3px 6px !important;
+                            padding: 2px 5px !important;
                             font-size: 11px !important;
                         }
 
-                        /* Guide panel — start closed */
-                        #guide-panel .guide-body {
+                        /* Guide panel — hide by default */
+                        #guide-panel {
                             display: none !important;
+                        }
+
+                        /* Live toolbar — compact */
+                        #live-toolbar {
+                            top: 30px !important;
+                            right: 8px !important;
+                        }
+                        #live-toolbar button {
+                            height: 26px !important;
+                            font-size: 11px !important;
+                            padding: 2px 8px !important;
                         }
                     `;
                     doc.head.appendChild(style);
 
-                    // Collapse right sidebar by default for more chart space
-                    var sidebarKey = 'bt_sidebar_open';
-                    if (!localStorage.getItem(sidebarKey)) {
-                        var rpWidth = doc.documentElement.style;
-                        rpWidth.setProperty('--rp-width', '250px');
-                    }
-
-                    // Fix links to navigate parent
+                    // Fix links
                     var links = doc.querySelectorAll('a[href="/"]');
                     links.forEach(function(a) { a.setAttribute('target', '_parent'); });
 
                 } catch(e) {
-                    console.warn('Backtest iframe CSS inject failed:', e);
+                    console.warn('Backtest iframe inject:', e);
                 }
             });
         })();
