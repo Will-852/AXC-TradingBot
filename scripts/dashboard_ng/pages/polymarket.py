@@ -401,7 +401,10 @@ def render_polymarket_page():
                         {'field': 'end_date', 'headerName': 'Expires', 'width': 90},
                     ],
                     'rowData': rows,
-                }).classes('h-48 ag-theme-balham-dark')
+                    'headerHeight': 34,
+                    'rowHeight': 32,
+                    'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark')
             else:
                 ui.label('No positions').classes('text-gray-600 text-sm')
 
@@ -461,12 +464,17 @@ def render_polymarket_page():
                     if isinstance(ts, str) and len(ts) > 16:
                         ts = ts[5:16]
                     price = t.get('price', t.get('avg_price', 0))
+                    size_raw = t.get('size', t.get('shares', t.get('amount', '')))
+                    try:
+                        size_fmt = f"{float(size_raw):.2f}"
+                    except (TypeError, ValueError):
+                        size_fmt = str(size_raw)
                     rows.append({
                         'time': ts,
                         'market': (t.get('title', t.get('market', t.get('slug', ''))) or '')[:35],
                         'side': t.get('side', ''),
                         'price': f"${float(price):.3f}" if isinstance(price, (int, float)) else str(price),
-                        'size': t.get('size', t.get('shares', t.get('amount', ''))),
+                        'size': size_fmt,
                         'pnl': t.get('pnl', t.get('realized_pnl', '—')),
                     })
                 ui.aggrid({
