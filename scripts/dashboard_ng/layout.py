@@ -10,8 +10,9 @@ from . import state
 from .theme import (
     FONTS_CSS, BG_PRIMARY, BG_SURFACE, BORDER,
     TEXT_SECONDARY, TEXT_MUTED, TEXT_FAINT,
-    GREEN, RED, ACCENT,
-    HEADER, SIDEBAR, FOOTER, SECTION_HEADER,
+    GREEN, RED, ACCENT, SIDEBAR_WIDTH,
+    HEADER_CLS, SIDEBAR_CLS, FOOTER_CLS, SECTION_HEADER,
+    FONT_TINY, FONT_LABEL,
 )
 
 # Core services to show in sidebar
@@ -91,47 +92,46 @@ def create_layout(active_path: str = '/'):
     if 'dark_mode' not in app.storage.user:
         app.storage.user['dark_mode'] = True
 
-    # ── Header ──
-    with ui.header().classes(f'items-center justify-between px-4 py-1.5 {HEADER}'):
-        with ui.row().classes('items-center gap-3'):
-            ui.image('/svg/axc.svg').classes('w-7 h-7 cursor-pointer') \
+    # ── Header (48px) ──
+    with ui.header().classes(f'items-center justify-between px-4 py-0 h-[48px] {HEADER_CLS}'):
+        with ui.row().classes('items-center gap-2'):
+            ui.image('/svg/axc.svg').classes('w-6 h-6 cursor-pointer') \
                 .on('click', lambda: ui.navigate.to('/'))
-            ui.label('AXC').classes('text-lg font-bold text-white tracking-wider font-mono')
+            ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
-        # Exchange badges
-        exchange_badges = ui.row().classes('items-center gap-5')
+        # Exchange badges (compact)
+        exchange_badges = ui.row().classes('items-center gap-4')
         for exch_name in ['aster', 'binance', 'hl']:
             _exchange_badge(exch_name, exchange_badges)
 
-        with ui.row().classes('items-center'):
-            ui.button(icon='brightness_6', on_click=dark.toggle) \
-                .props('flat round color=white size=sm')
+        ui.button(icon='brightness_6', on_click=dark.toggle) \
+            .props('flat round color=white size=xs')
 
-    # ── Sidebar ──
-    with ui.left_drawer(value=True).classes(f'{SIDEBAR} p-0') as drawer:
+    # ── Sidebar (220px — IBKR standard) ──
+    with ui.left_drawer(value=True, fixed=True).classes(f'{SIDEBAR_CLS} p-0').props(f'width={SIDEBAR_WIDTH}') as drawer:
         # Navigation
-        ui.label('NAVIGATION').classes(f'{SECTION_HEADER} px-4 pt-4 pb-2')
+        ui.label('NAVIGATION').classes(f'{SECTION_HEADER} px-3 pt-3 pb-1')
         for label_text, path, icon_name in NAV_ITEMS:
             is_active = path == active_path
             btn = ui.button(label_text, icon=icon_name,
                             on_click=lambda p=path: ui.navigate.to(p)) \
-                .classes('w-full justify-start rounded-none text-[13px]') \
-                .props('flat no-caps')
+                .classes('w-full justify-start rounded-none text-[12px] h-[36px]') \
+                .props('flat no-caps dense')
             if is_active:
-                btn.classes(f'bg-[{ACCENT}]/15 text-[{ACCENT}]')
+                btn.classes(f'bg-[{ACCENT}]/12 text-[{ACCENT}]')
             else:
                 btn.classes(f'text-[{TEXT_SECONDARY}] hover:text-white hover:bg-white/5')
 
-        ui.separator().classes(f'my-3 bg-[{BORDER}]')
+        ui.separator().classes(f'my-2 bg-[{BORDER}]')
 
         # Services status
-        ui.label('SERVICES').classes(f'{SECTION_HEADER} px-4 pb-1')
-        services_container = ui.column().classes('px-4 gap-0 w-full')
+        ui.label('SERVICES').classes(f'{SECTION_HEADER} px-3 pb-0.5')
+        services_container = ui.column().classes('px-3 gap-0 w-full')
         for label, display in CORE_SERVICES:
             _service_row(label, display, services_container)
 
-    # ── Footer ──
-    with ui.footer().classes(f'{FOOTER} py-1 px-4'):
+    # ── Footer (compact) ──
+    with ui.footer().classes(f'{FOOTER_CLS} py-0.5 px-4 h-[24px]'):
         with ui.row().classes('items-center justify-between w-full'):
             ui.label('AXC Trading').classes(f'text-[10px] text-[{TEXT_FAINT}] font-mono')
             data_age = ui.label('').classes(f'text-[10px] text-[{TEXT_FAINT}] font-mono')

@@ -97,8 +97,8 @@ async def background_collector():
 
 
 def get_data() -> dict:
-    """Read cached dashboard data from storage. Never blocks."""
-    return app.storage.general.get('dashboard_data', {})
+    """Read cached dashboard data from storage. Never blocks. Always returns dict."""
+    return app.storage.general.get('dashboard_data') or {}
 
 
 def get_services() -> dict:

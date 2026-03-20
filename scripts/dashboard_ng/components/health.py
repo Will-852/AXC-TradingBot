@@ -16,11 +16,15 @@ def render_health_panel():
 
         async def refresh():
             from scripts.dashboard.handlers import handle_api_health
-            code, data = await run.io_bound(handle_api_health)
+            result = await run.io_bound(handle_api_health)
+            if isinstance(result, tuple):
+                _, data = result
+            else:
+                data = result
             health_container.clear()
             with health_container:
-                if code != 200:
-                    ui.label(f'Health check failed: {data}').classes('text-red-400 text-sm')
+                if not data or not isinstance(data, dict):
+                    ui.label('Health check failed').classes('text-red-400 text-sm')
                     return
 
                 # Agents
@@ -58,16 +62,20 @@ def render_suggest_mode():
 
         async def refresh():
             from scripts.dashboard.handlers import handle_suggest_mode
-            code, data = await run.io_bound(handle_suggest_mode)
+            result = await run.io_bound(handle_suggest_mode)
+            if isinstance(result, tuple):
+                _, data = result
+            else:
+                data = result
             suggest_container.clear()
             with suggest_container:
-                if code != 200:
+                if not data or not isinstance(data, dict):
                     ui.label('Could not get suggestion').classes('text-gray-600 text-sm')
                     return
 
                 suggested = data.get('suggested', '?')
                 reason = data.get('reason', '')
-                btc_change = data.get('btc_24h_change', 0)
+                btc_change = data.get('btc_change_24h', data.get('btc_24h_change', 0))
 
                 colors = {
                     'CONSERVATIVE': 'text-blue-400',

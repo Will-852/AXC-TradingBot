@@ -81,7 +81,7 @@ def main_page():
     from scripts.dashboard_ng.components.exchange_connect import render_exchange_panel
     from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
-    with ui.column().classes('w-full p-6 gap-6'):
+    with ui.column().classes('w-full p-4 gap-3'):
         # Controls row
         render_controls()
 
@@ -94,7 +94,7 @@ def main_page():
             with ui.column().classes('flex-1 min-w-[200px]'):
                 render_suggest_mode()
 
-        ui.separator().classes('bg-gray-700')
+        ui.separator().classes('bg-[#2A2A2A]')
 
         # KPI stats
         render_stats_row()
@@ -102,17 +102,17 @@ def main_page():
         # Risk boxes
         render_risk_boxes()
 
-        ui.separator().classes('bg-gray-700')
+        ui.separator().classes('bg-[#2A2A2A]')
 
         # Positions + orders
         render_positions()
 
-        ui.separator().classes('bg-gray-700')
+        ui.separator().classes('bg-[#2A2A2A]')
 
         # Action plan table
         render_action_plan()
 
-        ui.separator().classes('bg-gray-700')
+        ui.separator().classes('bg-[#2A2A2A]')
 
         # PnL chart
         render_pnl_chart()
@@ -135,7 +135,7 @@ def main_page():
         # Activity log
         render_activity_log()
 
-        ui.separator().classes('bg-gray-700')
+        ui.separator().classes('bg-[#2A2A2A]')
 
         # System workflow diagrams
         from scripts.dashboard_ng.components.diagrams import render_all_diagrams

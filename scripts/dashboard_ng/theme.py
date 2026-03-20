@@ -1,83 +1,81 @@
-"""AXC Dashboard — Design System.
+"""AXC Dashboard — Design System (IBKR-inspired).
 
-Style: Data-Dense Dashboard + OLED Dark Mode
-Typography: Fira Code (data) + Fira Sans (UI)
-Grid: 8px base gap, 12px card padding
+Reference: IBKR TWS/Desktop + ThinkorSwim + Bloomberg dark mode.
+Sidebar: 220px | Header: 48px | Row: 32px | Card padding: 12px | Radius: 4px
 """
 
-# Google Fonts CDN (injected in layout.py)
+# Google Fonts CDN
 FONTS_CSS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-    '<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700'
-    '&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
+    '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700'
+    '&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
     '<style>'
-    'body { font-family: "Fira Sans", sans-serif !important; }'
-    '.font-mono, .font-data { font-family: "Fira Code", monospace !important; }'
+    'body { font-family: "Inter", -apple-system, sans-serif !important;'
+    '  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }'
+    '.font-mono, .font-data { font-family: "IBM Plex Mono", monospace !important; }'
+    '.q-drawer { width: 220px !important; }'
+    '.q-header { min-height: 48px !important; }'
+    '.q-page-container { padding-top: 48px !important; }'
     '</style>'
 )
 
-# ── Color Palette (OLED Dark + Trading Accents) ──
-# Base
-BG_PRIMARY = '#000000'       # True black (OLED)
-BG_SURFACE = '#0a0e17'       # Card/panel surface
-BG_ELEVATED = '#111827'      # Elevated surface (hover, modal)
-BORDER = '#1e293b'           # Subtle borders (slate-800)
+# ── Layout Constants ──
+SIDEBAR_WIDTH = 220       # px (IBKR Desktop: 220-240)
+HEADER_HEIGHT = 48        # px
+ROW_HEIGHT = 32           # px (table rows)
+CARD_RADIUS = 4           # px (sharp — professional)
+
+# ── Color Palette (IBKR Dark) ──
+BG_PRIMARY = '#0D0E11'    # Base canvas (darkest)
+BG_SURFACE = '#141414'    # Card/panel
+BG_ELEVATED = '#1E1E1E'   # Elevated (hover, modal)
+BG_HOVER = '#2D2D2D'      # Interactive hover
+BORDER = '#2A2A2A'        # Dividers
 
 # Text
-TEXT_PRIMARY = '#f1f5f9'     # slate-100
-TEXT_SECONDARY = '#94a3b8'   # slate-400
-TEXT_MUTED = '#64748b'       # slate-500
-TEXT_FAINT = '#475569'       # slate-600
+TEXT_PRIMARY = '#F0F0F0'   # Main text
+TEXT_SECONDARY = '#8B8B8B' # Secondary
+TEXT_MUTED = '#606060'     # Labels/timestamps
+TEXT_FAINT = '#404040'     # Barely visible
 
-# Accents
-ACCENT = '#3b82f6'           # blue-500 (primary action)
-ACCENT_HOVER = '#2563eb'     # blue-600
-GREEN = '#22c55e'            # Profit / bullish
-RED = '#ef4444'              # Loss / bearish
-AMBER = '#f59e0b'            # Warning / near threshold
-CYAN = '#06b6d4'             # Info / neutral highlight
+# Semantic
+GREEN = '#00C087'          # Profit (IBKR green)
+RED = '#FF4D4D'            # Loss
+AMBER = '#F59E0B'          # Warning
+CYAN = '#30D5C8'           # Info highlight
+ACCENT = '#2962FF'         # Primary action (TradingView blue)
+ACCENT_HOVER = '#1E50E5'
 
-# ── Spacing System (8px base) ──
-GAP_XS = 'gap-1'     # 4px
-GAP_SM = 'gap-2'     # 8px — grid gap
-GAP_MD = 'gap-3'     # 12px
-GAP_LG = 'gap-4'     # 16px
-GAP_XL = 'gap-6'     # 24px — section gap
+# ── Typography (px) ──
+FONT_DATA = 'text-[12px]'     # Prices, P&L numbers
+FONT_LABEL = 'text-[11px]'    # Column headers, uppercase
+FONT_SECTION = 'text-[13px]'  # Section headers
+FONT_METRIC = 'text-[20px]'   # Account equity headline
+FONT_TINY = 'text-[10px]'     # Timestamps, sub-labels
 
 # ── Component Classes ──
-# Cards
-CARD = f'p-3 rounded-lg border'
+CARD = f'p-3 rounded-[{CARD_RADIUS}px] border'
 CARD_DARK = f'{CARD} bg-[{BG_SURFACE}] border-[{BORDER}]'
 
-# Section headers
-SECTION_HEADER = f'text-[11px] font-semibold tracking-widest uppercase text-[{TEXT_MUTED}]'
+SECTION_HEADER = f'{FONT_LABEL} font-semibold tracking-[1px] uppercase text-[{TEXT_MUTED}]'
 
-# Data values (monospace for numbers)
-DATA_VALUE = 'font-mono text-sm'
-DATA_VALUE_LG = 'font-mono text-xl font-bold'
-DATA_VALUE_XL = 'font-mono text-2xl font-bold'
+DATA_VALUE = 'font-mono text-[12px]'
+DATA_VALUE_LG = 'font-mono text-[16px] font-semibold'
+DATA_VALUE_XL = 'font-mono text-[20px] font-bold'
 
-# Labels
-LABEL_XS = f'text-[10px] text-[{TEXT_FAINT}]'
-LABEL_SM = f'text-xs text-[{TEXT_SECONDARY}]'
+LABEL_XS = f'{FONT_TINY} text-[{TEXT_FAINT}]'
+LABEL_SM = f'text-[11px] text-[{TEXT_SECONDARY}]'
 
-# PnL colors
 PNL_POS = f'text-[{GREEN}]'
 PNL_NEG = f'text-[{RED}]'
 
-# Status dot
-DOT_GREEN = f'text-[8px] text-[{GREEN}]'
-DOT_RED = f'text-[8px] text-[{RED}]'
-DOT_GRAY = f'text-[8px] text-[{TEXT_MUTED}]'
+DOT_GREEN = f'text-[6px] text-[{GREEN}]'
+DOT_RED = f'text-[6px] text-[{RED}]'
 
-# Header/Sidebar
-HEADER = f'bg-[{BG_PRIMARY}] border-b border-[{BORDER}]'
-SIDEBAR = f'bg-[{BG_PRIMARY}] border-r border-[{BORDER}]'
-FOOTER = f'bg-[{BG_PRIMARY}] border-t border-[{BORDER}]'
+HEADER_CLS = f'bg-[{BG_PRIMARY}] border-b border-[{BORDER}]'
+SIDEBAR_CLS = f'bg-[{BG_PRIMARY}] border-r border-[{BORDER}]'
+FOOTER_CLS = f'bg-[{BG_PRIMARY}] border-t border-[{BORDER}]'
 
-# AG Grid
 AGGRID = 'ag-theme-balham-dark'
-
-# Table row height
-TABLE_ROW_H = 36
+TABLE_ROW_H = ROW_HEIGHT
