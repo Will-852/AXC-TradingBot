@@ -106,11 +106,42 @@ def create_layout(active_path: str = '/'):
                 .on('click', lambda: ui.navigate.to('/'))
             ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
-        # Exchange badges (compact)
+        # Exchange badges (clickable — opens connect dialog)
         exchange_badges = ui.row().classes('items-center gap-4')
         for exch_name in ['aster', 'binance', 'hl']:
             _exchange_badge(exch_name, exchange_badges)
 
+        async def show_exchange_dialog():
+            from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, _disconnect, EXCHANGES
+            with ui.dialog() as dlg, ui.card().classes('p-4 min-w-[400px]'):
+                ui.label('Exchange Connections').classes('text-lg font-bold mb-3')
+                exchanges = state.get_exchanges()
+                for exch in EXCHANGES:
+                    info = exchanges.get(exch['name'], {})
+                    st = info.get('status', 'disconnected')
+                    is_conn = st == 'connected'
+                    bal = info.get('balance')
+                    with ui.row().classes('items-center justify-between w-full py-2 border-b border-gray-800'):
+                        with ui.row().classes('items-center gap-2'):
+                            ui.icon('circle').classes('text-[8px]').style(
+                                f'color: {"#10b981" if is_conn else "#64748b"}')
+                            ui.label(exch['label']).classes('text-sm font-bold')
+                            if is_conn and bal is not None:
+                                ui.label(f'${bal:.2f}').classes('text-sm font-mono text-emerald-400')
+                        if is_conn:
+                            ui.button('Disconnect', on_click=lambda e=exch: _disconnect(e)) \
+                                .props('flat dense size=xs color=red')
+                        else:
+                            async def connect(e=exch, d=dlg):
+                                d.close()
+                                await _show_connect_dialog(e)
+                            ui.button('Connect', on_click=connect) \
+                                .props('flat dense size=xs color=blue')
+                ui.button('Close', on_click=dlg.close).props('flat color=grey').classes('mt-2')
+            dlg.open()
+
+        ui.button(icon='settings', on_click=show_exchange_dialog) \
+            .props('flat round color=white size=xs').tooltip('Exchange Connections')
         ui.button(icon='brightness_6', on_click=dark.toggle) \
             .props('flat round color=white size=xs')
 

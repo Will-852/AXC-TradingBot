@@ -127,8 +127,14 @@ def render_news_sentiment():
                 per_symbol = news.get('sentiment_by_symbol', news.get('per_symbol', {}))
                 if per_symbol and isinstance(per_symbol, dict):
                     for sym, sent in per_symbol.items():
-                        sent_str = sent if isinstance(sent, str) else str(sent)
-                        ui.label(f'{sym}: {sent_str}').classes('text-xs text-gray-400')
+                        if isinstance(sent, dict):
+                            s = sent.get('sentiment', '?')
+                            impact = sent.get('impact', '')
+                            s_color = 'text-green-400' if s == 'bullish' else 'text-red-400' if s == 'bearish' else 'text-gray-400'
+                            txt = f'{sym}: {s}' + (f' ({impact}%)' if impact else '')
+                            ui.label(txt).classes(f'text-xs {s_color}')
+                        else:
+                            ui.label(f'{sym}: {sent}').classes('text-xs text-gray-400')
 
                 # Risk events — extract 'text' field from dict entries
                 risk_events = news.get('risk_events', [])

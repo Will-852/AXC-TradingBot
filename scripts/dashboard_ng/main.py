@@ -78,7 +78,6 @@ def main_page():
     )
 
     from scripts.dashboard_ng.components.chat import render_chat_toggle
-    from scripts.dashboard_ng.components.exchange_connect import render_exchange_panel
     from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
     with ui.column().classes('w-full p-3 gap-2'):
@@ -116,11 +115,9 @@ def main_page():
                 render_funding_rates()
                 render_activity_log()
 
-        # ── Row 6: Expandable panels (collapsed by default) ──
+        # ── Row 6: Health + Suggest (exchange moved to header) ──
         with ui.row().classes('gap-2 w-full'):
-            with ui.column().classes('flex-1 min-w-[250px]'):
-                render_exchange_panel()
-            with ui.column().classes('flex-1 min-w-[250px]'):
+            with ui.column().classes('flex-1 min-w-[300px]'):
                 render_health_panel()
             with ui.column().classes('flex-1 min-w-[200px]'):
                 render_suggest_mode()
