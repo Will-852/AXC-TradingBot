@@ -104,16 +104,18 @@ def main_page():
                     render_fee_breakdown()
                     render_trade_stats()
 
-        # ── Row 5: Two-column — Left: trades + scan log | Right: news + activity ──
+        # ── Row 5: Three-column — trades | funding + scan | news (scrollable) ──
         with ui.row().classes('gap-2 w-full items-start'):
-            with ui.column().classes('flex-1 min-w-[300px] gap-2'):
+            with ui.column().classes('flex-[2] min-w-[300px] gap-2'):
                 render_trade_history()
+                render_activity_log()
+
+            with ui.column().classes('flex-[2] min-w-[280px] gap-2'):
+                render_funding_rates()
                 render_scan_log()
 
-            with ui.column().classes('flex-1 min-w-[300px] gap-2'):
+            with ui.column().classes('flex-[2] min-w-[300px] gap-2'):
                 render_news_sentiment()
-                render_funding_rates()
-                render_activity_log()
 
         # ── Row 6: Health + Suggest (exchange moved to header) ──
         with ui.row().classes('gap-2 w-full'):

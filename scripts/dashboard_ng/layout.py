@@ -35,17 +35,27 @@ NAV_ITEMS = [
 
 
 def _exchange_badge(name: str, container):
-    """Render a small exchange connection badge."""
+    """Render exchange badge — green dot + name + connect/disconnect button."""
     exchanges = state.get_exchanges()
     info = exchanges.get(name, {})
     status = info.get('status', 'disconnected')
+    is_connected = status == 'connected'
     colors = {'connected': GREEN, 'disconnected': TEXT_MUTED, 'error': RED}
     color = colors.get(status, TEXT_MUTED)
 
     with container:
         with ui.row().classes('items-center gap-1'):
-            ui.icon('circle').classes('text-[8px]').style(f'color: {color}')
+            ui.icon('circle').classes('text-[6px]').style(f'color: {color}')
             ui.label(name.upper()).classes(f'text-[11px] font-mono text-[{TEXT_SECONDARY}]')
+            if not is_connected:
+                async def connect(n=name):
+                    from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, EXCHANGES
+                    exch = next((e for e in EXCHANGES if e['name'] == n), None)
+                    if exch:
+                        await _show_connect_dialog(exch)
+                ui.button(icon='link', on_click=connect) \
+                    .props('flat round dense size=xs color=blue-4') \
+                    .tooltip(f'Connect {name.upper()}')
 
 
 def _service_row(label: str, display_name: str, services_container):

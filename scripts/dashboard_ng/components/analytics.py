@@ -95,23 +95,29 @@ def render_funding_rates():
                         {'field': 'next', 'headerName': 'Next', 'width': 120},
                     ],
                     'rowData': rows,
-                }).classes('h-48 ag-theme-balham-dark')
+                    'headerHeight': 32,
+                    'rowHeight': 28,
+                    'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark')
 
     ui.timer(30, update)
 
 
 def render_news_sentiment():
-    """News sentiment card."""
+    """News sentiment — full scrollable card with all data."""
     with ui.card().classes('p-3 bg-gray-800 border border-gray-700 w-full'):
         ui.label('NEWS SENTIMENT').classes('text-xs text-gray-500 uppercase tracking-wide mb-1')
-        news_container = ui.column().classes('gap-1 max-h-56 overflow-y-auto')
+
+        # Scrollable content area
+        with ui.scroll_area().classes('w-full').style('max-height: 400px;'):
+            news_container = ui.column().classes('gap-2 w-full pr-2')
 
         def update():
             d = get_data()
             news = d.get('news_sentiment', {})
             news_container.clear()
             with news_container:
-                # Actual keys: overall_sentiment, confidence, sentiment_by_symbol, risk_events
+                # Overall sentiment header
                 overall = news.get('overall_sentiment', news.get('overall', '—'))
                 confidence = news.get('confidence', 0)
                 color = {'bullish': 'text-green-400', 'bearish': 'text-red-400'}.get(
@@ -123,32 +129,84 @@ def render_news_sentiment():
                         pct = confidence * 100 if confidence < 1 else confidence
                         ui.label(f'({pct:.0f}%)').classes('text-xs text-gray-500')
 
-                # Per-symbol sentiments (key = sentiment_by_symbol)
+                # Overall impact
+                impact = news.get('overall_impact', '')
+                if impact:
+                    ui.label(f'Impact: {impact}').classes('text-xs text-gray-400')
+
+                ui.separator().classes('bg-gray-700 my-1')
+
+                # Per-symbol sentiments
                 per_symbol = news.get('sentiment_by_symbol', news.get('per_symbol', {}))
                 if per_symbol and isinstance(per_symbol, dict):
+                    ui.label('BY SYMBOL').classes('text-[10px] text-gray-600 uppercase tracking-wide')
                     for sym, sent in per_symbol.items():
                         if isinstance(sent, dict):
                             s = sent.get('sentiment', '?')
-                            impact = sent.get('impact', '')
+                            imp = sent.get('impact', '')
                             s_color = 'text-green-400' if s == 'bullish' else 'text-red-400' if s == 'bearish' else 'text-gray-400'
-                            txt = f'{sym}: {s}' + (f' ({impact}%)' if impact else '')
-                            ui.label(txt).classes(f'text-xs {s_color}')
+                            with ui.row().classes('items-center gap-2'):
+                                ui.label(sym.replace('USDT', '')).classes('text-xs font-bold text-gray-300 min-w-[35px]')
+                                ui.label(s).classes(f'text-xs {s_color} min-w-[50px]')
+                                if imp:
+                                    ui.label(f'{imp}%').classes('text-[10px] text-gray-500 font-mono')
                         else:
                             ui.label(f'{sym}: {sent}').classes('text-xs text-gray-400')
 
-                # Risk events — extract 'text' field from dict entries
+                # Key narratives
+                narratives = news.get('key_narratives', [])
+                if narratives:
+                    ui.separator().classes('bg-gray-700 my-1')
+                    ui.label('KEY NARRATIVES').classes('text-[10px] text-gray-600 uppercase tracking-wide')
+                    for n in narratives[:5]:
+                        if isinstance(n, dict):
+                            ui.label(f'• {n.get("text", n.get("narrative", str(n)))}').classes('text-xs text-gray-400')
+                        else:
+                            ui.label(f'• {n}').classes('text-xs text-gray-400')
+
+                # Risk events (ALL, not just 3)
                 risk_events = news.get('risk_events', [])
                 if risk_events:
-                    ui.label('Risk Events:').classes('text-xs text-red-400 mt-1')
-                    for evt in risk_events[:3]:
+                    ui.separator().classes('bg-gray-700 my-1')
+                    ui.label('RISK EVENTS').classes('text-[10px] text-red-500 uppercase tracking-wide')
+                    for evt in risk_events:
                         if isinstance(evt, dict):
                             text = evt.get('text', '')
                             src = evt.get('src', '')
-                            ui.label(f'  {text}').classes('text-xs text-gray-500')
-                            if src:
-                                ui.label(f'    — {src}').classes('text-[10px] text-gray-600')
+                            time_str = evt.get('time', '')
+                            with ui.column().classes('gap-0 py-0.5'):
+                                ui.label(text).classes('text-xs text-gray-400')
+                                meta = []
+                                if src:
+                                    meta.append(src)
+                                if time_str:
+                                    meta.append(time_str)
+                                if meta:
+                                    ui.label(' · '.join(meta)).classes('text-[10px] text-gray-600')
                         else:
-                            ui.label(f'  {evt}').classes('text-xs text-gray-500')
+                            ui.label(f'• {evt}').classes('text-xs text-gray-500')
+
+                # Summary
+                summary = news.get('summary', '')
+                if summary:
+                    ui.separator().classes('bg-gray-700 my-1')
+                    ui.label('SUMMARY').classes('text-[10px] text-gray-600 uppercase tracking-wide')
+                    ui.label(summary).classes('text-xs text-gray-400')
+
+                # Meta
+                updated = news.get('updated_at', '')
+                articles = news.get('articles_analyzed', 0)
+                stale = news.get('stale', False)
+                if updated or articles:
+                    ui.separator().classes('bg-gray-700 my-1')
+                    meta_parts = []
+                    if articles:
+                        meta_parts.append(f'{articles} articles')
+                    if updated:
+                        meta_parts.append(f'Updated: {str(updated)[:16]}')
+                    if stale:
+                        meta_parts.append('⚠ STALE')
+                    ui.label(' · '.join(meta_parts)).classes('text-[10px] text-gray-600')
 
         ui.timer(30, update)
 
