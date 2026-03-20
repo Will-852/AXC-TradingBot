@@ -38,10 +38,45 @@ async def _update_data():
     """Fetch main dashboard data in a thread (blocking calls)."""
     try:
         data = await run.io_bound(collect_data)
+        old_data = app.storage.general.get('dashboard_data') or {}
         app.storage.general['dashboard_data'] = data
         app.storage.general['dashboard_data_ts'] = time.time()
+
+        # Auto-push notifications on state changes
+        _check_for_alerts(old_data, data)
     except Exception as e:
         log.error('collect_data failed: %s', e)
+
+
+def _check_for_alerts(old: dict, new: dict):
+    """Compare old vs new data, push notifications for important changes."""
+    try:
+        from scripts.dashboard_ng.components.notifications import push_notification
+
+        # Circuit breaker triggered
+        old_risk = old.get('risk_status', {})
+        new_risk = new.get('risk_status', {})
+        if new_risk.get('trigger_cooldown') and not old_risk.get('trigger_cooldown'):
+            push_notification('Circuit breaker triggered!', 'circuit_breaker')
+
+        # Position opened/closed
+        old_pos = old.get('live_positions', [])
+        new_pos = new.get('live_positions', [])
+        if len(new_pos) > len(old_pos):
+            diff = len(new_pos) - len(old_pos)
+            push_notification(f'{diff} new position(s) opened', 'trade')
+        elif len(new_pos) < len(old_pos):
+            diff = len(old_pos) - len(new_pos)
+            push_notification(f'{diff} position(s) closed', 'trade')
+
+        # Consecutive losses increased
+        old_losses = old.get('consecutive_losses', 0)
+        new_losses = new.get('consecutive_losses', 0)
+        if new_losses > old_losses and new_losses >= 2:
+            push_notification(f'Consecutive losses: {new_losses}', 'circuit_breaker')
+
+    except Exception:
+        pass  # notification system is optional
 
 
 async def _update_services():

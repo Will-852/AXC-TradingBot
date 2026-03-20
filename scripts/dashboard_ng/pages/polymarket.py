@@ -101,6 +101,7 @@ def render_polymarket_page():
             from scripts.dashboard.polymarket import handle_polymarket_run_cycle
             run_btn.set_enabled(False)
             ui.notify('Pipeline starting...', type='info')
+            log_cmd('Run Cycle triggered')
             result = await run.io_bound(handle_polymarket_run_cycle)
             if isinstance(result, tuple):
                 code, data = result
@@ -140,6 +141,7 @@ def render_polymarket_page():
             found = data.get('found', data.get('scanned', 0))
             arbs = data.get('arb_opportunities', [])
             ui.notify(f'Scan: {found} markets, {len(arbs)} arb opportunities', type='info')
+            log_cmd(f'Force Scan: {found} markets, {len(arbs)} arbs')
             scan_btn.set_enabled(True)
 
         async def toggle_mode():
@@ -166,6 +168,7 @@ def render_polymarket_page():
 
             await run.io_bound(handle_polymarket_set_mode, {'mode': new_mode})
             ui.notify(f'Mode → {new_mode}', type='positive' if new_mode == 'dry_run' else 'warning')
+            log_cmd(f'Mode switched to {new_mode}')
             await refresh()
 
         async def check_merge():
@@ -435,11 +438,15 @@ def render_polymarket_page():
         with cal_container:
             brier = cal.get('brier')
             edge = cal.get('edge')
-            if brier is not None:
+            if isinstance(brier, (int, float)):
                 ui.label(f'Brier: {brier:.4f}').classes('text-sm font-mono text-gray-400')
-            if edge is not None:
+            if isinstance(edge, (int, float)):
                 color = 'text-green-400' if edge > 0 else 'text-red-400'
                 ui.label(f'Edge: {edge:.4f}').classes(f'text-sm font-mono {color}')
+            elif isinstance(edge, dict):
+                matched = edge.get('matched', 0)
+                predictions = edge.get('edge_predictions_count', 0)
+                ui.label(f'Edge: {matched} matched / {predictions} predictions').classes('text-sm font-mono text-gray-400')
             if brier is None and edge is None:
                 ui.label('No calibration data').classes('text-gray-600 text-sm')
 
@@ -568,6 +575,19 @@ def render_polymarket_page():
 
     ui.timer(2, refresh_live, once=True)
     ui.timer(20, refresh_live)
+
+    # ── Command Log ──
+    with ui.expansion('Command Log', icon='history', value=False).classes('w-full'):
+        cmd_log = ui.column().classes('w-full max-h-48 overflow-y-auto gap-0')
+
+    def log_cmd(msg: str):
+        """Append a timestamped command to the log."""
+        from datetime import datetime
+        ts = datetime.now().strftime('%H:%M:%S')
+        with cmd_log:
+            with ui.row().classes('gap-2 py-0.5'):
+                ui.label(ts).classes('text-[10px] text-gray-600 font-mono min-w-[60px]')
+                ui.label(msg).classes('text-[11px] text-gray-400')
 
     # ── Pipeline diagram ──
     ui.separator().classes('bg-gray-700 mt-4')

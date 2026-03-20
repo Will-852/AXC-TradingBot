@@ -54,6 +54,7 @@ SCRUBBERS = [
 TOGGLES = [
     ('CVD_ENABLED', 'CVD Signal', True),
     ('MICRO_ENABLED', 'Microstructure', True),
+    ('HEDGE_ENABLED', 'Hyperliquid Hedge', False),
 ]
 
 

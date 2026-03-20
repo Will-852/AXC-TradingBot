@@ -77,24 +77,60 @@ def render_paper_page():
         start_btn.set_enabled(not is_running)
         stop_btn.set_enabled(is_running)
 
-        # Log entries
+        # Log entries — structured table if dict, plain text otherwise
         entries = d.get('entries', d.get('log', []))
         log_container.clear()
         with log_container:
             if not entries:
                 ui.label('No dry-run entries').classes('text-gray-600 text-sm')
             else:
-                for entry in entries[:20]:
+                # Try to build structured table
+                rows = []
+                for entry in entries[:30]:
                     if isinstance(entry, dict):
-                        text = entry.get('message', str(entry))
-                        ts = entry.get('time', '')
+                        rows.append({
+                            'time': entry.get('time', ''),
+                            'action': entry.get('action', entry.get('type', '')),
+                            'pair': entry.get('pair', entry.get('symbol', '')),
+                            'side': entry.get('direction', entry.get('side', '')),
+                            'price': entry.get('price', ''),
+                            'qty': entry.get('qty', entry.get('quantity', '')),
+                            'sl': entry.get('sl', ''),
+                            'tp': entry.get('tp', ''),
+                            'lev': entry.get('leverage', ''),
+                        })
                     else:
-                        text = str(entry)
-                        ts = ''
-                    with ui.row().classes('gap-2 py-0.5'):
-                        if ts:
-                            ui.label(ts).classes('text-[10px] text-gray-600 min-w-[60px]')
-                        ui.label(text).classes('text-xs text-gray-400')
+                        rows.append({'time': '', 'action': str(entry)[:80],
+                                     'pair': '', 'side': '', 'price': '',
+                                     'qty': '', 'sl': '', 'tp': '', 'lev': ''})
+
+                if rows and any(r.get('pair') for r in rows):
+                    ui.aggrid({
+                        'columnDefs': [
+                            {'field': 'time', 'width': 100},
+                            {'field': 'action', 'width': 70},
+                            {'field': 'pair', 'headerName': 'Symbol', 'width': 90},
+                            {'field': 'side', 'width': 55},
+                            {'field': 'price', 'width': 80, 'type': 'rightAligned'},
+                            {'field': 'qty', 'width': 60, 'type': 'rightAligned'},
+                            {'field': 'sl', 'headerName': 'SL', 'width': 75, 'type': 'rightAligned'},
+                            {'field': 'tp', 'headerName': 'TP', 'width': 75, 'type': 'rightAligned'},
+                            {'field': 'lev', 'headerName': 'Lev', 'width': 45, 'type': 'rightAligned'},
+                        ],
+                        'rowData': rows,
+                        'headerHeight': 32,
+                        'rowHeight': 30,
+                        'domLayout': 'autoHeight',
+                    }).classes('w-full ag-theme-balham-dark')
+                else:
+                    # Fallback: plain text display
+                    for entry in entries[:20]:
+                        text = entry.get('message', str(entry)) if isinstance(entry, dict) else str(entry)
+                        ts = entry.get('time', '') if isinstance(entry, dict) else ''
+                        with ui.row().classes('gap-2 py-0.5'):
+                            if ts:
+                                ui.label(ts).classes('text-[10px] text-gray-600 min-w-[60px]')
+                            ui.label(text).classes('text-xs text-gray-400')
 
     # Initial load + timer
     ui.timer(0.1, refresh, once=True)

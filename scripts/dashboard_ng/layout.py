@@ -82,9 +82,22 @@ async def _restart_service(label: str):
 
 def create_layout(active_path: str = '/'):
     """Build the shared page layout. Call at the start of every @ui.page."""
-    # Inject fonts + global CSS
+    # Inject fonts + global CSS + keyboard shortcuts
     ui.add_head_html(FONTS_CSS)
     ui.add_css(GLOBAL_CSS)
+    ui.add_body_html('''
+        <script>
+        document.addEventListener('keydown', function(e) {
+            // Skip if typing in input/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA'
+                || e.target.isContentEditable) return;
+            if (e.key === 'r' || e.key === 'R') {
+                // Force refresh — reload page
+                location.reload();
+            }
+        });
+        </script>
+    ''')
 
     # Dark mode — default on, persist to user storage
     dark = ui.dark_mode()
@@ -149,10 +162,14 @@ def create_layout(active_path: str = '/'):
                 ui.button('Close', on_click=dlg.close).props('flat color=grey').classes('mt-2')
             dlg.open()
 
-        # "Connect Wallet" button — right next to status dots
+        # "Connect" button
         ui.button('Connect', on_click=show_exchange_dialog) \
             .props('flat dense no-caps size=sm color=blue-4') \
             .classes('text-[11px]')
+
+        # Notification bell
+        from scripts.dashboard_ng.components.notifications import render_notification_bell
+        render_notification_bell()
 
         ui.button(icon='brightness_6', on_click=dark.toggle) \
             .props('flat round color=white size=xs')
