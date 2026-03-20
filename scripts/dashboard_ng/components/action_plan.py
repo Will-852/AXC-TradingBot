@@ -23,10 +23,12 @@ def _status_color(status: str) -> str:
 
 def render_action_plan():
     """Render the action plan table with AG Grid."""
-    ui.label('ACTION PLAN').classes('text-xs text-gray-500 uppercase tracking-wide')
+    with ui.row().classes('items-center gap-3'):
+        ui.label('ACTION PLAN').classes('text-xs text-gray-500 uppercase tracking-wide')
+        ui.label('Click row to trade').classes('text-[10px] text-blue-400 italic')
 
-    # OB buttons
-    ob_row = ui.row().classes('gap-1 flex-wrap')
+    # Order Book buttons — bigger, more visible
+    ob_row = ui.row().classes('gap-2 flex-wrap')
 
     grid_container = ui.column().classes('w-full')
 
@@ -69,8 +71,9 @@ def render_action_plan():
                             await show_orderbook(symbol=s)
                         finally:
                             _dialog_open['value'] = False
-                    ui.button(f'OB {sym.replace("USDT","")}', on_click=show_ob) \
-                        .props('flat dense size=xs color=grey-6').tooltip(f'Order Book {sym}')
+                    ui.button(f'📊 {sym.replace("USDT","")}', on_click=show_ob) \
+                        .props('outline dense size=sm color=blue-grey-5') \
+                        .tooltip(f'Order Book {sym}')
 
         grid_container.clear()
         with grid_container:
