@@ -67,10 +67,10 @@
     }
     .btn-sidebar-toggle:hover { background: #2a2e39; color: #d1d4dc; }
 
-    /* ── Main Grid (Left panel + Chart) ── */
+    /* ── Main Grid (Left panel collapsed by default, Chart full width) ── */
     .main-grid {
       display: grid;
-      grid-template-columns: var(--rp-width, 240px) 4px 1fr;
+      grid-template-columns: 0px 0px 1fr;
       grid-template-rows: auto auto 1fr;
       gap: 0;
       padding: 0;
@@ -5072,9 +5072,9 @@ document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); }
     setOpen(!isOpen, true);
   };
 
-  // Init: default OPEN (left panel visible)
+  // Init: default COLLAPSED (chart full width, toggle to show stats)
   var saved = localStorage.getItem(OPEN_KEY);
-  setOpen(saved !== '0', false);
+  setOpen(saved === '1', false);
 })();
 
 // ── Resizable sidebar ──
