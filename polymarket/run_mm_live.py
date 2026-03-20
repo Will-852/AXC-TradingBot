@@ -720,7 +720,8 @@ _last_heavy_ts: float = 0  # module-level for heavy operation throttle
 
 
 def run_cycle(state: dict, gamma: GammaClient, client,
-              config: MMConfig, dry_run: bool) -> dict:
+              config: MMConfig, dry_run: bool,
+              continuous_momentum: bool = False) -> dict:
     global _last_heavy_ts
     now = datetime.now(tz=_HKT)
     now_ms = int(time.time() * 1000)
@@ -899,21 +900,39 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _title_lower = wl["title"].lower()
         _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
 
-        # ── M1 Filter: confirmed → enter, weak → skip ──
-        # Backtest 180d: M1 confirmed WR 70%, weak fillable WR ~55%
-        # Hedge at <20% fill rate = gambling (both-fill 2.2%) → skip weak
-        _m1 = _m1_return(_sym)
+        # ── Momentum Filter ──
         _m1_vol = _vol_1m(_sym)
-        _m1_thresh = max(0.0005, _m1_vol * 1.0)  # 1σ
-        _m1_confirmed = abs(_m1) >= _m1_thresh
-        if not _m1_confirmed:
-            if _elapsed_ms < 180_000:  # wait up to 3 min
+        if continuous_momentum:
+            # Continuous: current price vs window open (catches late moves)
+            _cm_open = _open_at(wl["start_ms"], _sym) or _price(_sym)
+            _cm_now = _price(_sym)
+            _cm_ret = math.log(_cm_now / _cm_open) if _cm_open > 0 and _cm_now > 0 else 0
+            _cm_mins = _elapsed_ms / 60_000
+            _cm_thresh = max(0.0005, _m1_vol * math.sqrt(max(1, _cm_mins)) * 0.7)
+            _m1_confirmed = abs(_cm_ret) >= _cm_thresh
+            _m1 = _cm_ret  # use continuous return for direction
+            if not _m1_confirmed:
+                if _elapsed_ms < 180_000:
+                    continue
+                logger.info("SKIP %s: CM weak |%.4f| < %.4f after 3min", cid[:8], _cm_ret, _cm_thresh)
+                del state["watchlist"][cid]
                 continue
-            logger.info("SKIP %s: M1 weak |%.4f| < %.4f after 3min", cid[:8], _m1, _m1_thresh)
-            del state["watchlist"][cid]
-            continue
-        logger.info("M1 confirmed %s: %+.4f (%.2f%%, %.1fσ)",
-                    cid[:8], _m1, _m1 * 100, abs(_m1) / _m1_thresh)
+            logger.info("CM confirmed %s: %+.4f (%.2f%%, %.1fσ) [%dmin elapsed]",
+                        cid[:8], _cm_ret, _cm_ret * 100, abs(_cm_ret) / _cm_thresh,
+                        int(_cm_mins))
+        else:
+            # M1 only: minute 0→1 return
+            _m1 = _m1_return(_sym)
+            _m1_thresh = max(0.0005, _m1_vol * 1.0)
+            _m1_confirmed = abs(_m1) >= _m1_thresh
+            if not _m1_confirmed:
+                if _elapsed_ms < 180_000:
+                    continue
+                logger.info("SKIP %s: M1 weak |%.4f| < %.4f after 3min", cid[:8], _m1, _m1_thresh)
+                del state["watchlist"][cid]
+                continue
+            logger.info("M1 confirmed %s: %+.4f (%.2f%%, %.1fσ)",
+                        cid[:8], _m1, _m1 * 100, abs(_m1) / _m1_thresh)
 
         # ── Cross-exchange price validation (防 flash crash / anomaly) ──
         _xprice, _xdiv = _cross_exchange_price(_sym)
@@ -1579,6 +1598,8 @@ def main():
                     help="Override bankroll (for dry-run simulation)")
     ap.add_argument("--bet-pct", type=float, default=0,
                     help="Override bet_pct (e.g. 0.23 for 23%%)")
+    ap.add_argument("--continuous-momentum", action="store_true",
+                    help="Use current_price vs open instead of M1-only")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -1652,7 +1673,8 @@ def main():
           f"Bet {config.bet_pct:.0%} = ${bet:.2f} | Spread {config.half_spread:.1%}{_prot_str}")
 
     if args.cycle:
-        state = run_cycle(state, gamma, client, config, dry_run)
+        state = run_cycle(state, gamma, client, config, dry_run,
+                                  continuous_momentum=getattr(args, 'continuous_momentum', False))
         _save(state)
         _status(state)
     else:
@@ -1660,7 +1682,8 @@ def main():
         try:
             while True:
                 try:
-                    state = run_cycle(state, gamma, client, config, dry_run)
+                    state = run_cycle(state, gamma, client, config, dry_run,
+                                  continuous_momentum=getattr(args, 'continuous_momentum', False))
                     _save(state)
                 except Exception as e:
                     logger.error("Cycle error: %s", e, exc_info=True)
