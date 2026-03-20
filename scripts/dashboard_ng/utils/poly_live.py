@@ -1,7 +1,6 @@
 """Live Polymarket data — queries CLOB API via miniforge subprocess.
 
-The PolymarketClient uses py_clob_client which is only in miniforge env.
-NiceGUI runs on homebrew python. Bridge via subprocess + JSON.
+Returns: balance, orders, trades (with timestamps + titles).
 """
 
 import subprocess
@@ -16,7 +15,6 @@ AXC_HOME = os.environ.get('AXC_HOME', os.path.expanduser('~/projects/axc-trading
 
 
 def _build_script() -> str:
-    """Build the query script with correct paths. No f-string/template issues."""
     return f'''
 import sys, os, json
 sys.path.insert(0, {AXC_HOME!r})
@@ -31,44 +29,49 @@ client = PolymarketClient()
 result = dict()
 result['balance'] = client.get_usdc_balance()
 
+# Orders
 orders = client.get_orders()
 result['open_orders'] = len(orders)
 result['orders'] = []
-for o in orders[:10]:
+for o in orders[:20]:
     result['orders'].append(dict(
-        id=o.get('id', '')[:12],
+        id=o.get('id', '')[:16],
         status=o.get('status', ''),
         side=o.get('side', ''),
         size=o.get('original_size', o.get('size', '')),
         price=o.get('price', ''),
-        market=o.get('market', '')[:12],
+        market=o.get('market', '')[:16],
+        outcome=o.get('outcome', ''),
+        created=o.get('created_at', ''),
     ))
 
+# Recent trades (last 30 with full detail)
 trades = client.get_trades()
 result['total_trades'] = len(trades)
 result['recent_trades'] = []
-for t in trades[:5]:
+for t in trades[:30]:
     result['recent_trades'].append(dict(
-        id=t.get('id', '')[:12],
+        id=t.get('id', '')[:16],
         side=t.get('side', ''),
         size=t.get('size', ''),
         price=t.get('price', ''),
-        market=t.get('market', '')[:12],
+        market=t.get('market', '')[:16],
+        outcome=t.get('outcome', ''),
+        match_time=t.get('match_time', ''),
+        fee_rate=t.get('fee_rate_bps', ''),
+        status=t.get('status', ''),
+        asset_id=t.get('asset_id', '')[:20],
     ))
 
 print(json.dumps(result))
 '''
 
 
-_cache = {'data': {}, 'trade_count': 0}
+_cache = dict(data=dict())
 
 
 def query_live() -> dict:
-    """Query Polymarket CLOB for live balance, orders, trades.
-
-    Caches results — only re-queries balance + orders each time.
-    Trade count is checked; full trade list only fetched when count changes.
-    """
+    """Query Polymarket CLOB for live balance, orders, trades."""
     try:
         script = _build_script()
         result = subprocess.run(
@@ -78,7 +81,7 @@ def query_live() -> dict:
         )
         if result.returncode != 0:
             log.error('poly_live failed: %s', result.stderr[:200])
-            return _cache['data'] or {}  # return last good data
+            return _cache['data'] or {}
         try:
             data = json.loads(result.stdout)
             _cache['data'] = data

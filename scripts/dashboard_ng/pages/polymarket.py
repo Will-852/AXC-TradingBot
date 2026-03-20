@@ -568,16 +568,70 @@ def render_polymarket_page():
                     ui.label('TOTAL TRADES').classes('text-[10px] text-gray-600 uppercase')
                     ui.label(str(data.get('total_trades', 0))).classes('text-xl font-mono font-bold')
 
-            # Open orders
+            # Open orders table
             orders = data.get('orders', [])
             if orders:
                 ui.label('LIVE ORDERS').classes('text-[10px] text-gray-600 uppercase tracking-wide mt-2')
+                order_rows = []
                 for o in orders:
-                    with ui.row().classes('items-center gap-2 py-0.5'):
-                        ui.badge(o.get('status', ''), color='green').classes('text-[9px]')
-                        ui.badge(o.get('side', ''), color='blue' if o.get('side') == 'BUY' else 'orange').classes('text-[9px]')
-                        ui.label(f"size: {o.get('size', '?')}").classes('text-[11px] font-mono text-gray-400')
-                        ui.label(f"@ ${o.get('price', '?')}").classes('text-[11px] font-mono text-gray-300')
+                    try:
+                        sz = f"{float(o.get('size', 0)):.2f}"
+                    except (TypeError, ValueError):
+                        sz = str(o.get('size', ''))
+                    order_rows.append({
+                        'status': o.get('status', ''),
+                        'side': o.get('side', ''),
+                        'size': sz,
+                        'price': f"${o.get('price', '?')}",
+                        'outcome': o.get('outcome', ''),
+                    })
+                ui.aggrid({
+                    'columnDefs': [
+                        {'field': 'status', 'width': 65},
+                        {'field': 'side', 'width': 55},
+                        {'field': 'outcome', 'width': 55},
+                        {'field': 'size', 'width': 70, 'type': 'rightAligned'},
+                        {'field': 'price', 'width': 70, 'type': 'rightAligned'},
+                    ],
+                    'rowData': order_rows,
+                    'headerHeight': 30,
+                    'rowHeight': 28,
+                    'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark')
+
+            # Recent CLOB trades (LIVE, not stale state file)
+            live_trades = data.get('recent_trades', [])
+            if live_trades:
+                ui.label('LIVE TRADES (CLOB)').classes('text-[10px] text-gray-600 uppercase tracking-wide mt-2')
+                trade_rows = []
+                for t in live_trades[:15]:
+                    mt = t.get('match_time', '')
+                    if isinstance(mt, str) and len(mt) > 16:
+                        mt = mt[:16]
+                    try:
+                        sz = f"{float(t.get('size', 0)):.2f}"
+                    except (TypeError, ValueError):
+                        sz = str(t.get('size', ''))
+                    trade_rows.append({
+                        'time': mt,
+                        'side': t.get('side', ''),
+                        'outcome': t.get('outcome', ''),
+                        'size': sz,
+                        'price': f"${t.get('price', '?')}",
+                    })
+                ui.aggrid({
+                    'columnDefs': [
+                        {'field': 'time', 'width': 130},
+                        {'field': 'side', 'width': 50},
+                        {'field': 'outcome', 'width': 55},
+                        {'field': 'size', 'width': 65, 'type': 'rightAligned'},
+                        {'field': 'price', 'width': 65, 'type': 'rightAligned'},
+                    ],
+                    'rowData': trade_rows,
+                    'headerHeight': 30,
+                    'rowHeight': 28,
+                    'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark')
 
         live_ts.text = f'Live query: {datetime.now().strftime("%H:%M:%S")}'
 
