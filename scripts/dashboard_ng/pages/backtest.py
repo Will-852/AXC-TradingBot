@@ -22,7 +22,7 @@ def render_backtest_page():
     ui.html('''
         <iframe
             id="bt-frame"
-            src="/canvas/backtest.html"
+            src="/backtest.html"
             style="
                 width: 100%;
                 height: calc(100vh - 100px);

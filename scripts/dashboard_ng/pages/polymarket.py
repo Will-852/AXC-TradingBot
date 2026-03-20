@@ -57,9 +57,9 @@ def render_polymarket_page():
         for key, label in [
             ('usdc_balance', 'Balance'),
             ('positions_count', 'Positions'),
-            ('daily_pnl_pct', 'Daily PnL %'),
             ('total_exposure', 'Exposure'),
             ('exposure_pct', 'Exposure %'),
+            ('last_updated', 'Last Updated'),
         ]:
             with ui.card().classes('p-3 bg-gray-800 border border-gray-700 min-w-[120px]'):
                 ui.label(label).classes('text-[10px] text-gray-500 uppercase')
@@ -253,11 +253,13 @@ def render_polymarket_page():
         daily_pnl = state.get('daily_pnl_pct', 0)
         exposure_pct = state.get('exposure_pct', 0)
 
+        last_updated = state.get('last_updated', '—')
+
         kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
         kpi_labels['positions_count'].text = str(len(positions)) if isinstance(positions, list) else str(positions)
-        kpi_labels['daily_pnl_pct'].text = f'{daily_pnl:.1f}%' if isinstance(daily_pnl, (int, float)) else str(daily_pnl)
         kpi_labels['total_exposure'].text = f'${exposure:.2f}' if isinstance(exposure, (int, float)) else str(exposure)
         kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}%' if isinstance(exposure_pct, (int, float)) else str(exposure_pct)
+        kpi_labels['last_updated'].text = str(last_updated)
 
         # Mode button
         is_dry = state.get('dry_run', True)
@@ -301,11 +303,17 @@ def render_polymarket_page():
             else:
                 ui.label('No positions').classes('text-gray-600 text-sm')
 
-        # PnL chart
+        # PnL chart — use cumulative PnL, timestamp for time axis
         pnl_series = d.get('pnl_series', [])
         if pnl_series:
-            times = [p.get('time', '') for p in pnl_series]
-            values = [p.get('pnl', p.get('cumulative', 0)) for p in pnl_series]
+            times = []
+            values = []
+            for p in pnl_series:
+                ts = p.get('timestamp', p.get('time', ''))
+                if isinstance(ts, str) and len(ts) > 16:
+                    ts = ts[5:16]  # "2026-03-19T14:46" → "03-19T14:46"
+                times.append(ts)
+                values.append(p.get('cumulative', p.get('pnl', 0)))
             pnl_chart.options['xAxis']['data'] = times
             pnl_chart.options['series'][0]['data'] = values
             pnl_chart.update()
@@ -341,14 +349,20 @@ def render_polymarket_page():
         trades_container.clear()
         with trades_container:
             if trades:
-                rows = [{
-                    'time': t.get('time', ''),
-                    'market': (t.get('market', t.get('slug', t.get('title', ''))) or '')[:35],
-                    'side': t.get('side', ''),
-                    'price': f"${t.get('price', 0):.3f}" if isinstance(t.get('price'), (int, float)) else str(t.get('price', '')),
-                    'size': t.get('size', t.get('shares', '')),
-                    'pnl': t.get('pnl', '—'),
-                } for t in trades[:30]]
+                rows = []
+                for t in trades[:30]:
+                    ts = t.get('timestamp', t.get('time', ''))
+                    if isinstance(ts, str) and len(ts) > 16:
+                        ts = ts[5:16]
+                    price = t.get('price', t.get('avg_price', 0))
+                    rows.append({
+                        'time': ts,
+                        'market': (t.get('title', t.get('market', t.get('slug', ''))) or '')[:35],
+                        'side': t.get('side', ''),
+                        'price': f"${float(price):.3f}" if isinstance(price, (int, float)) else str(price),
+                        'size': t.get('size', t.get('shares', t.get('amount', ''))),
+                        'pnl': t.get('pnl', t.get('realized_pnl', '—')),
+                    })
                 ui.aggrid({
                     'columnDefs': [
                         {'field': 'time', 'width': 130},
@@ -364,37 +378,44 @@ def render_polymarket_page():
                 ui.label('No trades').classes('text-gray-600 text-sm')
 
         # Circuit breakers (with RESET button)
+        # Actual shape: [{"service": "polymarket", "state": "closed", "failure_count": 0, ...}]
         cbs = d.get('circuit_breakers', [])
         cb_container.clear()
         with cb_container:
             if cbs:
                 for cb in cbs:
                     if isinstance(cb, dict):
-                        name = cb.get('name', '?')
-                        triggered = cb.get('triggered', False)
+                        name = cb.get('service', cb.get('name', '?'))
+                        cb_state = cb.get('state', 'closed')
+                        failures = cb.get('failure_count', 0)
+                        triggered = cb_state != 'closed'
                     else:
                         name = str(cb)
                         triggered = False
+                        failures = 0
 
                     with ui.row().classes('items-center gap-2 w-full'):
                         ui.icon('circle').classes('text-[8px]').style(
                             f'color: {"#ef4444" if triggered else "#22c55e"}')
-                        ui.label(str(name)).classes('text-sm text-gray-300 flex-1')
+                        ui.label(str(name)).classes('text-sm text-gray-300 min-w-[100px]')
+                        ui.label(f'{cb_state}' if isinstance(cb, dict) else '').classes('text-[10px] font-mono text-gray-500')
+                        if failures:
+                            ui.label(f'({failures} failures)').classes('text-[10px] text-yellow-400')
                         if triggered:
                             async def reset_cb(n=name):
                                 from scripts.dashboard.polymarket import handle_polymarket_reset_cb
-                                import json
+                                import json as _json
                                 result = await run.io_bound(
-                                    handle_polymarket_reset_cb, json.dumps({'name': n})
+                                    handle_polymarket_reset_cb, _json.dumps({'name': n})
                                 )
                                 if isinstance(result, tuple):
-                                    _, data = result
+                                    _, rdata = result
                                 else:
-                                    data = result
-                                if data.get('ok'):
+                                    rdata = result
+                                if rdata.get('ok'):
                                     ui.notify(f'CB "{n}" reset', type='positive')
                                 else:
-                                    ui.notify(f'Reset failed: {data.get("error")}', type='negative')
+                                    ui.notify(f'Reset failed: {rdata.get("error")}', type='negative')
                                 await refresh()
 
                             ui.button('Reset', on_click=reset_cb) \
