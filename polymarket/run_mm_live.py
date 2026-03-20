@@ -1121,13 +1121,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _confidence = max(fair, 1.0 - fair)
         _entry_config = _copy(config)
         if _confidence >= 0.70:
-            pass  # $0.40 cap (default) — strong signal
+            pass  # $0.40 cap (default) — strong signal, 1.50x ratio
         elif _confidence >= 0.62:
-            _entry_config.max_directional_bid = 0.37  # 1.70x ratio
+            _entry_config.max_directional_bid = 0.35  # 1.86x ratio
         elif _confidence >= 0.57:
-            _entry_config.max_directional_bid = 0.33  # 2.03x ratio
-        else:
             _entry_config.max_directional_bid = 0.28  # 2.57x ratio
+        else:
+            _entry_config.max_directional_bid = 0.24  # 3.17x ratio
         if _entry_config.max_directional_bid != config.max_directional_bid:
             logger.info("DYNAMIC PRICE %s: conf=%.0f%% → bid cap $%.2f (was $%.2f)",
                         cid[:8], _confidence * 100,
