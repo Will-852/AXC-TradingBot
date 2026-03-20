@@ -5072,9 +5072,9 @@ document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); }
     setOpen(!isOpen, true);
   };
 
-  // Init: default collapsed
+  // Init: default OPEN (left panel visible)
   var saved = localStorage.getItem(OPEN_KEY);
-  setOpen(saved === '1', false);
+  setOpen(saved !== '0', false);
 })();
 
 // ── Resizable sidebar ──
