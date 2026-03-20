@@ -1499,6 +1499,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                     cid[:8], side, _shares_to_sell, shares, _sell_price,
                                     _recovered, _remaining)
                         mkt[shares_key] = _remaining
+                        # FIX: reduce entry_cost so resolve_market PnL is correct
+                        _sold_cost = _shares_to_sell * avg
+                        mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
                         mkt["cost_recovered"] = True
                         mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _original_cost)
                     except Exception as e:

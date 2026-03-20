@@ -401,8 +401,17 @@ def _check_fills(state: dict, client) -> None:
             continue
         end_ms = mkt.get("window_end_ms", 0)
         if end_ms > 0 and now_ms > end_ms:
+            # FIX: actually cancel orders on CLOB (was only logging, not cancelling)
+            # GTC orders stay live after window close → can be adversely filled
             for _ep in pending:
-                _log_order("expired", _ep.get("order_id", ""), cid,
+                _oid = _ep.get("order_id", "")
+                if _oid and client and hasattr(client, "client"):
+                    try:
+                        client.client.cancel(order_id=_oid)
+                        logger.info("CANCEL EXPIRED %s %s", cid[:8], _ep.get("outcome", ""))
+                    except Exception:
+                        pass
+                _log_order("expired", _oid, cid,
                            outcome=_ep.get("outcome", ""))
             _bump_fill(state, "expired", len(pending))
             mkt["pending_orders"] = []
