@@ -50,6 +50,7 @@ _ET = timezone(timedelta(hours=-4))
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state_1h.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades_1h.jsonl")
+_ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log_1h.jsonl")
 _GAMMA = "https://gamma-api.polymarket.com"
 _BINANCE = "https://api.binance.com/api/v3"
 
@@ -119,25 +120,25 @@ def _binance_open(coin: str, start_ms: int) -> float | None:
     return None
 
 
-def _vol_1m(coin: str = "BTC", lookback_hours: int = 24) -> float:
-    """Per-minute volatility from historical 1h klines (NOT current hour)."""
+def _vol_1m(coin: str = "BTC") -> float:
+    """Per-minute volatility from Binance 1m klines (120 candles = 2h).
+
+    Uses 1m close-to-close log returns — consistent with backtest
+    (hourly_conviction_bt.py:compute_vol_1m) and 15M bot (run_mm_live.py:_vol_1m).
+    Previous version used hourly gap returns / sqrt(60) which underestimates by 10-20%.
+    """
     sym = _COIN_SYMBOLS.get(coin, "BTCUSDT")
-    end = int(time.time() * 1000)
-    start = end - lookback_hours * 3_600_000
-    data = _get_json(f"{_BINANCE}/klines?symbol={sym}&interval=1h&startTime={start}&endTime={end}&limit=100")
-    if not data or len(data) < 5:
+    url = f"{_BINANCE}/klines?symbol={sym}&interval=1m&limit=120"
+    data = _get_json(url)
+    if not data or len(data) < 20:
         return 0.00077  # fallback: ~50% annual BTC vol
-    returns = []
-    for i in range(1, len(data)):
-        o_prev, c_prev = float(data[i - 1][1]), float(data[i - 1][4])
-        o_curr = float(data[i][1])
-        if c_prev > 0:
-            returns.append(math.log(o_curr / c_prev))
-    if not returns:
+    closes = [float(k[4]) for k in data]
+    rets = [math.log(closes[i] / closes[i-1]) for i in range(1, len(closes)) if closes[i-1] > 0]
+    if len(rets) < 10:
         return 0.00077
-    import statistics
-    hourly_vol = statistics.stdev(returns) if len(returns) > 2 else 0.005
-    return hourly_vol / math.sqrt(60)  # convert hourly → per-minute
+    mean = sum(rets) / len(rets)
+    vol = math.sqrt(sum((r - mean)**2 for r in rets) / len(rets))
+    return max(0.0001, vol)
 
 
 def _poly_midpoint(token_id: str) -> float | None:
@@ -228,7 +229,8 @@ def _discover(gamma: GammaClient) -> list[dict]:
 # ═══════════════════════════════════════
 
 def _execute_order(client, token_id: str, outcome: str,
-                   price: float, size_usd: float, dry_run: bool) -> dict:
+                   price: float, size_usd: float, dry_run: bool,
+                   coin: str = "BTC", cid: str = "") -> dict:
     """Submit a single limit order."""
     shares = size_usd / price if price > 0 else 0
     if shares < 5:
@@ -251,11 +253,17 @@ def _execute_order(client, token_id: str, outcome: str,
             status = r.get("status", "")
             if r.get("dry_run"):
                 status = "matched"
+        _now = time.time()
+        _btc_now = _btc_price(coin)
         logger.info("ORDER %s %.0f shares @ $%.3f ($%.2f) → %s",
                     outcome, shares, price, size_usd, status or order_id[:12])
+        _log_order("submit", order_id, cid,
+                   outcome=outcome, price=price, size=shares,
+                   status=status, btc=round(_btc_now, 2))
         return {"outcome": outcome, "price": price, "size": shares,
                 "token_id": token_id, "order_id": order_id,
-                "status": status, "submitted": True}
+                "status": status, "submitted": True,
+                "order_ts": _now, "btc_at_order": round(_btc_now, 2)}
     except Exception as e:
         logger.error("ORDER FAILED %s: %s", outcome, e)
         return {"outcome": outcome, "submitted": False, "error": str(e)}
@@ -277,6 +285,9 @@ def _check_fills(state: dict, client) -> None:
             continue
         end_ms = mkt.get("window_end_ms", 0)
         if end_ms > 0 and now_ms > end_ms:
+            for _ep in pending:
+                _log_order("expired", _ep.get("order_id", ""), cid,
+                           outcome=_ep.get("outcome", ""))
             _bump_fill(state, "expired", len(pending))
             mkt["pending_orders"] = []
             mkt["fills_confirmed"] = True
@@ -304,6 +315,8 @@ def _check_fills(state: dict, client) -> None:
                     still_open.append(po)
                 else:
                     _bump_fill(state, "cancelled")
+                    _log_order("cancelled_external", po.get("order_id", ""), cid,
+                               outcome=po.get("outcome", ""))
 
             if filled:
                 for f in filled:
@@ -318,7 +331,18 @@ def _check_fills(state: dict, client) -> None:
                         mkt["down_avg_price"] = (old + f["size"] * f["price"]) / mkt["down_shares"]
                     mkt["entry_cost"] += f["size"] * f["price"]
                     _bump_fill(state, "filled")
-                    logger.info("FILL %s %s: %.0f @ $%.3f", cid[:8], o, f["size"], f["price"])
+                    # AS metrics
+                    _title = mkt.get("title", "").lower()
+                    _fill_coin = "ETH" if "ethereum" in _title else "BTC"
+                    _btc_fill = _btc_price(_fill_coin)
+                    _order_ts = f.get("order_ts", 0)
+                    _ttf = round(time.time() - _order_ts, 1) if _order_ts > 0 else 0
+                    _log_order("fill", f.get("order_id", ""), cid,
+                               outcome=o, price=f["price"], size=f["size"],
+                               btc_at_fill=round(_btc_fill, 2),
+                               time_to_fill_s=_ttf)
+                    logger.info("FILL %s %s: %.0f @ $%.3f ttf=%.0fs",
+                                cid[:8], o, f["size"], f["price"], _ttf)
                 mkt["pending_orders"] = still_open
                 if not still_open:
                     mkt["fills_confirmed"] = True
@@ -332,6 +356,10 @@ def _check_fills(state: dict, client) -> None:
 
 def _check_resolutions(state: dict):
     now_ms = int(time.time() * 1000)
+    # Batch resolutions by window_start_ms so BTC+ETH same-hour = 1 event
+    # for consecutive loss counting (correlated outcomes)
+    hour_pnl: dict[int, float] = {}  # {start_ms: net_pnl}
+
     for cid, md in list(state["markets"].items()):
         if md.get("phase") == "RESOLVED":
             continue
@@ -358,10 +386,8 @@ def _check_resolutions(state: dict):
         state["total_pnl"] += pnl
         state["total_markets"] = state.get("total_markets", 0) + 1
 
-        if pnl < 0:
-            state["consecutive_losses"] = state.get("consecutive_losses", 0) + 1
-        else:
-            state["consecutive_losses"] = 0
+        # Accumulate per-hour PnL (BTC+ETH same hour = 1 event)
+        hour_pnl[start_ms] = hour_pnl.get(start_ms, 0) + pnl
 
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                      "result": result, "pnl": round(pnl, 4),
@@ -370,6 +396,18 @@ def _check_resolutions(state: dict):
 
         d = "↑" if result == "UP" else "↓"
         print(f"  RESOLVED {cid[:8]} {d} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
+
+    # Update consecutive losses per hour-window (not per market)
+    for _start_ms, net_pnl in sorted(hour_pnl.items()):
+        if net_pnl < 0:
+            state["consecutive_losses"] = state.get("consecutive_losses", 0) + 1
+            if state["consecutive_losses"] >= 5:
+                cd = (datetime.now(tz=_HKT) + timedelta(hours=4)).isoformat(timespec="seconds")
+                state["cooldown_until"] = cd
+                logger.warning("CIRCUIT BREAKER: %d consecutive hour-losses → cooldown until %s",
+                               state["consecutive_losses"], cd)
+        else:
+            state["consecutive_losses"] = 0
 
 
 # ═══════════════════════════════════════
@@ -433,6 +471,23 @@ def _log_trade(record: dict):
         f.write(json.dumps(record, default=str) + "\n")
 
 
+def _log_order(event: str, order_id: str, cid: str, **kwargs):
+    """Per-order lifecycle log: submit/fill/cancel/expired."""
+    record = {
+        "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
+        "event": event,
+        "order_id": order_id[:16] if order_id else "",
+        "cid": cid[:8] if cid else "",
+    }
+    record.update(kwargs)
+    try:
+        os.makedirs(_LOG_DIR, exist_ok=True)
+        with open(_ORDER_LOG, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+    except Exception:
+        pass
+
+
 # ═══════════════════════════════════════
 #  Main Cycle
 # ═══════════════════════════════════════
@@ -453,10 +508,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         state["daily_pnl_date"] = today
 
     # ── Kill switches ──
-    if state.get("consecutive_losses", 0) >= 5:
-        cooldown = state.get("cooldown_until", "")
-        if cooldown and now_hkt.isoformat() < cooldown:
-            return state, last_scan, last_heavy, cached_markets, cached_vol
+    cooldown = state.get("cooldown_until", "")
+    if cooldown and now_hkt.isoformat(timespec="seconds") < cooldown:
+        return state, last_scan, last_heavy, cached_markets, cached_vol
+    elif cooldown and now_hkt.isoformat(timespec="seconds") >= cooldown:
+        # Cooldown expired — reset
+        state["cooldown_until"] = ""
+        state["consecutive_losses"] = 0
+        logger.info("Cooldown expired, resuming trading")
 
     daily_loss_pct = abs(state["daily_pnl"]) / max(state["bankroll"], 1) if state["daily_pnl"] < 0 else 0
     if daily_loss_pct > 0.15:
@@ -579,7 +638,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             size_usd = max(2.50, min(size_usd, window_budget - budget_spent))
 
             result = _execute_order(client, token_id, sig.direction,
-                                    sig.entry_price, size_usd, dry_run)
+                                    sig.entry_price, size_usd, dry_run,
+                                    coin=coin, cid=cid)
 
             if result.get("submitted"):
                 _bump_fill(state, "submitted")

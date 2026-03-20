@@ -87,6 +87,7 @@ class HourlyConfig:
     ob_depth_baseline: float = 5000.0   # "good" depth = 5000 shares
     # OB conviction gate: below this quality, OB penalizes conviction too
     ob_bad_threshold: float = 0.30      # ob_quality < 0.30 = bad, penalize conviction
+    ob_depth_override_mult: float = 10.0  # depth >= 10x baseline → override spread penalty
     # Late window cutoff
     late_cutoff_min: float = 56.0       # don't enter after minute 56
     # Skip near coin-flip
@@ -368,29 +369,29 @@ def _check_position(
 def _compute_ob_quality(ob: OBState, config: HourlyConfig) -> float:
     """
     OB quality score (0-1). Combines spread tightness + depth.
-
-    Good OB (spread <=2c, depth >=5000) → quality = 1.0
-    Bad OB (spread >=10c or depth < 500) → quality → 0
-    No data → 0.5 (neutral assumption, won't penalize conviction)
+    Hollow book override: depth >= 10x baseline → quality floor 0.50.
     """
     if ob.spread <= 0 and ob.bid_depth <= 0:
-        return 0.5  # no OB data → neutral assumption
+        return 0.5
 
-    # Spread factor: 1.0 if spread <= baseline, declining above
     if ob.spread > 0:
         spread_factor = min(1.0, config.ob_spread_baseline / max(ob.spread, 0.001))
     else:
-        spread_factor = 0.5  # unknown
+        spread_factor = 0.5
 
-    # Depth factor: 1.0 if depth >= baseline
     total_depth = ob.bid_depth + ob.ask_depth
     if total_depth > 0:
         depth_factor = min(1.0, total_depth / config.ob_depth_baseline)
     else:
-        depth_factor = 0.5  # unknown
+        depth_factor = 0.5
 
-    # Geometric mean: both must be decent
-    return math.sqrt(spread_factor * depth_factor)
+    quality = math.sqrt(spread_factor * depth_factor)
+
+    # Hollow book override: massive depth compensates for wide spread
+    if total_depth >= config.ob_depth_baseline * config.ob_depth_override_mult:
+        quality = max(quality, 0.50)
+
+    return quality
 
 
 # =======================================
