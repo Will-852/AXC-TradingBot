@@ -192,7 +192,7 @@ def _poly_ob(token_id: str) -> OBState:
 #  Forced Exit — Black Swan Protection
 # ═══════════════════════════════════════
 
-_BLACK_SWAN_MID = 0.93   # sell 90% at 93¢+ → lock profit, keep 10% free roll
+_BLACK_SWAN_MID = 0.95   # sell 90% at 95¢+ → lock profit, keep 10% free roll
 _BLACK_SWAN_SELL_PCT = 0.90  # sell 90%, keep 10% as free upside
 
 
