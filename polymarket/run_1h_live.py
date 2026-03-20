@@ -196,8 +196,11 @@ _BLACK_SWAN_MID = 0.94   # sell ALL when our side mid ≥ 94¢ — don't be gree
 
 
 def _try_sell_all(client, state: dict, cid: str, mkt: dict,
-                  up_tok: str, dn_tok: str, reason: str = "") -> bool:
-    """Sell all shares in a market. Returns True if sold."""
+                  up_tok: str, dn_tok: str, reason: str = "",
+                  known_mid: float = 0) -> bool:
+    """Sell all shares in a market. Returns True if sold.
+    known_mid: caller's last-known mid for pricing. Avoids re-fetch stale/fail.
+    """
     if not client or not hasattr(client, "sell_shares"):
         return False
     sold = False
@@ -209,9 +212,11 @@ def _try_sell_all(client, state: dict, cid: str, mkt: dict,
         avg = mkt.get(avg_key, 0)
         if shares < 1 or not tok:
             continue
-        mid = _poly_midpoint(tok)
+        # Use caller's known mid if available, else fetch (with NO fallback to 0.50)
+        mid = known_mid if known_mid > 0 else _poly_midpoint(tok)
         if not mid or mid <= 0:
-            mid = 0.50
+            logger.warning("SELL ABORT %s %s: mid unavailable, refusing to sell blind", cid[:8], side)
+            continue
         sell_price = round(max(0.01, mid * 0.98), 2)  # 2% slippage
         try:
             client.sell_shares(tok, shares, price=sell_price)
@@ -252,7 +257,7 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                                cid[:8], side, mid, _BLACK_SWAN_MID)
                 sold = _try_sell_all(client, state, cid, mkt,
                               mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
-                              reason="black_swan_94pct")
+                              reason="black_swan_94pct", known_mid=mid)
                 # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
                 # Must execute instantly — market can reverse in seconds.
                 if sold:
