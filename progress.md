@@ -1,71 +1,117 @@
-# Progress — MM v4
+# Progress Log — AXC Dashboard NiceGUI Migration
 
-## Session: 2026-03-19
+## Session: 2026-03-20
 
-### v3 ❌（蝕 $5.50 — 廢棄）
-- 重複落單 bug：15 DOWN shares（應 5）
-- Indicator 從未被用到（`.probability` field 唔存在）
-- Entry filter 同 strategy 互相矛盾
-- 兩邊買策略只一邊 fill → adverse selection
-- 兩邊 equal sizing 只追手續費 $0.25 → 唔值得
+### Phase 0: 環境 + scaffolding ✅
+- NiceGUI 3.9.0 installed (Python 3.14.3, --break-system-packages)
+- Directory: scripts/dashboard_ng/{pages,components/js,utils}
+- Hello world: all 5 routes 200 OK on port 5567
+- Backend imports verified: services.py, collectors.py
 
-### v4 Strategy ✅（用戶確認）
-- [x] Opus code review: 12 issues (5 RED, 5 YELLOW)
-- [x] Data source audit: 7 signal sources available but unused
-- [x] 用戶確認策略方向：Hybrid Asymmetric
-  - 信心高 → 方向側重大注碼 + hedge
-  - 信心中等 → 接近 equal（spread capture）
-  - 冇 edge → skip
-- [x] 用戶確認 signal priority：OB + CVD + M1 > 傳統 indicator
-- [x] Backtest reference from another agent: Hybrid 75.8% WR, $14.3/day (OOS)
-- [x] Planning files updated to reflect v4 strategy
-- [x] Memory saved: strategy direction + sizing logic + signal priority
+### Phase 1: Layout Shell + Dark Theme ✅
+- layout.py: header (AXC logo + exchange badges) + sidebar (nav + services) + footer
+- theme.py: dark-first color palette
+- state.py: background collector with run.io_bound() (BMD fix #1)
+- Dark mode default + toggle + persist to app.storage.user
+- Services: 7 services with live status + restart buttons
+- Exchange badges: Aster/Binance/HL live status
 
-### Phase 1: Fix 12 bugs `status: complete`
-- [x] #9: Removed contradictory entry filter
-- [x] #4: `.probability` → `.ai_probability`
-- [x] #8: Cancel GTC 2 min before window end
-- [x] #1: Use get_trades() for fill confirmation (not just open_orders)
-- [x] #2: Verified: SDK `market` field = condition_id ✅
-- [x] #5: Docstrings updated (both files)
-- [x] #7: Don't reset instant fills on _check_fills
-- [x] #10: _to_dict preserves runtime fields
-- [x] #11: Daily loss limit = 15% bankroll (not absolute $50)
-- [x] #12: Binance ≠ Chainlink — accepted limitation, noted
-- Float fix: fair_down >= MIN_CONFIDENCE (was failing at boundary)
-### Phase 2+3: Dual-Layer Hybrid + Signal Integration `status: complete`
-- [x] plan_opening → Dual-Layer (hedge + directional, bankroll-aware)
-- [x] Zone 0 (<0.50): skip
-- [x] Zone 1 (0.50-0.57): pure hedge if bankroll allows
-- [x] Zone 2 (0.57-0.65): 50% hedge + 50% directional
-- [x] Zone 3 (>0.65): 25% hedge + 75% directional
-- [x] Bankroll gates: $40 = DIR only; $50 = Z1 hedge; $100+ = full dual-layer
-- [x] Equal shares in hedge → combined < $1 ALWAYS (verified 0.940-0.950)
-- [x] assess_edge() integration (indicator + CVD + microstructure)
-- [x] Order book imbalance adjustment (±5%)
-- [x] Signal blend: 70% assess_edge + 30% bridge + OB
+### Phase 2: Stats + Controls ✅
+- stats_cards.py: Today PnL, Total PnL, Triggers, Positions (2s refresh)
+- risk_boxes.py: market mode, consecutive losses, daily loss, drawdown
+- controls.py: Profile/Regime/Trading toggle → writes params.py directly
+- Fixed: TRADING_ENABLED append when key doesn't exist in params.py
 
-### Phase 2b: Cancel Defense `status: complete`
-- [x] entry_price_snapshot stored per market
-- [x] Trigger 1: cancel ALL pending 2 min before window end
-- [x] Trigger 2: cancel DIRECTIONAL if spot moves >0.05% (hedge kept)
-- [x] Trigger 3: cancel DIRECTIONAL after 60s TTL (hedge kept)
-- [x] Layer-specific: hedge pair never cancelled by spot/TTL triggers
+### Phase 3: Positions + Orders ✅
+- positions.py: position cards with close/modify SL-TP
+- action_plan.py: AG Grid with color-coded changes + row highlighting
 
-### Phase 3b: Indicator Weight `status: complete`
-- [x] Max 30% indicator weight (was 70% at T=1min)
-- [x] Verified: T=1min bridge=0.924 blended=0.889
-### Phase 4: Backtest verify `status: complete`
-- [x] 180d bridge-only: 66.3% WR, $13.32/day, $2,398 total
-- [x] STRONG >0.60: 70.0% WR | LEAN 0.55-0.60: 58.8% WR
-- [x] Train/Test OOS: 66.4% vs 66.1% (drift 0.3% ✅ no overfit)
-- [x] 76% positive days, Sharpe 12-13
-- [x] Bridge-only baseline — real system adds indicator+CVD+OB for higher accuracy
-### Stress Test ✅
-- [x] 360d Monte Carlo: Realistic scenario +$18.7K, Pessimistic +$7.9K
-- [x] Break-even: WR can drop 14% at fill=60% + adv=10%
-- [x] Strategy robust: single factor degradation never causes loss
-- [x] Death condition: WR-10% + fill 40% + adv 20% simultaneous (极端)
+### Phase 5: Charts + Analytics ✅
+- pnl_chart.py: ECharts sparkline + time range filter (1H/4H/1D/7D/ALL)
+- analytics.py: fee breakdown, trade stats, funding rates, news sentiment, trade history, activity log
 
-### Phase 5: Paper 24h `status: pending`
-### Phase 6: Live `status: pending`
+### Phase 6: AI Chat ✅
+- chat.py: floating FAB → dialog panel, Fast/Deep toggle, markdown rendering
+
+### Phase 7: Services Management ✅
+- Integrated into sidebar (layout.py) — live status + restart buttons
+
+### Phase 8: Polymarket ✅
+- pages/polymarket.py: KPIs, PnL chart, trades grid, circuit breakers, run cycle/force scan/mode toggle
+
+### Phase 9: Paper Trading ✅
+- pages/paper.py: start/stop subprocess, status display, DRY_RUN log entries
+
+### Phase 11: Docs Browser ✅
+- pages/docs.py: splitter layout, file search, markdown rendering, path traversal guard
+
+### Phase 4: Trade Entry Modal ✅
+- trade_modal.py: OKX-style order entry dialog
+- 5-step execution: margin mode → leverage → entry → SL → TP
+- Debounce lock (BMD fix #2): button disabled during submit
+- Auto qty calc from USDT notional + leverage + live price
+- Symbol info fetch (step size, min qty)
+- Balance display (parallel fetch)
+- Wired to action plan table: click row → opens trade modal for that symbol
+
+### Phase 10: Backtest Studio ✅ (Basic — ECharts version)
+- pages/backtest.py: full backtest page
+- ECharts candlestick chart + volume bars + data zoom
+- Symbol/interval/days selector
+- Parameter override panel (SL/TP mult, risk %, leverage)
+- Async backtest run with polling
+- Results panel: stats cards + trades AG Grid
+- Saved runs browser with load
+
+### Remaining
+- Phase 10 upgrade: TradingView custom component (optional, future)
+- Phase 12: Migration + Cleanup (switch LaunchAgent plist)
+
+## Files Created (19 files)
+```
+scripts/dashboard_ng/
+├── __init__.py
+├── main.py                  # Entry point (port 5567)
+├── layout.py                # Shared layout (header/sidebar/footer)
+├── theme.py                 # Colors/classes
+├── state.py                 # Background collector (run.io_bound)
+├── pages/
+│   ├── __init__.py
+│   ├── backtest.py          # ECharts candlestick + backtest run
+│   ├── polymarket.py        # Full polymarket controls
+│   ├── paper.py             # Paper trading start/stop
+│   └── docs.py              # Docs browser with splitter
+├── components/
+│   ├── __init__.py
+│   ├── stats_cards.py       # 4 KPI cards
+│   ├── risk_boxes.py        # Market mode, risk meters, drawdown
+│   ├── controls.py          # Profile/Regime/Trading toggles
+│   ├── positions.py         # Position cards + modify SL/TP
+│   ├── action_plan.py       # AG Grid action plan (click → trade)
+│   ├── trade_modal.py       # Order entry dialog (5-step execution)
+│   ├── pnl_chart.py         # ECharts PnL sparkline
+│   ├── analytics.py         # Fees, stats, funding, news, history
+│   └── chat.py              # Floating AI chat panel
+└── utils/
+```
+
+## Test Results
+| Test | Expected | Actual | Status |
+|------|----------|--------|--------|
+| All 5 routes | 200 | 200 | ✅ |
+| Background collector | starts + logs | OK | ✅ |
+| Exchange init | Aster+Binance connect | OK | ✅ |
+| TRADING_ENABLED write | append if missing | OK (fixed) | ✅ |
+
+## Reboot Check
+| Question | Answer |
+|----------|--------|
+| 做緊咩？ | NiceGUI dashboard migration — 12/13 phases complete |
+| 目標？ | Replace 14K+ line HTML dashboard with pure Python NiceGUI |
+| 做咗咩？ | 19 files, ALL pages functional, live data + controls + trade execution |
+| 下一步？ | Phase 12 (Migration cleanup: switch LaunchAgent, archive old HTML) |
+
+## Error Log
+| Timestamp | Error | Resolution |
+|-----------|-------|------------|
+| 21:25 | TRADING_ENABLED regex not found | Added append fallback (matches existing dashboard behavior) |

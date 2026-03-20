@@ -953,22 +953,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # 1. Brownian Bridge (base — always available)
         bridge_p_up = compute_fair_up(_coin_price, _coin_open, _coin_vol, int(mins_left))
+        # Fat-tail haircut: BTC kurtosis > 9, normal CDF overestimates extremes
+        bridge_p_up = 0.50 + (bridge_p_up - 0.50) * 0.90  # 10% toward 0.50
 
-        # 2. Combined signal: indicator + CVD + microstructure (via assess_edge)
-        signal_p_up = 0.0
-        signal_source = "bridge"
-        try:
-            from polymarket.strategy.edge_finder import assess_edge
-            edge_result = assess_edge(mkt)
-            if edge_result is not None:
-                signal_p_up = edge_result.ai_probability or 0.0
-                signal_source = edge_result.signal_source or "combined"
-                logger.info("Signal P(Up)=%.3f [%s] for %s",
-                            signal_p_up, signal_source, cid[:8])
-        except Exception as e:
-            logger.debug("Signal pipeline failed: %s", e)
-
-        # 3. Order book imbalance (short-term, highest priority)
+        # 2. Order book imbalance (short-term, forward-looking)
+        # Removed: assess_edge() — traditional indicators (RSI/MACD/BB/EMA) are
+        # backward-looking, cause mean-reversion bias in trending markets.
+        # Bridge + OB + cross-exchange = sufficient for 15M binary.
         ob_adjustment = 0.0
         if client and hasattr(client, "get_order_book") and not dry_run:
             try:
@@ -983,22 +974,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             except Exception as e:
                 logger.debug("OB fetch failed: %s", e)
 
-        # Blend signals: signal pipeline > bridge, with OB adjustment
-        if signal_p_up > 0:
-            # Check for direction conflict: signal says one way, bridge says opposite
-            signal_up = signal_p_up > 0.50
-            bridge_up = bridge_p_up > 0.50
-            if signal_up != bridge_up and abs(signal_p_up - 0.50) > 0.03:
-                logger.info("SKIP %s: signal/bridge CONFLICT (signal=%.3f %s, bridge=%.3f %s)",
-                            cid[:8], signal_p_up, "UP" if signal_up else "DN",
-                            bridge_p_up, "UP" if bridge_up else "DN")
-                continue  # Keep in watchlist — might resolve later
-
-            # No conflict — blend
-            fair = signal_p_up * 0.70 + bridge_p_up * 0.30 + ob_adjustment
-        else:
-            # Bridge only + OB
-            fair = bridge_p_up + ob_adjustment
+        # Fair = bridge + OB (no indicator signal)
+        fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
         # ── Log signal data for future taker research (Phase 2) ──
@@ -1452,7 +1429,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     pass
 
             if signal_p_up > 0:
-                fair = signal_p_up * 0.70 + bridge_p_up * 0.30 + ob_adjustment
+                fair = signal_p_up * 0.17 + bridge_p_up * 0.83 + ob_adjustment
             else:
                 fair = bridge_p_up + ob_adjustment
             fair = max(0.05, min(0.95, fair))
