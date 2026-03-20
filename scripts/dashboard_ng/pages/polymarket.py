@@ -264,8 +264,8 @@ def render_polymarket_page():
 
     ui.separator().classes('bg-gray-700')
 
-    # ── Positions table ──
-    ui.label('POSITIONS').classes('text-xs text-gray-500 uppercase tracking-wide')
+    # ── Open Orders (LIVE from CLOB) ──
+    ui.label('OPEN ORDERS (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide')
     positions_container = ui.column().classes('w-full')
 
     # ── PnL chart ──
@@ -380,50 +380,38 @@ def render_polymarket_page():
         mode_btn.text = f'Mode: {mode_str}'
         mode_btn.props(f'color={"orange" if is_dry else "green"}')
 
-        # Positions — use live orders from CLOB (not stale state file)
+        # Positions — show LIVE orders from CLOB (state file positions are stale)
         live = poly_data.get('live', {})
         live_orders = live.get('orders', [])
         positions_container.clear()
         with positions_container:
-            # Show state file positions if available
-            if positions and isinstance(positions, list):
+            if live_orders:
                 rows = []
-                for p in positions:
+                for o in live_orders:
+                    try:
+                        sz = f"{float(o.get('size', 0)):.2f}"
+                    except (TypeError, ValueError):
+                        sz = str(o.get('size', ''))
                     rows.append({
-                        'title': (p.get('title', '') or '')[:45],
-                        'side': p.get('side', ''),
-                        'shares': p.get('shares', 0),
-                        'avg_price': f"${p.get('avg_price', 0):.3f}",
-                        'current': f"${p.get('current_price', 0):.3f}",
-                        'cost': f"${p.get('cost_basis', 0):.2f}",
-                        'value': f"${p.get('market_value', 0):.2f}",
-                        'pnl': f"${p.get('unrealized_pnl', 0):.2f}",
-                        'pnl_pct': f"{p.get('unrealized_pnl_pct', 0):.1f}%",
-                        'end_date': p.get('end_date', ''),
+                        'status': o.get('status', ''),
+                        'side': o.get('side', ''),
+                        'outcome': o.get('outcome', ''),
+                        'size': sz,
+                        'price': f"${o.get('price', '?')}",
                     })
                 ui.aggrid({
                     'columnDefs': [
-                        {'field': 'title', 'headerName': 'Market', 'width': 280},
+                        {'field': 'status', 'width': 65},
                         {'field': 'side', 'width': 55},
-                        {'field': 'shares', 'width': 65, 'type': 'rightAligned'},
-                        {'field': 'avg_price', 'headerName': 'Avg', 'width': 75, 'type': 'rightAligned'},
-                        {'field': 'current', 'headerName': 'Now', 'width': 75, 'type': 'rightAligned'},
-                        {'field': 'cost', 'headerName': 'Cost', 'width': 70, 'type': 'rightAligned'},
-                        {'field': 'value', 'headerName': 'Value', 'width': 70, 'type': 'rightAligned'},
-                        {'field': 'pnl', 'width': 70, 'type': 'rightAligned'},
-                        {'field': 'pnl_pct', 'width': 60, 'type': 'rightAligned'},
-                        {'field': 'end_date', 'headerName': 'Expires', 'width': 90},
+                        {'field': 'outcome', 'width': 60},
+                        {'field': 'size', 'width': 70, 'type': 'rightAligned'},
+                        {'field': 'price', 'width': 70, 'type': 'rightAligned'},
                     ],
                     'rowData': rows,
-                    'headerHeight': 34, 'rowHeight': 32, 'domLayout': 'autoHeight',
+                    'headerHeight': 32, 'rowHeight': 30, 'domLayout': 'autoHeight',
                 }).classes('w-full ag-theme-balham-dark')
-
-            # Always show live open orders count
-            n_orders = live.get('open_orders', 0)
-            if n_orders:
-                ui.label(f'{n_orders} live orders on CLOB').classes('text-[11px] text-blue-400 mt-1')
-            elif not positions:
-                ui.label('No positions or orders').classes('text-gray-600 text-sm')
+            else:
+                ui.label('No open orders').classes('text-gray-600 text-sm')
 
         # PnL chart — use cumulative PnL, timestamp for time axis
         pnl_series = d.get('pnl_series', [])
