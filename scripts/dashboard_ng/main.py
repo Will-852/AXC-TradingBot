@@ -81,63 +81,51 @@ def main_page():
     from scripts.dashboard_ng.components.exchange_connect import render_exchange_panel
     from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
-    with ui.column().classes('w-full p-4 gap-3'):
-        # Controls row
+    with ui.column().classes('w-full p-3 gap-2'):
+        # ── Row 1: Controls ──
         render_controls()
 
-        # Exchange connections + health + suggest (expandable)
-        with ui.row().classes('gap-2 flex-wrap w-full'):
-            with ui.column().classes('flex-1 min-w-[300px]'):
+        # ── Row 2: KPI Stats ──
+        render_stats_row()
+
+        # ── Row 3: Risk + Market mode (side by side) ──
+        render_risk_boxes()
+
+        # ── Row 4: Two-column layout — Left: positions + orders | Right: PnL chart + stats ──
+        with ui.row().classes('gap-2 w-full items-start'):
+            # Left column (60%)
+            with ui.column().classes('flex-[3] min-w-[400px] gap-2'):
+                render_positions()
+                render_action_plan()
+
+            # Right column (40%)
+            with ui.column().classes('flex-[2] min-w-[300px] gap-2'):
+                render_pnl_chart()
+                with ui.row().classes('gap-2 flex-wrap w-full'):
+                    render_fee_breakdown()
+                    render_trade_stats()
+
+        # ── Row 5: Two-column — Left: trades + scan log | Right: news + activity ──
+        with ui.row().classes('gap-2 w-full items-start'):
+            with ui.column().classes('flex-1 min-w-[300px] gap-2'):
+                render_trade_history()
+                render_scan_log()
+
+            with ui.column().classes('flex-1 min-w-[300px] gap-2'):
+                render_news_sentiment()
+                render_funding_rates()
+                render_activity_log()
+
+        # ── Row 6: Expandable panels (collapsed by default) ──
+        with ui.row().classes('gap-2 w-full'):
+            with ui.column().classes('flex-1 min-w-[250px]'):
                 render_exchange_panel()
-            with ui.column().classes('flex-1 min-w-[300px]'):
+            with ui.column().classes('flex-1 min-w-[250px]'):
                 render_health_panel()
             with ui.column().classes('flex-1 min-w-[200px]'):
                 render_suggest_mode()
 
-        ui.separator().classes('bg-[#2A2A2A]')
-
-        # KPI stats
-        render_stats_row()
-
-        # Risk boxes
-        render_risk_boxes()
-
-        ui.separator().classes('bg-[#2A2A2A]')
-
-        # Positions + orders
-        render_positions()
-
-        ui.separator().classes('bg-[#2A2A2A]')
-
-        # Action plan table
-        render_action_plan()
-
-        ui.separator().classes('bg-[#2A2A2A]')
-
-        # PnL chart
-        render_pnl_chart()
-
-        # Analytics row
-        with ui.row().classes('gap-4 flex-wrap w-full'):
-            render_fee_breakdown()
-            render_trade_stats()
-            render_news_sentiment()
-
-        # Funding rates
-        render_funding_rates()
-
-        # Scan log
-        render_scan_log()
-
-        # Trade history
-        render_trade_history()
-
-        # Activity log
-        render_activity_log()
-
-        ui.separator().classes('bg-[#2A2A2A]')
-
-        # System workflow diagrams
+        # ── Row 7: System diagrams ──
         from scripts.dashboard_ng.components.diagrams import render_all_diagrams
         render_all_diagrams()
 
