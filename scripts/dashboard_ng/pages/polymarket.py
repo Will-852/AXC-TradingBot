@@ -191,6 +191,12 @@ def render_polymarket_page():
 
     ui.separator().classes('bg-gray-700')
 
+    # ── Strategy Config (scrubbers) ──
+    from scripts.dashboard_ng.components.poly_config import render_poly_config
+    render_poly_config()
+
+    ui.separator().classes('bg-gray-700')
+
     # ── Running Processes (PID) ──
     with ui.expansion('Running Processes', icon='terminal', value=True).classes('w-full'):
         proc_container = ui.column().classes('w-full gap-1')
@@ -400,7 +406,7 @@ def render_polymarket_page():
         with strategy_container:
             if breakdown and isinstance(breakdown, dict):
                 with ui.row().classes('gap-3 flex-wrap'):
-                    for strat, count in sorted(breakdown.items(), key=lambda x: -x[1] if isinstance(x[1], (int, float)) else 0):
+                    for strat, count in sorted(breakdown.items(), key=lambda x: -(x[1] if isinstance(x[1], (int, float)) else 0)):
                         if isinstance(count, (int, float)) and count > 0:
                             ui.badge(f'{strat}: {count}', color='grey').classes('font-mono text-[11px]')
             else:
