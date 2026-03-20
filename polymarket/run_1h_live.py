@@ -189,6 +189,71 @@ def _poly_ob(token_id: str) -> OBState:
 
 
 # ═══════════════════════════════════════
+#  Forced Exit — Black Swan Protection
+# ═══════════════════════════════════════
+
+_BLACK_SWAN_MID = 0.94   # sell ALL when our side mid ≥ 94¢ — don't be greedy for last 6%
+
+
+def _try_sell_all(client, state: dict, cid: str, mkt: dict,
+                  up_tok: str, dn_tok: str, reason: str = "") -> bool:
+    """Sell all shares in a market. Returns True if sold."""
+    if not client or not hasattr(client, "sell_shares"):
+        return False
+    sold = False
+    for side, tok_key, shares_key, avg_key, tok in [
+        ("UP", "up_token_id", "up_shares", "up_avg_price", up_tok),
+        ("DOWN", "down_token_id", "down_shares", "down_avg_price", dn_tok),
+    ]:
+        shares = mkt.get(shares_key, 0)
+        avg = mkt.get(avg_key, 0)
+        if shares < 1 or not tok:
+            continue
+        mid = _poly_midpoint(tok)
+        if not mid or mid <= 0:
+            mid = 0.50
+        sell_price = round(max(0.01, mid * 0.98), 2)  # 2% slippage
+        try:
+            client.sell_shares(tok, shares, price=sell_price)
+            pnl = shares * (sell_price - avg)
+            mkt[shares_key] = 0
+            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + pnl
+            logger.info("SELL ALL [%s] %s %s: %.1f shares @ $%.3f (avg $%.3f) pnl=$%.2f",
+                        reason, cid[:8], side, shares, sell_price, avg, pnl)
+            sold = True
+        except Exception as e:
+            logger.warning("SELL FAILED [%s] %s %s: %s", reason, cid[:8], side, e)
+    if sold:
+        mkt["phase"] = "RESOLVED"
+        mkt["early_exit"] = reason
+    return sold
+
+
+def _check_black_swan(client, state: dict, dry_run: bool):
+    """Check all open positions — sell if mid ≥ 94¢. Runs every cycle."""
+    if dry_run or not client or not hasattr(client, "sell_shares"):
+        return
+    for cid, mkt in list(state["markets"].items()):
+        if mkt.get("phase") != "OPEN":
+            continue
+        for side, tok_key, shares_key in [
+            ("UP", "up_token_id", "up_shares"),
+            ("DOWN", "down_token_id", "down_shares"),
+        ]:
+            shares = mkt.get(shares_key, 0)
+            tok = mkt.get(tok_key, "")
+            if shares < 1 or not tok:
+                continue
+            mid = _poly_midpoint(tok)
+            if mid and mid >= _BLACK_SWAN_MID:
+                logger.warning("BLACK SWAN %s %s: mid $%.3f ≥ $%.2f → selling all",
+                               cid[:8], side, mid, _BLACK_SWAN_MID)
+                _try_sell_all(client, state, cid, mkt,
+                              mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
+                              reason="black_swan_94pct")
+
+
+# ═══════════════════════════════════════
 #  1H Market Discovery
 # ═══════════════════════════════════════
 
@@ -557,6 +622,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
     # ── Heavy ops (every 60s) ──
     is_heavy = (now - last_heavy) >= _HEAVY_INTERVAL_S
+    # ── Black swan check: EVERY cycle (not just heavy) — sell at 94¢ ──
+    _check_black_swan(client, state, dry_run)
+
     if not is_heavy:
         return state, last_scan, last_heavy, cached_markets, cached_vol
     last_heavy = now
@@ -724,7 +792,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         elif sig.action == "EXIT" and not dry_run:
             logger.warning("EXIT signal for %s: %s", cid[:8], sig.reason)
-            # TODO: implement sell_shares for exit
+            _try_sell_all(client, state, cid, existing, up_tok, dn_tok, reason="exit_signal")
 
         elif sig.action == "WAIT":
             logger.debug("WAIT %s t=%.0fm: %s", coin, t_elapsed, sig.reason)
