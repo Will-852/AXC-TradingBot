@@ -1456,7 +1456,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     _opp_side = "DOWN" if side == "UP" else "UP"
                     if _opp_tok:
                         _opp_mid = _poly_midpoint(client, _opp_tok)
-                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.02), 3)
+                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.02), 2)  # CLOB requires 2 decimal
                         if _hedge_price < 0.15:  # only if cheap (<15¢)
                             try:
                                 _hedge_cost = round(5 * _hedge_price, 2)
@@ -1465,7 +1465,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                             cid[:8], _opp_side, _hedge_price, _hedge_cost)
                             except Exception as e:
                                 logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
-                    continue
+                    break  # exit inner for-side loop — market is RESOLVED
 
                 if _cost_recovered:
                     # ── Post recovery: FREE ROLL — just hold, $0 risk ──
@@ -1500,7 +1500,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     try:
                         _sell_price = round(max(0.01, mid * 0.97), 2)
                         client.sell_shares(tok, shares, price=_sell_price)
-                        _round_pnl = shares * (mid - avg)
+                        _round_pnl = shares * (_sell_price - avg)
                         mkt[shares_key] = 0
                         mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
                         mkt["rounds"] = mkt.get("rounds", 0) + 1

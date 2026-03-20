@@ -259,7 +259,7 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                     opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
                     opp_side = "DOWN" if side == "UP" else "UP"
                     opp_mid = _poly_midpoint(opp_tok) if opp_tok else None
-                    hedge_price = round(max(0.01, (opp_mid or 0.06) * 1.02), 3)  # pay slightly above mid
+                    hedge_price = round(max(0.01, (opp_mid or 0.06) * 1.02), 2)  # CLOB requires 2 decimal
                     if opp_tok and hedge_price < 0.15:  # only hedge if cheap (<15¢)
                         try:
                             hedge_cost = round(5 * hedge_price, 2)
