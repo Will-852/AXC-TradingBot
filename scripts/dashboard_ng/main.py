@@ -147,7 +147,9 @@ def main_page():
 
 @ui.page('/backtest')
 def backtest_page():
-    create_layout(active_path='/backtest')
+    drawer = create_layout(active_path='/backtest')
+    # Auto-collapse sidebar — backtest.html has its own internal controls
+    drawer.value = False
     from scripts.dashboard_ng.pages.backtest import render_backtest_page
     with ui.column().classes('w-full p-0 gap-0'):
         render_backtest_page()
