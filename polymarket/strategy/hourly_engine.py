@@ -94,7 +94,7 @@ class HourlyConfig:
     # Fat-tail adjustment: BTC kurtosis > 9, normal CDF overestimates confidence
     fat_tail_haircut: float = 0.10      # 10% haircut toward 0.50
     # Stop loss: wider than 15M (-25%) because 1H has more short-term noise
-    stop_loss_pct: float = -0.40         # -40% unrealized → EXIT
+    stop_loss_pct: float = -0.49         # -49% unrealized → EXIT (insurance only, fair flip handles most exits)
     # Mid sanity: Polymarket market mid must agree with our direction
     min_market_mid: float = 0.28         # mid for our side must be ≥28¢ (below = market strongly disagrees)
     # Min order size for Polymarket (5 shares x $0.50 = $2.50)
