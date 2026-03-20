@@ -20,9 +20,26 @@ logging.basicConfig(
 )
 
 from nicegui import app, ui
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Port — different from current dashboard to allow parallel running
 PORT = 5567
+
+
+# Relax CSP for embedded HTML pages (backtest.html has 5220 lines of inline JS)
+class RelaxCSPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith('/canvas/') or path == '/backtest.html':
+            # MutableHeaders doesn't have pop — use del with guard
+            hdrs = response.headers
+            for h in ('content-security-policy', 'x-frame-options'):
+                if h in hdrs:
+                    del hdrs[h]
+        return response
+
+app.add_middleware(RelaxCSPMiddleware)
 
 # Static assets
 app.add_static_files('/svg', os.path.join(AXC_HOME, 'canvas', 'svg'))
