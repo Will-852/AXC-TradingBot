@@ -1407,7 +1407,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # Layer 3: STOP LOSS (-25%, pre-recovery only) → cut losses
     # Layer 4: HOLD → default (free shares or waiting)
     _EXIT_STOP_PCT = 0.25       # -25% → stop loss (pre-recovery only)
-    _BLACK_SWAN_MID = 0.94      # sell all at 94¢+
+    _BLACK_SWAN_MID = 0.93      # sell 90% at 93¢+ → lock profit, keep 10% free roll
+    _BLACK_SWAN_SELL_PCT = 0.90 # sell 90%, keep 10% as free upside
     _COST_RECOVERY_MID = 0.64   # recover cost when mid ≥ 64¢ (keep 3 free shares vs 2 at 55¢)
     if client and hasattr(client, "sell_shares") and not dry_run:
         for cid, mkt in state["markets"].items():
@@ -1434,21 +1435,25 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if mid <= 0:
                     continue
 
-                # ── Layer 1: BLACK SWAN (94¢+) → sell ALL + greed hedge ──
+                # ── Layer 1: PROFIT LOCK (93¢+) → sell 90%, keep 10% free roll + hedge ──
                 if mid >= _BLACK_SWAN_MID:
-                    # Sell — must succeed before hedge attempt
+                    # Sell 90% to lock profit, keep 10% as free upside ($0 risk)
+                    _sell_shares = max(1, int(shares * _BLACK_SWAN_SELL_PCT))
+                    _keep = shares - _sell_shares
                     try:
                         _sell_price = round(max(0.01, mid * 0.99), 2)
-                        client.sell_shares(tok, shares, price=_sell_price)
-                        _pnl = shares * (_sell_price - avg)
-                        logger.info("BLACK SWAN %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) pnl=$%.2f",
-                                    cid[:8], side, shares, _sell_price, avg, (_sell_price-avg)/avg*100, _pnl)
-                        mkt[shares_key] = 0
+                        client.sell_shares(tok, _sell_shares, price=_sell_price)
+                        _pnl = _sell_shares * (_sell_price - avg)
+                        _remaining_cost = _keep * avg
+                        logger.info("PROFIT LOCK %s %s: sell %d/%d @ $%.2f | pnl=$%.2f | keep %d free (cost=$%.2f covered)",
+                                    cid[:8], side, _sell_shares, int(shares), _sell_price,
+                                    _pnl, int(_keep), _remaining_cost)
+                        mkt[shares_key] = _keep
                         mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
-                        mkt["phase"] = "RESOLVED"
-                        mkt["early_exit"] = "black_swan"
+                        mkt["cost_recovered"] = True  # remaining shares = free roll
+                        # Don't set RESOLVED — keep shares alive for resolution payout
                     except Exception as e:
-                        logger.warning("Black swan sell failed %s: %s", cid[:8], e)
+                        logger.warning("Profit lock sell failed %s: %s", cid[:8], e)
                         continue
                     # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
                     # Must execute instantly — if market reverses, price moves fast.

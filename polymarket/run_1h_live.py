@@ -192,13 +192,15 @@ def _poly_ob(token_id: str) -> OBState:
 #  Forced Exit — Black Swan Protection
 # ═══════════════════════════════════════
 
-_BLACK_SWAN_MID = 0.94   # sell ALL when our side mid ≥ 94¢ — don't be greedy for last 6%
+_BLACK_SWAN_MID = 0.93   # sell 90% at 93¢+ → lock profit, keep 10% free roll
+_BLACK_SWAN_SELL_PCT = 0.90  # sell 90%, keep 10% as free upside
 
 
-def _try_sell_all(client, state: dict, cid: str, mkt: dict,
-                  up_tok: str, dn_tok: str, reason: str = "",
-                  known_mid: float = 0) -> bool:
-    """Sell all shares in a market. Returns True if sold.
+def _try_sell_partial(client, state: dict, cid: str, mkt: dict,
+                      up_tok: str, dn_tok: str, reason: str = "",
+                      known_mid: float = 0, sell_pct: float = 1.0) -> bool:
+    """Sell shares in a market. Returns True if sold.
+    sell_pct: fraction to sell (0.90 = sell 90%, keep 10% free roll).
     known_mid: caller's last-known mid for pricing. Avoids re-fetch stale/fail.
     """
     if not client or not hasattr(client, "sell_shares"):
@@ -212,19 +214,24 @@ def _try_sell_all(client, state: dict, cid: str, mkt: dict,
         avg = mkt.get(avg_key, 0)
         if shares < 1 or not tok:
             continue
-        # Use caller's known mid if available, else fetch (with NO fallback to 0.50)
+        # Use caller's known mid if available, else fetch (with NO fallback)
         mid = known_mid if known_mid > 0 else _poly_midpoint(tok)
         if not mid or mid <= 0:
             logger.warning("SELL ABORT %s %s: mid unavailable, refusing to sell blind", cid[:8], side)
             continue
+        # Calculate shares to sell
+        _sell_shares = max(1, int(shares * sell_pct))
+        _keep = shares - _sell_shares
         sell_price = round(max(0.01, mid * 0.98), 2)  # 2% slippage
         try:
-            client.sell_shares(tok, shares, price=sell_price)
-            pnl = shares * (sell_price - avg)
-            mkt[shares_key] = 0
+            client.sell_shares(tok, _sell_shares, price=sell_price)
+            pnl = _sell_shares * (sell_price - avg)
+            mkt[shares_key] = _keep
             mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + pnl
-            logger.info("SELL ALL [%s] %s %s: %.1f shares @ $%.3f (avg $%.3f) pnl=$%.2f",
-                        reason, cid[:8], side, shares, sell_price, avg, pnl)
+            if _keep > 0:
+                mkt["cost_recovered"] = True  # remaining shares = free roll
+            logger.info("SELL [%s] %s %s: %d/%d @ $%.3f | pnl=$%.2f | keep %d free",
+                        reason, cid[:8], side, _sell_shares, int(shares), sell_price, pnl, int(_keep))
             sold = True
         except Exception as e:
             logger.warning("SELL FAILED [%s] %s %s: %s", reason, cid[:8], side, e)
@@ -255,9 +262,10 @@ def _check_black_swan(client, state: dict, dry_run: bool):
             if mid and mid >= _BLACK_SWAN_MID:
                 logger.warning("BLACK SWAN %s %s: mid $%.3f ≥ $%.2f → selling all + hedge",
                                cid[:8], side, mid, _BLACK_SWAN_MID)
-                sold = _try_sell_all(client, state, cid, mkt,
+                sold = _try_sell_partial(client, state, cid, mkt,
                               mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
-                              reason="black_swan_94pct", known_mid=mid)
+                              reason="profit_lock_93pct", known_mid=mid,
+                              sell_pct=_BLACK_SWAN_SELL_PCT)
                 # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
                 # Must execute instantly — market can reverse in seconds.
                 if sold:
@@ -815,7 +823,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         elif sig.action == "EXIT" and not dry_run:
             logger.warning("EXIT signal for %s: %s", cid[:8], sig.reason)
-            _try_sell_all(client, state, cid, existing, up_tok, dn_tok, reason="exit_signal")
+            _try_sell_partial(client, state, cid, existing, up_tok, dn_tok,
+                              reason="exit_signal", sell_pct=1.0)  # EXIT = sell all
 
         elif sig.action == "WAIT":
             logger.debug("WAIT %s t=%.0fm: %s", coin, t_elapsed, sig.reason)
