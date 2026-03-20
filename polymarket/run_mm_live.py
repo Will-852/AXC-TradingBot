@@ -1293,8 +1293,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             if not mkt.get("fills_confirmed"):
                 continue
             end_ms = mkt.get("window_end_ms", 0)
-            if end_ms > 0 and now_ms > end_ms - 120_000:
-                continue  # last 2 min, can't sell
+            if end_ms > 0 and now_ms > end_ms - 300_000:
+                continue  # last 5 min, can't sell (market rejects at ~4 min)
 
             _cost_recovered = mkt.get("cost_recovered", False)
 

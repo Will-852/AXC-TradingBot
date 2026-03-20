@@ -305,31 +305,52 @@ def plan_opening(market: PolyMarket, fair_up: float,
                 token_id=market.no_token_id, side="BUY",
                 price=dn_bid, size=hedge_shares, outcome="DOWN"))
 
-    # ── Layer 2: Directional (naked, likely side) ──
-    # Zone 1 normally hedge-only, but if can't afford hedge → allow directional
-    # at lower dynamic price (better EV than skipping entirely)
+    # ── Layer 2: Directional — ladder entry (2 price levels if budget allows) ──
+    # Rung 1 (bottom): dir_bid - 3¢ = cheaper, less likely to fill
+    # Rung 2 (top): dir_bid = more likely to fill
+    # Better avg entry vs single order. Falls back to 1 order if budget too small.
     _allow_dir = dir_pct > 0 and confidence > ZONE_1_BOUND
-    # Zone 1 fallback: directional when hedge unaffordable — but NOT in HEDGE_ONLY mode
     _zone1_fallback = (not _allow_dir and not orders and confidence > 0.52
                        and risk_mode != "HEDGE_ONLY")
     if _allow_dir or _zone1_fallback:
         dir_budget = total_cost * dir_pct if _allow_dir else total_cost
-        # If hedge couldn't fire, give full budget to directional
         if not orders:
             dir_budget = total_cost
-        dir_shares = dir_budget / dir_bid
-        if dir_shares >= config.min_order_size:
-            dir_shares = round(dir_shares, 2)
+
+        _LADDER_STEP = 0.03  # 3¢ between rungs
+        _rung_top = dir_bid
+        _rung_bot = round(max(MIN_BID, dir_bid - _LADDER_STEP), 3)
+        _min_s = config.min_order_size  # 5 shares
+
+        # Can we afford 2 rungs? (5 shares each)
+        _cost_2rung = _min_s * _rung_top + _min_s * _rung_bot
+        if dir_budget >= _cost_2rung and _rung_bot < _rung_top:
+            # 2-rung ladder
             orders.append(PlannedOrder(
                 token_id=dir_token, side="BUY",
-                price=dir_bid, size=dir_shares, outcome=dir_side))
-        elif dir_budget > 0:
-            # Clamp to minimum if within 10% cap
-            min_cost = config.min_order_size * dir_bid
-            if bankroll <= 0 or min_cost <= bankroll * 0.05:
+                price=_rung_bot, size=_min_s, outcome=dir_side))
+            orders.append(PlannedOrder(
+                token_id=dir_token, side="BUY",
+                price=_rung_top, size=_min_s, outcome=dir_side))
+            logger.info("plan %s: LADDER %s@%.3f×%.0f + %s@%.3f×%.0f | $%.2f (%d%%) | conf=%.3f",
+                        market.condition_id[:8], dir_side, _rung_bot, _min_s,
+                        dir_side, _rung_top, _min_s,
+                        _cost_2rung, round(dir_budget / bankroll * 100) if bankroll > 0 else 0,
+                        confidence)
+        else:
+            # Single order (budget too small for 2 rungs)
+            dir_shares = dir_budget / _rung_top
+            if dir_shares >= _min_s:
+                dir_shares = round(dir_shares, 2)
                 orders.append(PlannedOrder(
                     token_id=dir_token, side="BUY",
-                    price=dir_bid, size=config.min_order_size, outcome=dir_side))
+                    price=_rung_top, size=dir_shares, outcome=dir_side))
+            elif dir_budget > 0:
+                min_cost = _min_s * _rung_top
+                if bankroll <= 0 or min_cost <= bankroll * 0.05:
+                    orders.append(PlannedOrder(
+                        token_id=dir_token, side="BUY",
+                        price=_rung_top, size=_min_s, outcome=dir_side))
 
     if not orders:
         if confidence <= ZONE_1_BOUND:
