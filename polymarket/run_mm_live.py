@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+from copy import copy as _copy
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -61,6 +62,11 @@ _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
 _HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
+
+# Newbie protection: first N hours of live trading, cap exposure
+_PROTECTION_HOURS = 3
+_PROTECTION_BET_PCT = 0.01   # 1% per market during protection
+_PROTECTION_MAX_MARKETS = 1  # 1 market per cycle (= 1 per 15min window)
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -342,7 +348,8 @@ def _check_fills(state: dict, client) -> None:
         end_ms = mkt.get("window_end_ms", 0)
         if end_ms > 0 and now_ms > end_ms:
             # Window over — mark remaining pending as unfilled, not filled
-            logger.info("Window ended %s: %d pending orders → cancelled (not filled)",
+            _bump_fill(state, "expired", len(pending))
+            logger.info("Window ended %s: %d pending orders → expired (not filled)",
                         cid[:8], len(pending))
             mkt["pending_orders"] = []
             mkt["fills_confirmed"] = True
@@ -379,9 +386,9 @@ def _check_fills(state: dict, client) -> None:
                     still_open.append(po)
                 else:
                     # Not in trades AND not in open orders → likely cancelled
+                    _bump_fill(state, "cancelled")
                     logger.info("Order %s %s: not in trades or open → cancelled",
                                 cid[:8], po["outcome"])
-                    # Don't count as filled — just remove from pending
 
             if filled:
                 # FIX #7: Don't reset — instant fills from apply_fill are already correct
@@ -399,6 +406,7 @@ def _check_fills(state: dict, client) -> None:
                         mkt["down_shares"] += size
                         mkt["down_avg_price"] = (old + size * price) / mkt["down_shares"]
                     mkt["entry_cost"] += size * price
+                    _bump_fill(state, "filled")
                     logger.info("FILL CONFIRMED %s %s: %.1f @ $%.3f",
                                 cid[:8], outcome, size, price)
 
@@ -417,20 +425,40 @@ def _check_fills(state: dict, client) -> None:
 #  State
 # ═══════════════════════════════════════
 
+_FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0}
+
+
+def _bump_fill(state: dict, event: str, n: int = 1):
+    """Increment fill rate counter. event: submitted/filled/cancelled/expired."""
+    fs = state.setdefault("fill_stats", dict(_FILL_STATS_DEFAULT))
+    fs[event] = fs.get(event, 0) + n
+
+
+def _fill_rate(state: dict) -> tuple[float, int, int]:
+    """Returns (fill_rate_pct, filled, submitted). 0% if no data."""
+    fs = state.get("fill_stats", _FILL_STATS_DEFAULT)
+    s, f = fs.get("submitted", 0), fs.get("filled", 0)
+    return (f / s * 100 if s > 0 else 0.0), f, s
+
+
 def _load() -> dict:
     if not os.path.exists(_STATE_PATH):
         return {"markets": {}, "watchlist": {}, "daily_pnl": 0.0,
                 "total_pnl": 0.0, "total_markets": 0, "bankroll": 100.0,
                 "consecutive_losses": 0, "cooldown_until": "",
-                "daily_pnl_date": "", "last_scan": ""}
+                "daily_pnl_date": "", "last_scan": "",
+                "fill_stats": dict(_FILL_STATS_DEFAULT)}
     try:
         with open(_STATE_PATH) as f:
-            return json.load(f)
+            d = json.load(f)
+        d.setdefault("fill_stats", dict(_FILL_STATS_DEFAULT))
+        return d
     except Exception:
         return {"markets": {}, "watchlist": {}, "daily_pnl": 0.0,
                 "total_pnl": 0.0, "total_markets": 0, "bankroll": 100.0,
                 "consecutive_losses": 0, "cooldown_until": "",
-                "daily_pnl_date": "", "last_scan": ""}
+                "daily_pnl_date": "", "last_scan": "",
+                "fill_stats": dict(_FILL_STATS_DEFAULT)}
 
 
 def _save(state: dict):
@@ -565,10 +593,12 @@ def _check_resolutions(state: dict):
         else:
             state["consecutive_losses"] = 0
 
+        fr_pct, _, _ = _fill_rate(state)
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                      "result": result, "pnl": round(pnl, 4),
                      "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
-                     "total_pnl": round(state["total_pnl"], 2)})
+                     "total_pnl": round(state["total_pnl"], 2),
+                     "fill_rate_pct": round(fr_pct, 1)})
 
         d = "↑" if result == "UP" else "↓"
         print(f"  RESOLVED {cid[:8]} {d} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
@@ -599,9 +629,28 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
     # Kill switches — FIX #11: use % of bankroll, not absolute $50
     br = state.get("bankroll", 100.0)
-    daily_loss_limit = max(br * 0.15, 5.0)  # 15% of bankroll, min $5
+
+    # HARD STOP: total PnL drops >20% → permanent halt, needs manual restart
+    # This survives daily resets — tracks ALL-TIME cumulative loss
+    _total_pnl = state.get("total_pnl", 0.0)
+    if not state.get("initial_bankroll") and br > 10:
+        state["initial_bankroll"] = br  # record starting bankroll once (guard: >$10)
+    _initial_br = state.get("initial_bankroll", 0)
+    if _initial_br <= 0:
+        # initial_bankroll not set yet — skip loss checks this cycle
+        _initial_br = br if br > 10 else 100.0  # safe fallback
+    if _total_pnl < -_initial_br * 0.20:
+        logger.critical("💀 HARD STOP: total PnL $%.2f = %.0f%% of initial $%.0f. Manual restart required.",
+                        _total_pnl, _total_pnl / _initial_br * 100, _initial_br)
+        state["hard_stopped"] = True
+        return state
+    if state.get("hard_stopped"):
+        logger.warning("💀 HARD STOPPED. Clear 'hard_stopped' from state to resume.")
+        return state
+
+    daily_loss_limit = br * 0.20  # 20% of CURRENT wallet balance (floating)
     if state.get("daily_pnl", 0) < -daily_loss_limit:
-        logger.warning("KILL: daily loss $%.2f > 15%% of $%.0f", -state["daily_pnl"], br)
+        logger.warning("KILL: daily loss $%.2f > 20%% of wallet $%.0f", -state["daily_pnl"], br)
         return state
     cd = state.get("cooldown_until", "")
     if cd:
@@ -675,6 +724,25 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 lead = (winfo["start_ms"] - now_ms) / 60_000
                 logger.info("watchlist + %s (%.0fm): %s", cid[:8], lead, mkt.title[:45])
         state["last_scan"] = now.isoformat()
+
+    # ── Newbie protection: override bet_pct + max_concurrent for first N hours ──
+    _live_start = state.get("live_start_ts", 0)
+    _in_protection = (_live_start > 0
+                      and time.time() - _live_start < _PROTECTION_HOURS * 3600)
+    if _in_protection:
+        config = _copy(config)
+        config.bet_pct = _PROTECTION_BET_PCT
+        config.max_concurrent_markets = _PROTECTION_MAX_MARKETS
+        remaining_h = _PROTECTION_HOURS - (time.time() - _live_start) / 3600
+        if is_heavy:
+            logger.info("🛡️ PROTECTION: bet=%.0f%% max=%d mkt | %.1fh remaining",
+                        config.bet_pct * 100, config.max_concurrent_markets, remaining_h)
+    elif _live_start > 0 and is_heavy:
+        # Protection just ended — log once
+        if not state.get("_protection_ended_logged"):
+            logger.info("🛡️ PROTECTION ENDED — switching to normal: bet=%.0f%% max=%d",
+                        config.bet_pct * 100, config.max_concurrent_markets)
+            state["_protection_ended_logged"] = True
 
     # Enter active markets from watchlist (heavy cycle only — signal pipeline is slow)
     active = sum(1 for m in state["markets"].values() if m["phase"] != "RESOLVED")
@@ -808,9 +876,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         for r in results:
             if not r.get("submitted"):
                 continue
+            _bump_fill(state, "submitted")
             status = r.get("status", "")
             if status == "matched":
                 apply_fill(ms, r["outcome"], "BUY", r["price"], r["size"])
+                _bump_fill(state, "filled")
                 logger.info("INSTANT FILL %s %s: %.1f @ $%.3f",
                             cid[:8], r["outcome"], r["size"], r["price"])
             else:
@@ -908,8 +978,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             for r in results2:
                 if not r.get("submitted"):
                     continue
+                _bump_fill(state, "submitted")
                 status = r.get("status", "")
                 if status == "matched":
+                    _bump_fill(state, "filled")
                     outcome = r["outcome"]
                     price = r["price"]
                     size = r["size"]
@@ -975,21 +1047,29 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 to_cancel = list(pending)
                 reason = "window_end"
 
-            # Trigger 2: spot moved >0.05% since entry → cancel DIRECTIONAL only
+            # Trigger 2: spot moved ADVERSELY >0.3% since entry → cancel DIRECTIONAL
+            # 0.05% was too tight — BTC moves $42 in seconds, cancelled 10/11 orders
+            # 0.3% BTC (~$250), 0.5% ETH (~$10) — coin-specific thresholds
+            # Only cancel on ADVERSE move (against our direction), not favorable
+            _spot_thresh = 0.005 if _s == "ETHUSDT" else 0.003
             if not to_cancel and entry_price > 0:
                 current = _btc_price() if _s == "BTCUSDT" else _price(_s)
                 if current > 0:
-                    move_pct = abs(current - entry_price) / entry_price
-                    if move_pct > 0.0005:
+                    signed_move = (current - entry_price) / entry_price
+                    _dir = mkt.get("original_dir", "UP")
+                    # Adverse = price went opposite to our bet direction
+                    is_adverse = (signed_move < 0 and _dir == "UP") or (signed_move > 0 and _dir == "DOWN")
+                    if is_adverse and abs(signed_move) > _spot_thresh:
                         to_cancel = _find_directional_orders(pending)
                         if to_cancel:
-                            reason = f"spot_move_{move_pct:.4f}"
+                            reason = f"adverse_move_{signed_move:+.4f}"
 
-            # Trigger 3: TTL 60s → cancel DIRECTIONAL only (independent check)
-            if not to_cancel and entry_ts > 0 and now_s - entry_ts > 60:
+            # Trigger 3: TTL 5min → cancel DIRECTIONAL only (independent check)
+            # 60s was too short — maker orders need time on book to fill
+            if not to_cancel and entry_ts > 0 and now_s - entry_ts > 300:
                 to_cancel = _find_directional_orders(pending)
                 if to_cancel:
-                    reason = "ttl_60s"
+                    reason = "ttl_5m"
 
             actually_cancelled = []
             for po in to_cancel:
@@ -1005,6 +1085,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
             # Only remove successfully cancelled orders from pending
             if actually_cancelled:
+                _bump_fill(state, "cancelled", len(actually_cancelled))
                 mkt["pending_orders"] = [p for p in pending if p not in actually_cancelled]
                 if not mkt["pending_orders"]:
                     mkt["fills_confirmed"] = True
@@ -1015,6 +1096,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
     # Resolutions
     _check_resolutions(state)
+
+    # Periodic fill rate log (every heavy cycle)
+    if is_heavy:
+        fr, ff, fs = _fill_rate(state)
+        if fs > 0:
+            fst = state.get("fill_stats", _FILL_STATS_DEFAULT)
+            logger.info("FILL STATS: %d/%d (%.0f%%) | cancel=%d expired=%d",
+                        ff, fs, fr, fst.get("cancelled", 0), fst.get("expired", 0))
 
     # Cleanup old resolved
     resolved = [c for c, m in state["markets"].items() if m["phase"] == "RESOLVED"]
@@ -1040,6 +1129,21 @@ def _status(state: dict):
     print(f"  Watchlist: {len(wl)} | Active: {len(active)} | Resolved: {len(resolved)}")
     print(f"  Daily PnL: ${state.get('daily_pnl', 0):.2f} | Total: ${state.get('total_pnl', 0):.2f}")
     print(f"  Markets:   {state.get('total_markets', 0)} | Consec losses: {state.get('consecutive_losses', 0)}")
+    _ibr = state.get("initial_bankroll", state.get("bankroll", 0))
+    _tpnl = state.get("total_pnl", 0)
+    _pct = _tpnl / _ibr * 100 if _ibr > 0 else 0
+    _stop = " 💀 HARD STOPPED" if state.get("hard_stopped") else ""
+    print(f"  Drawdown:  ${_tpnl:.2f} ({_pct:+.1f}% of ${_ibr:.0f}) | limit -20%{_stop}")
+    fr, ff, fs = _fill_rate(state)
+    fstats = state.get("fill_stats", _FILL_STATS_DEFAULT)
+    print(f"  Fill Rate: {fr:.0f}% ({ff}/{fs}) | Cancel: {fstats.get('cancelled',0)} | Expired: {fstats.get('expired',0)}")
+    _ls = state.get("live_start_ts", 0)
+    if _ls > 0:
+        elapsed_h = (time.time() - _ls) / 3600
+        if elapsed_h < _PROTECTION_HOURS:
+            print(f"  🛡️ PROTECTION: {elapsed_h:.1f}/{_PROTECTION_HOURS}h | bet={_PROTECTION_BET_PCT:.0%} | max {_PROTECTION_MAX_MARKETS} mkt")
+        else:
+            print(f"  Protection: ended ({elapsed_h:.1f}h elapsed)")
     if wl:
         print(f"\n  ── Watchlist ──")
         for c, w in wl.items():
@@ -1131,10 +1235,18 @@ def main():
         except Exception:
             pass
 
+    # Newbie protection: record first live start time
+    if not dry_run and not state.get("live_start_ts"):
+        state["live_start_ts"] = time.time()
+        logger.info("PROTECTION: live_start_ts set — %.0fh protection active", _PROTECTION_HOURS)
+
     br = state.get("bankroll", 100)
     bet = br * config.bet_pct
+    _prot_active = (not dry_run and state.get("live_start_ts", 0) > 0
+                    and time.time() - state["live_start_ts"] < _PROTECTION_HOURS * 3600)
+    _prot_str = f" | 🛡️ PROTECTION ({_PROTECTION_BET_PCT:.0%}, {_PROTECTION_MAX_MARKETS} mkt)" if _prot_active else ""
     print(f"  [{datetime.now(tz=_HKT):%H:%M HKT}] Bankroll ${br:.2f} | "
-          f"Bet {config.bet_pct:.0%} = ${bet:.2f} | Spread {config.half_spread:.1%}")
+          f"Bet {config.bet_pct:.0%} = ${bet:.2f} | Spread {config.half_spread:.1%}{_prot_str}")
 
     if args.cycle:
         state = run_cycle(state, gamma, client, config, dry_run)
