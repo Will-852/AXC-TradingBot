@@ -664,7 +664,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             token_id = our_tok
 
             size_usd = sig.size_fraction * state["bankroll"]
-            size_usd = max(2.50, min(size_usd, window_budget - budget_spent))
+            budget_left = window_budget - budget_spent
+            # FIX: hard block when budget exhausted. Old max(2.50, ...) bypassed budget
+            # and allowed infinite $2.50 orders → 119 shares / $50 on one market.
+            if budget_left < 2.50:
+                logger.info("BUDGET EXHAUSTED %s: spent $%.2f / $%.2f window budget",
+                            coin, budget_spent, window_budget)
+                continue
+            size_usd = max(2.50, min(size_usd, budget_left))
 
             result = _execute_order(client, token_id, sig.direction,
                                     sig.entry_price, size_usd, dry_run,

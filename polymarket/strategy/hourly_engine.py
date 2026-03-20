@@ -140,7 +140,15 @@ def conviction_signal(
     t_remaining = 60.0 - t_elapsed
 
     # ─── Guard: fully invested ───
-    if budget_remaining_frac <= 0 and current_position is None:
+    # FIX: check budget regardless of position. Old code skipped this guard
+    # when current_position existed → allowed infinite re-entry (119 shares bug).
+    if budget_remaining_frac <= 0:
+        if current_position is not None:
+            return ConvictionSignal(
+                action="HOLD", direction=current_position.get("direction", ""),
+                conviction=0, confidence=0,
+                time_trust=0, entry_price=0, size_fraction=0,
+                fair_up=0, p_win=0, reason="budget fully invested, holding position")
         return ConvictionSignal(
             action="SKIP", direction="", conviction=0, confidence=0,
             time_trust=0, entry_price=0, size_fraction=0,
