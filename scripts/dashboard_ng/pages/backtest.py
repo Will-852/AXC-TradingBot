@@ -1,7 +1,7 @@
 """Backtest studio page — embeds original backtest.html.
 
-backtest.html CSS has been directly modified for TradingView-style
-horizontal layout. No CSS injection needed.
+backtest.html has target="_top" on 主控台 link already.
+No JS injection needed.
 """
 
 from nicegui import ui
@@ -24,22 +24,3 @@ def render_backtest_page():
     ui.element('iframe').props(
         'src="/backtest.html" id="bt-frame"'
     ).classes('backtest-frame')
-
-    # Fix "主控台" link to navigate parent frame
-    ui.add_body_html('''
-        <script>
-        (function() {
-            var frame = document.getElementById('bt-frame');
-            if (!frame) return;
-            frame.addEventListener('load', function() {
-                try {
-                    var doc = frame.contentDocument;
-                    if (!doc) return;
-                    doc.querySelectorAll('a[href="/"]').forEach(function(a) {
-                        a.setAttribute('target', '_parent');
-                    });
-                } catch(e) {}
-            });
-        })();
-        </script>
-    ''')
