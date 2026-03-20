@@ -1,18 +1,28 @@
 """Backtest studio page — embeds original backtest.html self-contained.
 
-Uses iframe with CSP relaxation (middleware in main.py) to allow
-the 5220 lines of inline KLineChart JS to execute.
+Full-height iframe with minimal chrome. Sidebar can be toggled to give
+more chart space (like TradingView's full-screen mode).
 """
 
 from nicegui import ui
 
 
 def render_backtest_page():
-    """Render the backtest studio by embedding the original HTML in an iframe."""
-    # Use ui.element('iframe') instead of ui.html() to avoid HTML sanitisation
+    """Render the backtest studio — full available height, no padding."""
+    # Inject CSS to maximize iframe space
+    ui.add_head_html('''
+        <style>
+        /* Remove NiceGUI page padding for backtest */
+        .backtest-frame {
+            width: 100%;
+            height: calc(100vh - 52px);
+            border: none;
+            background: #0d0d0f;
+            display: block;
+        }
+        </style>
+    ''')
+
     ui.element('iframe').props(
         'src="/backtest.html" id="bt-frame"'
-    ).style(
-        'width:100%; height:calc(100vh - 100px); border:none; '
-        'border-radius:4px; background:#0d0d0f;'
-    )
+    ).classes('backtest-frame')

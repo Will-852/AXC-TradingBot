@@ -90,8 +90,11 @@ def register_backtest_routes():
     async def bt_shootout_list():
         bt = _get_bt()
         from nicegui import run
-        code, data = await run.io_bound(bt.handle_bt_shootout_list)
-        return JSONResponse(content=data, status_code=code)
+        result = await run.io_bound(bt.handle_bt_shootout_list)
+        if isinstance(result, tuple):
+            code, data = result
+            return JSONResponse(content=data, status_code=code)
+        return result
 
     @app.get('/api/backtest/shootout/detail')
     async def bt_shootout_detail(file: str = ''):

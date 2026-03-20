@@ -92,10 +92,17 @@ def create_layout(active_path: str = '/'):
     if 'dark_mode' not in app.storage.user:
         app.storage.user['dark_mode'] = True
 
+    # ── Sidebar (220px — IBKR standard, toggleable) ──
+    drawer = ui.left_drawer(value=True, fixed=True) \
+        .classes(f'{SIDEBAR_CLS} p-0') \
+        .props(f'width={SIDEBAR_WIDTH} breakpoint=0')
+
     # ── Header (48px) ──
-    with ui.header().classes(f'items-center justify-between px-4 py-0 h-[48px] {HEADER_CLS}'):
+    with ui.header().classes(f'items-center justify-between px-3 py-0 h-[48px] {HEADER_CLS}'):
         with ui.row().classes('items-center gap-2'):
-            ui.image('/svg/axc.svg').classes('w-6 h-6 cursor-pointer') \
+            ui.button(icon='menu', on_click=drawer.toggle) \
+                .props('flat round color=white size=sm')
+            ui.image('/svg/axc.svg').classes('w-5 h-5 cursor-pointer') \
                 .on('click', lambda: ui.navigate.to('/'))
             ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
@@ -107,8 +114,7 @@ def create_layout(active_path: str = '/'):
         ui.button(icon='brightness_6', on_click=dark.toggle) \
             .props('flat round color=white size=xs')
 
-    # ── Sidebar (220px — IBKR standard) ──
-    with ui.left_drawer(value=True, fixed=True).classes(f'{SIDEBAR_CLS} p-0').props(f'width={SIDEBAR_WIDTH}') as drawer:
+    with drawer:
         # Navigation
         ui.label('NAVIGATION').classes(f'{SECTION_HEADER} px-3 pt-3 pb-1')
         for label_text, path, icon_name in NAV_ITEMS:

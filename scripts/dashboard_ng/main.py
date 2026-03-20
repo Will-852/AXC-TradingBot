@@ -149,7 +149,7 @@ def main_page():
 def backtest_page():
     create_layout(active_path='/backtest')
     from scripts.dashboard_ng.pages.backtest import render_backtest_page
-    with ui.column().classes('w-full p-1 gap-0'):
+    with ui.column().classes('w-full p-0 gap-0'):
         render_backtest_page()
 
 
