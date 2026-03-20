@@ -11,18 +11,23 @@ log = logging.getLogger('axc.positions')
 
 async def _close_position(symbol: str, platform: str):
     """Market-close a position."""
-    from scripts.dashboard.handlers import handle_close_position
-    result = await run.io_bound(handle_close_position, {
-        'symbol': symbol, 'platform': platform,
-    })
-    if result.get('ok'):
-        ui.notify(f'Closed {symbol}', type='positive')
-    else:
-        ui.notify(f'Close failed: {result.get("error")}', type='negative')
+    _pos_dialog_open['value'] = True
+    try:
+        from scripts.dashboard.handlers import handle_close_position
+        result = await run.io_bound(handle_close_position, {
+            'symbol': symbol, 'platform': platform,
+        })
+        if result.get('ok'):
+            ui.notify(f'Closed {symbol}', type='positive')
+        else:
+            ui.notify(f'Close failed: {result.get("error")}', type='negative')
+    finally:
+        _pos_dialog_open['value'] = False
 
 
 async def _show_modify_dialog(pos: dict):
     """Show SL/TP modification dialog."""
+    _pos_dialog_open['value'] = True
     symbol = pos.get('symbol', '?')
     current_sl = pos.get('sl', '')
     current_tp = pos.get('tp', '')
@@ -41,19 +46,22 @@ async def _show_modify_dialog(pos: dict):
                 'sl': sl_input.value, 'tp': tp_input.value,
             })).props('color=indigo')
 
-    result = await dialog
-    if result:
-        from scripts.dashboard.handlers import handle_modify_sltp
-        mod_result = await run.io_bound(handle_modify_sltp, {
-            'symbol': symbol,
-            'platform': pos.get('platform', 'aster'),
-            'sl': result['sl'],
-            'tp': result['tp'],
-        })
-        if mod_result.get('ok'):
-            ui.notify(f'SL/TP updated for {symbol}', type='positive')
-        else:
-            ui.notify(f'Modify failed: {mod_result.get("error")}', type='negative')
+    try:
+        result = await dialog
+        if result:
+            from scripts.dashboard.handlers import handle_modify_sltp
+            mod_result = await run.io_bound(handle_modify_sltp, {
+                'symbol': symbol,
+                'platform': pos.get('platform', 'aster'),
+                'sl': result['sl'],
+                'tp': result['tp'],
+            })
+            if mod_result.get('ok'):
+                ui.notify(f'SL/TP updated for {symbol}', type='positive')
+            else:
+                ui.notify(f'Modify failed: {mod_result.get("error")}', type='negative')
+    finally:
+        _pos_dialog_open['value'] = False
 
 
 def _render_position_card(pos: dict):
@@ -102,17 +110,20 @@ def _render_position_card(pos: dict):
                 ui.label(str(hold_score)).classes('text-sm')
 
 
+_pos_dialog_open = {'value': False}
+
+
 def render_positions():
     """Render all open positions + pending orders."""
-    # Positions section
     ui.label('POSITIONS').classes('text-xs text-gray-500 uppercase tracking-wide')
     positions_container = ui.column().classes('w-full gap-3')
 
-    # Pending orders section
     ui.label('PENDING ORDERS').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
     orders_container = ui.column().classes('w-full')
 
     def update():
+        if _pos_dialog_open['value']:
+            return
         d = get_data()
         positions = d.get('live_positions', [])
         orders = d.get('open_orders', [])
