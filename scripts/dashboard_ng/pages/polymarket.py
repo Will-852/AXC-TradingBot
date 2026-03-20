@@ -286,7 +286,7 @@ def render_polymarket_page():
                                       {'offset': 0, 'color': 'rgba(99,102,241,0.3)'},
                                       {'offset': 1, 'color': 'rgba(99,102,241,0.02)'},
                                   ]}}}],
-    }).classes('h-48 w-full')
+    }).classes('h-48 w-full').style('position:relative; z-index:0;')
 
     # ── Strategy Breakdown ──
     ui.label('STRATEGY BREAKDOWN').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
@@ -386,14 +386,24 @@ def render_polymarket_page():
         positions_container.clear()
         with positions_container:
             if live_orders:
+                from datetime import datetime as _dt
                 rows = []
                 for o in live_orders:
                     try:
                         sz = f"{float(o.get('size', 0)):.2f}"
                     except (TypeError, ValueError):
                         sz = str(o.get('size', ''))
+                    # Parse created_at time
+                    ct = o.get('created', '')
+                    try:
+                        if ct and isinstance(ct, str) and ct.isdigit():
+                            ct = _dt.fromtimestamp(int(ct)).strftime('%m-%d %H:%M')
+                        elif ct and len(ct) > 16:
+                            ct = ct[:16]
+                    except (ValueError, OSError):
+                        pass
                     rows.append({
-                        'status': o.get('status', ''),
+                        'time': ct,
                         'side': o.get('side', ''),
                         'outcome': o.get('outcome', ''),
                         'size': sz,
@@ -401,15 +411,16 @@ def render_polymarket_page():
                     })
                 ui.aggrid({
                     'columnDefs': [
-                        {'field': 'status', 'width': 65},
-                        {'field': 'side', 'width': 55},
-                        {'field': 'outcome', 'width': 60},
-                        {'field': 'size', 'width': 70, 'type': 'rightAligned'},
-                        {'field': 'price', 'width': 70, 'type': 'rightAligned'},
+                        {'field': 'time', 'headerName': 'Created', 'width': 110},
+                        {'field': 'side', 'width': 50},
+                        {'field': 'outcome', 'width': 55},
+                        {'field': 'size', 'width': 65, 'type': 'rightAligned'},
+                        {'field': 'price', 'width': 65, 'type': 'rightAligned'},
                     ],
                     'rowData': rows,
-                    'headerHeight': 32, 'rowHeight': 30, 'domLayout': 'autoHeight',
-                }).classes('w-full ag-theme-balham-dark')
+                    'headerHeight': 30, 'rowHeight': 28,
+                    'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark').style('position:relative; z-index:1;')
             else:
                 ui.label('No open orders').classes('text-gray-600 text-sm')
 
