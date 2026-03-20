@@ -11,8 +11,8 @@ from nicegui import ui, run
 
 log = logging.getLogger('axc.trade')
 
-# Debounce lock — prevents double-submit (BMD fix #2)
-_trade_lock = False
+# Note: debounce is per-dialog via submit_btn.set_enabled(False)
+# No global lock needed — NiceGUI isolates per client.
 
 
 async def _fetch_balance() -> dict:
@@ -33,7 +33,6 @@ async def _fetch_symbol_info(symbol: str, platform: str) -> dict:
 
 async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
     """Show the trade entry dialog. Awaitable — returns on close."""
-    global _trade_lock
 
     with ui.dialog() as dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
         ui.label('New Order').classes('text-xl font-bold mb-4')
@@ -147,12 +146,8 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         status_label = ui.label('').classes('text-sm')
 
         async def submit_order():
-            global _trade_lock
-            if _trade_lock:
-                ui.notify('Order already submitting...', type='warning')
+            if not submit_btn.enabled:
                 return
-
-            _trade_lock = True
             submit_btn.set_enabled(False)
             status_label.text = 'Submitting...'
             status_label.classes(replace='text-sm text-yellow-400')
@@ -207,7 +202,6 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                 status_label.classes(replace='text-sm text-red-400')
                 ui.notify(f'Error: {e}', type='negative')
             finally:
-                _trade_lock = False
                 submit_btn.set_enabled(True)
 
         with ui.row().classes('gap-3 justify-end w-full'):

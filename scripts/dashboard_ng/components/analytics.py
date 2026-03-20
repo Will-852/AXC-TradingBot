@@ -22,7 +22,11 @@ def render_fee_breakdown():
                     ('commission', 'Commission'),
                     ('net', 'Net'),
                 ]:
-                    val = fees.get(key, 0)
+                    raw = fees.get(key, 0)
+                    try:
+                        val = float(raw)
+                    except (TypeError, ValueError):
+                        val = 0.0
                     color = 'text-green-400' if val >= 0 else 'text-red-400'
                     with ui.row().classes('justify-between w-full'):
                         ui.label(label).classes('text-xs text-gray-400')
