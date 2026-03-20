@@ -68,7 +68,7 @@ class HourlyConfig:
     # Conviction threshold curve — higher start = wait longer before first entry
     # 0.45 at t=0, dropping 0.005/min → crosses 0.25 at ~t=40min for small moves
     # But large moves (confidence=0.8) can cross at ~t=20min: 0.8 × 0.5 = 0.40 > 0.35
-    min_conviction_start: float = 0.38   # at t=0 (BMD: 0.38 sweet spot — WR 80.7%, +5% vs 0.30, entry t=28m avg)
+    min_conviction_start: float = 0.33   # scout early (0.3x size dampen) + ADD later at full size
     min_conviction_decay: float = 0.005  # threshold drops by this per minute
     min_conviction_floor: float = 0.12   # never enter below this conviction (was 0.10)
     # Entry price: DYNAMIC cap = f(conviction), not fixed
