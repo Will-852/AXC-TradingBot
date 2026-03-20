@@ -26,18 +26,36 @@ def _get_cycle_status() -> dict:
 
 
 def _get_running_processes() -> list[dict]:
-    """Find all running polymarket-related processes."""
+    """Find all running polymarket-related processes with start time + uptime."""
     try:
+        # ps with lstart (start time) and etime (elapsed time)
         result = subprocess.run(
-            ['pgrep', '-fl', 'polymarket'], capture_output=True, text=True, timeout=5
+            ['ps', '-eo', 'pid,lstart,etime,command'],
+            capture_output=True, text=True, timeout=5
         )
         procs = []
-        for line in result.stdout.strip().split('\n'):
-            if not line.strip():
+        for line in result.stdout.strip().split('\n')[1:]:  # skip header
+            if 'polymarket' not in line.lower() and 'poly' not in line.lower():
                 continue
-            parts = line.split(' ', 1)
-            if len(parts) == 2:
-                procs.append({'pid': parts[0], 'cmd': parts[1]})
+            if 'grep' in line or 'ps -eo' in line:
+                continue
+            parts = line.strip().split()
+            if len(parts) < 8:
+                continue
+            pid = parts[0]
+            # lstart format: "Day Mon DD HH:MM:SS YYYY" (5 fields)
+            start_time = ' '.join(parts[1:6])
+            elapsed = parts[6]
+            cmd = ' '.join(parts[7:])
+            # Shorten cmd for display
+            cmd_short = cmd.replace('/opt/homebrew/bin/python3 -u ', '').replace('/opt/homebrew/bin/python3 ', '')
+            procs.append({
+                'pid': pid,
+                'start': start_time,
+                'uptime': elapsed,
+                'cmd': cmd_short,
+                'cmd_full': cmd,
+            })
         return procs
     except Exception:
         return []
@@ -56,6 +74,8 @@ def render_polymarket_page():
         kpi_labels = {}
         for key, label in [
             ('usdc_balance', 'Balance'),
+            ('total_pnl', 'Total PnL'),
+            ('win_rate', 'Win Rate'),
             ('positions_count', 'Positions'),
             ('total_exposure', 'Exposure'),
             ('exposure_pct', 'Exposure %'),
@@ -117,11 +137,27 @@ def render_polymarket_page():
         async def toggle_mode():
             from scripts.dashboard.polymarket import handle_polymarket_set_mode
             d = poly_data['data']
-            state = d.get('state', {})
-            is_dry = state.get('dry_run', True)
+            st = d.get('state', {})
+            is_dry = st.get('dry_run', True)
             new_mode = 'live' if is_dry else 'dry_run'
+
+            # Confirm before switching to LIVE
+            if new_mode == 'live':
+                confirm_dlg = ui.dialog().props('persistent')
+                confirm_dlg.move()
+                with confirm_dlg, ui.card().classes('p-6'):
+                    ui.label('Switch to LIVE mode?').classes('text-lg font-bold text-red-400')
+                    ui.label('Real money will be used for trading.').classes('text-sm text-gray-400')
+                    with ui.row().classes('gap-3 mt-4 justify-end'):
+                        ui.button('Cancel', on_click=lambda: confirm_dlg.submit(False)).props('flat color=grey')
+                        ui.button('Confirm LIVE', on_click=lambda: confirm_dlg.submit(True)).props('color=red')
+                confirm_dlg.open()
+                confirmed = await confirm_dlg
+                if not confirmed:
+                    return
+
             await run.io_bound(handle_polymarket_set_mode, {'mode': new_mode})
-            ui.notify(f'Mode → {new_mode}', type='positive')
+            ui.notify(f'Mode → {new_mode}', type='positive' if new_mode == 'dry_run' else 'warning')
             await refresh()
 
         async def check_merge():
@@ -148,8 +184,11 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700')
 
     # ── Running Processes (PID) ──
-    with ui.expansion('Running Processes', icon='terminal').classes('w-full'):
+    with ui.expansion('Running Processes', icon='terminal', value=True).classes('w-full'):
         proc_container = ui.column().classes('w-full gap-1')
+
+        # Terminal command hint
+        ui.label('Terminal: ps aux | grep polymarket').classes('text-[10px] text-gray-600 font-mono mt-1')
 
         async def refresh_procs():
             procs = await run.io_bound(_get_running_processes)
@@ -159,9 +198,15 @@ def render_polymarket_page():
                     ui.label('No polymarket processes running').classes('text-gray-600 text-sm')
                 else:
                     for p in procs:
-                        with ui.row().classes('items-center gap-3 w-full py-0.5'):
-                            ui.badge(p['pid'], color='blue').classes('font-mono text-[10px]')
-                            ui.label(p['cmd']).classes('text-xs text-gray-400 font-mono')
+                        with ui.column().classes('w-full py-1 border-b border-gray-800 gap-0'):
+                            with ui.row().classes('items-center gap-2 w-full'):
+                                ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[10px]')
+                                ui.label(f'⏱ {p["uptime"]}').classes('text-[11px] font-mono text-amber-400')
+                                ui.label(p['cmd']).classes('text-[11px] text-gray-400 font-mono')
+                            ui.label(f'Started: {p["start"]}').classes('text-[10px] text-gray-600 font-mono pl-1')
+                            # Copy-pasteable terminal command
+                            ui.label(f'tail -f logs/ | grep {p["pid"]}').classes(
+                                'text-[9px] text-gray-700 font-mono pl-1')
 
         ui.timer(0.1, refresh_procs, once=True)
         ui.timer(15, refresh_procs)
@@ -255,7 +300,25 @@ def render_polymarket_page():
 
         last_updated = state.get('last_updated', '—')
 
+        # Calculate total PnL + win rate from trades
+        all_trades = d.get('trades_all', d.get('trades', []))
+        total_pnl = 0
+        wins = 0
+        resolved = 0
+        for t in all_trades:
+            pnl = t.get('pnl', t.get('realized_pnl', 0))
+            if isinstance(pnl, (int, float)) and pnl != 0:
+                total_pnl += pnl
+                resolved += 1
+                if pnl > 0:
+                    wins += 1
+        win_rate = (wins / resolved * 100) if resolved > 0 else 0
+
         kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
+        pnl_color = 'text-green-400' if total_pnl >= 0 else 'text-red-400'
+        kpi_labels['total_pnl'].text = f'${total_pnl:+.2f}'
+        kpi_labels['total_pnl'].classes(replace=f'text-lg font-bold font-mono {pnl_color}')
+        kpi_labels['win_rate'].text = f'{win_rate:.0f}% ({wins}/{resolved})'
         kpi_labels['positions_count'].text = str(len(positions)) if isinstance(positions, list) else str(positions)
         kpi_labels['total_exposure'].text = f'${exposure:.2f}' if isinstance(exposure, (int, float)) else str(exposure)
         kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}%' if isinstance(exposure_pct, (int, float)) else str(exposure_pct)
