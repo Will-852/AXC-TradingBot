@@ -191,6 +191,36 @@ def render_trade_history():
     ui.timer(10, update)
 
 
+def render_scan_log():
+    """Scan log — last scanner entries."""
+    ui.label('SCAN LOG').classes('text-xs text-gray-500 uppercase tracking-wide')
+    scan_container = ui.column().classes('w-full max-h-48 overflow-y-auto')
+
+    def update():
+        d = get_data()
+        scan_log = d.get('scan_log', [])
+        scan_container.clear()
+        with scan_container:
+            if not scan_log:
+                ui.label('No scan entries').classes('text-gray-600 text-sm')
+                return
+            for entry in scan_log[:10]:
+                if isinstance(entry, dict):
+                    ts = entry.get('time', '')
+                    msg = entry.get('msg', entry.get('message', str(entry)))
+                elif isinstance(entry, str):
+                    ts = ''
+                    msg = entry
+                else:
+                    continue
+                with ui.row().classes('gap-2 py-0.5'):
+                    if ts:
+                        ui.label(ts).classes('text-[10px] text-gray-600 font-mono min-w-[80px]')
+                    ui.label(str(msg)[:120]).classes('text-xs text-gray-400')
+
+    ui.timer(10, update)
+
+
 def render_activity_log():
     """Activity timeline."""
     ui.label('ACTIVITY').classes('text-xs text-gray-500 uppercase tracking-wide')

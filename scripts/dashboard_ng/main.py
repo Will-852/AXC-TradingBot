@@ -57,6 +57,7 @@ def main_page():
     from scripts.dashboard_ng.components.analytics import (
         render_fee_breakdown, render_trade_stats, render_funding_rates,
         render_news_sentiment, render_trade_history, render_activity_log,
+        render_scan_log,
     )
 
     from scripts.dashboard_ng.components.chat import render_chat_toggle
@@ -96,6 +97,9 @@ def main_page():
 
         # Funding rates
         render_funding_rates()
+
+        # Scan log
+        render_scan_log()
 
         # Trade history
         render_trade_history()

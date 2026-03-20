@@ -132,16 +132,33 @@ def render_positions():
             if not orders:
                 ui.label('No pending orders').classes('text-gray-600 text-sm')
             else:
-                ui.aggrid({
-                    'columnDefs': [
-                        {'field': 'symbol', 'headerName': 'Symbol', 'width': 120},
-                        {'field': 'side', 'headerName': 'Side', 'width': 80},
-                        {'field': 'type', 'headerName': 'Type', 'width': 80},
-                        {'field': 'price', 'headerName': 'Price', 'width': 100},
-                        {'field': 'qty', 'headerName': 'Qty', 'width': 80},
-                        {'field': 'status', 'headerName': 'Status', 'width': 80},
-                    ],
-                    'rowData': orders,
-                }).classes('h-40')
+                for order in orders:
+                    sym = order.get('symbol', '?')
+                    side = order.get('side', '?')
+                    otype = order.get('type', '?')
+                    price = order.get('price', '?')
+                    qty = order.get('qty', '?')
+                    oid = order.get('orderId', order.get('order_id', ''))
+                    platform = order.get('platform', 'aster')
+
+                    with ui.row().classes('items-center gap-3 w-full py-1 border-b border-gray-800'):
+                        ui.label(sym).classes('text-sm font-bold min-w-[90px]')
+                        ui.badge(side, color='green' if side == 'BUY' else 'red').classes('text-xs')
+                        ui.label(otype).classes('text-xs text-gray-500')
+                        ui.label(f'@ {price}').classes('text-sm font-mono')
+                        ui.label(f'x {qty}').classes('text-xs text-gray-400')
+
+                        async def cancel_order(s=sym, p=platform, o=oid):
+                            from scripts.dashboard.handlers import handle_cancel_order
+                            result = await run.io_bound(handle_cancel_order, {
+                                'symbol': s, 'platform': p, 'orderId': o,
+                            })
+                            if result.get('ok'):
+                                ui.notify(f'Cancelled {s}', type='positive')
+                            else:
+                                ui.notify(f'Cancel failed: {result.get("error")}', type='negative')
+
+                        ui.button('Cancel', on_click=cancel_order) \
+                            .props('flat dense size=xs color=red')
 
     ui.timer(3, update)
