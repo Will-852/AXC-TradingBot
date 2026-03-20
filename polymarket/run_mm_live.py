@@ -893,20 +893,22 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _title_lower = wl["title"].lower()
         _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
 
-        # ── M1 Momentum Filter (dynamic threshold based on vol) ──
+        # ── M1 Momentum Filter → decides HEDGE vs DIRECTIONAL ──
         _m1 = _m1_return(_sym)
         _m1_vol = _vol_1m(_sym)  # per-minute vol (cached 60s)
         _m1_thresh = max(0.0005, _m1_vol * 1.0)  # 1σ move = confirmed direction
-        if abs(_m1) < _m1_thresh:
+        _m1_confirmed = abs(_m1) >= _m1_thresh
+        if not _m1_confirmed:
             if _elapsed_ms < 120_000:  # still early, wait more
                 logger.debug("M1 wait %s: |%.4f| < %.4f (1σ), direction unclear",
                              cid[:8], _m1, _m1_thresh)
                 continue  # keep in watchlist
-            logger.info("M1 weak %s: |%.4f| < %.4f but >2min, proceeding",
+            # M1 weak → HEDGE mode (don't guess direction, guaranteed small profit)
+            logger.info("M1 weak %s: |%.4f| < %.4f → HEDGE mode (don't guess)",
                         cid[:8], _m1, _m1_thresh)
         else:
-            logger.info("M1 confirmed %s: %+.4f (%.2f%%, thresh=%.4f)",
-                        cid[:8], _m1, _m1 * 100, _m1_thresh)
+            logger.info("M1 confirmed %s: %+.4f (%.2f%%) → DIRECTIONAL mode",
+                        cid[:8], _m1, _m1 * 100)
 
         # ── Cross-exchange price validation (防 flash crash / anomaly) ──
         _xprice, _xdiv = _cross_exchange_price(_sym)
@@ -998,9 +1000,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
 
+        # M1 weak → force HEDGE_ONLY (don't guess direction)
+        # M1 confirmed → use normal risk_mode (allows directional)
+        _entry_risk = "HEDGE_ONLY" if not _m1_confirmed else risk_mode
         orders = plan_opening(mkt, fair, config, bankroll=bankroll,
                               tranche=0, total_tranches=n_tranches,
-                              risk_mode=risk_mode)
+                              risk_mode=_entry_risk)
         if not orders:
             del state["watchlist"][cid]
             continue

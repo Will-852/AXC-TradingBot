@@ -309,7 +309,9 @@ def plan_opening(market: PolyMarket, fair_up: float,
     # Zone 1 normally hedge-only, but if can't afford hedge → allow directional
     # at lower dynamic price (better EV than skipping entirely)
     _allow_dir = dir_pct > 0 and confidence > ZONE_1_BOUND
-    _zone1_fallback = not _allow_dir and not orders and confidence > 0.52
+    # Zone 1 fallback: directional when hedge unaffordable — but NOT in HEDGE_ONLY mode
+    _zone1_fallback = (not _allow_dir and not orders and confidence > 0.52
+                       and risk_mode != "HEDGE_ONLY")
     if _allow_dir or _zone1_fallback:
         dir_budget = total_cost * dir_pct if _allow_dir else total_cost
         # If hedge couldn't fire, give full budget to directional
