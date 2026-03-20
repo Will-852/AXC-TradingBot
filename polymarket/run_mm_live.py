@@ -60,6 +60,7 @@ _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
 _SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # OB + cross-exchange data for taker research
+_ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle: submit/fill/cancel/post_fill
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
 _HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
@@ -248,7 +249,7 @@ def _vol_1m(symbol: str = "BTCUSDT") -> float:
         return _cache[key][0]
     if not _rate_ok("binance"):
         return _cache.get(key, (0.001, 0))[0]
-    url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=60"
+    url = f"{_BINANCE}/fapi/v1/klines?symbol={symbol}&interval=1m&limit=120"
     try:
         with urllib.request.urlopen(
                 urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
@@ -424,13 +425,18 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
 #  Order Execution
 # ═══════════════════════════════════════
 
-def _execute(orders: list[PlannedOrder], client) -> list[dict]:
+def _execute(orders: list[PlannedOrder], client,
+             cid: str = "", signal_ctx: dict | None = None) -> list[dict]:
     """Submit limit orders. Returns order IDs — NOT fills.
 
     IMPORTANT: Limit orders (GTC) go on the book. Submit ≠ filled.
     Fills are checked later via _check_fills().
+
+    cid: condition_id for per-order logging.
+    signal_ctx: market state at submit time (fair, bridge, cvd, vol, mid) for AS analysis.
     """
     results = []
+    _ctx = signal_ctx or {}
     for o in orders:
         try:
             amount = round(o.size * o.price, 2)
@@ -449,7 +455,11 @@ def _execute(orders: list[PlannedOrder], client) -> list[dict]:
             results.append({"outcome": o.outcome, "price": o.price,
                            "size": o.size, "token_id": o.token_id,
                            "order_id": order_id, "status": status,
-                           "submitted": True})
+                           "submitted": True, "order_ts": time.time()})
+            # Per-order submit log (AS analysis data)
+            _log_order("submit", order_id, cid,
+                       outcome=o.outcome, price=o.price, size=o.size,
+                       status=status, **_ctx)
         except Exception as e:
             logger.error("ORDER FAILED %s: %s", o.outcome, e)
             results.append({"outcome": o.outcome, "submitted": False, "error": str(e)})
@@ -483,6 +493,9 @@ def _check_fills(state: dict, client) -> None:
         if end_ms > 0 and now_ms > end_ms:
             # Window over — mark remaining pending as unfilled, not filled
             _bump_fill(state, "expired", len(pending))
+            for _ep in pending:
+                _log_order("expired", _ep.get("order_id", ""), cid,
+                           outcome=_ep.get("outcome", ""))
             logger.info("Window ended %s: %d pending orders → expired (not filled)",
                         cid[:8], len(pending))
             mkt["pending_orders"] = []
@@ -521,6 +534,8 @@ def _check_fills(state: dict, client) -> None:
                 else:
                     # Not in trades AND not in open orders → likely cancelled
                     _bump_fill(state, "cancelled")
+                    _log_order("cancelled_external", po.get("order_id", ""), cid,
+                               outcome=po.get("outcome", ""))
                     logger.info("Order %s %s: not in trades or open → cancelled",
                                 cid[:8], po["outcome"])
 
@@ -541,8 +556,28 @@ def _check_fills(state: dict, client) -> None:
                         mkt["down_avg_price"] = (old + size * price) / mkt["down_shares"]
                     mkt["entry_cost"] += size * price
                     _bump_fill(state, "filled")
-                    logger.info("FILL CONFIRMED %s %s: %.1f @ $%.3f",
-                                cid[:8], outcome, size, price)
+                    # Get midpoint at fill time for AS measurement
+                    _fill_mid = 0.0
+                    _tok = f.get("token_id", "")
+                    if _tok and hasattr(client, "get_midpoint"):
+                        _fill_mid = _poly_midpoint(client, _tok)
+                    # AS metrics: BTC price at fill + time to fill
+                    _title = mkt.get("title", "").lower()
+                    _fill_sym = "ETHUSDT" if "ethereum" in _title else "BTCUSDT"
+                    _btc_fill = _price(_fill_sym)
+                    _order_ts = f.get("order_ts", 0)
+                    _ttf = round(time.time() - _order_ts, 1) if _order_ts > 0 else 0
+                    _log_order("fill", f.get("order_id", ""), cid,
+                               outcome=outcome, price=price, size=size,
+                               mid_at_fill=round(_fill_mid, 4) if _fill_mid else 0,
+                               btc_at_fill=round(_btc_fill, 2),
+                               time_to_fill_s=_ttf)
+                    # Schedule post-fill check (60s later) for AS cost measurement
+                    if _tok:
+                        _post_fill_checks.append(
+                            (time.time() + 60, f.get("order_id", ""), cid, _tok))
+                    logger.info("FILL CONFIRMED %s %s: %.1f @ $%.3f mid=%.3f",
+                                cid[:8], outcome, size, price, _fill_mid)
 
                 mkt["pending_orders"] = still_open
                 if not still_open:
@@ -632,6 +667,30 @@ def _log_trade(record: dict):
     os.makedirs(_LOG_DIR, exist_ok=True)
     with open(_TRADE_LOG, "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
+
+
+def _log_order(event: str, order_id: str, cid: str, **kwargs):
+    """Per-order lifecycle log: submit/fill/cancel/post_fill.
+
+    Enables AS analysis: time_to_fill, mid_at_fill, mid_60s_post_fill.
+    """
+    record = {
+        "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
+        "event": event,  # submit | fill | cancel | post_fill
+        "order_id": order_id[:16] if order_id else "",
+        "cid": cid[:8] if cid else "",
+    }
+    record.update(kwargs)
+    try:
+        os.makedirs(_LOG_DIR, exist_ok=True)
+        with open(_ORDER_LOG, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+    except Exception:
+        pass
+
+
+# Deferred post-fill checks: list of (check_time, order_id, cid, token_id)
+_post_fill_checks: list[tuple[float, str, str, str]] = []
 
 
 def _get_rolling_wr(state: dict, window: int = 30) -> tuple[float, int]:
@@ -982,8 +1041,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # 1. Brownian Bridge (base — always available)
         bridge_p_up = compute_fair_up(_coin_price, _coin_open, _coin_vol, int(mins_left))
-        # Fat-tail haircut: BTC kurtosis > 9, normal CDF overestimates extremes
-        bridge_p_up = 0.50 + (bridge_p_up - 0.50) * 0.90  # 10% toward 0.50
+        # Fat-tail correction now built into compute_fair_up() via Student-t(ν=5)
 
         # 2. Order book imbalance (short-term, forward-looking)
         # Removed: assess_edge() — traditional indicators (RSI/MACD/BB/EMA) are
@@ -1078,7 +1136,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
                         cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
-        results = _execute(orders, client)
+        _sig_ctx = {"fair": round(fair, 4), "bridge": round(bridge_p_up, 4),
+                    "cvd": round(_cvd, 3), "vol": round(_coin_vol, 6),
+                    "m1": round(_m1, 6), "ob_adj": round(ob_adjustment, 4),
+                    "btc": round(_coin_price, 2)}
+        results = _execute(orders, client, cid=cid, signal_ctx=_sig_ctx)
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
                            window_start_ms=wl["start_ms"], window_end_ms=wl["end_ms"],
@@ -1188,7 +1250,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 mkt_d["tranches_done"] = t_total
                 continue
 
-            results2 = _execute(orders2, client)
+            results2 = _execute(orders2, client, cid=cid,
+                                signal_ctx={"fair": round(fair2, 4), "tranche": t_done + 1})
             for r in results2:
                 if not r.get("submitted"):
                     continue
@@ -1261,11 +1324,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 to_cancel = list(pending)
                 reason = "window_end"
 
-            # Trigger 2: spot moved ADVERSELY >0.3% since entry → cancel DIRECTIONAL
+            # Trigger 2: spot moved ADVERSELY >0.5% since entry → cancel DIRECTIONAL
             # 0.05% was too tight — BTC moves $42 in seconds, cancelled 10/11 orders
-            # 0.3% BTC (~$250), 0.5% ETH (~$10) — coin-specific thresholds
+            # 0.3% also too tight — cancelled 6/6 orders in v14 live
+            # 0.5% BTC (~$350), 0.7% ETH (~$14) — generous to let orders sit
             # Only cancel on ADVERSE move (against our direction), not favorable
-            _spot_thresh = 0.005 if _s == "ETHUSDT" else 0.003
+            _spot_thresh = 0.007 if _s == "ETHUSDT" else 0.005
             if not to_cancel and entry_price > 0:
                 current = _btc_price() if _s == "BTCUSDT" else _price(_s)
                 if current > 0:
@@ -1278,20 +1342,35 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         if to_cancel:
                             reason = f"adverse_move_{signed_move:+.4f}"
 
-            # Trigger 3: TTL 5min → cancel DIRECTIONAL only (independent check)
-            # 60s was too short — maker orders need time on book to fill
-            if not to_cancel and entry_ts > 0 and now_s - entry_ts > 300:
-                to_cancel = _find_directional_orders(pending)
-                if to_cancel:
-                    reason = "ttl_5m"
+            # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only
+            # Fixed 5min was too short — v14 cancelled 6/6 orders (0% fill).
+            # Dynamic: min(10min, window_end - 3min - entry_ts)
+            # Early entry (min 1) → 10 min on book. Late entry (min 8) → ~4 min.
+            # Always respect window_end - 3min hard boundary.
+            if not to_cancel and entry_ts > 0 and end_ms > 0:
+                _hard_cancel_s = (end_ms - 180_000) / 1000  # 3 min before window end
+                _max_ttl_s = min(600, max(60, _hard_cancel_s - entry_ts))  # 60s..600s
+                _time_on_book = now_s - entry_ts
+                if _time_on_book > _max_ttl_s:
+                    to_cancel = _find_directional_orders(pending)
+                    if to_cancel:
+                        reason = f"ttl_{int(_time_on_book)}s_max{int(_max_ttl_s)}s"
 
             actually_cancelled = []
+            _time_on_book = now_s - entry_ts if entry_ts > 0 else 0
+            _dist_to_end_s = (end_ms / 1000 - now_s) if end_ms > 0 else 0
             for po in to_cancel:
                 oid = po.get("order_id", "")
                 if oid:
                     try:
                         client.client.cancel(order_id=oid)
-                        logger.info("CANCEL %s %s [%s]", cid[:8], po["outcome"], reason)
+                        logger.info("CANCEL %s %s [%s] book=%ds end=%ds",
+                                    cid[:8], po["outcome"], reason,
+                                    _time_on_book, _dist_to_end_s)
+                        _log_order("cancel", oid, cid,
+                                   outcome=po.get("outcome", ""), reason=reason,
+                                   time_on_book_s=_time_on_book,
+                                   dist_to_end_s=int(_dist_to_end_s))
                         actually_cancelled.append(po)
                     except Exception as e:
                         logger.warning("Cancel FAILED %s %s: %s — keeping in pending",
@@ -1307,6 +1386,20 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # Check fills (submitted → actually filled?)
     if not dry_run:
         _check_fills(state, client)
+
+    # ── Post-fill AS measurement: check midpoint 60s after fill ──
+    if _post_fill_checks and client and hasattr(client, "get_midpoint"):
+        _now = time.time()
+        _remaining = []
+        for _pf_time, _pf_oid, _pf_cid, _pf_tok in _post_fill_checks:
+            if _now >= _pf_time:
+                _pf_mid = _poly_midpoint(client, _pf_tok)
+                _log_order("post_fill_60s", _pf_oid, _pf_cid,
+                           mid_60s=round(_pf_mid, 4) if _pf_mid else 0)
+            else:
+                _remaining.append((_pf_time, _pf_oid, _pf_cid, _pf_tok))
+        _post_fill_checks.clear()
+        _post_fill_checks.extend(_remaining)
 
     # ── Exit: Free Roll + Black Swan + Stop Loss ──
     # Layer 1: BLACK SWAN (mid ≥ 94¢) → sell ALL (any time)
@@ -1446,13 +1539,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                              cid[:8], _rd + 1, _xdiv * 100)
                 continue
 
-            start_ms = mkt.get("window_start_ms", 0)
+            # BTC move since window open > 0.3% → skip re-entry (regime change)
             _coin_open = mkt.get("btc_open_price") or _coin_price
+            if _coin_open > 0:
+                _window_move = abs(_coin_price - _coin_open) / _coin_open
+                if _window_move > 0.003:
+                    logger.info("REENTRY SKIP %s R%d: window move %.2f%% > 0.3%% (regime change)",
+                                cid[:8], _rd + 1, _window_move * 100)
+                    mkt["phase"] = "RESOLVED"
+                    mkt["early_exit"] = f"regime_change_r{_rd}"
+                    continue
+
+            start_ms = mkt.get("window_start_ms", 0)
             mins_left = max(1, (end_ms - now_ms) / 60_000)
 
             # Bridge + OB (no indicator signal — same as initial entry)
             bridge_p_up = compute_fair_up(_coin_price, _coin_open, _m1_vol, int(mins_left))
-            bridge_p_up = 0.50 + (bridge_p_up - 0.50) * 0.90  # fat-tail haircut
+            # Fat-tail correction built into compute_fair_up() via Student-t(ν=5)
 
             ob_adjustment = 0.0
             if hasattr(client, "get_order_book"):
@@ -1485,16 +1588,33 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                 cid[:8], _rd + 1, _mid)
                     continue
 
-            # Place re-entry order
+            # Place re-entry order — round-dependent pricing discount
+            # R2: bid × 0.90 (10% cheaper), R3: bid × 0.80 (20% cheaper)
+            # Rationale: stop loss already triggered → regime may have changed → demand better price
+            _round_discount = {1: 0.90, 2: 0.80}.get(_rd, 0.80)
+            _re_config = _copy(config)
+            _re_config.max_directional_bid = round(config.max_directional_bid * _round_discount, 3)
+            _re_config.max_hedge_bid = round(config.max_hedge_bid * _round_discount, 3)
+            logger.info("REENTRY R%d %s: bid cap $%.3f (%.0f%% of R1 $%.3f)",
+                        _rd + 1, cid[:8], _re_config.max_directional_bid,
+                        _round_discount * 100, config.max_directional_bid)
+            _re_mkt = PolyMarket(
+                condition_id=cid, title=mkt.get("title", ""),
+                category="crypto_15m",
+                yes_token_id=mkt.get("up_token_id", ""),
+                no_token_id=mkt.get("down_token_id", ""),
+                liquidity=15000)
             bankroll = state.get("bankroll", 100.0)
-            n_tranches = calc_tranches(bankroll, config)
-            orders = plan_opening(_re_mkt, fair, config, bankroll=bankroll,
+            n_tranches = calc_tranches(bankroll, _re_config)
+            orders = plan_opening(_re_mkt, fair, _re_config, bankroll=bankroll,
                                   tranche=0, total_tranches=n_tranches,
                                   risk_mode=risk_mode)
             if not orders:
                 continue
 
-            results = _execute(orders, client)
+            results = _execute(orders, client, cid=cid,
+                               signal_ctx={"fair": round(fair, 4), "round": _rd + 1,
+                                           "bridge": round(bridge_p_up, 4)})
             # Reset entry fields for new round
             mkt["entry_price"] = _coin_price
             mkt["entry_ts"] = int(time.time())

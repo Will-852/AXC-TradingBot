@@ -235,7 +235,7 @@ def main():
                 coin_open = _open_at(wl["start_ms"], sym) or coin_price
                 mins_left = max(1, (wl["end_ms"] - now_ms) / 60_000)
                 bridge = compute_fair_up(coin_price, coin_open, vol, int(mins_left))
-                bridge = 0.50 + (bridge - 0.50) * 0.90  # fat-tail
+                # Fat-tail correction built into compute_fair_up() via Student-t(ν=5)
 
                 fair = bridge  # no OB in shadow mode
                 fair = max(0.05, min(0.95, fair))

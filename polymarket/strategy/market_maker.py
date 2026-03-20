@@ -36,6 +36,36 @@ logger = logging.getLogger(__name__)
 _norm = NormalDist()
 
 
+def _student_t_cdf(x: float, nu: float = 5.0) -> float:
+    """Student-t CDF — replaces Normal CDF for fat-tail correction.
+
+    BTC kurtosis ≈ 9 → ν ≈ 5-7 for Student-t.
+    At ν=5: heavier tails than Normal, auto-haircuts more at extremes,
+    less near center (where Normal is already accurate).
+    Equivalent to position-dependent haircut without manual tuning.
+
+    Uses Simpson's rule numerical integration — robust, no edge cases.
+    ~200μs per call, called once per signal pipeline (30s) = negligible.
+    """
+    if nu <= 0:
+        return _norm.cdf(x)
+    if abs(x) < 1e-12:
+        return 0.5
+    # Student-t PDF coefficient
+    coeff = math.gamma((nu + 1) / 2) / (math.sqrt(nu * math.pi) * math.gamma(nu / 2))
+    exp = -(nu + 1) / 2
+    # Integrate from -8 to x using Simpson's rule (n=2000 points)
+    a, b = -8.0, x
+    n = 2000
+    h = (b - a) / n
+    s = coeff * (1 + a * a / nu) ** exp + coeff * (1 + b * b / nu) ** exp
+    for i in range(1, n):
+        xi = a + i * h
+        w = 4 if i % 2 else 2
+        s += w * coeff * (1 + xi * xi / nu) ** exp
+    return max(0.001, min(0.999, s * h / 3))
+
+
 # ═══════════════════════════════════════
 #  Config
 # ═══════════════════════════════════════
@@ -136,16 +166,15 @@ class MMMarketState:
 def compute_fair_up(btc_current: float, btc_open: float,
                     vol_1m: float, minutes_remaining: int,
                     indicator_p_up: float = 0.0) -> float:
-    """P(BTC close >= open) — blended: Brownian Bridge + indicator score.
+    """P(BTC close >= open) — Brownian Bridge with Student-t fat-tail correction.
 
-    If indicator_p_up > 0 (from crypto_15m._score_direction), blend it
-    with the Brownian Bridge estimate. Indicator weight increases as
-    minutes_remaining decreases (more data = more confident).
+    Uses Student-t(ν=5) CDF instead of Normal CDF + fixed haircut.
+    BTC kurtosis ≈ 9 → Student-t(ν=5) gives position-dependent correction:
+      - Near boundary (d≈0): almost no correction (Normal is accurate)
+      - Far from boundary (d>1.5): more correction (fat tails matter)
+    Replaces the old fixed 10% haircut which over-corrected by 3-5pp.
 
-    Weights:
-      T=15 min left: 80% bridge, 20% indicator (little data)
-      T=5  min left: 50% bridge, 50% indicator
-      T=1  min left: 30% bridge, 70% indicator (price almost decided)
+    If indicator_p_up > 0, blend with indicator (legacy, rarely used in v14+).
     """
     if minutes_remaining <= 0:
         return 0.995 if btc_current >= btc_open else 0.005
@@ -158,7 +187,8 @@ def compute_fair_up(btc_current: float, btc_open: float,
         return 0.995 if btc_current >= btc_open else 0.005
 
     d = math.log(btc_current / btc_open) / sigma
-    bridge = max(0.005, min(0.995, _norm.cdf(d)))
+    # Student-t(ν=5): auto fat-tail correction, replaces Normal + fixed haircut
+    bridge = max(0.005, min(0.995, _student_t_cdf(d, nu=5.0)))
 
     # Blend with indicator score if available
     if indicator_p_up > 0:
