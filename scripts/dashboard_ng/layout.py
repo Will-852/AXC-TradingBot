@@ -8,11 +8,10 @@ from nicegui import app, ui
 
 from . import state
 from .theme import (
-    FONTS_CSS, BG_PRIMARY, BG_SURFACE, BORDER,
+    FONTS_CSS, GLOBAL_CSS, BG_PRIMARY, BG_SURFACE, BORDER,
     TEXT_SECONDARY, TEXT_MUTED, TEXT_FAINT,
     GREEN, RED, ACCENT, SIDEBAR_WIDTH,
     HEADER_CLS, SIDEBAR_CLS, FOOTER_CLS, SECTION_HEADER,
-    FONT_TINY, FONT_LABEL,
 )
 
 # Core services to show in sidebar
@@ -83,8 +82,9 @@ async def _restart_service(label: str):
 
 def create_layout(active_path: str = '/'):
     """Build the shared page layout. Call at the start of every @ui.page."""
-    # Inject Fira Code + Fira Sans fonts
+    # Inject fonts + global CSS
     ui.add_head_html(FONTS_CSS)
+    ui.add_css(GLOBAL_CSS)
 
     # Dark mode — default on, persist to user storage
     dark = ui.dark_mode()

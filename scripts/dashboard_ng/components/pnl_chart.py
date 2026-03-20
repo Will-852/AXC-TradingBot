@@ -7,46 +7,41 @@ from scripts.dashboard_ng.state import get_data
 
 def render_pnl_chart():
     """Render PnL sparkline with ECharts."""
-    ui.label('PNL HISTORY').classes('text-xs text-gray-500 uppercase tracking-wide')
+    from scripts.dashboard_ng.theme import SECTION_HEADER
+    ui.label('PNL HISTORY').classes(SECTION_HEADER)
 
-    # Time range filter
     time_range = ui.toggle(['1H', '4H', '1D', '7D', 'ALL'], value='1D') \
-        .props('dense no-caps size=sm color=indigo')
+        .props('dense no-caps size=sm color=blue-grey-6')
 
     chart = ui.echart({
+        'darkMode': True,
         'backgroundColor': 'transparent',
-        'tooltip': {'trigger': 'axis'},
-        'legend': {'data': ['PnL'], 'textStyle': {'color': '#9ca3af'}, 'top': 5},
-        'grid': {'left': 50, 'right': 20, 'top': 40, 'bottom': 30},
+        'tooltip': {'trigger': 'axis', 'backgroundColor': '#1e293b',
+                    'borderColor': '#334155', 'textStyle': {'color': '#e2e8f0', 'fontSize': 11}},
+        'grid': {'left': 50, 'right': 16, 'top': 20, 'bottom': 24},
         'xAxis': {
-            'type': 'category',
-            'data': [],
-            'axisLabel': {'color': '#6b7280', 'fontSize': 10},
-            'axisLine': {'lineStyle': {'color': '#374151'}},
+            'type': 'category', 'data': [],
+            'axisLabel': {'color': '#64748b', 'fontSize': 10},
+            'axisLine': {'lineStyle': {'color': '#1e2d45'}},
         },
         'yAxis': {
             'type': 'value',
-            'axisLabel': {'color': '#6b7280', 'fontSize': 10, 'formatter': '${value}'},
-            'splitLine': {'lineStyle': {'color': '#1f2937'}},
+            'axisLabel': {'color': '#64748b', 'fontSize': 10, 'formatter': '${value}'},
+            'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}},
         },
         'series': [{
-            'name': 'PnL',
-            'type': 'line',
-            'data': [],
-            'smooth': True,
-            'lineStyle': {'width': 2},
+            'name': 'PnL', 'type': 'line', 'data': [], 'smooth': True,
+            'showSymbol': False, 'lineStyle': {'width': 2},
             'areaStyle': {
-                'color': {
-                    'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
+                'color': {'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
                     'colorStops': [
-                        {'offset': 0, 'color': 'rgba(99, 102, 241, 0.3)'},
-                        {'offset': 1, 'color': 'rgba(99, 102, 241, 0.02)'},
-                    ],
-                },
+                        {'offset': 0, 'color': 'rgba(59, 130, 246, 0.25)'},
+                        {'offset': 1, 'color': 'rgba(59, 130, 246, 0.02)'},
+                    ]},
             },
-            'itemStyle': {'color': '#6366f1'},
+            'itemStyle': {'color': '#3b82f6'},
         }],
-    }).classes('h-64 w-full')
+    }).classes('h-56 w-full')
 
     def update_chart():
         d = get_data()
