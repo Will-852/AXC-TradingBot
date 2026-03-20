@@ -393,15 +393,17 @@ def render_polymarket_page():
                         sz = f"{float(o.get('size', 0)):.2f}"
                     except (TypeError, ValueError):
                         sz = str(o.get('size', ''))
-                    # Parse created_at time
+                    # Parse created_at time (can be int epoch or string)
                     ct = o.get('created', '')
                     try:
-                        if ct and isinstance(ct, str) and ct.isdigit():
+                        if isinstance(ct, (int, float)):
+                            ct = _dt.fromtimestamp(ct).strftime('%m-%d %H:%M')
+                        elif isinstance(ct, str) and ct.isdigit():
                             ct = _dt.fromtimestamp(int(ct)).strftime('%m-%d %H:%M')
-                        elif ct and len(ct) > 16:
+                        elif isinstance(ct, str) and len(ct) > 16:
                             ct = ct[:16]
                     except (ValueError, OSError):
-                        pass
+                        ct = str(ct)[:16]
                     rows.append({
                         'time': ct,
                         'side': o.get('side', ''),
