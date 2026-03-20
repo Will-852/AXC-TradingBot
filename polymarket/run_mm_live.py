@@ -59,6 +59,7 @@ _ET = ZoneInfo("America/New_York")
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
+_SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # OB + cross-exchange data for taker research
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
 _HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
@@ -893,22 +894,21 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _title_lower = wl["title"].lower()
         _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
 
-        # ── M1 Momentum Filter → decides HEDGE vs DIRECTIONAL ──
+        # ── M1 Filter: confirmed → enter, weak → skip ──
+        # Backtest 180d: M1 confirmed WR 70%, weak fillable WR ~55%
+        # Hedge at <20% fill rate = gambling (both-fill 2.2%) → skip weak
         _m1 = _m1_return(_sym)
-        _m1_vol = _vol_1m(_sym)  # per-minute vol (cached 60s)
-        _m1_thresh = max(0.0005, _m1_vol * 1.0)  # 1σ move = confirmed direction
+        _m1_vol = _vol_1m(_sym)
+        _m1_thresh = max(0.0005, _m1_vol * 1.0)  # 1σ
         _m1_confirmed = abs(_m1) >= _m1_thresh
         if not _m1_confirmed:
-            if _elapsed_ms < 120_000:  # still early, wait more
-                logger.debug("M1 wait %s: |%.4f| < %.4f (1σ), direction unclear",
-                             cid[:8], _m1, _m1_thresh)
-                continue  # keep in watchlist
-            # M1 weak → HEDGE mode (don't guess direction, guaranteed small profit)
-            logger.info("M1 weak %s: |%.4f| < %.4f → HEDGE mode (don't guess)",
-                        cid[:8], _m1, _m1_thresh)
-        else:
-            logger.info("M1 confirmed %s: %+.4f (%.2f%%) → DIRECTIONAL mode",
-                        cid[:8], _m1, _m1 * 100)
+            if _elapsed_ms < 180_000:  # wait up to 3 min
+                continue
+            logger.info("SKIP %s: M1 weak |%.4f| < %.4f after 3min", cid[:8], _m1, _m1_thresh)
+            del state["watchlist"][cid]
+            continue
+        logger.info("M1 confirmed %s: %+.4f (%.2f%%, %.1fσ)",
+                    cid[:8], _m1, _m1 * 100, abs(_m1) / _m1_thresh)
 
         # ── Cross-exchange price validation (防 flash crash / anomaly) ──
         _xprice, _xdiv = _cross_exchange_price(_sym)
@@ -977,6 +977,22 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
+        # ── Log signal data for future taker research (Phase 2) ──
+        try:
+            _sig_record = {
+                "ts": datetime.now(tz=_HKT).isoformat(), "cid": cid[:8],
+                "sym": _sym, "m1": round(_m1, 6),
+                "m1_sigma": round(abs(_m1) / _m1_thresh, 2),
+                "bridge": round(bridge_p_up, 4), "signal": round(signal_p_up, 4),
+                "fair": round(fair, 4), "xdiv": round(_xdiv, 5),
+                "ob_adj": round(ob_adjustment, 4),
+            }
+            os.makedirs(_LOG_DIR, exist_ok=True)
+            with open(_SIGNAL_LOG, "a") as _sf:
+                _sf.write(json.dumps(_sig_record) + "\n")
+        except Exception:
+            pass
+
         # M1 vs fair direction conflict
         _fair_up = fair > 0.50
         _m1_up = _m1 > 0
@@ -1000,12 +1016,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
 
-        # M1 weak → force HEDGE_ONLY (don't guess direction)
-        # M1 confirmed → use normal risk_mode (allows directional)
-        _entry_risk = "HEDGE_ONLY" if not _m1_confirmed else risk_mode
+        # M1 already confirmed (weak skipped above) → normal risk_mode
         orders = plan_opening(mkt, fair, config, bankroll=bankroll,
                               tranche=0, total_tranches=n_tranches,
-                              risk_mode=_entry_risk)
+                              risk_mode=risk_mode)
         if not orders:
             del state["watchlist"][cid]
             continue
