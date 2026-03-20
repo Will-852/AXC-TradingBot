@@ -6,6 +6,8 @@ by the pipeline at each cycle start. No restart needed.
 
 import os
 import re
+import ast
+import tempfile
 import logging
 
 from nicegui import ui, run
@@ -73,8 +75,8 @@ def _read_current_params() -> dict:
                 if '#' in val:
                     val = val[:val.index('#')].strip()
                 try:
-                    values[key] = eval(val)  # handles True/False/int/float
-                except Exception:
+                    values[key] = ast.literal_eval(val)
+                except (ValueError, SyntaxError):
                     values[key] = val
     except Exception as e:
         log.error('Failed to read params.py: %s', e)
@@ -106,8 +108,16 @@ def _write_param(key: str, value):
     if count == 0:
         new_content = content.rstrip() + f'\n{key} = {repr(value)}\n'
 
-    with open(PARAMS_PATH, 'w') as f:
-        f.write(new_content)
+    # Atomic write: tempfile + os.replace
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(PARAMS_PATH), suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(new_content)
+        os.replace(tmp, PARAMS_PATH)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
     log.info('Poly param %s = %s', key, value)
 
 

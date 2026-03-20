@@ -64,7 +64,11 @@ def query_live() -> dict:
         if result.returncode != 0:
             log.error('poly_live query failed: %s', result.stderr[:200])
             return {}
-        return json.loads(result.stdout)
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            log.error('poly_live invalid JSON: %s', result.stdout[:100])
+            return {}
     except subprocess.TimeoutExpired:
         log.error('poly_live query timeout')
         return {}

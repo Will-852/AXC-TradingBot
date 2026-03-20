@@ -126,8 +126,9 @@ def render_exchange_panel():
                                           on_click=lambda e=exch: _disconnect(e)) \
                                     .props('flat dense size=xs color=red')
                             else:
-                                ui.button('Connect',
-                                          on_click=lambda e=exch: _show_connect_dialog(e)) \
+                                async def do_connect(e=exch):
+                                    await _show_connect_dialog(e)
+                                ui.button('Connect', on_click=do_connect) \
                                     .props('flat dense size=xs color=indigo')
 
         ui.timer(0.1, update, once=True)

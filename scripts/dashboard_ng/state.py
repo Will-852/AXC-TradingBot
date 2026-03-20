@@ -62,8 +62,12 @@ async def _update_exchanges():
             ('binance', handle_binance_status),
             ('hl', handle_hl_status),
         ]:
-            _, payload = await run.io_bound(handler)
-            results[name] = payload
+            try:
+                result = await run.io_bound(handler)
+                results[name] = result[1] if isinstance(result, tuple) else result
+            except Exception as e:
+                log.warning('Exchange %s status failed: %s', name, e)
+                results[name] = {'status': 'error', 'error': str(e)}
         app.storage.general['exchanges'] = results
     except Exception as e:
         log.error('exchange status failed: %s', e)
