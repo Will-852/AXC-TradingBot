@@ -34,7 +34,7 @@ async def _fetch_symbol_info(symbol: str, platform: str) -> dict:
 async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
     """Show the trade entry dialog. Awaitable — returns on close."""
 
-    with ui.dialog() as dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
+    with ui.dialog().props('persistent') as dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
         ui.label('New Order').classes('text-xl font-bold mb-4')
 
         # Symbol + Platform
@@ -88,54 +88,60 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         symbol_info = {'data': {}}
 
         async def load_info():
-            sym = (symbol_input.value or '').upper().strip()
-            plat = platform_select.value or 'aster'
+            try:
+                sym = (symbol_input.value or '').upper().strip()
+                plat = platform_select.value or 'aster'
 
-            # Fetch balance + symbol info in parallel
-            info = await _fetch_symbol_info(sym, plat)
-            symbol_info['data'] = info
+                info = await _fetch_symbol_info(sym, plat)
+                symbol_info['data'] = info
 
-            if info:
-                step = info.get('step_size', 0.001)
-                min_qty = info.get('min_qty', 0.001)
-                min_notional = info.get('min_notional', 5.0)
-                info_label.text = f'Step: {step} | Min qty: {min_qty} | Min notional: ${min_notional}'
-            else:
-                info_label.text = 'Could not fetch symbol info'
+                if info:
+                    step = info.get('step_size', 0.001)
+                    min_qty = info.get('min_qty', 0.001)
+                    min_notional = info.get('min_notional', 5.0)
+                    info_label.text = f'Step: {step} | Min qty: {min_qty} | Min notional: ${min_notional}'
+                else:
+                    info_label.text = 'Could not fetch symbol info'
 
-            balances = await _fetch_balance()
-            bal = balances.get(plat, {}).get('balance', '?')
-            balance_label.text = f'Balance: ${bal}'
+                balances = await _fetch_balance()
+                bal = balances.get(plat, {}).get('balance', '?')
+                balance_label.text = f'Balance: ${bal}'
+            except Exception as e:
+                log.error('load_info failed: %s', e)
+                info_label.text = f'Error loading info: {e}'
 
         def calc_qty():
-            from scripts.dashboard_ng.state import get_data
-            d = get_data()
-            prices = d.get('prices', {})
-            sym = (symbol_input.value or '').upper().strip()
-
-            # Get current price
-            coin = sym.replace('USDT', '')
-            price_str = prices.get(coin, '0')
             try:
-                price = float(price_str)
-            except (ValueError, TypeError):
-                price = 0
+                from scripts.dashboard_ng.state import get_data
+                d = get_data()
+                prices = d.get('prices', {})
+                sym = (symbol_input.value or '').upper().strip()
 
-            if price <= 0:
-                return
+                coin = sym.replace('USDT', '')
+                price_str = prices.get(coin, '0')
+                try:
+                    price = float(price_str)
+                except (TypeError, ValueError):
+                    price = 0
 
-            notional = notional_input.value or 0
-            lev = leverage_input.value or 1
-            raw_qty = (notional * lev) / price
+                if price <= 0:
+                    return
 
-            # Round to step size
-            info = symbol_info['data']
-            step = info.get('step_size', 0.001)
-            if step > 0:
-                import math
-                raw_qty = math.floor(raw_qty / step) * step
+                notional = notional_input.value or 0
+                lev = leverage_input.value or 1
+                if notional <= 0 or lev <= 0:
+                    return
+                raw_qty = (notional * lev) / price
 
-            qty_input.value = round(raw_qty, 8)
+                info = symbol_info['data']
+                step = info.get('step_size', 0.001)
+                if step > 0:
+                    import math
+                    raw_qty = math.floor(raw_qty / step) * step
+
+                qty_input.value = round(raw_qty, 8)
+            except Exception as e:
+                log.warning('calc_qty error: %s', e)
 
         notional_input.on('update:model-value', lambda: calc_qty())
         leverage_input.on('update:model-value', lambda: calc_qty())
@@ -209,8 +215,11 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
             submit_btn = ui.button('Place Order', icon='send', on_click=submit_order) \
                 .props('color=indigo')
 
-        # Load info on open
-        ui.timer(0.1, load_info, once=True)
-        ui.timer(0.1, calc_qty, once=True)
+        # Load info on open, then calc qty after info loads
+        async def init_dialog():
+            await load_info()
+            calc_qty()
+
+        ui.timer(0.1, init_dialog, once=True)
 
     dialog.open()
