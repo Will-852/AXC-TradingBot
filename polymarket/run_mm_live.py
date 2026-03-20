@@ -266,6 +266,35 @@ def _vol_1m(symbol: str = "BTCUSDT") -> float:
         return _cache.get(key, (0.001, 0))[0]
 
 
+def _cvd_buy_ratio(symbol: str = "BTCUSDT", minutes: int = 3) -> float:
+    """Taker buy ratio over last N minutes. >0.55 = buying pressure, <0.45 = selling.
+    Uses Binance spot 1m klines (taker_buy_volume included). Cached 30s."""
+    key = f"cvd_{symbol}_{minutes}"
+    now = time.time()
+    if key in _cache and now - _cache[key][1] < 30:
+        return _cache[key][0]
+    if not _rate_ok("binance"):
+        return _cache.get(key, (0.5, 0))[0]
+    url = f"{_BINANCE_SPOT}/api/v3/klines?symbol={symbol}&interval=1m&limit={minutes + 1}"
+    try:
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=5) as r:
+            candles = json.loads(r.read())
+        _track_call("binance")
+        if len(candles) < 2:
+            return 0.5
+        # Use last N candles (skip first partial)
+        recent = candles[-minutes:]
+        total_vol = sum(float(c[5]) for c in recent)
+        total_buy = sum(float(c[9]) for c in recent)  # index 9 = taker_buy_volume
+        ratio = total_buy / total_vol if total_vol > 0 else 0.5
+        _cache[key] = (ratio, now)
+        return ratio
+    except Exception:
+        return _cache.get(key, (0.5, 0))[0]
+
+
 def _m1_return(symbol: str = "BTCUSDT") -> float:
     """Last 1-minute return (log). Reuses _vol_1m cache if fresh, else fetches 2 candles.
     Returns 0.0 if unavailable. Positive = price went up."""
@@ -978,6 +1007,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
+        # CVD: taker buy ratio (3 min) — computed here for logging + gate
+        _cvd = _cvd_buy_ratio(_sym, minutes=3)
+
         # ── Log signal data for future taker research (Phase 2) ──
         try:
             _sig_record = {
@@ -986,7 +1018,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 "m1_sigma": round(abs(_m1) / _m1_thresh, 2),
                 "bridge": round(bridge_p_up, 4),
                 "fair": round(fair, 4), "xdiv": round(_xdiv, 5),
-                "ob_adj": round(ob_adjustment, 4),
+                "ob_adj": round(ob_adjustment, 4), "cvd": round(_cvd, 3),
             }
             os.makedirs(_LOG_DIR, exist_ok=True)
             with open(_SIGNAL_LOG, "a") as _sf:
@@ -1002,6 +1034,20 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         cid[:8], _m1, "UP" if _m1_up else "DN",
                         fair, "UP" if _fair_up else "DN")
             continue  # keep in watchlist
+
+        # CVD gate: strong taker pressure against our direction → skip
+        # Backtest: CVD strong sell (<40%) = actual UP only 40%
+        # CVD strong buy (>60%) = actual UP 61%
+        _cvd_bullish = _cvd > 0.55
+        _cvd_bearish = _cvd < 0.45
+        if _fair_up and _cvd_bearish:
+            logger.info("SKIP %s: CVD conflict — fair UP but CVD sell %.0f%%",
+                        cid[:8], _cvd * 100)
+            continue
+        if not _fair_up and _cvd_bullish:
+            logger.info("SKIP %s: CVD conflict — fair DOWN but CVD buy %.0f%%",
+                        cid[:8], _cvd * 100)
+            continue
 
         # Market midpoint sanity: if Polymarket mid for our side < $0.35,
         # market strongly disagrees with our direction → skip
