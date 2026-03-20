@@ -1115,8 +1115,25 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
 
-        # M1 already confirmed (weak skipped above) → normal risk_mode
-        orders = plan_opening(mkt, fair, config, bankroll=bankroll,
+        # ── Dynamic pricing: confidence → bid cap ──
+        # Weak signal = demand better price (lower bid = higher ratio = safer)
+        # Strong signal = accept higher price (more likely to fill)
+        _confidence = max(fair, 1.0 - fair)
+        _entry_config = _copy(config)
+        if _confidence >= 0.70:
+            pass  # $0.40 cap (default) — strong signal
+        elif _confidence >= 0.62:
+            _entry_config.max_directional_bid = 0.37  # 1.70x ratio
+        elif _confidence >= 0.57:
+            _entry_config.max_directional_bid = 0.33  # 2.03x ratio
+        else:
+            _entry_config.max_directional_bid = 0.28  # 2.57x ratio
+        if _entry_config.max_directional_bid != config.max_directional_bid:
+            logger.info("DYNAMIC PRICE %s: conf=%.0f%% → bid cap $%.2f (was $%.2f)",
+                        cid[:8], _confidence * 100,
+                        _entry_config.max_directional_bid, config.max_directional_bid)
+
+        orders = plan_opening(mkt, fair, _entry_config, bankroll=bankroll,
                               tranche=0, total_tranches=n_tranches,
                               risk_mode=risk_mode)
         if not orders:
