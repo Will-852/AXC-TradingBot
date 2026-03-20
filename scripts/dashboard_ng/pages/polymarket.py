@@ -296,8 +296,8 @@ def render_polymarket_page():
     ui.label('CALIBRATION').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
     cal_container = ui.row().classes('gap-4')
 
-    # ── Trades table ──
-    ui.label('RECENT TRADES').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
+    # ── Trades table (LIVE from CLOB) ──
+    ui.label('RECENT TRADES (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
     trades_container = ui.column().classes('w-full')
 
     # ── Circuit breakers (with reset) ──
@@ -369,9 +369,12 @@ def render_polymarket_page():
         mode_btn.text = f'Mode: {mode_str}'
         mode_btn.props(f'color={"orange" if is_dry else "green"}')
 
-        # Positions table
+        # Positions — use live orders from CLOB (not stale state file)
+        live = poly_data.get('live', {})
+        live_orders = live.get('orders', [])
         positions_container.clear()
         with positions_container:
+            # Show state file positions if available
             if positions and isinstance(positions, list):
                 rows = []
                 for p in positions:
@@ -401,12 +404,15 @@ def render_polymarket_page():
                         {'field': 'end_date', 'headerName': 'Expires', 'width': 90},
                     ],
                     'rowData': rows,
-                    'headerHeight': 34,
-                    'rowHeight': 32,
-                    'domLayout': 'autoHeight',
+                    'headerHeight': 34, 'rowHeight': 32, 'domLayout': 'autoHeight',
                 }).classes('w-full ag-theme-balham-dark')
-            else:
-                ui.label('No positions').classes('text-gray-600 text-sm')
+
+            # Always show live open orders count
+            n_orders = live.get('open_orders', 0)
+            if n_orders:
+                ui.label(f'{n_orders} live orders on CLOB').classes('text-[11px] text-blue-400 mt-1')
+            elif not positions:
+                ui.label('No positions or orders').classes('text-gray-600 text-sm')
 
         # PnL chart — use cumulative PnL, timestamp for time axis
         pnl_series = d.get('pnl_series', [])
@@ -453,43 +459,48 @@ def render_polymarket_page():
             if brier is None and edge is None:
                 ui.label('No calibration data').classes('text-gray-600 text-sm')
 
-        # Trades
-        trades = d.get('trades', [])
+        # Trades — use LIVE CLOB trades (not stale state file)
+        live_trades = live.get('recent_trades', [])
         trades_container.clear()
         with trades_container:
-            if trades:
+            if live_trades:
                 rows = []
-                for t in trades[:30]:
-                    ts = t.get('timestamp', t.get('time', ''))
-                    if isinstance(ts, str) and len(ts) > 16:
-                        ts = ts[5:16]
-                    price = t.get('price', t.get('avg_price', 0))
-                    size_raw = t.get('size', t.get('shares', t.get('amount', '')))
+                for t in live_trades[:20]:
+                    mt = t.get('match_time', '')
+                    if isinstance(mt, str) and len(mt) > 16:
+                        mt = mt[:16]
                     try:
-                        size_fmt = f"{float(size_raw):.2f}"
+                        sz = f"{float(t.get('size', 0)):.2f}"
                     except (TypeError, ValueError):
-                        size_fmt = str(size_raw)
+                        sz = str(t.get('size', ''))
                     rows.append({
-                        'time': ts,
-                        'market': (t.get('title', t.get('market', t.get('slug', ''))) or '')[:35],
+                        'time': mt,
                         'side': t.get('side', ''),
-                        'price': f"${float(price):.3f}" if isinstance(price, (int, float)) else str(price),
-                        'size': size_fmt,
-                        'pnl': t.get('pnl', t.get('realized_pnl', '—')),
+                        'outcome': t.get('outcome', ''),
+                        'size': sz,
+                        'price': f"${t.get('price', '?')}",
                     })
                 ui.aggrid({
                     'columnDefs': [
-                        {'field': 'time', 'width': 130},
-                        {'field': 'market', 'width': 220},
-                        {'field': 'side', 'width': 55},
-                        {'field': 'price', 'width': 75, 'type': 'rightAligned'},
-                        {'field': 'size', 'width': 70, 'type': 'rightAligned'},
-                        {'field': 'pnl', 'width': 70, 'type': 'rightAligned'},
+                        {'field': 'time', 'headerName': 'Time', 'width': 140},
+                        {'field': 'side', 'width': 50},
+                        {'field': 'outcome', 'width': 60},
+                        {'field': 'size', 'width': 65, 'type': 'rightAligned'},
+                        {'field': 'price', 'width': 70, 'type': 'rightAligned'},
                     ],
                     'rowData': rows,
-                }).classes('h-52 ag-theme-balham-dark')
+                    'headerHeight': 32, 'rowHeight': 30, 'domLayout': 'autoHeight',
+                }).classes('w-full ag-theme-balham-dark')
             else:
-                ui.label('No trades').classes('text-gray-600 text-sm')
+                # Fallback to state file trades if live not available
+                state_trades = d.get('trades', [])
+                if state_trades:
+                    ui.label('(State file trades — pipeline stale)').classes('text-[10px] text-yellow-400')
+                    for t in state_trades[:5]:
+                        ts = t.get('timestamp', t.get('time', ''))[:16] if t.get('timestamp') else ''
+                        ui.label(f"{ts} {t.get('side','')} ${t.get('price','')}").classes('text-xs text-gray-500')
+                else:
+                    ui.label('No trades').classes('text-gray-600 text-sm')
 
         # Circuit breakers (with RESET button)
         # Actual shape: [{"service": "polymarket", "state": "closed", "failure_count": 0, ...}]
@@ -635,8 +646,8 @@ def render_polymarket_page():
 
         live_ts.text = f'Live query: {datetime.now().strftime("%H:%M:%S")}'
 
-    ui.timer(2, refresh_live, once=True)
-    ui.timer(20, refresh_live)
+    ui.timer(3, refresh_live, once=True)
+    ui.timer(30, refresh_live)
 
     # ── Command Log ──
     with ui.expansion('Command Log', icon='history', value=False).classes('w-full'):
