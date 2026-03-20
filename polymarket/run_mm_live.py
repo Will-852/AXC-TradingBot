@@ -984,7 +984,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 "ts": datetime.now(tz=_HKT).isoformat(), "cid": cid[:8],
                 "sym": _sym, "m1": round(_m1, 6),
                 "m1_sigma": round(abs(_m1) / _m1_thresh, 2),
-                "bridge": round(bridge_p_up, 4), "signal": round(signal_p_up, 4),
+                "bridge": round(bridge_p_up, 4),
                 "fair": round(fair, 4), "xdiv": round(_xdiv, 5),
                 "ob_adj": round(ob_adjustment, 4),
             }
@@ -1397,25 +1397,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _coin_open = mkt.get("btc_open_price") or _coin_price
             mins_left = max(1, (end_ms - now_ms) / 60_000)
 
-            # Signal pipeline (same as initial entry)
-            _re_mkt = PolyMarket(
-                condition_id=cid, title=mkt.get("title", ""),
-                category="crypto_15m",
-                yes_token_id=mkt.get("up_token_id", ""),
-                no_token_id=mkt.get("down_token_id", ""),
-                liquidity=15000)
+            # Bridge + OB (no indicator signal — same as initial entry)
             bridge_p_up = compute_fair_up(_coin_price, _coin_open, _m1_vol, int(mins_left))
+            bridge_p_up = 0.50 + (bridge_p_up - 0.50) * 0.90  # fat-tail haircut
 
-            signal_p_up = 0.0
-            try:
-                from polymarket.strategy.edge_finder import assess_edge
-                edge_result = assess_edge(_re_mkt)
-                if edge_result is not None:
-                    signal_p_up = edge_result.ai_probability or 0.0
-            except Exception:
-                pass
-
-            # OB imbalance
             ob_adjustment = 0.0
             if hasattr(client, "get_order_book"):
                 try:
@@ -1428,10 +1413,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 except Exception:
                     pass
 
-            if signal_p_up > 0:
-                fair = signal_p_up * 0.17 + bridge_p_up * 0.83 + ob_adjustment
-            else:
-                fair = bridge_p_up + ob_adjustment
+            fair = bridge_p_up + ob_adjustment
             fair = max(0.05, min(0.95, fair))
 
             # M1 vs fair direction conflict
