@@ -8,161 +8,180 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #eef2f0; --card: #ffffff; --card-hover: #fafcfb;
-  --text: #1a1a2e; --text-2: #374151; --muted: #6b7280;
-  --pos: #0d9488; --neg: #e11d48; --warn: #d97706;
-  --accent: #0d9488; --accent2: #065f46;
-  --cmd-bg: #1e293b; --cmd-text: #e2e8f0;
-  --border: #d1ddd9; --border-light: #e8edeb;
-  --paper-bg: #fffbeb; --live-bg: #f0fdf4;
-  --radius: 10px; --radius-sm: 6px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --bg: #020617; --card: #0F172A; --card-hover: #1E293B;
+  --text: #F8FAFC; --text-2: #CBD5E1; --muted: #64748B;
+  --pos: #22C55E; --neg: #EF4444; --warn: #F59E0B;
+  --accent: #22C55E; --accent2: #16A34A;
+  --cmd-bg: #0F172A; --cmd-text: #E2E8F0;
+  --border: #334155; --border-light: #1E293B;
+  --paper-bg: rgba(245,158,11,0.08); --live-bg: rgba(34,197,94,0.06);
+  --radius: 8px; --radius-sm: 5px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   --transition: 0.2s ease;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; -webkit-font-smoothing:antialiased; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:13px; -webkit-font-smoothing:antialiased; }
 
 /* ── Command Bar ── */
-.cmd-bar { background:var(--cmd-bg); padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:52px; border-bottom:2px solid var(--accent); position:sticky; top:0; z-index:100; }
-.cmd-left { display:flex; align-items:center; gap:16px; }
-.cmd-back { color:rgba(255,255,255,0.5); text-decoration:none; font-size:13px; }
-.cmd-back:hover { color:#fff; }
-.cmd-title { color:#fff; font-size:16px; font-weight:600; }
+.cmd-bar { background:var(--cmd-bg); padding:0 20px; display:flex; align-items:center; justify-content:space-between; height:48px; border-bottom:1px solid var(--accent); position:sticky; top:0; z-index:100; }
+.cmd-left { display:flex; align-items:center; gap:14px; }
+.cmd-back { color:var(--muted); text-decoration:none; font-size:12px; display:flex; align-items:center; gap:4px; }
+.cmd-back:hover { color:var(--text); }
+.cmd-back svg { width:14px; height:14px; }
+.cmd-title { color:#fff; font-size:15px; font-weight:700; letter-spacing:-0.3px; }
 .cmd-title span { color:var(--accent); }
-.cmd-center { display:flex; align-items:center; gap:8px; }
-.cmd-btn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:var(--cmd-text); padding:6px 14px; border-radius:var(--radius-sm); font-family:var(--mono); font-size:12px; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
-.cmd-btn:hover { background:rgba(255,255,255,0.15); border-color:var(--accent); color:#fff; }
+.cmd-center { display:flex; align-items:center; gap:6px; }
+.cmd-btn { background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--cmd-text); padding:5px 12px; border-radius:var(--radius-sm); font-family:var(--mono); font-size:11px; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.cmd-btn:hover { background:rgba(255,255,255,0.1); border-color:var(--accent); color:#fff; }
 .cmd-btn:active { transform:scale(0.97); }
-.cmd-btn.running { opacity:0.6; pointer-events:none; }
-.cmd-btn.primary { border-color:var(--accent); background:rgba(13,148,136,0.2); }
-.cmd-right { display:flex; align-items:center; gap:12px; }
-.cmd-status { display:flex; align-items:center; gap:6px; color:rgba(255,255,255,0.6); font-size:12px; font-family:var(--mono); }
-.pulse-dot { width:8px; height:8px; border-radius:50%; background:var(--pos); animation:pulse 2s ease-in-out infinite; }
+.cmd-btn.running { opacity:0.5; pointer-events:none; }
+.cmd-btn.primary { border-color:var(--accent); background:rgba(34,197,94,0.15); color:var(--accent); }
+.cmd-btn.primary:hover { background:rgba(34,197,94,0.25); }
+.cmd-btn svg { width:12px; height:12px; }
+.cmd-right { display:flex; align-items:center; gap:10px; }
+.cmd-status { display:flex; align-items:center; gap:5px; color:var(--muted); font-size:11px; font-family:var(--mono); }
+.pulse-dot { width:7px; height:7px; border-radius:50%; background:var(--pos); animation:pulse 2s ease-in-out infinite; flex-shrink:0; }
 .pulse-dot.idle { background:var(--muted); animation:none; }
 .pulse-dot.error { background:var(--neg); }
-@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(13,148,136,0.4)} 50%{opacity:0.7;box-shadow:0 0 0 6px rgba(13,148,136,0)} }
-.badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; font-family:var(--mono); cursor:pointer; }
-.badge-live { background:#dcfce7; color:#166534; }
-.badge-dry { background:#fef3c7; color:#92400e; }
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,0.4)} 50%{opacity:0.6;box-shadow:0 0 0 5px rgba(34,197,94,0)} }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; font-family:var(--mono); cursor:pointer; letter-spacing:0.5px; }
+.badge-live { background:rgba(34,197,94,0.2); color:var(--pos); border:1px solid rgba(34,197,94,0.3); }
+.badge-dry { background:rgba(245,158,11,0.15); color:var(--warn); border:1px solid rgba(245,158,11,0.3); }
 
 /* ── Tabs ── */
-.tab-bar { display:flex; gap:0; background:var(--card); border-bottom:2px solid var(--border-light); margin-bottom:16px; border-radius:var(--radius) var(--radius) 0 0; overflow:hidden; box-shadow:var(--shadow); }
-.tab { padding:12px 24px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all var(--transition); letter-spacing:0.3px; }
-.tab:hover { color:var(--text); background:#f8faf9; }
-.tab.active { color:var(--accent); border-bottom-color:var(--accent); background:#fff; }
+.tab-bar { display:flex; gap:0; background:var(--card); border-bottom:1px solid var(--border); margin-bottom:10px; overflow-x:auto; }
+.tab { padding:10px 20px; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all var(--transition); letter-spacing:0.3px; white-space:nowrap; }
+.tab:hover { color:var(--text-2); background:rgba(255,255,255,0.02); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 .tab-panel { display:none; }
 .tab-panel.active { display:block; }
 
 /* ── Container + Layout ── */
-.container { max-width:1280px; margin:0 auto; padding:12px 24px 32px; }
-.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:12px; }
-@media(max-width:768px) { .grid-2,.grid-2-1{grid-template-columns:1fr} }
+.container { max-width:1320px; margin:0 auto; padding:10px 20px 24px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:10px; }
+@media(max-width:768px) { .grid-2,.grid-2-1,.grid-3{grid-template-columns:1fr} }
 
-/* ── KPI ── */
-.kpi-row { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:12px; }
+/* ── KPI Row (merged stats+kpi) ── */
+.kpi-row { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:10px; }
 @media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
-.kpi { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:12px 14px; border-top:3px solid var(--border-light); transition:border-color var(--transition); }
-.kpi:hover { border-top-color:var(--accent); }
-.kpi .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; }
-.kpi .value { font-size:22px; font-weight:700; margin-top:4px; font-family:var(--mono); letter-spacing:-0.5px; }
-.kpi .sub { font-size:11px; color:var(--muted); margin-top:4px; }
-.risk-bar { height:5px; background:#e5e7eb; border-radius:3px; overflow:hidden; margin-top:6px; }
-.risk-bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease; }
+.kpi { background:var(--card); border-radius:var(--radius); padding:10px 12px; border-left:3px solid var(--border); transition:border-color var(--transition); }
+.kpi:hover { border-left-color:var(--accent); }
+.kpi .label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; }
+.kpi .value { font-size:20px; font-weight:700; margin-top:3px; font-family:var(--mono); letter-spacing:-0.5px; }
+.kpi .sub { font-size:10px; color:var(--muted); margin-top:3px; font-family:var(--mono); }
+.risk-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-top:5px; }
+.risk-bar-fill { height:100%; border-radius:2px; transition:width 0.4s ease; }
 
 /* ── Cards ── */
-.card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden; }
-.card-header { padding:12px 16px; border-bottom:1px solid var(--border-light); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.card-header .tag { font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(13,148,136,0.1); color:var(--accent); font-weight:600; font-family:var(--mono); }
+.card { background:var(--card); border-radius:var(--radius); border:1px solid var(--border-light); margin-bottom:10px; overflow:hidden; }
+.card-header { padding:8px 14px; border-bottom:1px solid var(--border-light); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.card-header .tag { font-size:9px; padding:2px 7px; border-radius:8px; background:rgba(34,197,94,0.1); color:var(--accent); font-weight:600; font-family:var(--mono); }
 
 /* ── Tables ── */
-table { width:100%; border-collapse:collapse; font-size:13px; }
-th { text-align:left; padding:8px 12px; color:var(--muted); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid var(--border-light); background:#f8faf9; }
-td { padding:8px 12px; border-bottom:1px solid var(--border-light); }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { text-align:left; padding:6px 10px; color:var(--muted); font-weight:600; font-size:9px; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid var(--border-light); background:rgba(255,255,255,0.02); }
+td { padding:6px 10px; border-bottom:1px solid var(--border-light); }
 tr:last-child td { border-bottom:none; }
 tr:hover { background:var(--card-hover); }
 tr.paper-row { background:var(--paper-bg); }
 tr.live-row { background:var(--live-bg); }
 .pos{color:var(--pos)} .neg{color:var(--neg)} .warn{color:var(--warn)}
-.mono{font-family:var(--mono);font-size:12px;font-weight:500}
-.empty-state { padding:20px; text-align:center; color:var(--muted); font-size:13px; }
-.empty-state-sm { padding:12px; text-align:center; color:var(--muted); font-size:12px; }
+.mono{font-family:var(--mono);font-size:11px;font-weight:500}
+.empty-state { padding:16px; text-align:center; color:var(--muted); font-size:12px; }
+.empty-state-sm { padding:10px; text-align:center; color:var(--muted); font-size:11px; }
 
-/* ── Paper watermark (banner style) ── */
-.paper-watermark { position:fixed; top:54px; left:0; right:0; z-index:50; font-family:var(--mono); font-size:12px; padding:6px 24px; background:linear-gradient(90deg,#fef3c7,#fffbeb,#fef3c7); color:#92400e; font-weight:600; letter-spacing:1px; pointer-events:none; text-align:center; border-bottom:1px solid #fde68a; }
+/* ── Paper watermark ── */
+.paper-watermark { position:fixed; top:49px; left:0; right:0; z-index:50; font-family:var(--mono); font-size:11px; padding:5px 20px; background:rgba(245,158,11,0.1); color:var(--warn); font-weight:600; letter-spacing:1px; pointer-events:none; text-align:center; border-bottom:1px solid rgba(245,158,11,0.2); }
 
 /* ── Toast ── */
-.toast { position:fixed; bottom:24px; right:24px; z-index:200; background:var(--cmd-bg); color:#fff; padding:12px 20px; border-radius:var(--radius); font-size:13px; font-family:var(--mono); box-shadow:var(--shadow-md); transform:translateY(100px); opacity:0; transition:all 0.3s ease; border-left:3px solid var(--accent); }
+.toast { position:fixed; bottom:20px; right:20px; z-index:200; background:var(--card); color:#fff; padding:10px 16px; border-radius:var(--radius); font-size:12px; font-family:var(--mono); box-shadow:var(--shadow-md); transform:translateY(80px); opacity:0; transition:all 0.3s ease; border-left:3px solid var(--accent); border:1px solid var(--border); }
 .toast.show { transform:translateY(0); opacity:1; }
 .toast.error { border-left-color:var(--neg); }
 
+/* ── Error banner ── */
+#error-banner { display:none; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:var(--neg); padding:8px 14px; border-radius:var(--radius); margin-bottom:10px; font-size:12px; }
+
 /* ── CB dots ── */
-.cb-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border-light); }
+.cb-row { display:flex; align-items:center; gap:10px; padding:7px 14px; border-bottom:1px solid var(--border-light); }
 .cb-row:last-child { border-bottom:none; }
-.cb-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.cb-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 .cb-dot.closed{background:var(--pos)} .cb-dot.open{background:var(--neg);animation:pulse 1.5s ease-in-out infinite} .cb-dot.half_open{background:var(--warn);animation:pulse 2s ease-in-out infinite}
 
 /* ── Strategy bars ── */
-.strat-row { display:flex; align-items:center; gap:10px; padding:6px 16px; }
-.strat-label { font-size:12px; width:90px; color:var(--text-2); font-weight:500; }
-.strat-bar-bg { flex:1; height:8px; background:#e8edeb; border-radius:4px; overflow:hidden; }
-.strat-bar-fill { height:100%; border-radius:4px; transition:width 0.4s ease; }
-.strat-count { font-family:var(--mono); font-size:12px; color:var(--muted); width:24px; text-align:right; }
+.strat-row { display:flex; align-items:center; gap:8px; padding:5px 14px; }
+.strat-label { font-size:11px; width:85px; color:var(--text-2); font-weight:500; }
+.strat-bar-bg { flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+.strat-bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease; }
+.strat-count { font-family:var(--mono); font-size:11px; color:var(--muted); width:22px; text-align:right; }
 
 /* ── Chart ── */
-.chart-wrap { padding:16px; height:260px; position:relative; }
+.chart-wrap { padding:12px; height:220px; position:relative; }
 
 /* ── Command Log ── */
-.cmd-log { max-height:100px; overflow-y:auto; padding:8px 16px; font-family:var(--mono); font-size:11px; background:#f8faf9; }
-.cmd-log-entry { padding:2px 0; color:var(--muted); }
+.cmd-log { max-height:500px; overflow-y:auto; padding:8px 14px; font-family:var(--mono); font-size:10px; background:rgba(0,0,0,0.2); }
+.cmd-log-entry { padding:1px 0; color:var(--muted); }
 .cmd-log-entry .ts { color:var(--accent); }
 
-/* ── Help text ── */
-.help-text { font-size:12px; color:var(--muted); padding:8px 16px; line-height:1.5; }
-
 /* ── Arb ── */
-.arb-opportunity { padding:12px 16px; border-bottom:1px solid var(--border-light); display:flex; align-items:center; gap:12px; }
+.arb-opportunity { padding:8px 14px; border-bottom:1px solid var(--border-light); display:flex; align-items:center; gap:10px; }
 .arb-opportunity:last-child { border-bottom:none; }
-.arb-edge { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--pos); min-width:60px; }
+.arb-edge { font-family:var(--mono); font-size:16px; font-weight:700; color:var(--pos); min-width:50px; }
 
-#error-banner { display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:10px 16px; border-radius:var(--radius); margin-bottom:12px; font-size:13px; }
+/* ── Pipeline Steps ── */
+.pipeline-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:10px 14px; }
+@media(max-width:900px){.pipeline-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:600px){.pipeline-grid{grid-template-columns:repeat(3,1fr)}}
+.pipe-step { background:rgba(255,255,255,0.03); border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:6px 8px; font-size:10px; display:flex; align-items:center; gap:5px; transition:all var(--transition); }
+.pipe-step:hover { border-color:var(--accent); background:rgba(34,197,94,0.05); }
+.pipe-step .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+.pipe-step .dot.done { background:var(--pos); }
+.pipe-step .dot.active { background:var(--accent); animation:pulse 1s ease-in-out infinite; }
+.pipe-step .dot.error { background:var(--neg); }
+.pipe-step .name { color:var(--text-2); font-family:var(--mono); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-/* ── Stats Cards ── */
-.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-@media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:500px){.stats-row{grid-template-columns:1fr}}
-.stat-card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 16px; display:flex; align-items:flex-start; gap:12px; transition:box-shadow var(--transition); }
-.stat-card:hover { box-shadow:var(--shadow-md); }
-.stat-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.stat-icon svg { width:18px; height:18px; }
-.stat-icon.teal { background:rgba(13,148,136,0.1); color:var(--accent); }
-.stat-icon.blue { background:rgba(59,130,246,0.1); color:#3b82f6; }
-.stat-icon.purple { background:rgba(139,92,246,0.1); color:#8b5cf6; }
-.stat-icon.amber { background:rgba(245,158,11,0.1); color:#f59e0b; }
-.stat-info { flex:1; min-width:0; }
-.stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; font-weight:600; }
-.stat-value { font-size:20px; font-weight:700; font-family:var(--mono); margin-top:2px; letter-spacing:-0.5px; }
-.stat-change { font-size:11px; font-family:var(--mono); margin-top:3px; font-weight:500; }
+/* ── Action Bar ── */
+.action-bar { display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px; border-bottom:1px solid var(--border-light); }
 
-/* ── Numeric Scrubber ── */
-.scrubber-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; padding:12px 16px; }
+/* ── Scrubber ── */
+.param-group { padding:10px 14px; }
+.param-group-title { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.param-group-title svg { width:12px; height:12px; color:var(--accent); }
+.scrubber-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
 @media(max-width:600px){.scrubber-grid{grid-template-columns:1fr}}
-.scrubber { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8faf9; border-radius:var(--radius-sm); border:1px solid var(--border-light); transition:border-color var(--transition); }
+.scrubber { display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid var(--border-light); transition:border-color var(--transition); }
 .scrubber:hover { border-color:var(--accent); }
-.scrubber-label { font-size:12px; color:var(--text-2); font-weight:500; min-width:90px; }
-.scrubber-track { flex:1; position:relative; height:28px; display:flex; align-items:center; }
-.scrubber-bar { width:100%; height:4px; background:var(--border-light); border-radius:2px; position:relative; cursor:ew-resize; }
+.scrubber-label { font-size:11px; color:var(--text-2); font-weight:500; min-width:80px; }
+.scrubber-track { flex:1; position:relative; height:24px; display:flex; align-items:center; }
+.scrubber-bar { width:100%; height:3px; background:var(--border); border-radius:2px; position:relative; cursor:ew-resize; }
 .scrubber-fill { height:100%; border-radius:2px; background:var(--accent); transition:width 0.1s; }
-.scrubber-thumb { position:absolute; top:50%; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:var(--accent); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.15); cursor:ew-resize; transition:transform 0.1s; z-index:1; }
+.scrubber-thumb { position:absolute; top:50%; transform:translate(-50%,-50%); width:12px; height:12px; border-radius:50%; background:var(--accent); border:2px solid var(--card); box-shadow:0 0 4px rgba(34,197,94,0.3); cursor:ew-resize; transition:transform 0.1s; z-index:1; }
 .scrubber-thumb:hover, .scrubber-thumb.active { transform:translate(-50%,-50%) scale(1.2); }
-.scrubber-val { font-family:var(--mono); font-size:13px; font-weight:600; min-width:56px; text-align:right; color:var(--text); padding:2px 6px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:text; }
-.scrubber-val:hover { border-color:var(--border); background:#fff; }
-.scrubber-val:focus { outline:none; border-color:var(--accent); background:#fff; }
-.scrubber-unit { font-size:11px; color:var(--muted); min-width:20px; }
+.scrubber-val { font-family:var(--mono); font-size:12px; font-weight:600; min-width:48px; text-align:right; color:var(--text); padding:2px 5px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:text; background:transparent; }
+.scrubber-val:hover { border-color:var(--border); background:rgba(255,255,255,0.05); }
+.scrubber-val:focus { outline:none; border-color:var(--accent); background:rgba(255,255,255,0.05); }
+.scrubber-unit { font-size:10px; color:var(--muted); min-width:16px; }
+
+/* ── Toggle Switch ── */
+.toggle-row { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid var(--border-light); }
+.toggle-label { font-size:11px; color:var(--text-2); font-weight:500; }
+.toggle-sub { font-size:9px; color:var(--muted); font-family:var(--mono); }
+.toggle { position:relative; width:36px; height:20px; cursor:pointer; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-track { position:absolute; inset:0; background:var(--border); border-radius:10px; transition:background var(--transition); }
+.toggle input:checked + .toggle-track { background:var(--accent); }
+.toggle-knob { position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform var(--transition); box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+.toggle input:checked ~ .toggle-knob { transform:translateX(16px); }
+
+/* ── Section divider ── */
+.section-divider { border-top:1px solid var(--border-light); }
+
+@media print { .cmd-bar,.paper-watermark,.toast{display:none!important} }
 </style>
 </head>
 <body>
@@ -170,15 +189,15 @@ tr.live-row { background:var(--live-bg); }
 <!-- ═══ COMMAND BAR ═══ -->
 <div class="cmd-bar">
   <div class="cmd-left">
-    <a href="/" class="cmd-back">&#8592; Dashboard</a>
+    <a href="/" class="cmd-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Dashboard</a>
     <div class="cmd-title"><span>AXC</span> 預測市場</div>
   </div>
   <div class="cmd-center">
-    <button class="cmd-btn primary" onclick="cmdRunCycle(this)" title="跑完整 pipeline（背景執行）">
-      &#9654; 跑 Pipeline
+    <button class="cmd-btn primary" onclick="cmdRunCycle(this)" title="跑完整 17-step pipeline（背景執行）">
+      <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Pipeline
     </button>
-    <button class="cmd-btn" onclick="cmdForceScan(this)" title="掃描市場 + 偵測套利">
-      &#9670; 掃描
+    <button class="cmd-btn" onclick="cmdForceScan(this)" title="掃描 Gamma API + 套利偵測">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> 掃描
     </button>
   </div>
   <div class="cmd-right">
@@ -191,49 +210,29 @@ tr.live-row { background:var(--live-bg); }
   </div>
 </div>
 
-<div id="paper-wm" class="paper-watermark" style="display:none">&#9888; PAPER MODE — 所有交易係模擬，冇真金白銀</div>
+<div id="paper-wm" class="paper-watermark" style="display:none">PAPER MODE — 所有交易係模擬</div>
 
 <div class="container">
   <div id="error-banner"></div>
 
   <!-- ═══ TAB BAR ═══ -->
   <div class="tab-bar">
-    <div class="tab active" onclick="switchTab('main')">主控</div>
-    <div class="tab" onclick="switchTab('weather')">天氣</div>
-    <div class="tab" onclick="switchTab('tools')">工具</div>
+    <div class="tab active" onclick="switchTab('overview')">總覽</div>
+    <div class="tab" onclick="switchTab('pipeline')">Pipeline</div>
+    <div class="tab" onclick="switchTab('config')">設定</div>
     <div class="tab" onclick="switchTab('log')">記錄</div>
   </div>
 
-  <!-- ═══ TAB: 主控 ═══ -->
-  <div id="tab-main" class="tab-panel active">
-    <!-- Stats Overview -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-icon teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
-        <div class="stat-info"><div class="stat-label">總損益</div><div class="stat-value" id="stat-pnl">$0.00</div><div class="stat-change" id="stat-pnl-change">--</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <div class="stat-info"><div class="stat-label">勝率</div><div class="stat-value" id="stat-winrate">--%</div><div class="stat-change" id="stat-winrate-detail">--</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
-        <div class="stat-info"><div class="stat-label">總交易</div><div class="stat-value" id="stat-trades">0</div><div class="stat-change" id="stat-trades-detail">--</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8l-4 4-4-4"/><path d="M12 12v4"/></svg></div>
-        <div class="stat-info"><div class="stat-label">可用資金</div><div class="stat-value" id="stat-available">$--</div><div class="stat-change" id="stat-available-detail">--</div></div>
-      </div>
-    </div>
-
-    <!-- KPIs -->
+  <!-- ═══ TAB: 總覽 ═══ -->
+  <div id="tab-overview" class="tab-panel active">
+    <!-- Merged KPI Row -->
     <div class="kpi-row">
-      <div class="kpi"><div class="label">結餘</div><div class="value" id="kpi-balance">$--</div></div>
-      <div class="kpi"><div class="label">風險敞口</div><div class="value" id="kpi-exposure">--%</div><div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%"></div></div></div>
-      <div class="kpi"><div class="label">持倉</div><div class="value" id="kpi-positions">--</div></div>
-      <div class="kpi"><div class="label">日損益</div><div class="value" id="kpi-pnl">--</div></div>
-      <div class="kpi"><div class="label">已掃描</div><div class="value" id="kpi-scanned">--</div><div class="sub" id="kpi-scan-detail">--</div></div>
-      <div class="kpi"><div class="label">斷路器</div><div class="value pos" id="kpi-circuit">OFF</div></div>
+      <div class="kpi"><div class="label">結餘</div><div class="value" id="kpi-balance">$--</div><div class="sub" id="kpi-balance-sub">--</div></div>
+      <div class="kpi"><div class="label">總損益</div><div class="value" id="kpi-pnl">$0.00</div><div class="sub" id="kpi-pnl-sub">--</div></div>
+      <div class="kpi"><div class="label">勝率</div><div class="value" id="kpi-winrate">--%</div><div class="sub" id="kpi-winrate-sub">--</div></div>
+      <div class="kpi"><div class="label">敞口</div><div class="value" id="kpi-exposure">--%</div><div class="risk-bar"><div class="risk-bar-fill" id="exposure-bar" style="width:0%"></div></div></div>
+      <div class="kpi"><div class="label">持倉</div><div class="value" id="kpi-positions">--</div><div class="sub" id="kpi-scan-sub">--</div></div>
+      <div class="kpi"><div class="label">斷路器</div><div class="value pos" id="kpi-circuit">OFF</div><div class="sub" id="kpi-cycle-sub">--</div></div>
     </div>
 
     <!-- 持倉 -->
@@ -246,106 +245,240 @@ tr.live-row { background:var(--live-bg); }
     <div class="grid-2-1">
       <div class="card">
         <div class="card-header">損益走勢 <span class="tag" id="pnl-tag">0</span></div>
-        <div id="pnl-empty" class="empty-state-sm">交易開始後會顯示損益走勢</div>
+        <div id="pnl-empty" class="empty-state-sm">交易開始後顯示走勢</div>
         <div class="chart-wrap" id="pnl-wrap" style="display:none"><canvas id="pnl-chart"></canvas></div>
       </div>
       <div class="card">
         <div class="card-header">信號來源</div>
-        <div id="strategy-body" style="padding:10px 0"><div class="empty-state-sm">冇交易數據</div></div>
+        <div id="strategy-body" style="padding:6px 0"><div class="empty-state-sm">冇交易數據</div></div>
       </div>
     </div>
 
-    <!-- 交易紀錄 (paper vs live 用行色區分) -->
+    <!-- 交易紀錄 -->
     <div class="card">
       <div class="card-header">交易紀錄 <span class="tag" id="trades-tag">0</span></div>
       <div id="trades-body"><div class="empty-state">未有交易</div></div>
     </div>
   </div>
 
-  <!-- ═══ TAB: 天氣 ═══ -->
-  <div id="tab-weather" class="tab-panel">
+  <!-- ═══ TAB: Pipeline ═══ -->
+  <div id="tab-pipeline" class="tab-panel">
+    <!-- Pipeline Steps Visualizer -->
     <div class="card">
-      <div class="card-header">天氣校準</div>
-      <div id="calibration-body"><div class="empty-state">冇天氣數據 — 跑 weather paper tracker 先</div></div>
+      <div class="card-header">Pipeline 步驟 <span class="tag" id="pipe-duration">--</span></div>
+      <div class="pipeline-grid" id="pipeline-steps">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="card">
+      <div class="card-header">操作</div>
+      <div class="action-bar">
+        <button class="cmd-btn primary" onclick="cmdRunCycle(this)"><svg viewBox="0 0 24 24" fill="currentColor" style="width:11px;height:11px"><polygon points="5,3 19,12 5,21"/></svg> 跑 Pipeline</button>
+        <button class="cmd-btn" onclick="cmdForceScan(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> 掃描市場</button>
+        <button class="cmd-btn" onclick="cmdResetCB(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg> 重置斷路器</button>
+        <button class="cmd-btn" onclick="cmdCheckMerge(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> 合併檢查</button>
+      </div>
+    </div>
+
+    <!-- Scanner + Arb -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">市場掃描 <span class="tag" id="scanner-tag">--</span></div>
+        <div id="scanner-body"><div class="empty-state">未掃描</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">邏輯套利 <span class="tag" id="arb-tag">0</span></div>
+        <div id="arb-body"><div class="empty-state">未掃描</div></div>
+      </div>
+    </div>
+
+    <!-- CB + Merge + Risk -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header">斷路器 <span class="tag" id="cb-tag">--</span></div>
+        <div id="cb-body"><div class="empty-state-sm">冇已註冊服務</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">合併偵測 <span class="tag" id="merge-tag">--</span></div>
+        <div id="merge-body"><div class="empty-state-sm">未檢查</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">風險狀態</div>
+        <div id="risk-body"><div class="empty-state-sm pos">OK</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- ═══ TAB: 工具 ═══ -->
-  <div id="tab-tools" class="tab-panel">
-    <!-- 參數調整 -->
+  <!-- ═══ TAB: 設定 ═══ -->
+  <div id="tab-config" class="tab-panel">
     <div class="card">
-      <div class="card-header">參數調整 <span class="tag">LIVE</span></div>
-      <div class="scrubber-grid">
-        <div class="scrubber" data-key="max_bet" data-min="1" data-max="20" data-step="0.5" data-unit="$">
-          <span class="scrubber-label">最大落注</span>
-          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
-          <span class="scrubber-val" contenteditable="true">10.0</span>
-          <span class="scrubber-unit">$</span>
-        </div>
-        <div class="scrubber" data-key="take_profit" data-min="0.80" data-max="0.99" data-step="0.01" data-unit="">
-          <span class="scrubber-label">止賺價格</span>
-          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
-          <span class="scrubber-val" contenteditable="true">0.93</span>
-          <span class="scrubber-unit"></span>
-        </div>
-        <div class="scrubber" data-key="min_edge" data-min="0.01" data-max="0.20" data-step="0.01" data-unit="">
-          <span class="scrubber-label">最低 Edge</span>
-          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
-          <span class="scrubber-val" contenteditable="true">0.08</span>
-          <span class="scrubber-unit"></span>
-        </div>
-        <div class="scrubber" data-key="max_exposure" data-min="10" data-max="50" data-step="1" data-unit="%">
-          <span class="scrubber-label">最大敞口</span>
-          <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
-          <span class="scrubber-val" contenteditable="true">30</span>
-          <span class="scrubber-unit">%</span>
+      <div class="card-header">參數配置 <span class="tag">LOCAL</span></div>
+
+      <!-- 掃描 -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> 掃描</div>
+        <div class="scrubber-grid">
+          <div class="scrubber" data-key="scan_interval" data-min="30" data-max="600" data-step="30" data-unit="s">
+            <span class="scrubber-label">掃描間隔</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">180</span><span class="scrubber-unit">s</span>
+          </div>
+          <div class="scrubber" data-key="max_markets" data-min="50" data-max="500" data-step="50" data-unit="">
+            <span class="scrubber-label">掃描數量</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">300</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="ai_temp" data-min="0.0" data-max="1.0" data-step="0.1" data-unit="">
+            <span class="scrubber-label">AI 溫度</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.3</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="max_ai_assess" data-min="1" data-max="10" data-step="1" data-unit="">
+            <span class="scrubber-label">AI 評估數</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">5</span><span class="scrubber-unit"></span>
+          </div>
         </div>
       </div>
-    </div>
+      <div class="section-divider"></div>
 
-    <!-- 市場掃描 -->
-    <div class="card">
-      <div class="card-header">市場掃描 <span class="tag" id="scanner-tag">--</span></div>
-      <div class="help-text">撳 command bar 嘅「&#9670; 掃描」掃描 Polymarket 所有匹配市場。結果顯示喺下面。</div>
-      <div id="scanner-body"><div class="empty-state">未掃描</div></div>
-    </div>
-
-    <!-- 邏輯套利 -->
-    <div class="card">
-      <div class="card-header">邏輯套利 <span class="tag" id="arb-tag">0</span></div>
-      <div class="help-text">偵測同一事件下嘅定價矛盾。NegRisk 事件嘅所有結果價格總和應該 ≈ 1.0，偏離 = 套利機會。掃描時自動偵測。</div>
-      <div id="arb-body"><div class="empty-state">未掃描</div></div>
-    </div>
-
-    <div class="grid-2">
-      <!-- 斷路器 -->
-      <div class="card">
-        <div class="card-header">
-          斷路器
-          <span class="tag" id="cb-tag">--</span>
-        </div>
-        <div class="help-text">當外部 API（Polymarket、Gamma、Claude、Binance）連續失敗，斷路器會自動跳開，保護系統唔會一直重試。綠 = 正常，黃 = 恢復中，紅 = 斷開。</div>
-        <div id="cb-body"><div class="empty-state">冇已註冊服務</div></div>
-        <div style="padding:8px 16px;border-top:1px solid var(--border-light)">
-          <button class="cmd-btn" onclick="cmdResetCB(this)" style="font-size:11px;padding:4px 10px">&#8635; 全部重置</button>
-        </div>
-      </div>
-
-      <!-- 合併偵測 -->
-      <div class="card">
-        <div class="card-header">合併偵測 <span class="tag" id="merge-tag">--</span></div>
-        <div class="help-text">如果你同時持有同一個市場嘅 YES 同 NO token，可以合併返拎回 $1。呢個功能檢查有冇咁嘅情況。</div>
-        <div id="merge-body"><div class="empty-state">未檢查</div></div>
-        <div style="padding:8px 16px;border-top:1px solid var(--border-light)">
-          <button class="cmd-btn" onclick="cmdCheckMerge(this)" style="font-size:11px;padding:4px 10px">&#9651; 檢查合併</button>
+      <!-- 邊際 -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> 邊際 (Edge)</div>
+        <div class="scrubber-grid">
+          <div class="scrubber" data-key="min_edge" data-min="0.01" data-max="0.20" data-step="0.01" data-unit="">
+            <span class="scrubber-label">最低 Edge</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.10</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="c15m_edge" data-min="0.01" data-max="0.15" data-step="0.005" data-unit="">
+            <span class="scrubber-label">15M Edge</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.065</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="cvd_edge" data-min="0.01" data-max="0.15" data-step="0.005" data-unit="">
+            <span class="scrubber-label">CVD Edge</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.065</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="micro_edge" data-min="0.01" data-max="0.15" data-step="0.005" data-unit="">
+            <span class="scrubber-label">Micro Edge</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.065</span><span class="scrubber-unit"></span>
+          </div>
         </div>
       </div>
-    </div>
+      <div class="section-divider"></div>
 
-    <!-- 風險狀態 -->
-    <div class="card">
-      <div class="card-header">風險狀態</div>
-      <div id="risk-body"><div class="empty-state pos">&#10003; 正常</div></div>
+      <!-- 下注 -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> 下注 (Sizing)</div>
+        <div class="scrubber-grid">
+          <div class="scrubber" data-key="kelly_frac" data-min="0.1" data-max="1.0" data-step="0.05" data-unit="">
+            <span class="scrubber-label">Kelly 比例</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.50</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="kelly_max" data-min="10" data-max="200" data-step="10" data-unit="$">
+            <span class="scrubber-label">最大注碼</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">50</span><span class="scrubber-unit">$</span>
+          </div>
+          <div class="scrubber" data-key="kelly_min" data-min="1" data-max="20" data-step="1" data-unit="$">
+            <span class="scrubber-label">最小注碼</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">1</span><span class="scrubber-unit">$</span>
+          </div>
+          <div class="scrubber" data-key="c15m_max_bet" data-min="10" data-max="100" data-step="5" data-unit="$">
+            <span class="scrubber-label">15M 最大注</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">50</span><span class="scrubber-unit">$</span>
+          </div>
+          <div class="scrubber" data-key="take_profit" data-min="0.80" data-max="0.99" data-step="0.01" data-unit="">
+            <span class="scrubber-label">止賺價格</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.93</span><span class="scrubber-unit"></span>
+          </div>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+
+      <!-- 風控 -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> 風控 (Risk)</div>
+        <div class="scrubber-grid">
+          <div class="scrubber" data-key="max_exposure" data-min="10" data-max="50" data-step="1" data-unit="%">
+            <span class="scrubber-label">最大敞口</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">30</span><span class="scrubber-unit">%</span>
+          </div>
+          <div class="scrubber" data-key="max_per_bet" data-min="0.005" data-max="0.05" data-step="0.005" data-unit="">
+            <span class="scrubber-label">單注上限</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.010</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="max_positions" data-min="1" data-max="10" data-step="1" data-unit="">
+            <span class="scrubber-label">最大持倉</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">5</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="max_signals" data-min="1" data-max="10" data-step="1" data-unit="">
+            <span class="scrubber-label">每 cycle 信號</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">3</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="cooldown" data-min="10" data-max="360" data-step="10" data-unit="m">
+            <span class="scrubber-label">虧損冷卻</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">60</span><span class="scrubber-unit">m</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+
+      <!-- 信號開關 -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> 信號源</div>
+        <div class="scrubber-grid">
+          <div class="toggle-row">
+            <div><div class="toggle-label">CVD 信號</div><div class="toggle-sub">成交量差值 divergence</div></div>
+            <label class="toggle"><input type="checkbox" checked data-key="cvd_enabled"><span class="toggle-track"></span><span class="toggle-knob"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div><div class="toggle-label">微觀結構</div><div class="toggle-sub">Volume spike + momentum</div></div>
+            <label class="toggle"><input type="checkbox" checked data-key="micro_enabled"><span class="toggle-track"></span><span class="toggle-knob"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div><div class="toggle-label">Hyperliquid 對沖</div><div class="toggle-sub">crypto_15m 自動 hedge</div></div>
+            <label class="toggle"><input type="checkbox" data-key="hedge_enabled"><span class="toggle-track"></span><span class="toggle-knob"></span></label>
+          </div>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+
+      <!-- GTO -->
+      <div class="param-group">
+        <div class="param-group-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> GTO 過濾器</div>
+        <div class="scrubber-grid">
+          <div class="scrubber" data-key="gto_adverse" data-min="0.5" data-max="1.0" data-step="0.05" data-unit="">
+            <span class="scrubber-label">逆選擇閾值</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.80</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="gto_nash" data-min="0.5" data-max="1.0" data-step="0.05" data-unit="">
+            <span class="scrubber-label">Nash 跳過</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.90</span><span class="scrubber-unit"></span>
+          </div>
+          <div class="scrubber" data-key="gto_unexplot" data-min="0.1" data-max="0.8" data-step="0.05" data-unit="">
+            <span class="scrubber-label">不可利用下限</span>
+            <div class="scrubber-track"><div class="scrubber-bar"><div class="scrubber-fill"></div><div class="scrubber-thumb"></div></div></div>
+            <span class="scrubber-val" contenteditable="true">0.30</span><span class="scrubber-unit"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -353,7 +486,7 @@ tr.live-row { background:var(--live-bg); }
   <div id="tab-log" class="tab-panel">
     <div class="card">
       <div class="card-header">指令記錄</div>
-      <div class="cmd-log" id="cmd-log" style="max-height:400px">
+      <div class="cmd-log" id="cmd-log">
         <div class="cmd-log-entry"><span class="ts">--:--:--</span> 系統就緒</div>
       </div>
     </div>
@@ -366,10 +499,43 @@ tr.live-row { background:var(--live-bg); }
 const API = '/api/polymarket';
 const REFRESH_MS = 10000;
 
+// ── Pipeline step definitions ──
+const PIPELINE_STEPS = [
+  {id:'read_state', name:'讀狀態'},
+  {id:'replay_wal', name:'WAL'},
+  {id:'scan_markets', name:'掃描'},
+  {id:'check_positions', name:'持倉'},
+  {id:'safety_check', name:'安全'},
+  {id:'merge_check', name:'合併'},
+  {id:'manage_positions', name:'管理'},
+  {id:'close_hedge', name:'平沖'},
+  {id:'execute_exits', name:'出場'},
+  {id:'find_edge', name:'搵 Edge'},
+  {id:'logical_arb', name:'套利'},
+  {id:'gto_filter', name:'GTO'},
+  {id:'generate_signals', name:'信號'},
+  {id:'size_positions', name:'注碼'},
+  {id:'execute_trades', name:'執行'},
+  {id:'write_state', name:'寫狀態'},
+  {id:'send_reports', name:'通知'},
+];
+
+function renderPipelineSteps(running, lastResult) {
+  const el = document.getElementById('pipeline-steps');
+  let h = '';
+  for (const s of PIPELINE_STEPS) {
+    let dotCls = '';
+    if (running) dotCls = 'active';
+    else if (lastResult) dotCls = 'done';
+    h += '<div class="pipe-step" title="' + s.id + '"><div class="dot ' + dotCls + '"></div><span class="name">' + s.name + '</span></div>';
+  }
+  el.innerHTML = h;
+}
+
 // ── Tab switching ──
 function switchTab(name) {
+  const panels = ['overview','pipeline','config','log'];
   document.querySelectorAll('.tab').forEach((t,i) => {
-    const panels = ['main','weather','tools','log'];
     t.classList.toggle('active', panels[i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -380,15 +546,15 @@ function switchTab(name) {
 let pnlChart = null;
 function initChart() {
   const ctx = document.getElementById('pnl-chart').getContext('2d');
-  const grad = ctx.createLinearGradient(0,0,0,240);
-  grad.addColorStop(0,'rgba(13,148,136,0.25)');
-  grad.addColorStop(1,'rgba(13,148,136,0)');
+  const grad = ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(34,197,94,0.2)');
+  grad.addColorStop(1,'rgba(34,197,94,0)');
   pnlChart = new Chart(ctx, {
     type:'line',
-    data:{labels:[],datasets:[{label:'累計損益($)',data:[],borderColor:'#0d9488',backgroundColor:grad,borderWidth:2,fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#0d9488',pointHoverRadius:5}]},
+    data:{labels:[],datasets:[{label:'累計損益($)',data:[],borderColor:'#22C55E',backgroundColor:grad,borderWidth:2,fill:true,tension:0.3,pointRadius:2,pointBackgroundColor:'#22C55E',pointHoverRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',bodyFont:{family:"'JetBrains Mono'",size:12},callbacks:{label:c=>'$'+c.parsed.y.toFixed(2)}}},
-      scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:10},color:'#9ca3af',maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:10},color:'#9ca3af',callback:v=>'$'+v.toFixed(2)}}},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1E293B',borderColor:'#334155',borderWidth:1,bodyFont:{family:"'JetBrains Mono'",size:11},callbacks:{label:c=>'$'+c.parsed.y.toFixed(2)}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:9},color:'#64748B',maxTicksLimit:8}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{font:{family:"'JetBrains Mono'",size:9},color:'#64748B',callback:v=>'$'+v.toFixed(2)}}},
       interaction:{intersect:false,mode:'index'}}
   });
 }
@@ -400,37 +566,72 @@ function updateChart(series) {
   pnlChart.data.labels = series.map(s=>(s.timestamp||'').slice(11,16)||(s.timestamp||'').slice(0,10));
   pnlChart.data.datasets[0].data = series.map(s=>s.cumulative);
   const last = series.length ? series[series.length-1].cumulative : 0;
-  pnlChart.data.datasets[0].borderColor = last>=0?'#0d9488':'#e11d48';
-  pnlChart.data.datasets[0].pointBackgroundColor = last>=0?'#0d9488':'#e11d48';
+  const c = last>=0?'#22C55E':'#EF4444';
+  pnlChart.data.datasets[0].borderColor = c;
+  pnlChart.data.datasets[0].pointBackgroundColor = c;
+  const grad = pnlChart.ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0, last>=0?'rgba(34,197,94,0.2)':'rgba(239,68,68,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  pnlChart.data.datasets[0].backgroundColor = grad;
   pnlChart.update('none');
   document.getElementById('pnl-tag').textContent = series.length + ' 筆';
 }
 
-// ── HTML Escape (XSS prevention for external strings) ──
+// ── HTML Escape ──
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ── Toast + Log ──
 function showToast(msg,err){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(err?' error':'');setTimeout(()=>el.className='toast',3000)}
-function logCmd(msg){const el=document.getElementById('cmd-log');const now=new Date().toTimeString().slice(0,8);const e=document.createElement('div');e.className='cmd-log-entry';const ts=document.createElement('span');ts.className='ts';ts.textContent=now;const r=document.createElement('span');r.textContent=' '+msg;e.appendChild(ts);e.appendChild(r);el.appendChild(e);el.scrollTop=el.scrollHeight;while(el.children.length>50)el.removeChild(el.firstChild)}
+function logCmd(msg){const el=document.getElementById('cmd-log');const now=new Date().toTimeString().slice(0,8);const e=document.createElement('div');e.className='cmd-log-entry';const ts=document.createElement('span');ts.className='ts';ts.textContent=now;const r=document.createElement('span');r.textContent=' '+msg;e.appendChild(ts);e.appendChild(r);el.appendChild(e);el.scrollTop=el.scrollHeight;while(el.children.length>100)el.removeChild(el.firstChild)}
 
 // ── Fetch ──
 async function fetchData(){try{const r=await fetch(API+'/data?t='+Date.now());if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}catch(e){return null}}
 
-// ── Render: KPIs ──
-function renderKPIs(D){
-  const bal=D.usdc_balance||0,exp=D.exposure_pct||0,pnl=D.daily_pnl_pct||0,scan=D.last_scan||{};
+// ── Render: Merged KPI row ──
+function renderKPIs(D, trades) {
+  const bal=D.usdc_balance||0, exp=D.exposure_pct||0, scan=D.last_scan||{};
+  // Balance
   document.getElementById('kpi-balance').textContent='$'+bal.toLocaleString(undefined,{maximumFractionDigits:0});
+  const avail = bal * (1 - exp);
+  document.getElementById('kpi-balance-sub').textContent='可用 $'+avail.toFixed(0);
+
+  // PnL
+  const allTrades = trades || [];
+  let totalPnl=0, wins=0, losses=0;
+  for(const t of allTrades){const p=t.pnl||0;totalPnl+=p;if(p>0)wins++;else if(p<0)losses++}
+  let unrealPnl=0;
+  for(const p of(D.positions||[]))unrealPnl+=(p.unrealized_pnl||0);
+  const pe=document.getElementById('kpi-pnl');
+  pe.textContent=(totalPnl>=0?'+':'')+' $'+totalPnl.toFixed(2);
+  pe.className='value '+(totalPnl>=0?'pos':'neg');
+  document.getElementById('kpi-pnl-sub').textContent=unrealPnl!==0?(unrealPnl>=0?'+':'')+' $'+unrealPnl.toFixed(2)+' 未實現':'--';
+
+  // Win rate
+  const resolved=wins+losses, wr=resolved>0?(wins/resolved*100):0;
+  document.getElementById('kpi-winrate').textContent=resolved>0?wr.toFixed(0)+'%':'--%';
+  document.getElementById('kpi-winrate-sub').textContent=resolved>0?wins+'W / '+losses+'L':'--';
+
+  // Exposure
   document.getElementById('kpi-exposure').textContent=(exp*100).toFixed(1)+'%';
+  const bp=Math.min(exp*100/30,100),bar=document.getElementById('exposure-bar');
+  bar.style.width=bp+'%';bar.style.background=exp>0.25?'var(--neg)':exp>0.15?'var(--warn)':'var(--pos)';
+
+  // Positions
   document.getElementById('kpi-positions').textContent=(D.positions||[]).length;
   document.getElementById('positions-tag').textContent=(D.positions||[]).length;
-  const pe=document.getElementById('kpi-pnl');pe.textContent=(pnl>=0?'+':'')+(pnl*100).toFixed(2)+'%';pe.className='value '+(pnl>=0?'pos':'neg');
-  document.getElementById('kpi-scanned').textContent=scan.scanned||0;
-  document.getElementById('kpi-scan-detail').textContent=(scan.filtered||0)+' 過濾, '+(scan.assessments||0)+' 評估';
-  const ce=document.getElementById('kpi-circuit');const cb=D.circuit_breaker_active;ce.textContent=cb?'ACTIVE':'OFF';ce.className='value '+(cb?'neg':'pos');
-  const bp=Math.min(exp*100/30,100),bar=document.getElementById('exposure-bar');bar.style.width=bp+'%';bar.style.background=exp>0.25?'var(--neg)':exp>0.15?'var(--warn)':'var(--pos)';
+  document.getElementById('kpi-scan-sub').textContent=(scan.scanned||0)+' 掃描';
+
+  // Circuit breaker
+  const ce=document.getElementById('kpi-circuit'),cb=D.circuit_breaker_active;
+  ce.textContent=cb?'ACTIVE':'OFF';ce.className='value '+(cb?'neg':'pos');
+  document.getElementById('kpi-cycle-sub').textContent=D.last_updated||'--';
+
+  // Mode badge + paper watermark
   const badge=document.getElementById('mode-badge');
-  if(D.dry_run!==false){badge.textContent='DRY RUN';badge.className='badge badge-dry';document.getElementById('paper-wm').style.display='';document.querySelector('.container').style.paddingTop='40px'}
-  else{badge.textContent='LIVE';badge.className='badge badge-live';document.getElementById('paper-wm').style.display='none';document.querySelector('.container').style.paddingTop='12px'}
+  if(D.dry_run!==false){badge.textContent='DRY RUN';badge.className='badge badge-dry';document.getElementById('paper-wm').style.display='';document.querySelector('.container').style.paddingTop='32px'}
+  else{badge.textContent='LIVE';badge.className='badge badge-live';document.getElementById('paper-wm').style.display='none';document.querySelector('.container').style.paddingTop='10px'}
+
+  // Status dot
   const dot=document.getElementById('status-dot'),st=document.getElementById('pipeline-status');
   if(D.last_updated){st.textContent=D.last_updated;dot.className='pulse-dot'}else{st.textContent='idle';dot.className='pulse-dot idle'}
   document.getElementById('last-update').textContent=new Date().toTimeString().slice(0,8);
@@ -442,14 +643,14 @@ function renderPositions(pos){
   if(!pos||!pos.length){el.innerHTML='<div class="empty-state-sm">冇持倉</div>';return}
   let h='<table><thead><tr><th>市場</th><th>方向</th><th>類別</th><th>數量</th><th>入場</th><th>現價</th><th>成本</th><th>損益</th><th>損益%</th></tr></thead><tbody>';
   for(const p of pos){const pnl=p.unrealized_pnl||0,cls=pnl>=0?'pos':'neg';
-    h+='<tr><td title="'+esc(p.title)+'">'+esc((p.title||'').slice(0,40))+'</td><td><strong>'+esc(p.side)+'</strong></td><td>'+esc((p.category||'').slice(0,10))+'</td>';
+    h+='<tr><td title="'+esc(p.title)+'">'+esc((p.title||'').slice(0,36))+'</td><td><strong>'+esc(p.side)+'</strong></td><td>'+esc((p.category||'').slice(0,10))+'</td>';
     h+='<td class="mono">'+(p.shares||0).toFixed(1)+'</td><td class="mono">'+(p.avg_price||0).toFixed(3)+'</td><td class="mono">'+(p.current_price||0).toFixed(3)+'</td>';
     h+='<td class="mono">$'+(p.cost_basis||0).toFixed(0)+'</td><td class="mono '+cls+'">$'+pnl.toFixed(2)+'</td>';
     h+='<td class="mono '+cls+'">'+(p.unrealized_pnl_pct>=0?'+':'')+((p.unrealized_pnl_pct||0)*100).toFixed(1)+'%</td></tr>'}
   el.innerHTML=h+'</tbody></table>';
 }
 
-// ── Render: Trades (paper vs live 行色) ──
+// ── Render: Trades ──
 function renderTrades(trades){
   const el=document.getElementById('trades-body');document.getElementById('trades-tag').textContent=trades.length;
   if(!trades.length){el.innerHTML='<div class="empty-state">未有交易</div>';return}
@@ -457,9 +658,9 @@ function renderTrades(trades){
   for(const t of trades.slice(0,20)){
     const ts=(t.timestamp||'').slice(11,16);
     const rowCls=t.dry_run?'paper-row':'live-row';
-    const modeBadge=t.dry_run?'<span class="badge badge-dry">PAPER</span>':'<span class="badge badge-live">LIVE</span>';
+    const modeBadge=t.dry_run?'<span class="badge badge-dry">P</span>':'<span class="badge badge-live">L</span>';
     h+='<tr class="'+rowCls+'"><td class="mono">'+ts+'</td><td>'+(t.action||'')+'</td><td><strong>'+(t.side||'')+'</strong></td>';
-    h+='<td title="'+esc(t.title)+'">'+esc((t.title||'').slice(0,28))+'</td><td class="mono">$'+(t.amount_usdc||0).toFixed(0)+'</td>';
+    h+='<td title="'+esc(t.title)+'">'+esc((t.title||'').slice(0,26))+'</td><td class="mono">$'+(t.amount_usdc||0).toFixed(0)+'</td>';
     h+='<td class="mono">'+(t.price||0).toFixed(3)+'</td><td class="mono">'+((t.edge||0)>=0?'+':'')+((t.edge||0)*100).toFixed(1)+'%</td>';
     h+='<td>'+modeBadge+'</td></tr>'}
   el.innerHTML=h+'</tbody></table>';
@@ -469,33 +670,33 @@ function renderTrades(trades){
 function renderStrategy(b){
   const el=document.getElementById('strategy-body');
   if(!b||!Object.keys(b).length){el.innerHTML='<div class="empty-state-sm">冇交易數據</div>';return}
-  const colors={indicator:'#0d9488',cvd:'#3b82f6',microstructure:'#8b5cf6',ai:'#f59e0b',logical_arb:'#ec4899',exit:'#6b7280',unknown:'#d1d5db'};
+  const colors={indicator:'#22C55E',cvd:'#3B82F6',microstructure:'#8B5CF6',ai:'#F59E0B',logical_arb:'#EC4899',exit:'#64748B',unknown:'#475569'};
   const total=Object.values(b).reduce((s,v)=>s+v,0)||1;
   let h='';for(const[src,n]of Object.entries(b).sort((a,b)=>b[1]-a[1])){
-    const pct=(n/total*100).toFixed(0);h+='<div class="strat-row"><span class="strat-label">'+src+'</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:'+pct+'%;background:'+(colors[src]||'#9ca3af')+'"></div></div><span class="strat-count">'+n+'</span></div>'}
+    const pct=(n/total*100).toFixed(0);h+='<div class="strat-row"><span class="strat-label">'+src+'</span><div class="strat-bar-bg"><div class="strat-bar-fill" style="width:'+pct+'%;background:'+(colors[src]||'#475569')+'"></div></div><span class="strat-count">'+n+'</span></div>'}
   el.innerHTML=h;
 }
 
 // ── Render: CB ──
 function renderCB(cbs){
   const el=document.getElementById('cb-body');
-  if(!cbs||!cbs.length){el.innerHTML='<div class="empty-state">冇已註冊服務</div>';document.getElementById('cb-tag').textContent='--';return}
-  const open=cbs.filter(c=>c.state!=='closed').length;document.getElementById('cb-tag').textContent=open?open+' 斷開':'全部正常';
+  if(!cbs||!cbs.length){el.innerHTML='<div class="empty-state-sm">冇已註冊服務</div>';document.getElementById('cb-tag').textContent='--';return}
+  const open=cbs.filter(c=>c.state!=='closed').length;document.getElementById('cb-tag').textContent=open?open+' 斷開':'OK';
   let h='';for(const cb of cbs){
     const lbl=cb.state==='half_open'?'恢復中':cb.state==='open'?'斷開':'正常';const sc=cb.state==='closed'?'pos':cb.state==='open'?'neg':'warn';
-    h+='<div class="cb-row"><div class="cb-dot '+(cb.state||'closed')+'"></div><span style="font-weight:500;flex:1">'+(cb.service||'')+'</span><span class="mono '+sc+'" style="font-size:11px">'+lbl+'</span></div>'}
+    h+='<div class="cb-row"><div class="cb-dot '+(cb.state||'closed')+'"></div><span style="font-weight:500;flex:1;font-size:11px">'+(cb.service||'')+'</span><span class="mono '+sc+'" style="font-size:10px">'+lbl+'</span></div>'}
   el.innerHTML=h;
 }
 
 // ── Render: Risk ──
 function renderRisk(D){
   const el=document.getElementById('risk-body');const items=[];
-  if(D.circuit_breaker_active)items.push('<span class="neg">&#9888; 斷路器啟動中</span>');
-  if(D.cooldown_until)items.push('&#9200; 冷卻至: '+D.cooldown_until);
-  if((D.consecutive_losses||0)>0)items.push('&#9888; 連續虧損: '+D.consecutive_losses);
-  if((D.exposure_pct||0)>0.25)items.push('<span class="neg">&#9888; 敞口 '+((D.exposure_pct||0)*100).toFixed(1)+'% (接近 30% 上限)</span>');
-  if(!items.length){el.innerHTML='<div class="empty-state pos">&#10003; 正常</div>';return}
-  el.innerHTML=items.map(i=>'<div style="padding:8px 16px;border-bottom:1px solid var(--border-light)">'+i+'</div>').join('');
+  if(D.circuit_breaker_active)items.push('<span class="neg">斷路器啟動中</span>');
+  if(D.cooldown_until)items.push('冷卻至: '+D.cooldown_until);
+  if((D.consecutive_losses||0)>0)items.push('連續虧損: '+D.consecutive_losses);
+  if((D.exposure_pct||0)>0.25)items.push('<span class="neg">敞口 '+((D.exposure_pct||0)*100).toFixed(1)+'%</span>');
+  if(!items.length){el.innerHTML='<div class="empty-state-sm pos">OK</div>';return}
+  el.innerHTML=items.map(i=>'<div style="padding:6px 14px;border-bottom:1px solid var(--border-light);font-size:11px">'+i+'</div>').join('');
 }
 
 // ── Render: Scanner ──
@@ -505,7 +706,7 @@ function renderScanner(markets){
   document.getElementById('scanner-tag').textContent=markets.length+' 個';
   let h='<table><thead><tr><th>市場</th><th>類別</th><th>YES</th><th>24h量</th><th>流動性</th></tr></thead><tbody>';
   for(const m of markets.slice(0,20)){
-    h+='<tr><td title="'+esc(m.title)+'">'+esc((m.title||'').slice(0,35))+'</td><td>'+esc(m.category||'')+'</td>';
+    h+='<tr><td title="'+esc(m.title)+'">'+esc((m.title||'').slice(0,32))+'</td><td>'+esc(m.category||'')+'</td>';
     h+='<td class="mono">'+(m.yes_price||0).toFixed(3)+'</td><td class="mono">$'+Math.round(m.volume_24h||0).toLocaleString()+'</td>';
     h+='<td class="mono">$'+Math.round(m.liquidity||0).toLocaleString()+'</td></tr>'}
   el.innerHTML=h+'</tbody></table>';
@@ -514,77 +715,65 @@ function renderScanner(markets){
 // ── Render: Arb ──
 function renderArb(arbs){
   const el=document.getElementById('arb-body');document.getElementById('arb-tag').textContent=(arbs||[]).length;
-  if(!arbs||!arbs.length){el.innerHTML='<div class="empty-state">冇套利機會（市場定價正常）</div>';return}
+  if(!arbs||!arbs.length){el.innerHTML='<div class="empty-state">冇套利機會</div>';return}
   let h='';for(const a of arbs){
-    h+='<div class="arb-opportunity"><div class="arb-edge">+'+(a.edge_pct||0).toFixed(1)+'%</div><div><div style="font-size:10px;text-transform:uppercase;color:var(--muted)">'+esc((a.type||'').replace(/_/g,' '))+'</div><div style="font-size:13px;margin-top:2px">'+esc((a.detail||'').slice(0,80))+'</div></div></div>'}
+    h+='<div class="arb-opportunity"><div class="arb-edge">+'+(a.edge_pct||0).toFixed(1)+'%</div><div><div style="font-size:9px;text-transform:uppercase;color:var(--muted)">'+esc((a.type||'').replace(/_/g,' '))+'</div><div style="font-size:12px;margin-top:2px;color:var(--text-2)">'+esc((a.detail||'').slice(0,70))+'</div></div></div>'}
   el.innerHTML=h;
 }
 
 // ── Render: Merge ──
 function renderMerge(data){
   const el=document.getElementById('merge-body');
-  if(!data){el.innerHTML='<div class="empty-state">未檢查</div>';return}
-  if(data.message){const msgDiv=document.createElement('div');msgDiv.className='empty-state';msgDiv.textContent=data.message;el.innerHTML='';el.appendChild(msgDiv);document.getElementById('merge-tag').textContent='--';return}
+  if(!data){el.innerHTML='<div class="empty-state-sm">未檢查</div>';return}
+  if(data.message){el.innerHTML='<div class="empty-state-sm">'+esc(data.message)+'</div>';document.getElementById('merge-tag').textContent='--';return}
   const ms=data.mergeables||[];document.getElementById('merge-tag').textContent=ms.length?'$'+data.total_reclaimable:'0';
-  if(!ms.length){el.innerHTML='<div class="empty-state pos">&#10003; 冇可合併持倉</div>';return}
-  let h='<div style="padding:12px 16px;color:var(--pos);font-weight:600">$'+data.total_reclaimable+' 可回收</div>';
-  h+='<table><thead><tr><th>市場</th><th>YES</th><th>NO</th><th>可合併</th><th>$</th></tr></thead><tbody>';
-  for(const m of ms){h+='<tr><td>'+esc((m.title||'').slice(0,30))+'</td><td class="mono">'+(m.yes_shares||0).toFixed(0)+'</td><td class="mono">'+(m.no_shares||0).toFixed(0)+'</td><td class="mono">'+(m.mergeable_pairs||0).toFixed(0)+'</td><td class="mono pos">$'+(m.reclaimable_usdc||0).toFixed(2)+'</td></tr>'}
+  if(!ms.length){el.innerHTML='<div class="empty-state-sm pos">OK</div>';return}
+  let h='<div style="padding:8px 14px;color:var(--pos);font-weight:600;font-size:12px">$'+data.total_reclaimable+' 可回收</div>';
+  h+='<table><thead><tr><th>市場</th><th>YES</th><th>NO</th><th>$</th></tr></thead><tbody>';
+  for(const m of ms){h+='<tr><td>'+esc((m.title||'').slice(0,28))+'</td><td class="mono">'+(m.yes_shares||0).toFixed(0)+'</td><td class="mono">'+(m.no_shares||0).toFixed(0)+'</td><td class="mono pos">$'+(m.reclaimable_usdc||0).toFixed(2)+'</td></tr>'}
   el.innerHTML=h+'</tbody></table>';
-}
-
-// ── Render: Calibration ──
-function renderCalibration(cal){
-  const el=document.getElementById('calibration-body');
-  if(!cal){el.innerHTML='<div class="empty-state">冇天氣數據 — 跑 weather paper tracker 先</div>';return}
-  const brier=cal.brier||{},edge=cal.edge||{};
-  if((!brier.matched||brier.error)&&(!edge.per_source_mae||edge.error)){el.innerHTML='<div class="empty-state">冇天氣數據</div>';return}
-  let h='<div style="padding:16px;display:grid;gap:16px">';
-  if(brier&&!brier.error&&brier.matched){
-    h+='<div><h4 style="margin-bottom:8px;font-size:13px">Brier Score</h4><div style="display:flex;gap:20px;margin-bottom:8px;font-size:13px"><span>N: <strong class="mono">'+brier.matched+'</strong></span><span>分數: <strong class="mono">'+(brier.brier_overall||0).toFixed(4)+'</strong></span><span>偏差: <strong class="mono">'+((brier.bias_overall||0)>=0?'+':'')+(brier.bias_overall||0).toFixed(4)+'</strong></span></div>';
-    const bc=brier.by_city||{},cities=Object.keys(bc);
-    if(cities.length){h+='<table><thead><tr><th>城市</th><th>N</th><th>Brier</th><th>偏差</th></tr></thead><tbody>';for(const c of cities){const d=bc[c];h+='<tr><td>'+c+'</td><td class="mono">'+(d.n||0)+'</td><td class="mono">'+(d.brier||0).toFixed(4)+'</td><td class="mono">'+((d.bias||0)>=0?'+':'')+(d.bias||0).toFixed(4)+'</td></tr>'}h+='</tbody></table>'}h+='</div>'}
-  if(edge&&!edge.error&&edge.per_source_mae){
-    h+='<div><h4 style="margin-bottom:8px;font-size:13px">預測來源準確度 (MAE)</h4>';const mae=edge.per_source_mae||{};h+='<table><thead><tr><th>來源</th><th>MAE</th></tr></thead><tbody>';for(const s of Object.keys(mae))h+='<tr><td>'+s+'</td><td class="mono">'+(mae[s]||0).toFixed(4)+'</td></tr>';h+='</tbody></table></div>'}
-  el.innerHTML=h+'</div>';
 }
 
 // ═══ Commands ═══
 async function cmdRunCycle(btn){
-  btn.classList.add('running');btn.innerHTML='\u25b6 跑緊...';
-  logCmd('> run_cycle \u2014 啟動 pipeline...');
+  btn.classList.add('running');logCmd('> run_cycle — 啟動 pipeline...');
   try{const r=await fetch(API+'/run_cycle',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
     if(d.ok){logCmd('Pipeline 已啟動');showToast('Pipeline 已啟動');pollCycle(btn)}
-    else{logCmd('ERROR: '+(d.error||''));showToast(d.error||'失敗',true);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline'}}
-  catch(e){logCmd('ERROR: '+e.message);showToast('失敗',true);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline'}}
+    else{logCmd('ERROR: '+(d.error||''));showToast(d.error||'失敗',true);btn.classList.remove('running')}}
+  catch(e){logCmd('ERROR: '+e.message);showToast('失敗',true);btn.classList.remove('running')}}
 
-async function pollCycle(btn){let n=0;const iv=setInterval(async()=>{n++;if(n>60){clearInterval(iv);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline';logCmd('Pipeline timeout');showToast('Timeout',true);return}
-  try{const r=await fetch(API+'/cycle_status?t='+Date.now());const d=await r.json();if(!d.running){clearInterval(iv);btn.classList.remove('running');btn.innerHTML='\u25b6 跑 Pipeline';
-    if(d.last_error){logCmd('失敗: '+d.last_error);showToast('Pipeline 失敗',true)}else if(d.last_result){const x=d.last_result;logCmd('完成 ('+d.last_duration+'s): '+x.scanned+'掃描 '+x.signals+'信號 '+x.executed+'執行 '+x.errors+'錯誤');showToast('Pipeline 完成')}refresh()}}catch(e){}},2000)}
+async function pollCycle(btn){let n=0;const iv=setInterval(async()=>{n++;if(n>60){clearInterval(iv);btn.classList.remove('running');logCmd('Pipeline timeout');showToast('Timeout',true);renderPipelineSteps(false,null);return}
+  try{const r=await fetch(API+'/cycle_status?t='+Date.now());const d=await r.json();
+    renderPipelineSteps(d.running, d.last_result);
+    if(d.running){document.getElementById('pipe-duration').textContent='跑緊...'}
+    if(!d.running){clearInterval(iv);btn.classList.remove('running');
+    document.getElementById('pipe-duration').textContent=d.last_duration?d.last_duration+'s':'--';
+    if(d.last_error){logCmd('失敗: '+d.last_error);showToast('Pipeline 失敗',true)}
+    else if(d.last_result){const x=d.last_result;logCmd('完成 ('+d.last_duration+'s): '+x.scanned+'掃描 '+x.signals+'信號 '+x.executed+'執行 '+x.errors+'錯誤');showToast('Pipeline 完成')}refresh()}}catch(e){}},2000)}
 
 async function cmdForceScan(btn){
-  btn.classList.add('running');btn.innerHTML='\u25c6 掃描中...';logCmd('> force_scan \u2014 掃描 Gamma API...');
+  btn.classList.add('running');logCmd('> force_scan — 掃描 Gamma API...');
   try{const r=await fetch(API+'/force_scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
-    if(d.ok){logCmd('掃描完成: '+d.scanned+' 市場, '+(d.arb_opportunities||[]).length+' 套利');showToast(d.scanned+' 個市場');renderScanner(d.markets);renderArb(d.arb_opportunities);switchTab('tools')}
+    if(d.ok){logCmd('掃描完成: '+d.scanned+' 市場, '+(d.arb_opportunities||[]).length+' 套利');showToast(d.scanned+' 個市場');renderScanner(d.markets);renderArb(d.arb_opportunities);switchTab('pipeline')}
     else{logCmd('ERROR: '+(d.error||''));showToast('掃描失敗',true)}}
   catch(e){logCmd('ERROR: '+e.message);showToast('掃描失敗',true)}
-  btn.classList.remove('running');btn.innerHTML='\u25c6 掃描'}
+  btn.classList.remove('running')}
 
 async function cmdResetCB(btn){
   btn.classList.add('running');logCmd('> reset_cb — 重置斷路器...');
   try{const svcs=['polymarket','gamma','claude','binance'];let n=0;
     for(const s of svcs){const r=await fetch(API+'/reset_cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})});const d=await r.json();if(d.ok&&d.old_state!=='closed')n++}
-    logCmd('重置完成: '+n+' 個');showToast(n?n+' 個斷路器已重置':'全部正常');refresh()}
+    logCmd('重置完成: '+n+' 個');showToast(n?n+' 個已重置':'全部正常');refresh()}
   catch(e){logCmd('ERROR: '+e.message);showToast('重置失敗',true)}
   btn.classList.remove('running')}
 
 async function cmdCheckMerge(btn){
-  btn.classList.add('running');btn.innerHTML='\u25b3 檢查中...';logCmd('> check_merge \u2014 查詢...');
+  btn.classList.add('running');logCmd('> check_merge — 查詢...');
   try{const r=await fetch(API+'/check_merge',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const d=await r.json();
     if(d.ok){logCmd('合併檢查: '+(d.mergeables||[]).length+' 個, $'+(d.total_reclaimable||0));showToast(d.message||'$'+(d.total_reclaimable||0)+' 可回收');renderMerge(d)}
     else{logCmd('ERROR: '+(d.error||''));showToast('檢查失敗',true)}}
   catch(e){logCmd('ERROR: '+e.message);showToast('檢查失敗',true)}
-  btn.classList.remove('running');btn.innerHTML='\u25b3 檢查合併'}
+  btn.classList.remove('running')}
 
 async function toggleMode(){
   const b=document.getElementById('mode-badge');const dry=b.textContent.trim()==='DRY RUN';const m=dry?'live':'dry_run';
@@ -600,119 +789,48 @@ async function refresh(){
   if(!data){err.style.display='block';err.textContent='連唔到 API — server 開咗未？';document.getElementById('status-dot').className='pulse-dot error';return}
   err.style.display='none';
   const s=data.state||{};
-  renderKPIs(s);renderStats(s,data.trades||[]);renderPositions(s.positions);renderRisk(s);renderTrades(data.trades||[]);
-  renderCalibration(data.calibration);renderCB(data.circuit_breakers||[]);renderStrategy(data.strategy_breakdown||{});updateChart(data.pnl_series||[]);
-}
-
-// ── Stats Cards ──
-function renderStats(D, trades) {
-  // Total PnL from trades
-  const allTrades = trades || [];
-  let totalPnl = 0, wins = 0, losses = 0;
-  for (const t of allTrades) {
-    const pnl = t.pnl || 0;
-    totalPnl += pnl;
-    if (pnl > 0) wins++;
-    else if (pnl < 0) losses++;
-  }
-  const totalResolved = wins + losses;
-  const winRate = totalResolved > 0 ? (wins / totalResolved * 100) : 0;
-
-  // Unrealized PnL from positions
-  let unrealPnl = 0;
-  for (const p of (D.positions || [])) unrealPnl += (p.unrealized_pnl || 0);
-
-  const pnlEl = document.getElementById('stat-pnl');
-  pnlEl.textContent = '$' + totalPnl.toFixed(2);
-  pnlEl.className = 'stat-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
-  const pnlChange = document.getElementById('stat-pnl-change');
-  if (unrealPnl !== 0) {
-    pnlChange.textContent = (unrealPnl >= 0 ? '+' : '') + '$' + unrealPnl.toFixed(2) + ' 未實現';
-    pnlChange.className = 'stat-change ' + (unrealPnl >= 0 ? 'pos' : 'neg');
-  } else { pnlChange.textContent = '冇未實現損益'; pnlChange.className = 'stat-change'; }
-
-  document.getElementById('stat-winrate').textContent = totalResolved > 0 ? winRate.toFixed(0) + '%' : '--%';
-  document.getElementById('stat-winrate-detail').textContent = totalResolved > 0 ? wins + 'W / ' + losses + 'L' : '未有已結算交易';
-
-  const buys = allTrades.filter(t => t.action === 'buy').length;
-  const sells = allTrades.filter(t => t.action === 'sell').length;
-  document.getElementById('stat-trades').textContent = allTrades.length;
-  document.getElementById('stat-trades-detail').textContent = buys + ' 買 / ' + sells + ' 賣';
-
-  const bal = D.usdc_balance || 0;
-  const exp = D.exposure_pct || 0;
-  const avail = bal * (1 - exp);
-  document.getElementById('stat-available').textContent = '$' + avail.toFixed(0);
-  document.getElementById('stat-available-detail').textContent = '結餘 $' + bal.toFixed(0) + ' · 敞口 ' + (exp * 100).toFixed(0) + '%';
+  renderKPIs(s, data.trades||[]);
+  renderPositions(s.positions);
+  renderRisk(s);
+  renderTrades(data.trades||[]);
+  renderCB(data.circuit_breakers||[]);
+  renderStrategy(data.strategy_breakdown||{});
+  updateChart(data.pnl_series||[]);
 }
 
 // ── Numeric Scrubbers ──
 function initScrubbers() {
   document.querySelectorAll('.scrubber').forEach(el => {
-    const min = parseFloat(el.dataset.min);
-    const max = parseFloat(el.dataset.max);
-    const step = parseFloat(el.dataset.step);
-    const bar = el.querySelector('.scrubber-bar');
-    const fill = el.querySelector('.scrubber-fill');
-    const thumb = el.querySelector('.scrubber-thumb');
-    const valEl = el.querySelector('.scrubber-val');
-
-    function getVal() { return parseFloat(valEl.textContent) || min; }
-    function setVal(v) {
-      v = Math.round(v / step) * step;
-      v = Math.max(min, Math.min(max, v));
-      const decimals = step < 1 ? (step < 0.1 ? 2 : 1) : 0;
-      valEl.textContent = v.toFixed(decimals);
-      const pct = (v - min) / (max - min) * 100;
-      fill.style.width = pct + '%';
-      thumb.style.left = pct + '%';
+    const min=parseFloat(el.dataset.min), max=parseFloat(el.dataset.max), step=parseFloat(el.dataset.step);
+    const bar=el.querySelector('.scrubber-bar'), fill=el.querySelector('.scrubber-fill'), thumb=el.querySelector('.scrubber-thumb'), valEl=el.querySelector('.scrubber-val');
+    function getVal(){return parseFloat(valEl.textContent)||min}
+    function setVal(v){
+      v=Math.round(v/step)*step;v=Math.max(min,Math.min(max,v));
+      const d=step<0.01?3:step<0.1?2:step<1?1:0;
+      valEl.textContent=v.toFixed(d);
+      const pct=(v-min)/(max-min)*100;fill.style.width=pct+'%';thumb.style.left=pct+'%';
     }
-
-    // Init position
     setVal(getVal());
-
-    // Drag on bar/thumb
-    let dragging = false;
-    function startDrag(e) {
-      e.preventDefault();
-      dragging = true;
-      thumb.classList.add('active');
-      onDrag(e);
-    }
-    function onDrag(e) {
-      if (!dragging) return;
-      const rect = bar.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      setVal(min + pct * (max - min));
-    }
-    function endDrag() {
-      if (!dragging) return;
-      dragging = false;
-      thumb.classList.remove('active');
-    }
-    bar.addEventListener('mousedown', startDrag);
-    thumb.addEventListener('mousedown', startDrag);
-    bar.addEventListener('touchstart', startDrag, { passive: false });
-    thumb.addEventListener('touchstart', startDrag, { passive: false });
-    document.addEventListener('mousemove', onDrag);
-    document.addEventListener('touchmove', onDrag, { passive: false });
-    document.addEventListener('mouseup', endDrag);
-    document.addEventListener('touchend', endDrag);
-
-    // Direct edit on value
-    valEl.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); valEl.blur(); }
-    });
-    valEl.addEventListener('blur', () => {
-      const v = parseFloat(valEl.textContent);
-      if (!isNaN(v)) setVal(v); else setVal(getVal());
-    });
+    let dragging=false;
+    function startDrag(e){e.preventDefault();dragging=true;thumb.classList.add('active');onDrag(e)}
+    function onDrag(e){if(!dragging)return;const rect=bar.getBoundingClientRect();const cx=e.touches?e.touches[0].clientX:e.clientX;const pct=Math.max(0,Math.min(1,(cx-rect.left)/rect.width));setVal(min+pct*(max-min))}
+    function endDrag(){if(!dragging)return;dragging=false;thumb.classList.remove('active')}
+    bar.addEventListener('mousedown',startDrag);thumb.addEventListener('mousedown',startDrag);
+    bar.addEventListener('touchstart',startDrag,{passive:false});thumb.addEventListener('touchstart',startDrag,{passive:false});
+    document.addEventListener('mousemove',onDrag);document.addEventListener('touchmove',onDrag,{passive:false});
+    document.addEventListener('mouseup',endDrag);document.addEventListener('touchend',endDrag);
+    valEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();valEl.blur()}});
+    valEl.addEventListener('blur',()=>{const v=parseFloat(valEl.textContent);if(!isNaN(v))setVal(v);else setVal(getVal())});
   });
 }
 
-initChart(); initScrubbers(); refresh(); setInterval(refresh, REFRESH_MS);
-logCmd('指揮台啟動 — 每 '+(REFRESH_MS/1000)+' 秒刷新');
+// ── Init ──
+initChart();
+initScrubbers();
+renderPipelineSteps(false, null);
+refresh();
+setInterval(refresh, REFRESH_MS);
+logCmd('指揮台啟動 — ' + (REFRESH_MS/1000) + 's 刷新');
 </script>
 </body>
 </html>

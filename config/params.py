@@ -403,3 +403,5 @@ if _os.path.exists(_user_path):
             )
             continue
         globals()[_name] = getattr(_umod, _name)
+
+TRADING_ENABLED = True

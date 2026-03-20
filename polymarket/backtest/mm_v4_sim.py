@@ -153,7 +153,8 @@ def prepare_windows(klines_1m: pd.DataFrame, window_minutes: int = 15) -> list:
 
 def simulate_v4(windows: list, vol_values: np.ndarray, vol_index: np.ndarray,
                 config: MMConfig, bankroll: float, fill_rate: float,
-                window_minutes: int = 15, seed: int = 42) -> dict:
+                window_minutes: int = 15, seed: int = 42,
+                wr_penalty: float = 0.0, adverse_pct: float = 0.0) -> dict:
     """Run v4 dual-layer simulation on historical windows.
 
     For each window:
@@ -161,6 +162,10 @@ def simulate_v4(windows: list, vol_values: np.ndarray, vol_index: np.ndarray,
     2. Generate orders via v4 plan_opening
     3. Apply fill_rate per ORDER (not per market)
     4. Resolve: winning side = $1/share
+
+    Degradation params (pessimistic scenarios):
+    - wr_penalty: randomly flip this % of wins → losses (e.g. 0.10 = -10% WR)
+    - adverse_pct: % of fills that suffer adverse selection (lose spread on exit)
     """
     rng = np.random.default_rng(seed)
     results = []
@@ -212,9 +217,21 @@ def simulate_v4(windows: list, vol_values: np.ndarray, vol_index: np.ndarray,
             skipped_no_fill += 1
             continue
 
+        # WR degradation: randomly flip some wins → losses
+        effective_actual = actual
+        if wr_penalty > 0 and rng.random() < wr_penalty:
+            effective_actual = "DOWN" if actual == "UP" else "UP"
+
         # Calculate PnL
         cost = sum(o["price"] * o["size"] for o in filled)
-        payout = sum(o["size"] for o in filled if o["outcome"] == actual)
+        payout = sum(o["size"] for o in filled if o["outcome"] == effective_actual)
+
+        # Adverse selection: some fills lose extra spread
+        if adverse_pct > 0:
+            for o in filled:
+                if rng.random() < adverse_pct:
+                    cost += o["size"] * config.half_spread  # lose spread on adverse fill
+
         pnl = payout - cost
 
         # Zone classification
@@ -312,7 +329,8 @@ def simulate_v4(windows: list, vol_values: np.ndarray, vol_index: np.ndarray,
 
 
 def run_sim(symbol: str = "ETHUSDT", days: int = 360, window_minutes: int = 15,
-            fill_rate: float = 0.15, bankroll: float = 100.0):
+            fill_rate: float = 0.15, bankroll: float = 100.0,
+            wr_penalty: float = 0.0, adverse_pct: float = 0.0):
     """Main simulation runner."""
 
     config = MMConfig(
@@ -334,6 +352,10 @@ def run_sim(symbol: str = "ETHUSDT", days: int = 360, window_minutes: int = 15,
     print(f"  Window: {window_minutes}min | Fill rate: {fill_rate:.0%}")
     print(f"  Bankroll: ${bankroll:.0f} | Budget/market: ${bankroll * config.bet_pct:.2f}")
     print(f"  Spread: {config.half_spread:.1%} | Min order: {config.min_order_size} shares")
+    if wr_penalty > 0:
+        print(f"  WR Penalty: -{wr_penalty:.0%} (randomly flip wins → losses)")
+    if adverse_pct > 0:
+        print(f"  Adverse Selection: {adverse_pct:.0%} of fills lose extra spread")
     print(f"{'='*70}\n")
 
     # Fetch data
@@ -351,7 +373,8 @@ def run_sim(symbol: str = "ETHUSDT", days: int = 360, window_minutes: int = 15,
     # Run simulation
     print(f"\n  Running v4 simulation (fill_rate={fill_rate:.0%})...")
     result = simulate_v4(windows, vol_values, vol_index, config, bankroll,
-                         fill_rate, window_minutes)
+                         fill_rate, window_minutes,
+                         wr_penalty=wr_penalty, adverse_pct=adverse_pct)
 
     if "error" in result:
         print(f"\n  ❌ {result['error']}")
@@ -411,7 +434,12 @@ def run_sim(symbol: str = "ETHUSDT", days: int = 360, window_minutes: int = 15,
 
     # Save
     os.makedirs(LOG_DIR, exist_ok=True)
-    result_path = os.path.join(LOG_DIR, f"mm_v4_sim_{symbol}_{days}d_fr{int(fill_rate*100)}.json")
+    tag = f"mm_v4_sim_{symbol}_{days}d_fr{int(fill_rate*100)}"
+    if wr_penalty > 0:
+        tag += f"_wrp{int(wr_penalty*100)}"
+    if adverse_pct > 0:
+        tag += f"_adv{int(adverse_pct*100)}"
+    result_path = os.path.join(LOG_DIR, f"{tag}.json")
     output = {
         "run_time": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol,
@@ -444,6 +472,10 @@ def main():
     parser.add_argument("--window", type=int, default=15, help="Window minutes (default: 15)")
     parser.add_argument("--fill-rate", type=float, default=0.15, help="Fill rate (default: 0.15)")
     parser.add_argument("--bankroll", type=float, default=100.0, help="Bankroll (default: 100)")
+    parser.add_argument("--wr-penalty", type=float, default=0.0,
+                        help="WR degradation: flip this %% of wins (e.g. 0.10 = -10%%)")
+    parser.add_argument("--adverse", type=float, default=0.0,
+                        help="Adverse selection: %% of fills lose extra spread (e.g. 0.15)")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -451,7 +483,8 @@ def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
     run_sim(symbol=args.symbol, days=args.days, window_minutes=args.window,
-            fill_rate=args.fill_rate, bankroll=args.bankroll)
+            fill_rate=args.fill_rate, bankroll=args.bankroll,
+            wr_penalty=args.wr_penalty, adverse_pct=args.adverse)
 
 
 if __name__ == "__main__":
