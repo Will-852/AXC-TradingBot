@@ -1,0 +1,228 @@
+"""Analytics components — fees, funding, trade stats, news, activity."""
+
+from nicegui import ui
+
+from scripts.dashboard_ng.state import get_data
+
+
+def render_fee_breakdown():
+    """Fee breakdown card."""
+    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[200px]'):
+        ui.label('FEES').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
+        fee_container = ui.column().classes('gap-1')
+
+        def update():
+            d = get_data()
+            fees = d.get('fee_breakdown', {})
+            fee_container.clear()
+            with fee_container:
+                for key, label in [
+                    ('realized_pnl', 'Realized PnL'),
+                    ('funding', 'Funding'),
+                    ('commission', 'Commission'),
+                    ('net', 'Net'),
+                ]:
+                    val = fees.get(key, 0)
+                    color = 'text-green-400' if val >= 0 else 'text-red-400'
+                    with ui.row().classes('justify-between w-full'):
+                        ui.label(label).classes('text-xs text-gray-400')
+                        ui.label(f'${val:.2f}').classes(f'text-xs {color}')
+
+        ui.timer(10, update)
+
+
+def render_trade_stats():
+    """Trade statistics strip."""
+    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[200px]'):
+        ui.label('STATS').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
+        stats_container = ui.row().classes('gap-6 flex-wrap')
+
+        def update():
+            d = get_data()
+            stats = d.get('trade_stats', {})
+            stats_container.clear()
+            with stats_container:
+                for key, label, fmt in [
+                    ('win_rate', 'Win Rate', '{:.0f}%'),
+                    ('avg_win', 'Avg Win', '${:.2f}'),
+                    ('avg_loss', 'Avg Loss', '${:.2f}'),
+                    ('profit_factor', 'PF', '{:.2f}'),
+                    ('total_trades', 'Trades', '{}'),
+                ]:
+                    val = stats.get(key, 0)
+                    with ui.column().classes('gap-0'):
+                        ui.label(label).classes('text-[10px] text-gray-500')
+                        try:
+                            ui.label(fmt.format(val)).classes('text-sm font-bold')
+                        except (ValueError, TypeError):
+                            ui.label(str(val)).classes('text-sm font-bold')
+
+        ui.timer(10, update)
+
+
+def render_funding_rates():
+    """Funding rates table."""
+    ui.label('FUNDING RATES').classes('text-xs text-gray-500 uppercase tracking-wide')
+    rates_container = ui.column().classes('w-full')
+
+    def update():
+        d = get_data()
+        rates = d.get('funding_rates', {})
+        rates_container.clear()
+        with rates_container:
+            if not rates:
+                ui.label('No funding data').classes('text-gray-600 text-sm')
+                return
+
+            rows = []
+            for symbol, info in rates.items():
+                if isinstance(info, dict):
+                    rows.append({
+                        'symbol': symbol,
+                        'rate': f"{info.get('rate', 0)*100:.4f}%",
+                        'next': info.get('next_time', '—'),
+                    })
+
+            if rows:
+                ui.aggrid({
+                    'columnDefs': [
+                        {'field': 'symbol', 'headerName': 'Symbol', 'width': 100},
+                        {'field': 'rate', 'headerName': 'Rate', 'width': 100, 'type': 'rightAligned'},
+                        {'field': 'next', 'headerName': 'Next', 'width': 120},
+                    ],
+                    'rowData': rows,
+                }).classes('h-40 ag-theme-balham-dark')
+
+    ui.timer(30, update)
+
+
+def render_news_sentiment():
+    """News sentiment card."""
+    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[300px]'):
+        ui.label('NEWS SENTIMENT').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
+        news_container = ui.column().classes('gap-2')
+
+        def update():
+            d = get_data()
+            news = d.get('news_sentiment', {})
+            news_container.clear()
+            with news_container:
+                # Actual keys: overall_sentiment, confidence, sentiment_by_symbol, risk_events
+                overall = news.get('overall_sentiment', news.get('overall', '—'))
+                confidence = news.get('confidence', 0)
+                color = {'bullish': 'text-green-400', 'bearish': 'text-red-400'}.get(
+                    str(overall).lower(), 'text-gray-400')
+
+                with ui.row().classes('items-center gap-2'):
+                    ui.label(str(overall).upper()).classes(f'text-lg font-bold {color}')
+                    if confidence:
+                        pct = confidence * 100 if confidence < 1 else confidence
+                        ui.label(f'({pct:.0f}%)').classes('text-xs text-gray-500')
+
+                # Per-symbol sentiments (key = sentiment_by_symbol)
+                per_symbol = news.get('sentiment_by_symbol', news.get('per_symbol', {}))
+                if per_symbol and isinstance(per_symbol, dict):
+                    for sym, sent in per_symbol.items():
+                        sent_str = sent if isinstance(sent, str) else str(sent)
+                        ui.label(f'{sym}: {sent_str}').classes('text-xs text-gray-400')
+
+                # Risk events — extract 'text' field from dict entries
+                risk_events = news.get('risk_events', [])
+                if risk_events:
+                    ui.label('Risk Events:').classes('text-xs text-red-400 mt-1')
+                    for evt in risk_events[:3]:
+                        if isinstance(evt, dict):
+                            text = evt.get('text', '')
+                            src = evt.get('src', '')
+                            ui.label(f'  {text}').classes('text-xs text-gray-500')
+                            if src:
+                                ui.label(f'    — {src}').classes('text-[10px] text-gray-600')
+                        else:
+                            ui.label(f'  {evt}').classes('text-xs text-gray-500')
+
+        ui.timer(30, update)
+
+
+def render_trade_history():
+    """Recent trade history table."""
+    ui.label('RECENT TRADES').classes('text-xs text-gray-500 uppercase tracking-wide')
+    trades_container = ui.column().classes('w-full')
+
+    def update():
+        d = get_data()
+        trades = d.get('exchange_trades', [])
+        trades_container.clear()
+        with trades_container:
+            if not trades:
+                ui.label('No recent trades').classes('text-gray-600 text-sm')
+                return
+
+            rows = []
+            for t in trades[:20]:
+                rows.append({
+                    'symbol': t.get('symbol', '?'),
+                    'side': t.get('side', '?'),
+                    'price': t.get('price', '?'),
+                    'qty': t.get('qty', '?'),
+                    'time': t.get('time', '?'),
+                    'pnl': t.get('realizedPnl', '—'),
+                })
+
+            ui.aggrid({
+                'columnDefs': [
+                    {'field': 'time', 'headerName': 'Time', 'width': 150},
+                    {'field': 'symbol', 'headerName': 'Symbol', 'width': 100},
+                    {'field': 'side', 'headerName': 'Side', 'width': 70,
+                     'cellClassRules': {
+                         'text-green-400': 'x === "BUY"',
+                         'text-red-400': 'x === "SELL"',
+                     }},
+                    {'field': 'price', 'headerName': 'Price', 'width': 100, 'type': 'rightAligned'},
+                    {'field': 'qty', 'headerName': 'Qty', 'width': 80, 'type': 'rightAligned'},
+                    {'field': 'pnl', 'headerName': 'PnL', 'width': 80, 'type': 'rightAligned'},
+                ],
+                'rowData': rows,
+            }).classes('h-64 ag-theme-balham-dark')
+
+    ui.timer(10, update)
+
+
+def render_activity_log():
+    """Activity timeline."""
+    ui.label('ACTIVITY').classes('text-xs text-gray-500 uppercase tracking-wide')
+    log_container = ui.column().classes('w-full max-h-64 overflow-y-auto')
+
+    def update():
+        d = get_data()
+        activity = d.get('activity_log', [])
+        log_container.clear()
+        with log_container:
+            if not activity:
+                ui.label('No activity').classes('text-gray-600 text-sm')
+                return
+
+            for item in activity[:20]:
+                if isinstance(item, dict):
+                    ts = item.get('time', '')
+                    msg = item.get('msg', item.get('message', item.get('event', '')))
+                    level = item.get('type', item.get('level', 'info'))
+                elif isinstance(item, str):
+                    ts = ''
+                    msg = item
+                    level = 'info'
+                else:
+                    continue
+
+                color = {
+                    'error': 'text-red-400',
+                    'warn': 'text-yellow-400',
+                    'warning': 'text-yellow-400',
+                    'heartbeat': 'text-gray-600',
+                }.get(level, 'text-gray-400')
+
+                with ui.row().classes('gap-2 py-0.5'):
+                    if ts:
+                        ui.label(ts).classes('text-[10px] text-gray-600 min-w-[60px]')
+                    ui.label(str(msg)).classes(f'text-xs {color}')
+
+    ui.timer(5, update)

@@ -72,3 +72,4 @@ backups/
 secrets/.env
 config/user_params.py
 openclaw.json
+.nicegui/
