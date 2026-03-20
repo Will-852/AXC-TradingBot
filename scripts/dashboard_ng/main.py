@@ -61,10 +61,21 @@ def main_page():
     )
 
     from scripts.dashboard_ng.components.chat import render_chat_toggle
+    from scripts.dashboard_ng.components.exchange_connect import render_exchange_panel
+    from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
     with ui.column().classes('w-full p-6 gap-6'):
         # Controls row
         render_controls()
+
+        # Exchange connections + health + suggest (expandable)
+        with ui.row().classes('gap-2 flex-wrap w-full'):
+            with ui.column().classes('flex-1 min-w-[300px]'):
+                render_exchange_panel()
+            with ui.column().classes('flex-1 min-w-[300px]'):
+                render_health_panel()
+            with ui.column().classes('flex-1 min-w-[200px]'):
+                render_suggest_mode()
 
         ui.separator().classes('bg-gray-700')
 

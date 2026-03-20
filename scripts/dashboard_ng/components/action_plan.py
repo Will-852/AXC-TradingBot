@@ -22,6 +22,9 @@ def render_action_plan():
     """Render the action plan table with AG Grid."""
     ui.label('ACTION PLAN').classes('text-xs text-gray-500 uppercase tracking-wide')
 
+    # Order book buttons (per symbol)
+    ob_row = ui.row().classes('gap-1 flex-wrap')
+
     grid_container = ui.column().classes('w-full')
 
     def update():
@@ -45,6 +48,18 @@ def render_action_plan():
                 'atr': f"${item.get('atr', 0):,.1f}",
                 'tradeable': item.get('tradeable', False),
             })
+
+        # Update OB buttons
+        ob_row.clear()
+        with ob_row:
+            for item in plan:
+                sym = item.get('symbol', '')
+                if sym:
+                    async def show_ob(s=sym):
+                        from scripts.dashboard_ng.components.orderbook import show_orderbook
+                        await show_orderbook(symbol=s)
+                    ui.button(f'OB {sym.replace("USDT","")}', on_click=show_ob) \
+                        .props('flat dense size=xs color=grey-6').tooltip(f'Order Book {sym}')
 
         grid_container.clear()
         with grid_container:
