@@ -200,8 +200,9 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                         ui.notify(w, type='warning')
 
                     # Auto-close after success
-                    await ui.run_javascript('setTimeout(() => {}, 1500)')
-                    dialog.close()
+                    import asyncio
+                    await asyncio.sleep(1.5)
+                    dialog.submit('done')
                 else:
                     error = result.get('error', 'Unknown error')
                     status_label.text = f'Error: {error}'
@@ -217,7 +218,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                 submit_btn.set_enabled(True)
 
         with ui.row().classes('gap-3 justify-end w-full'):
-            ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
+            ui.button('Cancel', on_click=lambda: dialog.submit(None)).props('flat color=grey')
             submit_btn = ui.button('Place Order', icon='send', on_click=submit_order) \
                 .props('color=indigo')
 
@@ -229,3 +230,5 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         ui.timer(0.1, init_dialog, once=True)
 
     dialog.open()
+    # Block until dialog is closed — prevents caller's finally from running early
+    await dialog

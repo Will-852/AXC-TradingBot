@@ -81,6 +81,7 @@ async def show_orderbook(symbol: str = 'BTCUSDT'):
         ui.timer(0.1, refresh_ob, once=True)
         ob_timer = ui.timer(10, refresh_ob)
 
-        ui.button('Close', on_click=dialog.close).props('flat color=grey').classes('mt-2')
+        ui.button('Close', on_click=lambda: dialog.submit(None)).props('flat color=grey').classes('mt-2')
 
     dialog.open()
+    await dialog  # block until closed
