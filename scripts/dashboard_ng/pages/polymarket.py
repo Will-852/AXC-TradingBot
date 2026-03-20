@@ -348,20 +348,31 @@ def render_polymarket_page():
             pass
         win_rate = (wins / resolved * 100) if resolved > 0 else 0
 
-        # Use live balance if available (state file may be stale)
+        # Override ALL KPIs with live CLOB data when available
         live = poly_data.get('live', {})
         live_bal = live.get('balance')
         if live_bal and isinstance(live_bal, (int, float)):
             bal = live_bal
+
+        from datetime import datetime
         kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
         pnl_color = 'text-green-400' if total_pnl >= 0 else 'text-red-400'
         kpi_labels['total_pnl'].text = f'${total_pnl:+.2f}'
         kpi_labels['total_pnl'].classes(replace=f'text-lg font-bold font-mono {pnl_color}')
         kpi_labels['win_rate'].text = f'{win_rate:.0f}% ({wins}/{resolved})'
-        kpi_labels['positions_count'].text = str(len(positions)) if isinstance(positions, list) else str(positions)
+
+        # Positions = live open orders if available
+        n_orders = live.get('open_orders', 0)
+        if n_orders:
+            kpi_labels['positions_count'].text = f'{n_orders} orders'
+        else:
+            kpi_labels['positions_count'].text = str(len(positions)) if isinstance(positions, list) else '0'
+
         kpi_labels['total_exposure'].text = f'${exposure:.2f}' if isinstance(exposure, (int, float)) else str(exposure)
         kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}%' if isinstance(exposure_pct, (int, float)) else str(exposure_pct)
-        kpi_labels['last_updated'].text = str(last_updated)
+
+        # Last Updated = NOW (live query time), not stale state file timestamp
+        kpi_labels['last_updated'].text = datetime.now().strftime('%H:%M:%S')
 
         # Mode button
         is_dry = state.get('dry_run', True)
@@ -464,11 +475,18 @@ def render_polymarket_page():
         trades_container.clear()
         with trades_container:
             if live_trades:
+                from datetime import datetime as _dt
                 rows = []
                 for t in live_trades[:20]:
                     mt = t.get('match_time', '')
-                    if isinstance(mt, str) and len(mt) > 16:
-                        mt = mt[:16]
+                    # Convert epoch seconds to human time
+                    try:
+                        if isinstance(mt, (int, float)) or (isinstance(mt, str) and mt.isdigit()):
+                            mt = _dt.fromtimestamp(int(mt)).strftime('%m-%d %H:%M')
+                        elif isinstance(mt, str) and len(mt) > 16:
+                            mt = mt[:16]
+                    except (ValueError, OSError):
+                        pass
                     try:
                         sz = f"{float(t.get('size', 0)):.2f}"
                     except (TypeError, ValueError):
