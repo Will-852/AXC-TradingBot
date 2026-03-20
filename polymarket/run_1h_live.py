@@ -227,6 +227,10 @@ def _try_sell_partial(client, state: dict, cid: str, mkt: dict,
             client.sell_shares(tok, _sell_shares, price=sell_price)
             pnl = _sell_shares * (sell_price - avg)
             mkt[shares_key] = _keep
+            # FIX: reduce entry_cost proportionally so resolve_market PnL is correct.
+            # Without this, resolve_market computes payout - FULL_original_cost → phantom loss.
+            _sold_cost = _sell_shares * avg
+            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
             mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + pnl
             if _keep > 0:
                 mkt["cost_recovered"] = True  # remaining shares = free roll
@@ -250,6 +254,8 @@ def _check_black_swan(client, state: dict, dry_run: bool):
     for cid, mkt in list(state["markets"].items()):
         if mkt.get("phase") != "OPEN":
             continue
+        if mkt.get("cost_recovered"):
+            continue  # free roll shares — hold to resolution, don't re-sell
         for side, tok_key, shares_key in [
             ("UP", "up_token_id", "up_shares"),
             ("DOWN", "down_token_id", "down_shares"),
@@ -713,7 +719,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         ob = _poly_ob(up_tok)
 
         # Compute budget remaining for this window
-        budget_spent = existing.get("entry_cost", 0)
+        # FIX: count PENDING orders too — entry_cost only updates on fill confirmation,
+        # but pending orders already commit wallet funds. Without this, budget_spent=0
+        # for unfilled orders → infinite re-entry (51 orders / $55 exposure bug).
+        _filled_cost = existing.get("entry_cost", 0)
+        _pending_cost = sum(
+            o.get("size", 0) * o.get("price", 0)
+            for o in existing.get("pending_orders", [])
+            if o.get("submitted")
+        )
+        budget_spent = _filled_cost + _pending_cost
         window_budget = state["bankroll"] * config.max_size_fraction
         budget_remaining_frac = max(0, (window_budget - budget_spent) / window_budget) if window_budget > 0 else 0
 

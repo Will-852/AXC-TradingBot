@@ -1449,6 +1449,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                     cid[:8], side, _sell_shares, int(shares), _sell_price,
                                     _pnl, int(_keep), _remaining_cost)
                         mkt[shares_key] = _keep
+                        # FIX: reduce entry_cost so resolve_market PnL is correct
+                        _sold_cost = _sell_shares * avg
+                        mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
                         mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
                         mkt["cost_recovered"] = True  # remaining shares = free roll
                         # Don't set RESOLVED — keep shares alive for resolution payout
@@ -1791,14 +1794,16 @@ def main():
             from polymarket.exchange.polymarket_client import PolymarketClient
             client = PolymarketClient(dry_run=False)
             print("  CLOB: connected")
-            # Startup safety: cancel ALL existing orders (orphan protection)
+            # Startup safety: cancel OWN orphan orders only (not 1H bot's orders)
             try:
                 existing = client.get_orders()
+                _own_cids = set(state.get("markets", {}).keys()) | set(state.get("watchlist", {}).keys())
                 if existing:
                     cancelled = 0
                     for o in existing:
                         oid = o.get("id", "")
-                        if oid:
+                        _mkt = o.get("market", "")
+                        if oid and (_mkt in _own_cids or not _mkt):
                             try:
                                 client.client.cancel(order_id=oid)
                                 cancelled += 1
@@ -1858,13 +1863,15 @@ def main():
                 time.sleep(_CYCLE_S)
         except KeyboardInterrupt:
             print("\n  Shutting down...")
-            # Cancel all open orders on CLOB (prevent orphans)
+            # Cancel OWN open orders on CLOB (prevent orphans, don't touch 1H bot)
             if client and hasattr(client, "get_orders") and not dry_run:
                 try:
                     remaining = client.get_orders()
+                    _own_cids = set(state.get("markets", {}).keys()) | set(state.get("watchlist", {}).keys())
                     for o in (remaining or []):
                         oid = o.get("id", "")
-                        if oid:
+                        _mkt = o.get("market", "")
+                        if oid and (_mkt in _own_cids or not _mkt):
                             try:
                                 client.client.cancel(order_id=oid)
                             except Exception:
