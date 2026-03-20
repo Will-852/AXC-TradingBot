@@ -223,7 +223,9 @@ def _try_sell_all(client, state: dict, cid: str, mkt: dict,
             sold = True
         except Exception as e:
             logger.warning("SELL FAILED [%s] %s %s: %s", reason, cid[:8], side, e)
-    if sold:
+    # Only mark RESOLVED if no shares remain
+    remaining = mkt.get("up_shares", 0) + mkt.get("down_shares", 0)
+    if sold and remaining < 1:
         mkt["phase"] = "RESOLVED"
         mkt["early_exit"] = reason
     return sold
@@ -246,11 +248,26 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                 continue
             mid = _poly_midpoint(tok)
             if mid and mid >= _BLACK_SWAN_MID:
-                logger.warning("BLACK SWAN %s %s: mid $%.3f ≥ $%.2f → selling all",
+                logger.warning("BLACK SWAN %s %s: mid $%.3f ≥ $%.2f → selling all + hedge",
                                cid[:8], side, mid, _BLACK_SWAN_MID)
-                _try_sell_all(client, state, cid, mkt,
+                sold = _try_sell_all(client, state, cid, mkt,
                               mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
                               reason="black_swan_94pct")
+                # Greed hedge: buy opposite side at min size (5 shares)
+                # If it reverses → $5 bonus. If not → lose ~$2.50 (covered by profit).
+                if sold:
+                    opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
+                    opp_side = "DOWN" if side == "UP" else "UP"
+                    opp_mid = _poly_midpoint(opp_tok) if opp_tok else None
+                    hedge_price = round(max(0.01, (opp_mid or 0.06) * 1.02), 3)  # pay slightly above mid
+                    if opp_tok and hedge_price < 0.15:  # only hedge if cheap (<15¢)
+                        try:
+                            hedge_cost = round(5 * hedge_price, 2)
+                            client.buy_shares(opp_tok, hedge_cost, price=hedge_price)
+                            logger.info("HEDGE %s %s: 5 shares @ $%.3f ($%.2f) — free lottery",
+                                        cid[:8], opp_side, hedge_price, hedge_cost)
+                        except Exception as e:
+                            logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
 
 
 # ═══════════════════════════════════════
