@@ -141,6 +141,80 @@ def _btc_price() -> float:
     return _price("BTCUSDT")
 
 
+# ── Cross-exchange price validation ──
+# Fetch from 3 exchanges, use median. Detect anomalies.
+_CROSS_EXCHANGES = {
+    "binance": "https://api.binance.com/api/v3/ticker/price?symbol={sym}",
+    "okx":     "https://www.okx.com/api/v5/market/ticker?instId={sym_okx}",
+    "bybit":   "https://api.bybit.com/v5/market/tickers?category=spot&symbol={sym}",
+}
+_SYM_MAP_OKX = {"BTCUSDT": "BTC-USDT", "ETHUSDT": "ETH-USDT"}
+
+
+def _cross_exchange_price(symbol: str = "BTCUSDT") -> tuple[float, float]:
+    """Fetch price from 3 exchanges, return (median, max_divergence_pct).
+    divergence = (max - min) / median. High = anomaly.
+    Falls back to Binance-only if others fail.
+    Cached 10s — heavy cycle only."""
+    key = f"xprice_{symbol}"
+    now = time.time()
+    if key in _cache and now - _cache[key][1] < 10:
+        return _cache[key][0]
+
+    prices = []
+    # Binance (fastest, always try)
+    try:
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=3) as r:
+            p = float(json.loads(r.read()).get("price", 0))
+            if p > 0:
+                prices.append(p)
+    except Exception:
+        pass
+
+    # OKX
+    try:
+        okx_sym = _SYM_MAP_OKX.get(symbol, symbol.replace("USDT", "-USDT"))
+        url = f"https://www.okx.com/api/v5/market/ticker?instId={okx_sym}"
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=3) as r:
+            data = json.loads(r.read()).get("data", [{}])
+            p = float(data[0].get("last", 0)) if data else 0
+            if p > 0:
+                prices.append(p)
+    except Exception:
+        pass
+
+    # Bybit
+    try:
+        url = f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}"
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=3) as r:
+            result = json.loads(r.read()).get("result", {}).get("list", [{}])
+            p = float(result[0].get("lastPrice", 0)) if result else 0
+            if p > 0:
+                prices.append(p)
+    except Exception:
+        pass
+
+    if not prices:
+        cached = _cache.get(key, ((0, 0), 0))[0]
+        return cached
+
+    prices.sort()
+    median = prices[len(prices) // 2]
+    divergence = (prices[-1] - prices[0]) / median if median > 0 and len(prices) > 1 else 0.0
+
+    result = (median, divergence)
+    _cache[key] = (result, now)
+    _track_call("binance")
+    return result
+
+
 def _open_at(start_ms: int, symbol: str = "BTCUSDT") -> float:
     """Price at a specific timestamp. Cached permanently (historical)."""
     key = f"open_{symbol}_{start_ms}"
@@ -819,18 +893,29 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _title_lower = wl["title"].lower()
         _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
 
-        # ── M1 Momentum Filter ──
+        # ── M1 Momentum Filter (dynamic threshold based on vol) ──
         _m1 = _m1_return(_sym)
-        if abs(_m1) < 0.001:  # |M1 ret| < 0.10% → direction not confirmed
+        _m1_vol = _vol_1m(_sym)  # per-minute vol (cached 60s)
+        _m1_thresh = max(0.0005, _m1_vol * 1.0)  # 1σ move = confirmed direction
+        if abs(_m1) < _m1_thresh:
             if _elapsed_ms < 120_000:  # still early, wait more
-                logger.debug("M1 wait %s: |%.4f| < 0.10%%, direction unclear", cid[:8], _m1)
+                logger.debug("M1 wait %s: |%.4f| < %.4f (1σ), direction unclear",
+                             cid[:8], _m1, _m1_thresh)
                 continue  # keep in watchlist
-            # Past 2 min and still no M1 signal — enter anyway (bridge + indicators)
-            logger.info("M1 weak %s: |%.4f| < 0.10%% but >2min elapsed, proceeding", cid[:8], _m1)
+            logger.info("M1 weak %s: |%.4f| < %.4f but >2min, proceeding",
+                        cid[:8], _m1, _m1_thresh)
         else:
-            logger.info("M1 confirmed %s: %+.4f (%.2f%%)", cid[:8], _m1, _m1 * 100)
+            logger.info("M1 confirmed %s: %+.4f (%.2f%%, thresh=%.4f)",
+                        cid[:8], _m1, _m1 * 100, _m1_thresh)
 
-        _coin_price = _price(_sym)
+        # ── Cross-exchange price validation (防 flash crash / anomaly) ──
+        _xprice, _xdiv = _cross_exchange_price(_sym)
+        _coin_price = _xprice if _xprice > 0 else _price(_sym)
+        if _xdiv > 0.003:  # >0.3% divergence across exchanges → anomaly
+            logger.warning("SKIP %s: cross-exchange divergence %.2f%% (anomaly)",
+                           cid[:8], _xdiv * 100)
+            continue  # keep in watchlist, re-check next cycle
+
         _coin_open = _open_at(wl["start_ms"], _sym) or _coin_price
         _coin_vol = _vol_1m(_sym)
         mins_left = max(1, (wl["end_ms"] - now_ms) / 60_000)
