@@ -35,11 +35,10 @@ NAV_ITEMS = [
 
 
 def _exchange_badge(name: str, container):
-    """Render exchange badge — green dot + name + connect/disconnect button."""
+    """Render exchange badge — dot + name. Simple, no inline button."""
     exchanges = state.get_exchanges()
     info = exchanges.get(name, {})
     status = info.get('status', 'disconnected')
-    is_connected = status == 'connected'
     colors = {'connected': GREEN, 'disconnected': TEXT_MUTED, 'error': RED}
     color = colors.get(status, TEXT_MUTED)
 
@@ -47,15 +46,6 @@ def _exchange_badge(name: str, container):
         with ui.row().classes('items-center gap-1'):
             ui.icon('circle').classes('text-[6px]').style(f'color: {color}')
             ui.label(name.upper()).classes(f'text-[11px] font-mono text-[{TEXT_SECONDARY}]')
-            if not is_connected:
-                async def connect(n=name):
-                    from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, EXCHANGES
-                    exch = next((e for e in EXCHANGES if e['name'] == n), None)
-                    if exch:
-                        await _show_connect_dialog(exch)
-                ui.button(icon='link', on_click=connect) \
-                    .props('flat round dense size=xs color=blue-4') \
-                    .tooltip(f'Connect {name.upper()}')
 
 
 def _service_row(label: str, display_name: str, services_container):
@@ -116,7 +106,7 @@ def create_layout(active_path: str = '/'):
                 .on('click', lambda: ui.navigate.to('/'))
             ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
-        # Exchange badges (clickable — opens connect dialog)
+        # Exchange badges + connect button
         exchange_badges = ui.row().classes('items-center gap-4')
         for exch_name in ['aster', 'binance', 'hl']:
             _exchange_badge(exch_name, exchange_badges)
@@ -150,8 +140,11 @@ def create_layout(active_path: str = '/'):
                 ui.button('Close', on_click=dlg.close).props('flat color=grey').classes('mt-2')
             dlg.open()
 
-        ui.button(icon='settings', on_click=show_exchange_dialog) \
-            .props('flat round color=white size=xs').tooltip('Exchange Connections')
+        # "Connect Wallet" button — right next to status dots
+        ui.button('Connect', on_click=show_exchange_dialog) \
+            .props('flat dense no-caps size=sm color=blue-4') \
+            .classes('text-[11px]')
+
         ui.button(icon='brightness_6', on_click=dark.toggle) \
             .props('flat round color=white size=xs')
 
