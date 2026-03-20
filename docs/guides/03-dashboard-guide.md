@@ -1,133 +1,210 @@
 <!--
-title: 儀表板 + 縮寫對照
+title: Dashboard Guide (NiceGUI v3)
 section: 快速入門
 order: 3
 audience: human,claude,github
 -->
 
-# 儀表板 + 縮寫對照
+# AXC Dashboard — NiceGUI Edition
 
-打開 `http://localhost:5566` 可以見到儀表板。
+> Pure Python UI, no HTML/JS to maintain. Port **5567**.
 
-## 頁面一覽
+## Quick Start
 
-| 路徑 | 頁面 | 功能 |
-|------|------|------|
-| `/` | 主控台 | 持倉、盈虧、行動部署、系統活動 |
-| `/backtest` | 回測 | K 線圖 + 回測模擬 + Order Flow + Live WS |
-| `/details` | 系統說明 | 你而家睇緊嘅文件（全部指南） |
-| `/share` | 分享 | macOS / Windows 安裝同步指南 |
+```bash
+cd ~/projects/axc-trading
+python3 scripts/dashboard_ng/main.py
+# → http://127.0.0.1:5567
+```
 
-## 主控台區域
+### Remote Access (LAN)
 
-| 區域 | 顯示咩 |
-|------|--------|
-| 行動部署 | 每隻幣嘅觸發狀態 + SL/TP 預覽 |
-| 累積盈虧 | 今日 + 總計盈虧曲線 |
-| 持倉明細 | 當前持倉 11 欄完整信息（入場價、SL、TP、PnL 等） |
-| 交易記錄 | 每筆交易入場價、出場價、盈虧（來自交易所真實數據） |
-| 系統活動 | 心跳、模式切換、入場出場事件 |
-| 掃描記錄 | 掃描器最近信號同結果 |
+```python
+# In main.py, change:
+ui.run(host='0.0.0.0', port=5567, ...)
+```
 
-## 行動部署狀態燈
+Then open `http://<your-mac-ip>:5567` from any device on the same WiFi.
 
-| 狀態 | 意思 |
-|------|------|
-| 🟢 Ready | 波動已超過觸發門檻，可入場 |
-| 🟡 Near | 接近觸發門檻（70% 以上） |
-| ⚫ Far | 波動唔夠，等候中 |
+### Remote Access (Internet)
 
-## 縮寫對照（完整版）
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://127.0.0.1:5567
+# → gives you a public https URL
+```
 
-### 價格 + 交易
+---
 
-| 縮寫 | 全名 | 意思 | 例子 |
-|------|------|------|------|
-| SL | Stop Loss | 止蝕位 — 輸到呢個價自動出場 | BTC SL $94,000 = 跌到 94K 就走 |
-| TP | Take Profit | 止賺位 — 賺到呢個價自動出場 | BTC TP $100,000 = 升到 100K 就走 |
-| S | Support | 支撐位 — 價格容易反彈嘅底部 | |
-| R | Resistance | 阻力位 — 價格容易回落嘅頂部 | |
-| PnL | Profit and Loss | 盈虧 | +$50 = 賺 50 |
-| R:R | Risk-to-Reward | 風險回報比 | 2.3:1 = 潛在回報 2.3 倍於風險 |
-| RR | 同 R:R | | |
-| LONG | 做多 / 看升 | 低買高賣 | |
-| SHORT | 做空 / 看跌 | 高賣低買 | |
+## Pages
 
-### 技術指標
+| Path | Page | Description |
+|------|------|-------------|
+| `/` | Dashboard | KPIs, positions, action plan, charts, news, trades |
+| `/backtest` | Backtest Studio | KLineChart with 12 custom indicators, live WS |
+| `/polymarket` | Polymarket | Live wallet, positions, orders, strategy config |
+| `/paper` | Paper Trading | Start/stop dry-run, trade log |
+| `/docs` | Documentation | Markdown docs browser |
 
-| 縮寫 | 全名 | 意思 | 用喺邊 |
-|------|------|------|--------|
-| ATR | Average True Range | 平均波幅 — 用嚟計 SL/TP 距離 | 倉位大小 |
-| BB | Bollinger Bands | 布林帶 — 價格通道 | Range 策略入場 |
-| RSI | Relative Strength Index | 相對強弱 — 超買/超賣 | 模式偵測 + 出場 |
-| MACD | Moving Average Convergence Divergence | 移動平均收斂發散 — 動能方向 | 模式偵測 + Trend 入場 |
-| EMA | Exponential Moving Average | 指數移動平均 — 趨勢方向 | Trend 策略 |
-| ADX | Average Directional Index | 方向指數 — 趨勢強度 | Range 入場門檻 |
-| Stoch | Stochastic Oscillator | 隨機指標 — 超買/超賣 | Range 加分 |
-| OBV | On-Balance Volume | 平衡成交量 — 資金流向 | Yunis 加分/扣分 |
-| MA | Moving Average | 移動平均線 | |
+---
 
-### 市場數據
+## Dashboard (/) Features
 
-| 縮寫 | 全名 | 意思 |
-|------|------|------|
-| CHG | 24h Change % | 過去 24 小時價格變化 |
-| VOL | Volume | 成交量 |
-| FR | Funding Rate | 資金費率 — 多空持倉成本 |
-| OI | Open Interest | 未平倉合約總量 |
-| USDT | Tether | 美元穩定幣（所有幣種嘅報價貨幣） |
+### Header
+- **Hamburger menu** (☰) — toggle sidebar
+- **Exchange badges** — Aster / Binance / HL connection status
+- **Connect button** — open exchange connect/disconnect dialog
+- **Notification bell** (🔔) — 24h alert history (amber = unread)
+- **Dark mode toggle**
 
-### 系統狀態
+### KPI Row
+- Today PnL, Total PnL (glow: green=profit, red=loss)
+- Triggers count, Open positions count
 
-| 縮寫 | 全名 | 意思 |
-|------|------|------|
-| CB | Circuit Breaker | 熔斷器 — 虧損超標自動停機 |
-| CD | Cooldown | 冷卻期 — 連虧後暫停 |
-| DD | Drawdown | 回撤 — 從最高點到現價嘅跌幅 |
-| WR | Win Rate | 勝率 |
-| PF | Profit Factor | 盈虧比 — 總盈利 ÷ 總虧損 |
+### Risk Boxes
+- Market mode (TREND/RANGE/SIDEWAYS) + regime engine
+- Consecutive losses / daily loss progress bars
+- Drawdown % + peak value
 
-### 策略模式
+### Controls
+- **Profile**: CONSERVATIVE / BALANCED / AGGRESSIVE
+- **Regime**: classic / classic_cp / bocpd / full
+- **Trading**: Enabled/Disabled switch
 
-| 縮寫 | 意思 |
-|------|------|
-| RANGE | 橫行模式 — BB 觸碰 + RSI 反轉入場 |
-| TREND | 趨勢模式 — EMA 排列 + 回調入場 |
-| UNKNOWN | 未確定 — 保持上一個模式 |
+### Positions
+- Open positions with entry/mark/SL/TP/PnL/hold score
+- **Close** button — market close
+- **Modify** button — change SL/TP
+- Pending orders with **Cancel** button
 
-### 交易所
+### Action Plan
+- Per-symbol: price, 24h/4h/1h change, threshold, distance, SL/TP, ATR
+- **Click row → opens trade modal** (5-step execution)
+- **OB buttons** — order book depth for each symbol
 
-| 縮寫 | 全名 |
-|------|------|
-| Aster | Aster DEX（去中心化交易所）— XAG/XAU |
-| HL | HyperLiquid |
-| Binance | Binance Futures — BTC/ETH/SOL/BNB/XRP/POL |
+### Charts & Analytics
+- PnL history (ECharts, time filter 1H/4H/1D/7D/ALL)
+- Fees breakdown, trade stats, funding rates
+- News sentiment (scrollable: per-symbol, narratives, risk events)
+- Scan log, trade history, activity log
 
-## 回測頁面速查
+### System
+- Exchange connect/disconnect (Aster/Binance/HL)
+- System health + mode suggestion
+- 6 Mermaid workflow diagrams
+- AI chat (floating button)
 
-回測頁面（`/backtest`）功能摘要：
+### Keyboard Shortcuts
+- **R** — force refresh (page reload)
 
-| 功能 | 說明 |
-|------|------|
-| 執行回測 | 用歷史數據模擬 AXC 策略，30-60 秒出結果 |
-| K 線圖 | 蠟燭圖 + 入場/出場 markers + 連接線 |
-| 指標 Overlay | BB、EMA、MA、RSI、MACD、Stoch（只喺 1H 顯示） |
-| Order Flow | Whale 大額成交、Delta Volume、VP 成交分佈（藍=買/黃=賣）、FP 熱力圖（所有 interval 可用，Aster 幣種除外） |
-| Live | 即時 K 線（Binance WebSocket，<1s 延遲） |
-| Live Pos | 即時持倉線（入場/SL/TP，需要 API key） |
-| A/B 對比 | 兩組參數結果並排比較 |
-| 匯入/匯出 | JSON 格式報告，支持外部策略結果 |
-| 畫圖工具 | 水平線、趨勢線、矩形（zone）、箭頭、Fibonacci |
+---
 
-詳見 → **回測頁面完整指南**（sidebar 搵「回測」）
+## Backtest (/backtest)
 
-## 鍵盤快捷鍵
+Full KLineChart v9 studio embedded via iframe:
+- Candlestick chart with BB, EMA, MA, VWAP overlays
+- RSI, MACD, Stoch oscillators
+- Volume Profile, Footprint, CVD, Delta (custom indicators)
+- Live Binance WebSocket feed
+- Drawing tools (H-line, trend, rect, fib, arrow)
+- Backtest engine: Classic Range+Trend / NFS+FVZ
+- A/B compare, Monte Carlo, shootout
+- Sidebar auto-collapsed for maximum chart space
 
-| 按鍵 | 功能 | 頁面 |
-|------|------|------|
-| `Cmd+Enter` | 執行回測 | 回測 |
-| `[` / `]` | 上/下一筆交易 | 回測 |
-| `F` | 展開/縮小圖表 | 回測 |
-| `P` | 開/關參數面板 | 回測 |
-| `I` | 開/關指標列 | 回測 |
-| `/` | 搜尋指南 | 系統說明 |
+---
+
+## Polymarket (/polymarket)
+
+### KPIs
+- USDC Balance (live CLOB query, 20s refresh)
+- Total PnL + Win Rate (from mm_trades.jsonl)
+- Positions, Exposure %, Last Updated
+
+### Controls
+- **Run Cycle** — trigger 17-step pipeline (polls for result)
+- **Force Scan** — Gamma API scan
+- **Mode Toggle** — DRY RUN / LIVE (confirm dialog for live)
+- **Check Merge** — detect mergeable positions
+
+### Strategy Config
+23 sliders + 3 toggles — writes directly to `polymarket/config/params.py`:
+- Scan interval, max markets, AI temperature
+- Edge thresholds (general, 15M, CVD, micro)
+- Kelly fraction, min/max bet
+- Risk limits, GTO thresholds
+- Signal toggles (CVD, Microstructure, Hedge)
+
+### Live Wallet Monitor
+Direct CLOB API query (via miniforge subprocess):
+- Real-time USDC balance
+- Open orders list
+- Total trades count
+
+### Running Processes
+- PID, start time, uptime for all polymarket processes
+- Terminal commands for log viewing
+
+### Pipeline Status
+- Running/idle state, last run time, duration, errors
+
+### Command Log
+- Timestamped audit trail of all button actions
+
+---
+
+## Architecture
+
+```
+scripts/dashboard_ng/          (27 files, ~3500 lines Python)
+├── main.py                    Entry point (port 5567)
+├── layout.py                  Header + sidebar + footer
+├── theme.py                   Design system (IBKR dark)
+├── state.py                   Background data collector
+├── pages/
+│   ├── backtest.py            iframe → KLineChart HTML
+│   ├── polymarket.py          Full polymarket controls
+│   ├── paper.py               Paper trading
+│   └── docs.py                Docs browser
+├── components/
+│   ├── stats_cards.py         KPI stat cards
+│   ├── risk_boxes.py          Risk status
+│   ├── controls.py            Profile/regime/trading
+│   ├── positions.py           Position management
+│   ├── action_plan.py         Action plan + trade modal trigger
+│   ├── trade_modal.py         Order entry (5-step)
+│   ├── orderbook.py           Order book display
+│   ├── pnl_chart.py           PnL ECharts
+│   ├── analytics.py           Fees, stats, funding, news, trades
+│   ├── chat.py                AI chat panel
+│   ├── notifications.py       Bell + 24h alert history
+│   ├── exchange_connect.py    Exchange auth
+│   ├── health.py              System health + suggest mode
+│   ├── poly_config.py         Polymarket strategy sliders
+│   └── diagrams.py            6 Mermaid workflow diagrams
+└── utils/
+    ├── backtest_api.py        FastAPI proxy for backtest endpoints
+    └── poly_live.py           Miniforge subprocess bridge
+```
+
+### Key Design Decisions
+
+| Decision | Why |
+|---|---|
+| NiceGUI (not Dash/Streamlit) | Event-driven, WebSocket-native, zero build pipeline |
+| ECharts for dashboard charts | Built-in, candlestick native |
+| KLineChart for backtest (iframe) | 12 custom indicators, Web Workers — can't replicate in Python |
+| `dialog.move()` + `await dialog` | Prevents parent slot deletion from timer refresh |
+| Subprocess bridge for Polymarket | py_clob_client only in miniforge, NiceGUI in homebrew |
+| `run.io_bound()` everywhere | All exchange/file calls are blocking — must not freeze asyncio |
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Backtest page empty | Clear browser cache: `Cmd+Shift+R`, or DevTools → Disable cache |
+| Trade dialog disappears | Fixed — uses `dialog.move()` + `await dialog` |
+| Polymarket balance stale | Check if `poly_live.py` subprocess works: look for errors in `logs/dashboard_ng.log` |
+| Server won't start | Check port: `lsof -ti :5567` — kill existing process |
+| "parent slot deleted" error | All dialogs should use `dialog.move()` pattern |

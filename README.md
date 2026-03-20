@@ -5,7 +5,7 @@
     佢住喺你部電腦入面，幫你睇住市場、計好風險、有機會就提你。<br />
     你嘅密碼同錢永遠都只喺你部機。
     <br /><br />
-    <code>v2.5</code> · 2026-03
+    <code>v3.0</code> · 2026-03
     <br /><br />
     <a href="#-快速開始"><strong>快速開始 »</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -42,12 +42,12 @@ mindmap
       /order 落單
       /ask AI 分析
       自然語言
-    📊 Dashboard
-      即時監控
-      風控面板
+    📊 Dashboard (NiceGUI)
+      Pure Python UI
+      Live Trading Controls
+      Backtest Studio
+      Polymarket Terminal
       Paper Trading
-      Regime 切換
-      Service 管理
     ⚡ Trader Cycle
       Range 策略
       Trend 策略
@@ -195,6 +195,53 @@ python scripts\tg_bot.py
 ```
 
 去 Telegram 同你嘅 Bot 講 **`/start`** 🎉
+
+---
+
+## 📊 Dashboard (NiceGUI v3)
+
+> v3.0 新增：Pure Python UI，取代舊 HTML dashboard。直接控制交易，冇中間 API 層。
+
+### 啟動
+
+```bash
+cd ~/projects/axc-trading
+python3 scripts/dashboard_ng/main.py
+# → http://127.0.0.1:5567
+```
+
+### 功能
+
+| 頁面 | 功能 |
+|------|------|
+| **主控台** `/` | KPI stats、持倉管理、落單、行動部署、PnL 圖表、新聞、風控 |
+| **回測** `/backtest` | KLineChart + 12 自定指標 + Live WebSocket + Drawing |
+| **Polymarket** `/polymarket` | Live wallet、策略參數 sliders、pipeline 控制、PID 監控 |
+| **Paper Trading** `/paper` | Dry-run 啟動/停止 + 交易記錄 |
+| **文件** `/docs` | Markdown 文件瀏覽器 |
+
+### 主要操作
+
+- **Click 行動部署表嘅 row** → 落單（5 步：margin mode → leverage → entry → SL → TP）
+- **OB 按鈕** → 訂單簿深度
+- **Profile / Regime / Trading** → 直接切換
+- **Exchange Connect** → 連接/斷開交易所
+- **Notification Bell** → 24 小時告警歷史
+- **R 鍵** → 強制刷新
+
+### 遠端存取
+
+```bash
+# 同一 WiFi
+# main.py: ui.run(host='0.0.0.0', ...)
+# 然後開 http://<Mac IP>:5567
+
+# 任何地方
+brew install cloudflared
+cloudflared tunnel --url http://127.0.0.1:5567
+```
+
+> 完整指南：[`docs/guides/03-dashboard-guide.md`](docs/guides/03-dashboard-guide.md)
 
 ---
 
