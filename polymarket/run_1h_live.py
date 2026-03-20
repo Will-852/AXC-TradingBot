@@ -57,6 +57,20 @@ _BINANCE = "https://api.binance.com/api/v3"
 _CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
 _HEAVY_INTERVAL_S = 60  # heavy ops every 60s
 _SCAN_INTERVAL_S = 300   # discovery every 5 min
+_TOTAL_LOSS_FUSE_PCT = 0.22  # 22% of initial bankroll → permanent stop live
+
+# Load TG credentials from .env for alerts
+_ENV_PATH = os.path.join(_AXC, "secrets", ".env")
+_TG_NEWS_TOKEN = ""
+_TG_CHAT_ID = ""
+if os.path.exists(_ENV_PATH):
+    with open(_ENV_PATH) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line.startswith("TELEGRAM_NEWS_BOT_TOKEN="):
+                _TG_NEWS_TOKEN = _line.split("=", 1)[1]
+            elif _line.startswith("TELEGRAM_CHAT_ID="):
+                _TG_CHAT_ID = _line.split("=", 1)[1]
 _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0}
 
 # Slug construction for 1H markets
@@ -488,6 +502,21 @@ def _log_order(event: str, order_id: str, cid: str, **kwargs):
         pass
 
 
+def _tg_alert(msg: str):
+    """Send alert via @AXCnews_bot Telegram."""
+    if not _TG_NEWS_TOKEN or not _TG_CHAT_ID:
+        logger.warning("TG alert skipped: no credentials")
+        return
+    try:
+        data = json.dumps({"chat_id": _TG_CHAT_ID, "text": msg, "parse_mode": "HTML"}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{_TG_NEWS_TOKEN}/sendMessage",
+            data=data, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        logger.error("TG alert failed: %s", e)
+
+
 # ═══════════════════════════════════════
 #  Main Cycle
 # ═══════════════════════════════════════
@@ -786,11 +815,18 @@ def main():
     elif dry_run:
         state.setdefault("bankroll", 138.0)
 
+    # Record initial bankroll for 22% total loss fuse (set once, never changes)
+    if not dry_run and "initial_bankroll" not in state:
+        state["initial_bankroll"] = state["bankroll"]
+        logger.info("Initial bankroll recorded: $%.2f (22%% fuse = $%.2f)",
+                     state["initial_bankroll"], state["initial_bankroll"] * _TOTAL_LOSS_FUSE_PCT)
+
     os.makedirs(_LOG_DIR, exist_ok=True)
 
     last_scan, last_heavy = 0.0, 0.0
     cached_markets: list = []
     cached_vol = 0.00077
+    fuse_blown = False  # 22% total loss → switch to dry-run
 
     mode_str = "DRY-RUN" if dry_run else "LIVE"
     print(f"\n  1H CONVICTION BOT — {mode_str}")
@@ -812,6 +848,35 @@ def main():
                     state, gamma, client, config, dry_run,
                     last_scan, last_heavy, cached_markets, cached_vol)
                 _save(state)
+
+                # ── 22% total loss fuse: live → dry-run + TG alert ──
+                init_br = state.get("initial_bankroll", 0)
+                if not fuse_blown and not dry_run and init_br > 0:
+                    total_pnl = state.get("total_pnl", 0)
+                    if total_pnl < -(init_br * _TOTAL_LOSS_FUSE_PCT):
+                        fuse_blown = True
+                        dry_run = True
+                        # Replace live client with mock for data collection
+                        class _MockPost:
+                            def buy_shares(self, tid, amt, price=0):
+                                logger.info("FUSE DRY BUY %s $%.2f @ $%.3f", tid[:10], amt, price)
+                                return {"dry_run": True}
+                            def get_usdc_balance(self):
+                                return state.get("bankroll", 0)
+                            def get_orders(self, **kw):
+                                return []
+                            def get_trades(self, **kw):
+                                return []
+                        client = _MockPost()
+                        loss_pct = abs(total_pnl) / init_br * 100
+                        msg = (f"<b>🔴 1H BOT FUSE BLOWN</b>\n"
+                               f"Total loss: ${total_pnl:.2f} ({loss_pct:.1f}% of ${init_br:.0f})\n"
+                               f"Threshold: {_TOTAL_LOSS_FUSE_PCT*100:.0f}%\n"
+                               f"<b>Switched to DRY-RUN.</b> Say OK to resume live.")
+                        logger.warning("FUSE BLOWN: total_pnl=$%.2f (%.1f%% of $%.0f) → DRY-RUN",
+                                       total_pnl, loss_pct, init_br)
+                        _tg_alert(msg)
+
             except Exception as e:
                 logger.error("Cycle error: %s", e, exc_info=True)
             time.sleep(_CYCLE_S)
