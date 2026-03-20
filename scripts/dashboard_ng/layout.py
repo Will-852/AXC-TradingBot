@@ -99,6 +99,7 @@ def create_layout(active_path: str = '/'):
 
     # ── Header (48px) ──
     with ui.header().classes(f'items-center justify-between px-3 py-0 h-[48px] {HEADER_CLS}'):
+        # Left: logo
         with ui.row().classes('items-center gap-2'):
             ui.button(icon='menu', on_click=drawer.toggle) \
                 .props('flat round color=white size=sm')
@@ -106,10 +107,18 @@ def create_layout(active_path: str = '/'):
                 .on('click', lambda: ui.navigate.to('/'))
             ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
-        # Exchange badges + connect button
-        exchange_badges = ui.row().classes('items-center gap-4')
-        for exch_name in ['aster', 'binance', 'hl']:
-            _exchange_badge(exch_name, exchange_badges)
+        # Right: badges + connect + dark toggle (all in one row)
+        with ui.row().classes('items-center gap-3'):
+            # Exchange badges inline
+            for exch_name in ['aster', 'binance', 'hl']:
+                exchanges = state.get_exchanges()
+                info = exchanges.get(exch_name, {})
+                status = info.get('status', 'disconnected')
+                colors = {'connected': GREEN, 'disconnected': TEXT_MUTED, 'error': RED}
+                color = colors.get(status, TEXT_MUTED)
+                with ui.row().classes('items-center gap-1'):
+                    ui.icon('circle').classes('text-[6px]').style(f'color: {color}')
+                    ui.label(exch_name.upper()).classes(f'text-[11px] font-mono text-[{TEXT_SECONDARY}]')
 
         async def show_exchange_dialog():
             from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, _disconnect, EXCHANGES
