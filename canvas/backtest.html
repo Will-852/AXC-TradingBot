@@ -67,11 +67,11 @@
     }
     .btn-sidebar-toggle:hover { background: #2a2e39; color: #d1d4dc; }
 
-    /* ── Main Grid ── */
+    /* ── Main Grid (Left panel + Chart) ── */
     .main-grid {
       display: grid;
-      grid-template-columns: 1fr 4px var(--rp-width, 240px);
-      grid-template-rows: auto 1fr;
+      grid-template-columns: var(--rp-width, 240px) 4px 1fr;
+      grid-template-rows: auto auto 1fr;
       gap: 0;
       padding: 0;
       height: calc(100vh - 30px);
@@ -81,14 +81,16 @@
     .resize-handle {
       width: 4px; cursor: col-resize; background: transparent;
       transition: background .15s; position: relative; z-index: 10;
-      grid-row: 2;
+      grid-row: 3;
+      grid-column: 2;
       margin: 0;
     }
     .resize-handle:hover, .resize-handle.dragging { background: #2962ff; }
 
-    /* ── Control Bar (TradingView-style horizontal) ── */
+    /* ── Control Bar (full-width top bar) ── */
     .control-bar {
       grid-column: 1 / -1;
+      grid-row: 1;
       background: var(--card);
       border-bottom: 1px solid var(--border);
       border-radius: 0;
@@ -161,33 +163,37 @@
     .status-running { background: rgba(245,158,11,.15); color: #f59e0b; }
     .status-error   { background: rgba(239,83,80,.15); color: #ef5350; }
 
-    /* ── Chart Panel ── */
+    /* ── Chart Panel (right side, 75% of space) ── */
     .chart-panel {
       background: #131722;
       border-radius: 0;
       border: none;
-      border-right: 1px solid #2a2e39;
+      border-left: 1px solid #2a2e39;
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      grid-column: 3;
+      grid-row: 3;
     }
     #chart-container { flex: 1; min-height: 0; }
 
-    /* ── Right Panel ── */
+    /* ── Left Panel (stats, trades, results — 25%) ── */
     .right-panel {
       display: flex;
       flex-direction: column;
       gap: 0;
-      width: var(--rp-width, 300px);
+      width: var(--rp-width, 240px);
       min-width: 0;
-      max-width: 520px;
+      max-width: 400px;
       overflow-y: auto;
       overflow-x: hidden;
       scrollbar-width: thin;
       scrollbar-color: #363a45 transparent;
-      grid-column: 3;
+      grid-column: 1;
+      grid-row: 3;
       background: var(--bg-2);
       transition: width .2s;
+      border-right: 1px solid var(--border);
     }
     .right-panel.collapsed { width: 0 !important; min-width: 0; overflow: hidden; }
     .resize-handle.collapsed { display: none; }
@@ -319,6 +325,7 @@
     /* ── Param Panel ── */
     .param-panel {
       grid-column: 1 / -1;
+      grid-row: 2;
       background: #1e222d;
       border-bottom: 1px solid #2a2e39;
       border-radius: 0;
@@ -775,7 +782,7 @@
   <span style="width:1px;height:14px;background:#363a45;display:inline-block;vertical-align:middle"></span>
   <span style="color:#f1f5f9;font-weight:600">回測</span>
   <div class="tb-right">
-    <button class="btn-sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="顯示/隱藏右側面板">&#x25B6;</button>
+    <button class="btn-sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="顯示/隱藏面板">&#x25C0;</button>
   </div>
 </div>
 
@@ -5035,19 +5042,19 @@ document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); }
       if (handle) handle.style.transition = 'none';
     }
     if (open) {
-      var w = parseInt(localStorage.getItem(W_KEY)) || 300;
+      var w = parseInt(localStorage.getItem(W_KEY)) || 240;
       document.documentElement.style.setProperty('--rp-width', w + 'px');
       panel.classList.remove('collapsed');
       if (handle) handle.classList.remove('collapsed');
-      grid.style.gridTemplateColumns = '1fr 6px var(--rp-width, 300px)';
-      btn.innerHTML = '&#x25B6;';
-      btn.title = '隱藏右側面板';
+      grid.style.gridTemplateColumns = 'var(--rp-width, 240px) 4px 1fr';
+      btn.innerHTML = '&#x25C0;';
+      btn.title = '隱藏面板';
     } else {
-      grid.style.gridTemplateColumns = '1fr';
+      grid.style.gridTemplateColumns = '0px 0px 1fr';
       panel.classList.add('collapsed');
       if (handle) handle.classList.add('collapsed');
-      btn.innerHTML = '&#x25C0;';
-      btn.title = '顯示右側面板';
+      btn.innerHTML = '&#x25B6;';
+      btn.title = '顯示面板';
     }
     localStorage.setItem(OPEN_KEY, open ? '1' : '0');
     requestAnimationFrame(function() {
@@ -5083,7 +5090,7 @@ document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); }
   handle.addEventListener('mousedown', function(e) {
     dragging = true;
     startX = e.clientX;
-    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rp-width')) || 300;
+    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rp-width')) || 240;
     handle.classList.add('dragging');
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -5092,8 +5099,8 @@ document.addEventListener('DOMContentLoaded', function() { loadShootoutList(); }
 
   document.addEventListener('mousemove', function(e) {
     if (!dragging) return;
-    var delta = startX - e.clientX; // dragging left = wider sidebar
-    var newW = Math.min(520, Math.max(220, startW + delta));
+    var delta = e.clientX - startX; // dragging right = wider left panel
+    var newW = Math.min(400, Math.max(180, startW + delta));
     document.documentElement.style.setProperty('--rp-width', newW + 'px');
     if (mainChart) mainChart.resize();
     if (equityChart) equityChart.resize();
