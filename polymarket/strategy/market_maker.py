@@ -67,6 +67,11 @@ class MMConfig:
     max_consecutive_losses: int = 5
     cooldown_hours: int = 24
 
+    # Dynamic pricing caps
+    max_hedge_bid: float = 0.475    # hedge: both sides, combined < $1
+    max_directional_bid: float = 0.40  # directional: lower = better win/loss ratio (1.5x)
+    min_bid: float = 0.25           # floor — below this, market strongly disagrees
+
     # Phased entry: split budget across multiple orders over time
     # Tranche count adapts to bankroll (more money = more splits)
     max_tranches: int = 4        # max splits per market
@@ -230,13 +235,21 @@ def plan_opening(market: PolyMarket, fair_up: float,
         full_budget = 5.0
     total_cost = full_budget / max(1, total_tranches)
 
-    # Bid pricing: min($0.475, fair - spread)
-    # $0.475 = max bid (guaranteed maker)
-    # $0.35 = min bid floor (below this, market says we're wrong)
-    MAX_BID = 0.475
-    MIN_BID = 0.35   # if fair - spread < this, market disagrees with our direction
-    up_bid = round(min(MAX_BID, max(MIN_BID, fair_up - config.half_spread)), 2)
-    dn_bid = round(min(MAX_BID, max(MIN_BID, fair_down - config.half_spread)), 2)
+    # Bid pricing: separate caps for hedge vs directional
+    # Hedge: $0.475 cap (both sides, combined < $1 = guaranteed profit)
+    # Directional: $0.40 cap (lower entry = better win/loss ratio 1.5x vs 1.1x)
+    HEDGE_MAX = config.max_hedge_bid       # 0.475
+    DIR_MAX = config.max_directional_bid   # 0.40
+    MIN_BID = config.min_bid               # 0.25
+    # Hedge pricing (used for Layer 1)
+    up_bid_hedge = round(min(HEDGE_MAX, max(MIN_BID, fair_up - config.half_spread)), 2)
+    dn_bid_hedge = round(min(HEDGE_MAX, max(MIN_BID, fair_down - config.half_spread)), 2)
+    # Directional pricing (used for Layer 2) — lower cap = better EV
+    up_bid_dir = round(min(DIR_MAX, max(MIN_BID, fair_up - config.half_spread)), 2)
+    dn_bid_dir = round(min(DIR_MAX, max(MIN_BID, fair_down - config.half_spread)), 2)
+    # For hedge calculations, use hedge bids
+    up_bid = up_bid_hedge
+    dn_bid = dn_bid_hedge
     combined = up_bid + dn_bid  # always <= $0.95
 
     # Sanity: if our directional side bid = MIN_BID, market strongly disagrees
@@ -256,7 +269,7 @@ def plan_opening(market: PolyMarket, fair_up: float,
         dir_side = "DOWN"
         dir_token = market.no_token_id
         hedge_token = market.yes_token_id
-    dir_bid = up_bid if dir_side == "UP" else dn_bid
+    dir_bid = up_bid_dir if dir_side == "UP" else dn_bid_dir
 
     # Zone classification — adjusted by risk mode
     # NORMAL: standard allocation

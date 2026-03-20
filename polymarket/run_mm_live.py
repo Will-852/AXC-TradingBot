@@ -189,6 +189,34 @@ def _vol_1m(symbol: str = "BTCUSDT") -> float:
         return _cache.get(key, (0.001, 0))[0]
 
 
+def _m1_return(symbol: str = "BTCUSDT") -> float:
+    """Last 1-minute return (log). Reuses _vol_1m cache if fresh, else fetches 2 candles.
+    Returns 0.0 if unavailable. Positive = price went up."""
+    # Try vol cache first — it has 60 closes, last ret = M1
+    vol_key = f"vol_{symbol}"
+    if vol_key in _cache and time.time() - _cache[vol_key][1] < 60:
+        # Vol was computed recently — fetch fresh M1 from 2 candles (cheap)
+        pass
+    if not _rate_ok("binance"):
+        return 0.0
+    url = f"{_BINANCE_SPOT}/api/v3/klines?symbol={symbol}&interval=1m&limit=2"
+    try:
+        with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"}),
+                timeout=5) as r:
+            candles = json.loads(r.read())
+        _track_call("binance")
+        if len(candles) < 2:
+            return 0.0
+        c_prev = float(candles[0][4])  # previous 1m close
+        c_now = float(candles[1][4])   # current 1m close
+        if c_prev <= 0:
+            return 0.0
+        return math.log(c_now / c_prev)
+    except Exception:
+        return 0.0
+
+
 def _poly_midpoint(client, token_id: str) -> float:
     """Polymarket midpoint for a token. Cached 5s."""
     key = f"mid_{token_id[:16]}"
@@ -775,9 +803,33 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
             continue
 
+        # ── M1 Wait Gate: don't enter until 60s after window start ──
+        _elapsed_ms = now_ms - wl["start_ms"]
+        if _elapsed_ms < 60_000:
+            continue  # stay in watchlist, check next cycle
+
+        # ── Late Gate: don't enter with < 4 min remaining ──
+        # Last 4 min: reversal risk high + can't sell after min 13
+        if now_ms > wl["end_ms"] - 240_000:
+            logger.info("SKIP %s: < 4 min remaining, too late", cid[:8])
+            del state["watchlist"][cid]
+            continue
+
         # Enter — detect coin from title
         _title_lower = wl["title"].lower()
         _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
+
+        # ── M1 Momentum Filter ──
+        _m1 = _m1_return(_sym)
+        if abs(_m1) < 0.001:  # |M1 ret| < 0.10% → direction not confirmed
+            if _elapsed_ms < 120_000:  # still early, wait more
+                logger.debug("M1 wait %s: |%.4f| < 0.10%%, direction unclear", cid[:8], _m1)
+                continue  # keep in watchlist
+            # Past 2 min and still no M1 signal — enter anyway (bridge + indicators)
+            logger.info("M1 weak %s: |%.4f| < 0.10%% but >2min elapsed, proceeding", cid[:8], _m1)
+        else:
+            logger.info("M1 confirmed %s: %+.4f (%.2f%%)", cid[:8], _m1, _m1 * 100)
+
         _coin_price = _price(_sym)
         _coin_open = _open_at(wl["start_ms"], _sym) or _coin_price
         _coin_vol = _vol_1m(_sym)
@@ -838,11 +890,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             fair = bridge_p_up + ob_adjustment
         fair = max(0.05, min(0.95, fair))
 
-        # Time cutoff: don't enter with < 5 min remaining (not enough time)
-        if now_ms > wl["end_ms"] - 300_000:
-            logger.info("SKIP %s: < 5 min remaining, too late to enter", cid[:8])
-            del state["watchlist"][cid]
-            continue
+        # M1 vs fair direction conflict
+        _fair_up = fair > 0.50
+        _m1_up = _m1 > 0
+        if abs(_m1) >= 0.001 and _fair_up != _m1_up:
+            logger.info("SKIP %s: M1/fair CONFLICT (M1=%+.4f %s, fair=%.3f %s)",
+                        cid[:8], _m1, "UP" if _m1_up else "DN",
+                        fair, "UP" if _fair_up else "DN")
+            continue  # keep in watchlist
 
         # Market midpoint sanity: if Polymarket mid for our side < $0.35,
         # market strongly disagrees with our direction → skip
@@ -1093,6 +1148,72 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # Check fills (submitted → actually filled?)
     if not dry_run:
         _check_fills(state, client)
+
+    # ── Early Exit: context-aware (time + direction matters) ──
+    # LOSING → always sell (cut losses)
+    # WINNING + early window (min 2-7) → sell (direction could reverse)
+    # WINNING + late window (min 7+) → HOLD (trend accelerates toward $1)
+    _EXIT_STOP_PCT = 0.25          # -25% → sell (止蝕)
+    _EXIT_EARLY_TARGET_PCT = 0.30  # +30% in early window → sell
+    _LATE_WINDOW_MS = 420_000      # 7 min into window = "late" boundary
+    if client and hasattr(client, "sell_shares") and not dry_run:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            if not mkt.get("fills_confirmed"):
+                continue
+            end_ms = mkt.get("window_end_ms", 0)
+            start_ms = mkt.get("window_start_ms", 0)
+            # Can only sell before last 2 min
+            if end_ms > 0 and now_ms > end_ms - 120_000:
+                continue
+            elapsed_ms = now_ms - start_ms if start_ms > 0 else 0
+            is_late = elapsed_ms > _LATE_WINDOW_MS
+
+            for side, tok_key, shares_key, avg_key in [
+                ("UP", "up_token_id", "up_shares", "up_avg_price"),
+                ("DOWN", "down_token_id", "down_shares", "down_avg_price"),
+            ]:
+                shares = mkt.get(shares_key, 0)
+                avg = mkt.get(avg_key, 0)
+                tok = mkt.get(tok_key, "")
+                if shares < 1 or avg <= 0 or not tok:
+                    continue
+                mid = _poly_midpoint(client, tok)
+                if mid <= 0:
+                    continue
+                pnl_pct = (mid - avg) / avg
+
+                # LOSING → always sell
+                if pnl_pct < -_EXIT_STOP_PCT:
+                    try:
+                        client.sell_shares(tok, shares, price=round(mid - 0.02, 2))
+                        logger.info("STOP LOSS %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%)",
+                                    cid[:8], side, shares, mid, avg, pnl_pct * 100)
+                        mkt[shares_key] = 0
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + shares * (mid - avg)
+                        mkt["phase"] = "RESOLVED"
+                        mkt["early_exit"] = "stop_loss"
+                    except Exception as e:
+                        logger.warning("Stop loss failed %s %s: %s", cid[:8], side, e)
+
+                # WINNING + EARLY → take profit (direction could reverse)
+                elif pnl_pct > _EXIT_EARLY_TARGET_PCT and not is_late:
+                    try:
+                        client.sell_shares(tok, shares, price=round(mid - 0.01, 2))
+                        logger.info("EARLY TAKE %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) [early]",
+                                    cid[:8], side, shares, mid, avg, pnl_pct * 100)
+                        mkt[shares_key] = 0
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + shares * (mid - avg)
+                        mkt["phase"] = "RESOLVED"
+                        mkt["early_exit"] = "take_profit"
+                    except Exception as e:
+                        logger.warning("Early take failed %s %s: %s", cid[:8], side, e)
+
+                # WINNING + LATE → HOLD (trend accelerates, hold to $1)
+                elif pnl_pct > 0 and is_late:
+                    logger.debug("HOLD %s %s: +%.0f%% in late window, hold to resolution",
+                                 cid[:8], side, pnl_pct * 100)
 
     # Resolutions
     _check_resolutions(state)
