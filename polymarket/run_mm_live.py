@@ -1035,19 +1035,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         fair, "UP" if _fair_up else "DN")
             continue  # keep in watchlist
 
-        # CVD gate: strong taker pressure against our direction → skip
-        # Backtest: CVD strong sell (<40%) = actual UP only 40%
-        # CVD strong buy (>60%) = actual UP 61%
-        _cvd_bullish = _cvd > 0.55
-        _cvd_bearish = _cvd < 0.45
-        if _fair_up and _cvd_bearish:
-            logger.info("SKIP %s: CVD conflict — fair UP but CVD sell %.0f%%",
-                        cid[:8], _cvd * 100)
-            continue
-        if not _fair_up and _cvd_bullish:
-            logger.info("SKIP %s: CVD conflict — fair DOWN but CVD buy %.0f%%",
-                        cid[:8], _cvd * 100)
-            continue
+        # CVD sizing: 3/3 agree → full, 2/3 agree → reduced
+        # CVD no longer has veto power (weak signal shouldn't cancel strong bridge)
+        _cvd_agrees = (_fair_up and _cvd > 0.50) or (not _fair_up and _cvd < 0.50)
+        _cvd_strong_disagree = (_fair_up and _cvd < 0.45) or (not _fair_up and _cvd > 0.55)
+        if _cvd_strong_disagree:
+            logger.info("CVD DISAGREE %s: fair %s but CVD %.0f%% → reduced size",
+                        cid[:8], "UP" if _fair_up else "DN", _cvd * 100)
 
         # Market midpoint sanity: if Polymarket mid for our side < $0.35,
         # market strongly disagrees with our direction → skip
@@ -1070,6 +1064,19 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         if not orders:
             del state["watchlist"][cid]
             continue
+
+        # CVD disagree → override to single cheap rung (dynamic price)
+        # 3/3 agree: keep full ladder. 2/3: reduce to 1 rung at discounted price.
+        if _cvd_strong_disagree and orders:
+            _our_fair = fair if _fair_up else (1.0 - fair)
+            _disagree_bid = round(max(0.25, min(0.35, _our_fair * 0.60)), 3)
+            _dir_tok = orders[0].token_id
+            _dir_side = orders[0].outcome
+            orders = [PlannedOrder(
+                token_id=_dir_tok, side="BUY",
+                price=_disagree_bid, size=config.min_order_size, outcome=_dir_side)]
+            logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
+                        cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
         results = _execute(orders, client)
         ms = MMMarketState(condition_id=cid, title=wl["title"],
