@@ -204,6 +204,11 @@ def render_polymarket_page():
             else:
                 ui.label('No circuit breakers').classes('text-gray-600 text-sm')
 
+    # Pipeline diagram
+    ui.separator().classes('bg-gray-700 mt-4')
+    from scripts.dashboard_ng.components.diagrams import render_polymarket_pipeline
+    render_polymarket_pipeline()
+
     # Initial load + timer
     ui.timer(0.1, refresh, once=True)
     ui.timer(30, refresh)

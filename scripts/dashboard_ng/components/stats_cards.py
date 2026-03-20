@@ -3,6 +3,11 @@
 from nicegui import ui
 
 from scripts.dashboard_ng.state import get_data
+from scripts.dashboard_ng.theme import (
+    CARD_DARK, SECTION_HEADER, LABEL_XS,
+    DATA_VALUE_XL, PNL_POS, PNL_NEG,
+    TEXT_SECONDARY, TEXT_PRIMARY, GREEN, RED,
+)
 
 
 def _format_pnl(val) -> tuple[str, str]:
@@ -10,19 +15,19 @@ def _format_pnl(val) -> tuple[str, str]:
     try:
         v = float(val)
     except (TypeError, ValueError):
-        return ('$0.00', 'text-gray-400')
-    color = 'text-green-400' if v >= 0 else 'text-red-400'
+        return ('$0.00', f'text-[{TEXT_SECONDARY}]')
+    color = PNL_POS if v >= 0 else PNL_NEG
     sign = '+' if v > 0 else ''
     return (f'{sign}${v:.2f}', color)
 
 
 def _stat_card(title: str, key: str, formatter=None, icon: str = 'info'):
     """Create a single stat card that auto-updates."""
-    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 min-w-[160px]'):
-        with ui.row().classes('items-center gap-2 mb-2'):
-            ui.icon(icon).classes('text-gray-500 text-lg')
-            ui.label(title).classes('text-xs text-gray-500 uppercase tracking-wide')
-        value_label = ui.label('—').classes('text-2xl font-bold')
+    with ui.card().classes(f'{CARD_DARK} min-w-[150px] flex-1'):
+        with ui.row().classes('items-center gap-2 mb-1'):
+            ui.icon(icon).classes(f'text-[14px] text-[{TEXT_SECONDARY}]')
+            ui.label(title).classes(LABEL_XS + ' uppercase tracking-wider')
+        value_label = ui.label('—').classes(DATA_VALUE_XL)
 
         def update():
             d = get_data()
@@ -30,7 +35,7 @@ def _stat_card(title: str, key: str, formatter=None, icon: str = 'info'):
             if formatter:
                 text, color = formatter(raw)
                 value_label.text = text
-                value_label.classes(replace=f'text-2xl font-bold {color}')
+                value_label.classes(replace=f'{DATA_VALUE_XL} {color}')
             else:
                 value_label.text = str(raw)
 
@@ -39,23 +44,24 @@ def _stat_card(title: str, key: str, formatter=None, icon: str = 'info'):
 
 def render_stats_row():
     """Render the 4-KPI stats row."""
-    with ui.row().classes('gap-4 flex-wrap'):
+    with ui.row().classes('gap-2 flex-wrap w-full'):
         _stat_card('Today PnL', 'today_pnl', formatter=_format_pnl, icon='trending_up')
         _stat_card('Total PnL', 'total_pnl', formatter=_format_pnl, icon='account_balance')
-
-        # Triggers — show scan_count
         _stat_card('Triggers', 'scan_count', icon='bolt')
 
         # Open Positions count
-        with ui.card().classes('p-4 bg-gray-800 border border-gray-700 min-w-[160px]'):
-            with ui.row().classes('items-center gap-2 mb-2'):
-                ui.icon('show_chart').classes('text-gray-500 text-lg')
-                ui.label('POSITIONS').classes('text-xs text-gray-500 uppercase tracking-wide')
-            pos_label = ui.label('0').classes('text-2xl font-bold')
+        with ui.card().classes(f'{CARD_DARK} min-w-[150px] flex-1'):
+            with ui.row().classes('items-center gap-2 mb-1'):
+                ui.icon('show_chart').classes(f'text-[14px] text-[{TEXT_SECONDARY}]')
+                ui.label('POSITIONS').classes(LABEL_XS + ' uppercase tracking-wider')
+            pos_label = ui.label('0').classes(DATA_VALUE_XL)
 
             def update_pos():
                 d = get_data()
                 positions = d.get('live_positions', [])
-                pos_label.text = str(len(positions))
+                n = len(positions)
+                pos_label.text = str(n)
+                color = f'text-[{GREEN}]' if n > 0 else f'text-[{TEXT_PRIMARY}]'
+                pos_label.classes(replace=f'{DATA_VALUE_XL} {color}')
 
             ui.timer(2, update_pos)

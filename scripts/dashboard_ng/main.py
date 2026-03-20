@@ -96,6 +96,12 @@ def main_page():
         # Activity log
         render_activity_log()
 
+        ui.separator().classes('bg-gray-700')
+
+        # System workflow diagrams
+        from scripts.dashboard_ng.components.diagrams import render_all_diagrams
+        render_all_diagrams()
+
     # Floating chat button
     render_chat_toggle()
 
