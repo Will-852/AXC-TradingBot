@@ -306,8 +306,12 @@ def plan_opening(market: PolyMarket, fair_up: float,
                 price=dn_bid, size=hedge_shares, outcome="DOWN"))
 
     # ── Layer 2: Directional (naked, likely side) ──
-    if dir_pct > 0 and confidence > ZONE_1_BOUND:
-        dir_budget = total_cost * dir_pct
+    # Zone 1 normally hedge-only, but if can't afford hedge → allow directional
+    # at lower dynamic price (better EV than skipping entirely)
+    _allow_dir = dir_pct > 0 and confidence > ZONE_1_BOUND
+    _zone1_fallback = not _allow_dir and not orders and confidence > 0.52
+    if _allow_dir or _zone1_fallback:
+        dir_budget = total_cost * dir_pct if _allow_dir else total_cost
         # If hedge couldn't fire, give full budget to directional
         if not orders:
             dir_budget = total_cost
