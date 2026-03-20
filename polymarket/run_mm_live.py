@@ -1797,7 +1797,8 @@ def main():
             # Startup safety: cancel OWN orphan orders only (not 1H bot's orders)
             try:
                 existing = client.get_orders()
-                _own_cids = set(state.get("markets", {}).keys()) | set(state.get("watchlist", {}).keys())
+                _pre_state = _load()  # load state early for orphan filter
+                _own_cids = set(_pre_state.get("markets", {}).keys()) | set(_pre_state.get("watchlist", {}).keys())
                 if existing:
                     cancelled = 0
                     for o in existing:
