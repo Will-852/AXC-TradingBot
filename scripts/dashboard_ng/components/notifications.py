@@ -1,6 +1,6 @@
 """Persistent notification bell — stores alerts in app.storage.user.
 
-24h TTL, survives page refresh, unread badge count.
+24h TTL, survives page refresh, unread count shown on button text.
 """
 
 import time
@@ -28,6 +28,7 @@ def _get_unread_count() -> int:
 
 
 def push_notification(msg: str, ntype: str = 'system'):
+    """Push a notification. Called from state.py on alerts."""
     notifs = app.storage.user.get('notifications', [])
     notifs.append({'ts': time.time(), 'msg': msg, 'type': ntype})
     if len(notifs) > MAX_NOTIFICATIONS:
@@ -36,79 +37,77 @@ def push_notification(msg: str, ntype: str = 'system'):
 
 
 def render_notification_bell():
-    """Render bell button inline (call inside header row). Panel at page root."""
+    """Render bell button + dropdown panel. Call inside header row."""
 
-    # Bell button — rendered inline where called
+    # Simple bell button — text shows unread count
     bell_btn = ui.button(icon='notifications') \
         .props('flat round color=white size=sm')
 
-    # Panel — create then move to page root so it's not inside header/sidebar
-    panel = ui.card().classes(
-        'w-[360px] max-h-[400px] overflow-y-auto '
-        'bg-gray-900 border border-gray-700 shadow-xl'
-    ).style('position:fixed; top:52px; right:60px; z-index:9999;')
-    panel.set_visibility(False)
-    panel.move()  # page root
+    # Panel — use dialog instead of fixed card (simpler, no positioning issues)
+    _panel_open = {'value': False}
 
-    notif_container = ui.column().classes('w-full gap-0')
+    async def toggle_panel():
+        if _panel_open['value']:
+            return  # already open
 
-    with panel:
-        with ui.row().classes('items-center justify-between px-3 py-2 border-b border-gray-800'):
-            ui.label('Notifications').classes('text-sm font-bold')
+        _panel_open['value'] = True
+        app.storage.user['notif_last_read'] = time.time()
 
-            def clear_all():
-                app.storage.user['notifications'] = []
-                app.storage.user['notif_last_read'] = time.time()
-                update_bell()
+        dlg = ui.dialog()
+        dlg.move()
+        with dlg, ui.card().classes('p-0 w-[380px] max-h-[420px]'):
+            with ui.row().classes('items-center justify-between px-3 py-2 bg-gray-800'):
+                ui.label('Notifications').classes('text-sm font-bold')
 
-            ui.button('Clear', on_click=clear_all).props('flat dense size=xs color=grey-6')
-        notif_container
+                def clear_all():
+                    app.storage.user['notifications'] = []
+                    app.storage.user['notif_last_read'] = time.time()
+                    dlg.submit(None)
 
-    def toggle_panel():
-        panel.set_visibility(not panel.visible)
-        if panel.visible:
-            app.storage.user['notif_last_read'] = time.time()
-            update_bell()
+                ui.button('Clear All', on_click=clear_all) \
+                    .props('flat dense size=xs color=grey-6')
+                ui.button(icon='close', on_click=lambda: dlg.submit(None)) \
+                    .props('flat round dense size=xs color=grey-6')
+
+            notifs = _get_notifications()
+            with ui.scroll_area().classes('w-full').style('max-height:360px'):
+                if not notifs:
+                    ui.label('No notifications').classes('text-gray-600 text-sm p-4')
+                else:
+                    type_colors = {
+                        'trade': 'text-green-400', 'circuit_breaker': 'text-red-400',
+                        'news': 'text-blue-400', 'system': 'text-gray-400',
+                    }
+                    type_icons = {
+                        'trade': 'swap_horiz', 'circuit_breaker': 'warning',
+                        'news': 'article', 'system': 'info',
+                    }
+                    for n in reversed(notifs[-50:]):
+                        from datetime import datetime
+                        ts_str = datetime.fromtimestamp(n.get('ts', 0)).strftime('%m-%d %H:%M')
+                        ntype = n.get('type', 'system')
+                        with ui.row().classes(
+                            'items-start gap-2 px-3 py-2 w-full border-b border-gray-800/50'
+                        ):
+                            ui.icon(type_icons.get(ntype, 'info')).classes(
+                                f'text-[14px] mt-0.5 {type_colors.get(ntype, "text-gray-400")}')
+                            with ui.column().classes('gap-0 flex-1'):
+                                ui.label(n.get('msg', '')).classes('text-[11px] text-gray-300')
+                                ui.label(ts_str).classes('text-[9px] text-gray-600 font-mono')
+
+        dlg.open()
+        await dlg
+        _panel_open['value'] = False
+        _update_badge()
 
     bell_btn.on_click(toggle_panel)
 
-    def update_bell():
-        notifs = _get_notifications()
+    def _update_badge():
         unread = _get_unread_count()
-
-        # Update button badge via props
         if unread > 0:
-            bell_btn.props(f'color=yellow-7')
-            bell_btn.badge = unread
+            bell_btn.props(f'color=amber')
         else:
             bell_btn.props('color=white')
 
-        notif_container.clear()
-        with notif_container:
-            if not notifs:
-                ui.label('No notifications').classes('text-gray-600 text-sm p-3')
-                return
-
-            type_colors = {
-                'trade': 'text-green-400', 'circuit_breaker': 'text-red-400',
-                'news': 'text-blue-400', 'system': 'text-gray-400',
-            }
-            type_icons = {
-                'trade': 'swap_horiz', 'circuit_breaker': 'warning',
-                'news': 'article', 'system': 'info',
-            }
-
-            for n in reversed(notifs[-30:]):
-                from datetime import datetime
-                ts_str = datetime.fromtimestamp(n.get('ts', 0)).strftime('%H:%M')
-                ntype = n.get('type', 'system')
-
-                with ui.row().classes('items-start gap-2 px-3 py-1.5 w-full border-b border-gray-800/50'):
-                    ui.icon(type_icons.get(ntype, 'info')).classes(
-                        f'text-[14px] mt-0.5 {type_colors.get(ntype, "text-gray-400")}')
-                    with ui.column().classes('gap-0 flex-1'):
-                        ui.label(n.get('msg', '')).classes('text-[11px] text-gray-300')
-                        ui.label(ts_str).classes('text-[9px] text-gray-600')
-
-    update_bell()
-    ui.timer(5, update_bell)
+    _update_badge()
+    ui.timer(5, _update_badge)
