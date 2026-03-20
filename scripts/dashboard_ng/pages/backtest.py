@@ -21,6 +21,8 @@ def render_backtest_page():
         </style>
     ''')
 
+    import time
+    cache_bust = int(time.time())
     ui.element('iframe').props(
-        'src="/backtest.html" id="bt-frame"'
+        f'src="/backtest.html?v={cache_bust}" id="bt-frame"'
     ).classes('backtest-frame')
