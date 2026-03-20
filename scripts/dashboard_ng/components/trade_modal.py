@@ -32,9 +32,15 @@ async def _fetch_symbol_info(symbol: str, platform: str) -> dict:
 
 
 async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
-    """Show the trade entry dialog. Awaitable — returns on close."""
+    """Show the trade entry dialog.
 
-    with ui.dialog().props('persistent') as dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
+    Uses teleport to page body to avoid parent slot deletion when
+    timer-refreshed containers call clear().
+    """
+    # Create dialog then move to page root (escape timer-refreshed container)
+    dialog = ui.dialog().props('persistent')
+    dialog.move()  # target_container=None → moves to page root
+    with dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
         ui.label('New Order').classes('text-xl font-bold mb-4')
 
         # Symbol + Platform

@@ -32,7 +32,9 @@ async def _show_modify_dialog(pos: dict):
     current_sl = pos.get('sl', '')
     current_tp = pos.get('tp', '')
 
-    with ui.dialog() as dialog, ui.card().classes('p-6 min-w-[300px]'):
+    dialog = ui.dialog().props('persistent')
+    dialog.move()  # page root
+    with dialog, ui.card().classes('p-6 min-w-[300px]'):
         ui.label(f'Modify SL/TP — {symbol}').classes('text-lg font-bold mb-4')
 
         sl_input = ui.number('Stop Loss', value=float(current_sl) if current_sl else None,

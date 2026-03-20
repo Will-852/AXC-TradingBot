@@ -9,7 +9,9 @@ log = logging.getLogger('axc.ob')
 
 async def show_orderbook(symbol: str = 'BTCUSDT'):
     """Show order book modal for a symbol, auto-refreshing every 10s."""
-    with ui.dialog() as dialog, ui.card().classes('p-4 min-w-[500px] max-w-[600px]'):
+    dialog = ui.dialog().props('persistent')
+    dialog.move()  # page root — prevent parent slot deletion
+    with dialog, ui.card().classes('p-4 min-w-[500px] max-w-[600px]'):
         ui.label(f'Order Book — {symbol}').classes('text-lg font-bold mb-2')
 
         mid_label = ui.label('').classes('text-sm font-mono text-center w-full')
