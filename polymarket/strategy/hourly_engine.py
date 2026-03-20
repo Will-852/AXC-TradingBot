@@ -93,6 +93,10 @@ class HourlyConfig:
     min_fair_deviation: float = 0.05    # fair must deviate >=5c from 0.50
     # Fat-tail adjustment: BTC kurtosis > 9, normal CDF overestimates confidence
     fat_tail_haircut: float = 0.10      # 10% haircut toward 0.50
+    # Stop loss: wider than 15M (-25%) because 1H has more short-term noise
+    stop_loss_pct: float = -0.40         # -40% unrealized → EXIT
+    # Mid sanity: Polymarket market mid must agree with our direction
+    min_market_mid: float = 0.28         # mid for our side must be ≥28¢ (below = market strongly disagrees)
     # Min order size for Polymarket (5 shares x $0.50 = $2.50)
     min_order_usd: float = 2.50         # skip if computed order < this
 
@@ -174,7 +178,7 @@ def conviction_signal(
     if current_position is not None:
         pos_dir = current_position.get("direction", "")
         signal = _check_position(
-            pos_dir, direction, fair_up, confidence, current_position)
+            pos_dir, direction, fair_up, confidence, current_position, config)
         if signal is not None:
             return signal
 
@@ -305,6 +309,7 @@ def _check_position(
     fair_up: float,
     confidence: float,
     position: dict,
+    config: HourlyConfig | None = None,
 ) -> ConvictionSignal | None:
     """
     Position-aware logic: detect when we should EXIT or HOLD.
@@ -312,20 +317,32 @@ def _check_position(
     Returns a ConvictionSignal for EXIT/HOLD, or None to let normal
     ENTER/ADD logic proceed.
 
-    Why separate: position checks must happen before threshold gating.
-    A flip to opposite direction means our position is wrong regardless
-    of whether new conviction would pass threshold.
+    Checks (in order):
+    1. Stop loss: unrealized PnL < -40% → EXIT regardless
+    2. Fair flip hard: direction strongly reversed → EXIT
+    3. Mild flip → HOLD (don't panic on noise)
+    4. Same direction → None (let ADD logic proceed)
     """
+    stop_pct = config.stop_loss_pct if config else -0.40
+
+    # ─── 1. Stop loss: unrealized too deep ───
+    unrealized = position.get("unrealized_pnl_pct", 0)
+    if unrealized < stop_pct:
+        return ConvictionSignal(
+            action="EXIT", direction=pos_dir, conviction=0,
+            confidence=confidence, time_trust=0, entry_price=0,
+            size_fraction=0, fair_up=fair_up,
+            p_win=max(fair_up, 1.0 - fair_up),
+            reason=f"STOP LOSS: unrealized {unrealized:.0%} < {stop_pct:.0%} — EXIT")
+
+    # ─── 2. Same direction → let ADD logic proceed ───
     if pos_dir == signal_dir:
-        # Same direction — let normal flow handle ENTER→ADD
         return None
 
-    # Direction flipped: we're long UP but fair says DOWN (or vice versa)
-    # Use fair_up thresholds for flip severity:
+    # ─── 3. Direction flipped: check severity ───
     #   pos=UP,  fair < 0.40 → strong flip → EXIT
-    #   pos=UP,  fair 0.40-0.48 → mild flip → HOLD
     #   pos=DOWN, fair > 0.60 → strong flip → EXIT
-    #   pos=DOWN, fair 0.52-0.60 → mild flip → HOLD
+    #   Otherwise → mild flip → HOLD
     if pos_dir == "UP":
         strong_flip = fair_up < 0.40
     else:

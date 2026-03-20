@@ -564,11 +564,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # ── Act on signal ──
         if sig.action == "ENTER" or sig.action == "ADD":
+            # Mid sanity check: market must somewhat agree with our direction
+            our_tok = up_tok if sig.direction == "UP" else dn_tok
+            market_mid = _poly_midpoint(our_tok)
+            if market_mid is not None and market_mid < config.min_market_mid:
+                logger.debug("SKIP %s %s: market mid $%.2f < $%.2f (market disagrees)",
+                             coin, sig.direction, market_mid, config.min_market_mid)
+                continue
+
             # Determine token and size
-            if sig.direction == "UP":
-                token_id = up_tok
-            else:
-                token_id = dn_tok
+            token_id = our_tok
 
             size_usd = sig.size_fraction * state["bankroll"]
             size_usd = max(2.50, min(size_usd, window_budget - budget_spent))
