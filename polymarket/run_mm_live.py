@@ -1450,18 +1450,21 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     except Exception as e:
                         logger.warning("Black swan sell failed %s: %s", cid[:8], e)
                         continue
-                    # Greed hedge: buy opposite side 5 shares at cheap price (separate try)
-                    # If reversal → $5 bonus. If not → lose ~$0.30 (tiny vs locked profit).
+                    # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
+                    # Must execute instantly — if market reverses, price moves fast.
+                    # At 94¢ our side, opposite ≈ 6¢. Max risk = 5 × 0.15 = $0.75.
                     _opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
                     _opp_side = "DOWN" if side == "UP" else "UP"
                     if _opp_tok:
                         _opp_mid = _poly_midpoint(client, _opp_tok)
-                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.02), 2)  # CLOB requires 2 decimal
-                        if _hedge_price < 0.15:  # only if cheap (<15¢)
+                        # Use mid + 50% overpay as aggressive limit = pseudo market order
+                        # At 6¢ mid → bid 9¢. At 10¢ mid → bid 15¢. Instant fill.
+                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.50), 2)
+                        if _hedge_price < 0.15:  # cap: don't pay more than 15¢
                             try:
                                 _hedge_cost = round(5 * _hedge_price, 2)
                                 client.buy_shares(_opp_tok, _hedge_cost, price=_hedge_price)
-                                logger.info("HEDGE %s %s: 5 shares @ $%.3f ($%.2f)",
+                                logger.info("HEDGE %s %s: 5 shares @ $%.2f ($%.2f) — market order",
                                             cid[:8], _opp_side, _hedge_price, _hedge_cost)
                             except Exception as e:
                                 logger.warning("HEDGE FAILED %s: %s", cid[:8], e)

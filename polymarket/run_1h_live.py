@@ -253,18 +253,19 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                 sold = _try_sell_all(client, state, cid, mkt,
                               mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
                               reason="black_swan_94pct")
-                # Greed hedge: buy opposite side at min size (5 shares)
-                # If it reverses → $5 bonus. If not → lose ~$2.50 (covered by profit).
+                # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
+                # Must execute instantly — market can reverse in seconds.
                 if sold:
                     opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
                     opp_side = "DOWN" if side == "UP" else "UP"
                     opp_mid = _poly_midpoint(opp_tok) if opp_tok else None
-                    hedge_price = round(max(0.01, (opp_mid or 0.06) * 1.02), 2)  # CLOB requires 2 decimal
-                    if opp_tok and hedge_price < 0.15:  # only hedge if cheap (<15¢)
+                    # Aggressive limit = pseudo market order: mid + 50% overpay
+                    hedge_price = round(max(0.01, (opp_mid or 0.06) * 1.50), 2)
+                    if opp_tok and hedge_price < 0.15:  # cap: don't pay more than 15¢
                         try:
                             hedge_cost = round(5 * hedge_price, 2)
                             client.buy_shares(opp_tok, hedge_cost, price=hedge_price)
-                            logger.info("HEDGE %s %s: 5 shares @ $%.3f ($%.2f) — free lottery",
+                            logger.info("HEDGE %s %s: 5 shares @ $%.2f ($%.2f) — market order",
                                         cid[:8], opp_side, hedge_price, hedge_cost)
                         except Exception as e:
                             logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
