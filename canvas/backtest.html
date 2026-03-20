@@ -47,12 +47,12 @@
     .topbar {
       background: #131316;
       color: #d1d4dc;
-      padding: 0 24px;
-      height: 38px;
+      padding: 0 12px;
+      height: 30px;
       display: flex;
       align-items: center;
-      gap: 16px;
-      font-size: .875rem;
+      gap: 12px;
+      font-size: .8rem;
       border-bottom: 1px solid var(--border);
     }
     .topbar a { color: var(--text-2); text-decoration: none; }
@@ -70,11 +70,11 @@
     /* ── Main Grid ── */
     .main-grid {
       display: grid;
-      grid-template-columns: 1fr 6px var(--rp-width, 300px);
+      grid-template-columns: 1fr 4px var(--rp-width, 240px);
       grid-template-rows: auto 1fr;
-      gap: 0 4px;
+      gap: 0;
       padding: 0;
-      height: calc(100vh - 38px);
+      height: calc(100vh - 30px);
     }
 
     /* ── Resize Handle ── */
@@ -86,46 +86,50 @@
     }
     .resize-handle:hover, .resize-handle.dragging { background: #2962ff; }
 
-    /* ── Control Bar ── */
+    /* ── Control Bar (TradingView-style horizontal) ── */
     .control-bar {
       grid-column: 1 / -1;
       background: var(--card);
       border-bottom: 1px solid var(--border);
       border-radius: 0;
-      padding: 5px 12px;
+      padding: 3px 10px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      white-space: nowrap;
     }
     .control-bar label {
-      font-size: .7rem;
+      font-size: .65rem;
       font-weight: 600;
       color: var(--text-3);
       text-transform: uppercase;
       letter-spacing: .04em;
-      margin: 0 2px 0 0;
+      margin: 0 1px 0 0;
     }
     .control-bar select, .control-bar input {
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 5px 10px;
-      font-size: .82rem;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: .78rem;
       background: var(--surface);
       color: var(--text-1);
+      height: 28px;
     }
-    .control-bar select { min-width: 110px; }
-    .control-bar input[type=number] { width: 90px; }
+    .control-bar select { min-width: 90px; }
+    .control-bar input[type=number] { width: 72px; }
     .btn-run {
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 6px;
-      padding: 6px 16px;
+      border-radius: 4px;
+      padding: 4px 12px;
       font-weight: 600;
-      font-size: .82rem;
+      font-size: .78rem;
       cursor: pointer;
       transition: background .2s;
+      height: 28px;
     }
     .btn-run:hover { background: #1e53e5; }
     .btn-run:disabled { opacity: .4; cursor: not-allowed; }
@@ -133,12 +137,13 @@
       background: var(--surface);
       color: var(--text-2);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 12px;
+      border-radius: 4px;
+      padding: 3px 8px;
       font-weight: 500;
-      font-size: .82rem;
+      font-size: .75rem;
       cursor: pointer;
       transition: background .15s;
+      height: 28px;
     }
     .btn-load:hover { background: #2f2f33; }
 
