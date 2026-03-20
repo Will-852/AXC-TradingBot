@@ -34,6 +34,13 @@ app.on_startup(background_collector)
 # Import layout
 from scripts.dashboard_ng.layout import create_layout
 
+# Register backtest API routes (so backtest.html can talk to this server)
+from scripts.dashboard_ng.utils.backtest_api import register_backtest_routes
+register_backtest_routes()
+
+# Serve canvas directory for backtest.html and its assets
+app.add_static_files('/canvas', os.path.join(AXC_HOME, 'canvas'))
+
 
 # ── Pages ──
 
@@ -110,8 +117,7 @@ def main_page():
 def backtest_page():
     create_layout(active_path='/backtest')
     from scripts.dashboard_ng.pages.backtest import render_backtest_page
-    with ui.column().classes('w-full p-6 gap-4'):
-        ui.label('Backtest Studio').classes('text-2xl font-bold')
+    with ui.column().classes('w-full p-1 gap-0'):
         render_backtest_page()
 
 
