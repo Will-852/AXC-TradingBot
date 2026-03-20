@@ -530,8 +530,8 @@ def render_polymarket_page():
 
         live_ts.text = f'Live query: {datetime.now().strftime("%H:%M:%S")}'
 
-    ui.timer(1, refresh_live, once=True)
-    ui.timer(30, refresh_live)
+    ui.timer(2, refresh_live, once=True)
+    ui.timer(20, refresh_live)
 
     # ── Pipeline diagram ──
     ui.separator().classes('bg-gray-700 mt-4')
