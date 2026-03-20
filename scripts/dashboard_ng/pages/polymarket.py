@@ -286,7 +286,7 @@ def render_polymarket_page():
                                       {'offset': 0, 'color': 'rgba(99,102,241,0.3)'},
                                       {'offset': 1, 'color': 'rgba(99,102,241,0.02)'},
                                   ]}}}],
-    }).classes('h-48 w-full').style('position:relative; z-index:0;')
+    }).classes('h-48 w-full')
 
     # ── Strategy Breakdown ──
     ui.label('STRATEGY BREAKDOWN').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
@@ -421,8 +421,7 @@ def render_polymarket_page():
                     ],
                     'rowData': rows,
                     'headerHeight': 30, 'rowHeight': 28,
-                    'domLayout': 'autoHeight',
-                }).classes('w-full ag-theme-balham-dark').style('position:relative; z-index:1;')
+                }).classes('h-80 w-full ag-theme-balham-dark')
             else:
                 ui.label('No open orders').classes('text-gray-600 text-sm')
 
