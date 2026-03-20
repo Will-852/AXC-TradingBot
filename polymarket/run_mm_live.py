@@ -1278,13 +1278,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if not dry_run:
         _check_fills(state, client)
 
-    # ── Early Exit: context-aware (time + direction matters) ──
-    # LOSING → always sell (cut losses)
-    # WINNING + early window (min 2-7) → sell (direction could reverse)
-    # WINNING + late window (min 7+) → HOLD (trend accelerates toward $1)
-    _EXIT_STOP_PCT = 0.25          # -25% → sell (止蝕)
-    _EXIT_EARLY_TARGET_PCT = 0.30  # +30% in early window → sell
-    _LATE_WINDOW_MS = 420_000      # 7 min into window = "late" boundary
+    # ── Exit: Free Roll + Black Swan + Stop Loss ──
+    # Layer 1: BLACK SWAN (mid ≥ 94¢) → sell ALL (any time)
+    # Layer 2: COST RECOVERY (mid ≥ 55¢, early) → sell enough to recover cost → free roll
+    # Layer 3: STOP LOSS (-25%, pre-recovery only) → cut losses
+    # Layer 4: HOLD → default (free shares or waiting)
+    _EXIT_STOP_PCT = 0.25       # -25% → stop loss (pre-recovery only)
+    _BLACK_SWAN_MID = 0.94      # sell all at 94¢+
+    _COST_RECOVERY_MID = 0.55   # recover cost when mid ≥ 55¢
     if client and hasattr(client, "sell_shares") and not dry_run:
         for cid, mkt in state["markets"].items():
             if mkt["phase"] != "OPEN":
@@ -1292,12 +1293,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             if not mkt.get("fills_confirmed"):
                 continue
             end_ms = mkt.get("window_end_ms", 0)
-            start_ms = mkt.get("window_start_ms", 0)
-            # Can only sell before last 2 min
             if end_ms > 0 and now_ms > end_ms - 120_000:
-                continue
-            elapsed_ms = now_ms - start_ms if start_ms > 0 else 0
-            is_late = elapsed_ms > _LATE_WINDOW_MS
+                continue  # last 2 min, can't sell
+
+            _cost_recovered = mkt.get("cost_recovered", False)
 
             for side, tok_key, shares_key, avg_key in [
                 ("UP", "up_token_id", "up_shares", "up_avg_price"),
@@ -1311,17 +1310,55 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 mid = _poly_midpoint(client, tok)
                 if mid <= 0:
                     continue
-                pnl_pct = (mid - avg) / avg
 
-                # Round 3 (final round) → forced hold to resolution, skip early exit
-                _cur_round = mkt.get("rounds", 0) + 1  # 1-indexed current round
-                if _cur_round >= _MAX_ROUNDS:
+                # ── Layer 1: BLACK SWAN (94¢+) → sell ALL ──
+                if mid >= _BLACK_SWAN_MID:
+                    try:
+                        _sell_price = round(max(0.01, mid * 0.99), 2)
+                        client.sell_shares(tok, shares, price=_sell_price)
+                        _pnl = shares * (mid - avg)
+                        logger.info("BLACK SWAN %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) pnl=$%.2f",
+                                    cid[:8], side, shares, mid, avg, (mid-avg)/avg*100, _pnl)
+                        mkt[shares_key] = 0
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
+                        mkt["phase"] = "RESOLVED"
+                        mkt["early_exit"] = "black_swan"
+                    except Exception as e:
+                        logger.warning("Black swan sell failed %s: %s", cid[:8], e)
                     continue
 
-                # LOSING → always sell
+                if _cost_recovered:
+                    # ── Post recovery: FREE ROLL — just hold, $0 risk ──
+                    continue
+
+                # ── Layer 2: COST RECOVERY (mid ≥ 55¢) ──
+                if mid >= _COST_RECOVERY_MID:
+                    _original_cost = mkt.get("entry_cost", shares * avg)
+                    if _original_cost <= 0:
+                        continue
+                    _sell_price = round(max(0.01, mid * 0.98), 2)
+                    _shares_to_sell = min(shares - 1, math.ceil(_original_cost / _sell_price))
+                    if _shares_to_sell < 1:
+                        continue
+                    try:
+                        client.sell_shares(tok, _shares_to_sell, price=_sell_price)
+                        _recovered = _shares_to_sell * _sell_price
+                        _remaining = shares - _shares_to_sell
+                        logger.info("COST RECOVERY %s %s: sell %.0f/%.0f @ %.3f = $%.2f recovered | %.1f free shares",
+                                    cid[:8], side, _shares_to_sell, shares, _sell_price,
+                                    _recovered, _remaining)
+                        mkt[shares_key] = _remaining
+                        mkt["cost_recovered"] = True
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _original_cost)
+                    except Exception as e:
+                        logger.warning("Cost recovery sell failed %s: %s", cid[:8], e)
+                    continue
+
+                # ── Layer 3: STOP LOSS (pre-recovery, -25%) ──
+                pnl_pct = (mid - avg) / avg
                 if pnl_pct < -_EXIT_STOP_PCT:
                     try:
-                        _sell_price = round(max(0.01, mid * 0.97), 2)  # 3% below mid
+                        _sell_price = round(max(0.01, mid * 0.97), 2)
                         client.sell_shares(tok, shares, price=_sell_price)
                         _round_pnl = shares * (mid - avg)
                         mkt[shares_key] = 0
@@ -1329,39 +1366,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         mkt["rounds"] = mkt.get("rounds", 0) + 1
                         mkt["last_sell_ts"] = int(time.time())
                         _rd = mkt["rounds"]
-                        logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) round_pnl=$%.2f",
+                        logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) pnl=$%.2f",
                                     _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
                         if _rd >= _MAX_ROUNDS:
                             mkt["phase"] = "RESOLVED"
                             mkt["early_exit"] = "stop_loss"
-                        # else: keep phase=OPEN for re-entry
                     except Exception as e:
                         logger.warning("Stop loss failed %s %s: %s", cid[:8], side, e)
-
-                # WINNING + EARLY → take profit (direction could reverse)
-                elif pnl_pct > _EXIT_EARLY_TARGET_PCT and not is_late:
-                    try:
-                        _sell_price = round(max(0.01, mid * 0.98), 2)  # 2% below mid
-                        client.sell_shares(tok, shares, price=_sell_price)
-                        _round_pnl = shares * (mid - avg)
-                        mkt[shares_key] = 0
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
-                        mkt["rounds"] = mkt.get("rounds", 0) + 1
-                        mkt["last_sell_ts"] = int(time.time())
-                        _rd = mkt["rounds"]
-                        logger.info("EARLY TAKE R%d %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) [early] round_pnl=$%.2f",
-                                    _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
-                        if _rd >= _MAX_ROUNDS:
-                            mkt["phase"] = "RESOLVED"
-                            mkt["early_exit"] = "take_profit"
-                        # else: keep phase=OPEN for re-entry
-                    except Exception as e:
-                        logger.warning("Early take failed %s %s: %s", cid[:8], side, e)
-
-                # WINNING + LATE → HOLD (trend accelerates, hold to $1)
-                elif pnl_pct > 0 and is_late:
-                    logger.debug("HOLD %s %s: +%.0f%% in late window, hold to resolution",
-                                 cid[:8], side, pnl_pct * 100)
 
     # ── Re-entry: scalp again in same window after early exit ──
     if is_heavy and client and not dry_run:
