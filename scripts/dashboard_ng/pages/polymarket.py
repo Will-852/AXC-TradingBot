@@ -314,18 +314,35 @@ def render_polymarket_page():
 
         last_updated = state.get('last_updated', '—')
 
-        # Calculate total PnL + win rate from trades
-        all_trades = d.get('trades_all', d.get('trades', []))
+        # Calculate total PnL + win rate from mm_trades.jsonl (local file, not API)
         total_pnl = 0
         wins = 0
         resolved = 0
-        for t in all_trades:
-            pnl = t.get('pnl', t.get('realized_pnl', 0))
-            if isinstance(pnl, (int, float)) and pnl != 0:
-                total_pnl += pnl
-                resolved += 1
-                if pnl > 0:
-                    wins += 1
+        try:
+            import os as _os
+            trades_file = _os.path.join(
+                _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading')),
+                'polymarket', 'logs', 'mm_trades.jsonl'
+            )
+            if _os.path.exists(trades_file):
+                import json as _json
+                with open(trades_file) as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            t = _json.loads(line)
+                            pnl = t.get('pnl', t.get('realized_pnl', 0))
+                            if isinstance(pnl, (int, float)) and pnl != 0:
+                                total_pnl += pnl
+                                resolved += 1
+                                if pnl > 0:
+                                    wins += 1
+                        except _json.JSONDecodeError:
+                            continue
+        except Exception:
+            pass
         win_rate = (wins / resolved * 100) if resolved > 0 else 0
 
         # Use live balance if available (state file may be stale)

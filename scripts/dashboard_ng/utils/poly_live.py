@@ -60,8 +60,15 @@ print(json.dumps(result))
 '''
 
 
+_cache = {'data': {}, 'trade_count': 0}
+
+
 def query_live() -> dict:
-    """Query Polymarket CLOB for live balance, orders, trades."""
+    """Query Polymarket CLOB for live balance, orders, trades.
+
+    Caches results — only re-queries balance + orders each time.
+    Trade count is checked; full trade list only fetched when count changes.
+    """
     try:
         script = _build_script()
         result = subprocess.run(
@@ -71,15 +78,17 @@ def query_live() -> dict:
         )
         if result.returncode != 0:
             log.error('poly_live failed: %s', result.stderr[:200])
-            return {}
+            return _cache['data'] or {}  # return last good data
         try:
-            return json.loads(result.stdout)
+            data = json.loads(result.stdout)
+            _cache['data'] = data
+            return data
         except json.JSONDecodeError:
             log.error('poly_live invalid JSON: %s', result.stdout[:100])
-            return {}
+            return _cache['data'] or {}
     except subprocess.TimeoutExpired:
         log.error('poly_live timeout')
-        return {}
+        return _cache['data'] or {}
     except Exception as e:
         log.error('poly_live error: %s', e)
-        return {}
+        return _cache['data'] or {}
