@@ -68,6 +68,8 @@ _HEAVY_INTERVAL_S = 30 # heavy ops (signal pipeline, indicator) every 30s
 _PROTECTION_HOURS = 3
 _PROTECTION_BET_PCT = 0.01   # 1% per market during protection
 _PROTECTION_MAX_MARKETS = 1  # 1 market per cycle (= 1 per 15min window)
+_MAX_ROUNDS = 3          # max scalp rounds per market window
+_REENTRY_COOLDOWN_S = 30 # seconds after sell before re-entry
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -697,14 +699,17 @@ def _check_resolutions(state: dict):
             state["consecutive_losses"] = 0
 
         fr_pct, _, _ = _fill_rate(state)
+        _total_rounds = md.get("rounds", 0) + 1  # +1 for the final hold-to-resolution round
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                      "result": result, "pnl": round(pnl, 4),
                      "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
                      "total_pnl": round(state["total_pnl"], 2),
-                     "fill_rate_pct": round(fr_pct, 1)})
+                     "fill_rate_pct": round(fr_pct, 1),
+                     "rounds": _total_rounds})
 
         d = "↑" if result == "UP" else "↓"
-        print(f"  RESOLVED {cid[:8]} {d} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
+        _rd_str = f" R{_total_rounds}" if _total_rounds > 1 else ""
+        print(f"  RESOLVED {cid[:8]} {d}{_rd_str} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
 
 
 # ═══════════════════════════════════════
@@ -1053,6 +1058,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         mkt_dict["tranches_done"] = 1
         mkt_dict["tranches_total"] = n_tranches
         mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+        mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
@@ -1288,17 +1294,28 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     continue
                 pnl_pct = (mid - avg) / avg
 
+                # Round 3 (final round) → forced hold to resolution, skip early exit
+                _cur_round = mkt.get("rounds", 0) + 1  # 1-indexed current round
+                if _cur_round >= _MAX_ROUNDS:
+                    continue
+
                 # LOSING → always sell
                 if pnl_pct < -_EXIT_STOP_PCT:
                     try:
                         _sell_price = round(max(0.01, mid * 0.97), 2)  # 3% below mid
                         client.sell_shares(tok, shares, price=_sell_price)
-                        logger.info("STOP LOSS %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%)",
-                                    cid[:8], side, shares, mid, avg, pnl_pct * 100)
+                        _round_pnl = shares * (mid - avg)
                         mkt[shares_key] = 0
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + shares * (mid - avg)
-                        mkt["phase"] = "RESOLVED"
-                        mkt["early_exit"] = "stop_loss"
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
+                        mkt["rounds"] = mkt.get("rounds", 0) + 1
+                        mkt["last_sell_ts"] = int(time.time())
+                        _rd = mkt["rounds"]
+                        logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) round_pnl=$%.2f",
+                                    _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
+                        if _rd >= _MAX_ROUNDS:
+                            mkt["phase"] = "RESOLVED"
+                            mkt["early_exit"] = "stop_loss"
+                        # else: keep phase=OPEN for re-entry
                     except Exception as e:
                         logger.warning("Stop loss failed %s %s: %s", cid[:8], side, e)
 
@@ -1307,12 +1324,18 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     try:
                         _sell_price = round(max(0.01, mid * 0.98), 2)  # 2% below mid
                         client.sell_shares(tok, shares, price=_sell_price)
-                        logger.info("EARLY TAKE %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) [early]",
-                                    cid[:8], side, shares, mid, avg, pnl_pct * 100)
+                        _round_pnl = shares * (mid - avg)
                         mkt[shares_key] = 0
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + shares * (mid - avg)
-                        mkt["phase"] = "RESOLVED"
-                        mkt["early_exit"] = "take_profit"
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
+                        mkt["rounds"] = mkt.get("rounds", 0) + 1
+                        mkt["last_sell_ts"] = int(time.time())
+                        _rd = mkt["rounds"]
+                        logger.info("EARLY TAKE R%d %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) [early] round_pnl=$%.2f",
+                                    _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
+                        if _rd >= _MAX_ROUNDS:
+                            mkt["phase"] = "RESOLVED"
+                            mkt["early_exit"] = "take_profit"
+                        # else: keep phase=OPEN for re-entry
                     except Exception as e:
                         logger.warning("Early take failed %s %s: %s", cid[:8], side, e)
 
@@ -1320,6 +1343,159 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 elif pnl_pct > 0 and is_late:
                     logger.debug("HOLD %s %s: +%.0f%% in late window, hold to resolution",
                                  cid[:8], side, pnl_pct * 100)
+
+    # ── Re-entry: scalp again in same window after early exit ──
+    if is_heavy and client and not dry_run:
+        for cid, mkt in list(state["markets"].items()):
+            if mkt["phase"] != "OPEN":
+                continue
+            _rd = mkt.get("rounds", 0)
+            if _rd < 1 or _rd >= _MAX_ROUNDS:
+                continue  # no sell yet, or max rounds reached
+            # Must be sold out (both sides zero)
+            if mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0:
+                continue
+            # Cooldown after last sell
+            _last_sell = mkt.get("last_sell_ts", 0)
+            if time.time() - _last_sell < _REENTRY_COOLDOWN_S:
+                continue
+            # Enough time left in window (>4 min)
+            end_ms = mkt.get("window_end_ms", 0)
+            if end_ms > 0 and now_ms > end_ms - 240_000:
+                logger.info("REENTRY SKIP %s R%d: < 4 min remaining", cid[:8], _rd + 1)
+                mkt["phase"] = "RESOLVED"
+                mkt["early_exit"] = f"window_end_r{_rd}"
+                continue
+
+            # Re-run M1 + signal pipeline for fresh direction
+            _title_lower = mkt.get("title", "").lower()
+            _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
+            _m1 = _m1_return(_sym)
+            _m1_vol = _vol_1m(_sym)
+            _m1_thresh = max(0.0005, _m1_vol * 1.0)
+            if abs(_m1) < _m1_thresh:
+                logger.debug("REENTRY WAIT %s R%d: M1 weak |%.4f| < %.4f",
+                             cid[:8], _rd + 1, _m1, _m1_thresh)
+                continue  # keep waiting, re-check next heavy cycle
+
+            # Cross-exchange validation
+            _xprice, _xdiv = _cross_exchange_price(_sym)
+            _coin_price = _xprice if _xprice > 0 else _price(_sym)
+            if _xdiv > 0.003:
+                logger.debug("REENTRY WAIT %s R%d: cross-exchange divergence %.2f%%",
+                             cid[:8], _rd + 1, _xdiv * 100)
+                continue
+
+            start_ms = mkt.get("window_start_ms", 0)
+            _coin_open = mkt.get("btc_open_price") or _coin_price
+            mins_left = max(1, (end_ms - now_ms) / 60_000)
+
+            # Signal pipeline (same as initial entry)
+            _re_mkt = PolyMarket(
+                condition_id=cid, title=mkt.get("title", ""),
+                category="crypto_15m",
+                yes_token_id=mkt.get("up_token_id", ""),
+                no_token_id=mkt.get("down_token_id", ""),
+                liquidity=15000)
+            bridge_p_up = compute_fair_up(_coin_price, _coin_open, _m1_vol, int(mins_left))
+
+            signal_p_up = 0.0
+            try:
+                from polymarket.strategy.edge_finder import assess_edge
+                edge_result = assess_edge(_re_mkt)
+                if edge_result is not None:
+                    signal_p_up = edge_result.ai_probability or 0.0
+            except Exception:
+                pass
+
+            # OB imbalance
+            ob_adjustment = 0.0
+            if hasattr(client, "get_order_book"):
+                try:
+                    up_book = client.get_order_book(mkt.get("up_token_id", ""))
+                    bid_vol = sum(b["size"] for b in up_book.get("bids", []))
+                    ask_vol = sum(a["size"] for a in up_book.get("asks", []))
+                    if bid_vol + ask_vol > 0:
+                        imbalance = (bid_vol - ask_vol) / (bid_vol + ask_vol)
+                        ob_adjustment = imbalance * 0.05
+                except Exception:
+                    pass
+
+            if signal_p_up > 0:
+                fair = signal_p_up * 0.70 + bridge_p_up * 0.30 + ob_adjustment
+            else:
+                fair = bridge_p_up + ob_adjustment
+            fair = max(0.05, min(0.95, fair))
+
+            # M1 vs fair direction conflict
+            _fair_up = fair > 0.50
+            _m1_up = _m1 > 0
+            if abs(_m1) >= 0.001 and _fair_up != _m1_up:
+                logger.info("REENTRY SKIP %s R%d: M1/fair conflict", cid[:8], _rd + 1)
+                continue
+
+            # Market mid sanity
+            if hasattr(client, "get_midpoint"):
+                _dir_tok = mkt.get("up_token_id", "") if fair > 0.50 else mkt.get("down_token_id", "")
+                _mid = _poly_midpoint(client, _dir_tok)
+                if 0 < _mid < 0.38:
+                    logger.info("REENTRY SKIP %s R%d: market mid=%.3f < 0.38",
+                                cid[:8], _rd + 1, _mid)
+                    continue
+
+            # Place re-entry order
+            bankroll = state.get("bankroll", 100.0)
+            n_tranches = calc_tranches(bankroll, config)
+            orders = plan_opening(_re_mkt, fair, config, bankroll=bankroll,
+                                  tranche=0, total_tranches=n_tranches,
+                                  risk_mode=risk_mode)
+            if not orders:
+                continue
+
+            results = _execute(orders, client)
+            # Reset entry fields for new round
+            mkt["entry_price"] = _coin_price
+            mkt["entry_ts"] = int(time.time())
+            mkt["up_avg_price"] = 0
+            mkt["down_avg_price"] = 0
+            mkt["entry_cost"] = 0
+            mkt["fills_confirmed"] = True
+            mkt["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+            mkt["tranches_done"] = 1
+            mkt["tranches_total"] = n_tranches
+            pending = []
+            for r in results:
+                if not r.get("submitted"):
+                    continue
+                _bump_fill(state, "submitted")
+                status = r.get("status", "")
+                if status == "matched":
+                    outcome = r["outcome"]
+                    price = r["price"]
+                    size = r["size"]
+                    if outcome == "UP":
+                        old = mkt["up_shares"] * mkt["up_avg_price"]
+                        mkt["up_shares"] += size
+                        mkt["up_avg_price"] = (old + size * price) / mkt["up_shares"] if mkt["up_shares"] > 0 else 0
+                    elif outcome == "DOWN":
+                        old = mkt["down_shares"] * mkt["down_avg_price"]
+                        mkt["down_shares"] += size
+                        mkt["down_avg_price"] = (old + size * price) / mkt["down_shares"] if mkt["down_shares"] > 0 else 0
+                    mkt["entry_cost"] += size * price
+                    _bump_fill(state, "filled")
+                    logger.info("REENTRY FILL R%d %s %s: %.1f @ $%.3f",
+                                _rd + 1, cid[:8], outcome, size, price)
+                else:
+                    pending.append(r)
+            if pending:
+                mkt["pending_orders"] = pending
+                mkt["fills_confirmed"] = False
+
+            _new_dir = "UP" if fair > 0.50 else "DOWN"
+            logger.info("REENTRY R%d %s dir=%s fair=%.3f (prev_dir=%s)",
+                        _rd + 1, cid[:8], _new_dir, fair,
+                        mkt.get("_prev_dir", mkt.get("original_dir", "?")))
+            mkt["_prev_dir"] = _new_dir
 
     # Resolutions
     _check_resolutions(state)
