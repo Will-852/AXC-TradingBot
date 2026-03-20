@@ -120,59 +120,62 @@ def create_layout(active_path: str = '/'):
                 .on('click', lambda: ui.navigate.to('/'))
             ui.label('AXC').classes('text-[14px] font-bold text-white tracking-wider font-mono')
 
-        # Right: badges + connect + dark toggle (all in one row)
+        # Right: ALL items in one row (badges + connect + bell + dark)
         with ui.row().classes('items-center gap-3'):
-            # Exchange badges inline
+            # Exchange badges
             for exch_name in ['aster', 'binance', 'hl']:
                 exchanges = state.get_exchanges()
                 info = exchanges.get(exch_name, {})
-                status = info.get('status', 'disconnected')
+                st = info.get('status', 'disconnected')
                 colors = {'connected': GREEN, 'disconnected': TEXT_MUTED, 'error': RED}
-                color = colors.get(status, TEXT_MUTED)
+                color = colors.get(st, TEXT_MUTED)
                 with ui.row().classes('items-center gap-1'):
                     ui.icon('circle').classes('text-[6px]').style(f'color: {color}')
                     ui.label(exch_name.upper()).classes(f'text-[11px] font-mono text-[{TEXT_SECONDARY}]')
 
-        async def show_exchange_dialog():
-            from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, _disconnect, EXCHANGES
-            with ui.dialog() as dlg, ui.card().classes('p-4 min-w-[400px]'):
-                ui.label('Exchange Connections').classes('text-lg font-bold mb-3')
-                exchanges = state.get_exchanges()
-                for exch in EXCHANGES:
-                    info = exchanges.get(exch['name'], {})
-                    st = info.get('status', 'disconnected')
-                    is_conn = st == 'connected'
-                    bal = info.get('balance')
-                    with ui.row().classes('items-center justify-between w-full py-2 border-b border-gray-800'):
-                        with ui.row().classes('items-center gap-2'):
-                            ui.icon('circle').classes('text-[8px]').style(
-                                f'color: {"#10b981" if is_conn else "#64748b"}')
-                            ui.label(exch['label']).classes('text-sm font-bold')
-                            if is_conn and bal is not None:
-                                ui.label(f'${bal:.2f}').classes('text-sm font-mono text-emerald-400')
-                        if is_conn:
-                            ui.button('Disconnect', on_click=lambda e=exch: _disconnect(e)) \
-                                .props('flat dense size=xs color=red')
-                        else:
-                            async def connect(e=exch, d=dlg):
-                                d.close()
-                                await _show_connect_dialog(e)
-                            ui.button('Connect', on_click=connect) \
-                                .props('flat dense size=xs color=blue')
-                ui.button('Close', on_click=dlg.close).props('flat color=grey').classes('mt-2')
-            dlg.open()
+            # Connect button
+            async def show_exchange_dialog():
+                from scripts.dashboard_ng.components.exchange_connect import _show_connect_dialog, _disconnect, EXCHANGES
+                dlg = ui.dialog()
+                dlg.move()
+                with dlg, ui.card().classes('p-4 min-w-[400px]'):
+                    ui.label('Exchange Connections').classes('text-lg font-bold mb-3')
+                    exch_data = state.get_exchanges()
+                    for exch in EXCHANGES:
+                        exch_info = exch_data.get(exch['name'], {})
+                        is_conn = exch_info.get('status') == 'connected'
+                        bal = exch_info.get('balance')
+                        with ui.row().classes('items-center justify-between w-full py-2 border-b border-gray-800'):
+                            with ui.row().classes('items-center gap-2'):
+                                ui.icon('circle').classes('text-[8px]').style(
+                                    f'color: {"#10b981" if is_conn else "#64748b"}')
+                                ui.label(exch['label']).classes('text-sm font-bold')
+                                if is_conn and bal is not None:
+                                    ui.label(f'${bal:.2f}').classes('text-sm font-mono text-emerald-400')
+                            if is_conn:
+                                ui.button('Disconnect', on_click=lambda e=exch: _disconnect(e)) \
+                                    .props('flat dense size=xs color=red')
+                            else:
+                                async def do_connect(e=exch, d=dlg):
+                                    d.submit(None)
+                                    await _show_connect_dialog(e)
+                                ui.button('Connect', on_click=do_connect) \
+                                    .props('flat dense size=xs color=blue')
+                    ui.button('Close', on_click=lambda: dlg.submit(None)).props('flat color=grey').classes('mt-2')
+                dlg.open()
+                await dlg
 
-        # "Connect" button
-        ui.button('Connect', on_click=show_exchange_dialog) \
-            .props('flat dense no-caps size=sm color=blue-4') \
-            .classes('text-[11px]')
+            ui.button('Connect', on_click=show_exchange_dialog) \
+                .props('flat dense no-caps size=sm color=blue-4') \
+                .classes('text-[11px]')
 
-        # Notification bell
-        from scripts.dashboard_ng.components.notifications import render_notification_bell
-        render_notification_bell()
+            # Notification bell
+            from scripts.dashboard_ng.components.notifications import render_notification_bell
+            render_notification_bell()
 
-        ui.button(icon='brightness_6', on_click=dark.toggle) \
-            .props('flat round color=white size=xs')
+            # Dark mode toggle
+            ui.button(icon='brightness_6', on_click=dark.toggle) \
+                .props('flat round color=white size=xs')
 
     with drawer:
         # Navigation
