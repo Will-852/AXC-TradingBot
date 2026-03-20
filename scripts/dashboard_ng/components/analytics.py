@@ -95,8 +95,8 @@ def render_funding_rates():
                         {'field': 'next', 'headerName': 'Next', 'width': 120},
                     ],
                     'rowData': rows,
-                    'headerHeight': 32,
-                    'rowHeight': 28,
+                    'headerHeight': 36,
+                    'rowHeight': 34,
                     'domLayout': 'autoHeight',
                 }).classes('w-full ag-theme-balham-dark')
 
@@ -238,21 +238,22 @@ def render_trade_history():
 
             ui.aggrid({
                 'columnDefs': [
-                    {'field': 'time', 'headerName': 'Time', 'width': 110},
-                    {'field': 'symbol', 'headerName': 'Symbol', 'width': 90},
-                    {'field': 'side', 'headerName': 'Side', 'width': 55,
+                    {'field': 'time', 'headerName': 'Time', 'width': 120},
+                    {'field': 'symbol', 'headerName': 'Symbol', 'width': 100},
+                    {'field': 'side', 'headerName': 'Side', 'width': 60,
                      'cellClassRules': {
                          'text-green-400': 'x === "BUY"',
                          'text-red-400': 'x === "SELL"',
                      }},
-                    {'field': 'price', 'headerName': 'Price', 'width': 90, 'type': 'rightAligned'},
-                    {'field': 'qty', 'headerName': 'Qty', 'width': 60, 'type': 'rightAligned'},
-                    {'field': 'pnl', 'headerName': 'PnL', 'width': 65, 'type': 'rightAligned'},
+                    {'field': 'price', 'headerName': 'Price', 'width': 100, 'type': 'rightAligned'},
+                    {'field': 'qty', 'headerName': 'Qty', 'width': 70, 'type': 'rightAligned'},
+                    {'field': 'pnl', 'headerName': 'PnL', 'width': 75, 'type': 'rightAligned'},
                 ],
                 'rowData': rows,
-                'headerHeight': 32,
-                'rowHeight': 28,
-            }).classes('h-52 ag-theme-balham-dark')
+                'headerHeight': 36,
+                'rowHeight': 34,
+                'domLayout': 'autoHeight',
+            }).classes('w-full ag-theme-balham-dark')
 
     ui.timer(10, update)
 
