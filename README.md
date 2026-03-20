@@ -5,7 +5,7 @@
     佢住喺你部電腦入面，幫你睇住市場、計好風險、有機會就提你。<br />
     你嘅密碼同錢永遠都只喺你部機。
     <br /><br />
-    <code>v3.0</code> · 2026-03
+    <code>v4.0</code> · 2026-03
     <br /><br />
     <a href="#-快速開始"><strong>快速開始 »</strong></a>
     &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -190,7 +190,7 @@ python scripts\tg_bot.py
 
 啟動成功你會見到：
 ```
-🦞 AXC v2.5 啟動
+🦞 AXC v4.0 啟動
   Chat ID: 你嘅chat_id
 ```
 
