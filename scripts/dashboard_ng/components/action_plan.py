@@ -119,7 +119,7 @@ def render_action_plan():
                     if (params.data.status === 'near') return {background: 'rgba(234, 179, 8, 0.08)'};
                     if (params.data.status === 'active') return {background: 'rgba(34, 197, 94, 0.08)'};
                 }''',
-            }).classes('h-64 w-full ag-theme-balham-dark')
+            }).classes('h-56 w-full ag-theme-balham-dark')
             grid.on('cellClicked', on_row_click)
 
     ui.timer(5, update)

@@ -7,8 +7,8 @@ from scripts.dashboard_ng.state import get_data
 
 def render_fee_breakdown():
     """Fee breakdown card."""
-    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[200px]'):
-        ui.label('FEES').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
+    with ui.card().classes('p-3 bg-gray-800 border border-gray-700 flex-1 min-w-[150px]'):
+        ui.label('FEES').classes('text-xs text-gray-500 uppercase tracking-wide mb-1')
         fee_container = ui.column().classes('gap-1')
 
         def update():
@@ -37,8 +37,8 @@ def render_fee_breakdown():
 
 def render_trade_stats():
     """Trade statistics strip."""
-    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[200px]'):
-        ui.label('STATS').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
+    with ui.card().classes('p-3 bg-gray-800 border border-gray-700 flex-1 min-w-[150px]'):
+        ui.label('STATS').classes('text-xs text-gray-500 uppercase tracking-wide mb-1')
         stats_container = ui.row().classes('gap-6 flex-wrap')
 
         def update():
@@ -95,16 +95,16 @@ def render_funding_rates():
                         {'field': 'next', 'headerName': 'Next', 'width': 120},
                     ],
                     'rowData': rows,
-                }).classes('h-40 ag-theme-balham-dark')
+                }).classes('h-48 ag-theme-balham-dark')
 
     ui.timer(30, update)
 
 
 def render_news_sentiment():
     """News sentiment card."""
-    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 flex-1 min-w-[300px]'):
-        ui.label('NEWS SENTIMENT').classes('text-xs text-gray-500 uppercase tracking-wide mb-2')
-        news_container = ui.column().classes('gap-2')
+    with ui.card().classes('p-3 bg-gray-800 border border-gray-700 w-full'):
+        ui.label('NEWS SENTIMENT').classes('text-xs text-gray-500 uppercase tracking-wide mb-1')
+        news_container = ui.column().classes('gap-1 max-h-56 overflow-y-auto')
 
         def update():
             d = get_data()
@@ -180,19 +180,21 @@ def render_trade_history():
 
             ui.aggrid({
                 'columnDefs': [
-                    {'field': 'time', 'headerName': 'Time', 'width': 150},
-                    {'field': 'symbol', 'headerName': 'Symbol', 'width': 100},
-                    {'field': 'side', 'headerName': 'Side', 'width': 70,
+                    {'field': 'time', 'headerName': 'Time', 'width': 110},
+                    {'field': 'symbol', 'headerName': 'Symbol', 'width': 90},
+                    {'field': 'side', 'headerName': 'Side', 'width': 55,
                      'cellClassRules': {
                          'text-green-400': 'x === "BUY"',
                          'text-red-400': 'x === "SELL"',
                      }},
-                    {'field': 'price', 'headerName': 'Price', 'width': 100, 'type': 'rightAligned'},
-                    {'field': 'qty', 'headerName': 'Qty', 'width': 80, 'type': 'rightAligned'},
-                    {'field': 'pnl', 'headerName': 'PnL', 'width': 80, 'type': 'rightAligned'},
+                    {'field': 'price', 'headerName': 'Price', 'width': 90, 'type': 'rightAligned'},
+                    {'field': 'qty', 'headerName': 'Qty', 'width': 60, 'type': 'rightAligned'},
+                    {'field': 'pnl', 'headerName': 'PnL', 'width': 65, 'type': 'rightAligned'},
                 ],
                 'rowData': rows,
-            }).classes('h-64 ag-theme-balham-dark')
+                'headerHeight': 32,
+                'rowHeight': 28,
+            }).classes('h-52 ag-theme-balham-dark')
 
     ui.timer(10, update)
 
@@ -200,7 +202,7 @@ def render_trade_history():
 def render_scan_log():
     """Scan log — last scanner entries."""
     ui.label('SCAN LOG').classes('text-xs text-gray-500 uppercase tracking-wide')
-    scan_container = ui.column().classes('w-full max-h-48 overflow-y-auto')
+    scan_container = ui.column().classes('w-full max-h-36 overflow-y-auto')
 
     def update():
         d = get_data()
@@ -230,7 +232,7 @@ def render_scan_log():
 def render_activity_log():
     """Activity timeline."""
     ui.label('ACTIVITY').classes('text-xs text-gray-500 uppercase tracking-wide')
-    log_container = ui.column().classes('w-full max-h-64 overflow-y-auto')
+    log_container = ui.column().classes('w-full max-h-36 overflow-y-auto')
 
     def update():
         d = get_data()
