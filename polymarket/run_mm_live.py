@@ -1434,20 +1434,37 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if mid <= 0:
                     continue
 
-                # ── Layer 1: BLACK SWAN (94¢+) → sell ALL ──
+                # ── Layer 1: BLACK SWAN (94¢+) → sell ALL + greed hedge ──
                 if mid >= _BLACK_SWAN_MID:
+                    # Sell — must succeed before hedge attempt
                     try:
                         _sell_price = round(max(0.01, mid * 0.99), 2)
                         client.sell_shares(tok, shares, price=_sell_price)
-                        _pnl = shares * (mid - avg)
+                        _pnl = shares * (_sell_price - avg)
                         logger.info("BLACK SWAN %s %s: sell %.1f @ %.3f (entry %.3f, +%.0f%%) pnl=$%.2f",
-                                    cid[:8], side, shares, mid, avg, (mid-avg)/avg*100, _pnl)
+                                    cid[:8], side, shares, _sell_price, avg, (_sell_price-avg)/avg*100, _pnl)
                         mkt[shares_key] = 0
                         mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
                         mkt["phase"] = "RESOLVED"
                         mkt["early_exit"] = "black_swan"
                     except Exception as e:
                         logger.warning("Black swan sell failed %s: %s", cid[:8], e)
+                        continue
+                    # Greed hedge: buy opposite side 5 shares at cheap price (separate try)
+                    # If reversal → $5 bonus. If not → lose ~$0.30 (tiny vs locked profit).
+                    _opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
+                    _opp_side = "DOWN" if side == "UP" else "UP"
+                    if _opp_tok:
+                        _opp_mid = _poly_midpoint(client, _opp_tok)
+                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.02), 3)
+                        if _hedge_price < 0.15:  # only if cheap (<15¢)
+                            try:
+                                _hedge_cost = round(5 * _hedge_price, 2)
+                                client.buy_shares(_opp_tok, _hedge_cost, price=_hedge_price)
+                                logger.info("HEDGE %s %s: 5 shares @ $%.3f ($%.2f)",
+                                            cid[:8], _opp_side, _hedge_price, _hedge_cost)
+                            except Exception as e:
+                                logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
                     continue
 
                 if _cost_recovered:
