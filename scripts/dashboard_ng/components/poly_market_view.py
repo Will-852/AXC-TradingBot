@@ -131,25 +131,40 @@ def render_market_view():
         countdown_label.text = m['remaining_str']
         progress_bar.value = m['progress_pct'] / 100
 
+        has_position = m['up_shares'] > 0 or m['down_shares'] > 0
+
         # KPI cards
-        avg_sum_val.text = f"{m['avg_sum']:.4f}" if m['avg_sum'] else '—'
-        profit_pct = (m['avg_sum'] - 1.0) * 100 if m['avg_sum'] else 0
-        avg_sum_sub.text = f"{profit_pct:+.2f}% profit" if m['avg_sum'] else ''
+        if m['avg_sum']:
+            avg_sum_val.text = f"{m['avg_sum']:.4f}"
+            profit_pct = (m['avg_sum'] - 1.0) * 100
+            avg_sum_sub.text = f"{profit_pct:+.2f}% profit"
+        else:
+            avg_sum_val.text = '—'
+            avg_sum_sub.text = 'no position' if not has_position else ''
 
         delta_val.text = f"{m['delta_pct']:+.1f}%"
-        delta_sub.text = f"{m['delta_shares']:+.1f} shares diff"
+        delta_sub.text = f"{m['delta_shares']:+.1f} diff" if has_position else 'watching'
 
-        pnl_down_val.text = f"${m['pnl_if_down']:+.2f}"
-        pnl_down_val.classes(replace='text-lg font-mono font-bold ' +
-                             ('text-green-400' if m['pnl_if_down'] >= 0 else 'text-red-400'))
-        pnl_down_sub.text = f"Capital: ${m['capital']:.2f}"
+        if has_position:
+            pnl_down_val.text = f"${m['pnl_if_down']:+.2f}"
+            pnl_down_val.classes(replace='text-lg font-mono font-bold ' +
+                                 ('text-green-400' if m['pnl_if_down'] >= 0 else 'text-red-400'))
+            pnl_down_sub.text = f"Capital: ${m['capital']:.2f}"
 
-        pnl_up_val.text = f"${m['pnl_if_up']:+.2f}"
-        pnl_up_val.classes(replace='text-lg font-mono font-bold ' +
-                           ('text-green-400' if m['pnl_if_up'] >= 0 else 'text-red-400'))
-        pnl_up_sub.text = f"Capital: ${m['capital']:.2f}"
+            pnl_up_val.text = f"${m['pnl_if_up']:+.2f}"
+            pnl_up_val.classes(replace='text-lg font-mono font-bold ' +
+                                 ('text-green-400' if m['pnl_if_up'] >= 0 else 'text-red-400'))
+            pnl_up_sub.text = f"Capital: ${m['capital']:.2f}"
+        else:
+            pnl_down_val.text = '—'
+            pnl_down_val.classes(replace='text-lg font-mono font-bold text-gray-500')
+            pnl_down_sub.text = 'no position'
+            pnl_up_val.text = '—'
+            pnl_up_val.classes(replace='text-lg font-mono font-bold text-gray-500')
+            pnl_up_sub.text = 'no position'
 
-        capital_val.text = f"${m['capital']:.2f}"
+        capital_val.text = f"${m['capital']:.2f}" if has_position else '—'
+        capital_sub.text = m.get('phase', '') if m.get('phase') else ''
 
         # Decision Engine signals
         from scripts.dashboard_ng.utils.poly_market_data import get_latest_signals

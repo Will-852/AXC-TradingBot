@@ -133,10 +133,22 @@ from polymarket.exchange.polymarket_client import PolymarketClient
 client = PolymarketClient()
 
 result = dict()
-result['up_mid'] = client.get_midpoint({up_token!r})
-result['dn_mid'] = client.get_midpoint({dn_token!r})
-result['up_spread'] = client.get_spread({up_token!r})
-result['dn_spread'] = client.get_spread({dn_token!r})
+try:
+    result['up_mid'] = client.get_midpoint({up_token!r})
+except Exception:
+    result['up_mid'] = 0
+try:
+    result['dn_mid'] = client.get_midpoint({dn_token!r})
+except Exception:
+    result['dn_mid'] = 0
+try:
+    result['up_spread'] = client.get_spread({up_token!r})
+except Exception:
+    result['up_spread'] = 0
+try:
+    result['dn_spread'] = client.get_spread({dn_token!r})
+except Exception:
+    result['dn_spread'] = 0
 print(json.dumps(result))
 '''
 
