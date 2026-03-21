@@ -85,6 +85,193 @@ def render_polymarket_page():
             pass
         update_all()
 
+    # ── Connection Status (Polymarket auth) ──
+    auth_container = ui.row().classes('items-center gap-3 w-full py-1 px-2 rounded '
+                                      'border border-gray-800 bg-gray-900/50')
+
+    def _check_auth() -> dict:
+        """Check Polymarket auth status (local files only, no API calls)."""
+        import os as _os
+        axc = _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading'))
+        secrets_env = _os.path.join(axc, 'secrets', '.env')
+        creds_cache = _os.path.join(axc, 'secrets', '.poly_api_creds.json')
+
+        result = {'key': False, 'wallet': '', 'l2_creds': False, 'network': 'Polygon'}
+
+        # Check env vars (loaded by dotenv at import time)
+        pk = _os.getenv('POLY_PRIVATE_KEY', '')
+        wallet = _os.getenv('POLY_WALLET_ADDRESS', '')
+
+        # Fallback: read from .env file
+        if not pk and _os.path.exists(secrets_env):
+            try:
+                with open(secrets_env) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('POLY_PRIVATE_KEY=') and len(line) > 20:
+                            pk = 'set'
+                        elif line.startswith('POLY_WALLET_ADDRESS=') and len(line) > 22:
+                            wallet = line.split('=', 1)[1].strip().strip('"').strip("'")
+            except Exception:
+                pass
+
+        result['key'] = bool(pk)
+        result['wallet'] = wallet
+
+        # Check L2 cached creds
+        if _os.path.exists(creds_cache):
+            try:
+                import json as _j
+                with open(creds_cache) as f:
+                    c = _j.load(f)
+                result['l2_creds'] = bool(c.get('api_key') or c.get('apiKey'))
+            except Exception:
+                pass
+
+        return result
+
+    async def refresh_auth():
+        try:
+            auth = await run.io_bound(_check_auth)
+        except Exception as e:
+            auth_container.clear()
+            with auth_container:
+                ui.icon('error').classes('text-red-400')
+                ui.label(f'Auth check failed: {e}').classes('text-[12px] text-red-400')
+            return
+        auth_container.clear()
+        with auth_container:
+            # Connection dot
+            connected = auth['key'] and auth['l2_creds']
+            dot_color = '#22c55e' if connected else '#f59e0b' if auth['key'] else '#ef4444'
+            status_text = 'Connected' if connected else 'L1 Only' if auth['key'] else 'No Key'
+            ui.icon('circle').classes('text-[9px]').style(f'color: {dot_color}')
+            ui.label(status_text).classes('text-[12px] font-mono font-bold').style(f'color: {dot_color}')
+
+            # Wallet address (truncated)
+            if auth['wallet']:
+                w = auth['wallet']
+                short = f'{w[:6]}...{w[-4:]}' if len(w) > 10 else w
+                ui.label(short).classes('text-[12px] font-mono text-gray-400')
+
+            # Auth badges
+            ui.badge('L1 Key', color='green' if auth['key'] else 'red').classes('text-[11px]')
+            ui.badge('L2 API', color='green' if auth['l2_creds'] else 'grey').classes('text-[11px]')
+            ui.badge(auth['network'], color='purple').classes('text-[11px]')
+
+            # Spacer + Settings button
+            ui.element('div').classes('flex-1')
+            ui.button(icon='settings', on_click=open_settings) \
+                .props('flat dense round size=sm color=grey-6') \
+                .tooltip('Polymarket Credentials')
+
+    async def open_settings():
+        """Open credential settings dialog."""
+        import os as _os
+        axc = _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading'))
+        env_path = _os.path.join(axc, 'secrets', '.env')
+
+        # Read current values (masked)
+        current_pk = ''
+        current_wallet = ''
+        if _os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('POLY_PRIVATE_KEY='):
+                        val = line.split('=', 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            current_pk = f'{val[:6]}...{val[-4:]}' if len(val) > 10 else '***'
+                    elif line.startswith('POLY_WALLET_ADDRESS='):
+                        current_wallet = line.split('=', 1)[1].strip().strip('"').strip("'")
+
+        dlg = ui.dialog().props('persistent')
+        dlg.move()
+        with dlg, ui.card().classes('p-6 min-w-[420px]'):
+            ui.label('Polymarket Credentials').classes('text-lg font-bold')
+            ui.label('Saved to secrets/.env (localhost only)').classes('text-[11px] text-gray-500')
+
+            ui.separator().classes('my-2')
+
+            # Current status
+            if current_pk:
+                ui.label(f'Current Key: {current_pk}').classes('text-[12px] font-mono text-green-400')
+            else:
+                ui.label('No private key configured').classes('text-[12px] text-red-400')
+
+            if current_wallet:
+                ui.label(f'Wallet: {current_wallet}').classes('text-[12px] font-mono text-gray-400')
+
+            ui.separator().classes('my-2')
+            ui.label('Update Credentials').classes('text-sm font-bold text-gray-300')
+            ui.label('Leave blank to keep current value.').classes('text-[11px] text-gray-600')
+
+            pk_input = ui.input('Private Key (0x...)') \
+                .props('type=password dense filled dark') \
+                .classes('w-full')
+            wallet_input = ui.input('Proxy Wallet Address (0x...)') \
+                .props('dense filled dark') \
+                .classes('w-full')
+            if current_wallet:
+                wallet_input.value = current_wallet
+
+            with ui.row().classes('gap-3 mt-4 justify-end w-full'):
+                ui.button('Cancel', on_click=lambda: dlg.submit(None)).props('flat color=grey')
+
+                async def save_creds():
+                    new_pk = pk_input.value.strip()
+                    new_wallet = wallet_input.value.strip()
+
+                    if new_pk and not new_pk.startswith('0x'):
+                        ui.notify('Private key must start with 0x', type='negative')
+                        return
+                    if new_wallet and not new_wallet.startswith('0x'):
+                        ui.notify('Wallet address must start with 0x', type='negative')
+                        return
+
+                    # Read existing .env, update only POLY_ lines
+                    lines_out = []
+                    found_pk = False
+                    found_wallet = False
+                    if _os.path.exists(env_path):
+                        with open(env_path) as f:
+                            for line in f:
+                                if line.strip().startswith('POLY_PRIVATE_KEY=') and new_pk:
+                                    lines_out.append(f'POLY_PRIVATE_KEY={new_pk}\n')
+                                    found_pk = True
+                                elif line.strip().startswith('POLY_WALLET_ADDRESS=') and new_wallet:
+                                    lines_out.append(f'POLY_WALLET_ADDRESS={new_wallet}\n')
+                                    found_wallet = True
+                                else:
+                                    lines_out.append(line)
+                    if new_pk and not found_pk:
+                        lines_out.append(f'POLY_PRIVATE_KEY={new_pk}\n')
+                    if new_wallet and not found_wallet:
+                        lines_out.append(f'POLY_WALLET_ADDRESS={new_wallet}\n')
+
+                    import tempfile
+                    fd, tmp = tempfile.mkstemp(dir=_os.path.dirname(env_path), suffix='.tmp')
+                    with _os.fdopen(fd, 'w') as f:
+                        f.writelines(lines_out)
+                    _os.replace(tmp, env_path)
+
+                    # Delete cached L2 creds (force re-derive on next client init)
+                    creds_path = _os.path.join(axc, 'secrets', '.poly_api_creds.json')
+                    if new_pk and _os.path.exists(creds_path):
+                        _os.remove(creds_path)
+
+                    ui.notify('Credentials saved. Restart dashboard to apply.', type='positive')
+                    dlg.submit('saved')
+
+                ui.button('Save', on_click=save_creds).props('color=green')
+
+        dlg.open()
+        result = await dlg
+        if result == 'saved':
+            await refresh_auth()
+
+    ui.timer(0.5, refresh_auth, once=True)
+
     # ── KPI row ──
     with ui.row().classes('gap-3 flex-wrap'):
         kpi_labels = {}
@@ -98,7 +285,7 @@ def render_polymarket_page():
             ('last_updated', 'Last Updated'),
         ]:
             with ui.card().classes('p-3 bg-gray-800 border border-gray-700 min-w-[120px]'):
-                ui.label(label).classes('text-[10px] text-gray-500 uppercase')
+                ui.label(label).classes('text-[11px] text-gray-500 uppercase')
                 kpi_labels[key] = ui.label('—').classes('text-lg font-bold font-mono')
 
     ui.separator().classes('bg-gray-700')
@@ -110,7 +297,7 @@ def render_polymarket_page():
             run_btn.set_enabled(False)
             ui.notify('Pipeline starting...', type='info')
             log_cmd('Run Cycle triggered')
-            result = await run.io_bound(handle_polymarket_run_cycle)
+            result = await run.io_bound(handle_polymarket_run_cycle, '{}')
             if isinstance(result, tuple):
                 code, data = result
                 if code == 409:
@@ -141,7 +328,7 @@ def render_polymarket_page():
         async def force_scan():
             from scripts.dashboard.polymarket import handle_polymarket_force_scan
             scan_btn.set_enabled(False)
-            result = await run.io_bound(handle_polymarket_force_scan)
+            result = await run.io_bound(handle_polymarket_force_scan, '{}')
             if isinstance(result, tuple):
                 _, data = result
             else:
@@ -174,7 +361,8 @@ def render_polymarket_page():
                 if not confirmed:
                     return
 
-            await run.io_bound(handle_polymarket_set_mode, {'mode': new_mode})
+            import json as _json_mode
+            await run.io_bound(handle_polymarket_set_mode, _json_mode.dumps({'mode': new_mode}))
             ui.notify(f'Mode → {new_mode}', type='positive' if new_mode == 'dry_run' else 'warning')
             log_cmd(f'Mode switched to {new_mode}')
             await refresh()
@@ -200,117 +388,170 @@ def render_polymarket_page():
         ui.button('Check Merge', icon='merge_type', on_click=check_merge).props('flat color=grey-6')
         ui.button('Refresh', icon='refresh', on_click=refresh).props('flat color=grey')
 
-    ui.separator().classes('bg-gray-700')
+    # ── Tabbed content (no scrolling needed) ──
+    with ui.tabs().classes('w-full').props('dense align=left active-color=indigo indicator-color=indigo') as tabs:
+        tab_live = ui.tab('Live', icon='account_balance_wallet')
+        tab_analytics = ui.tab('Analytics', icon='analytics')
+        tab_ops = ui.tab('Ops', icon='engineering')
 
-    # ── Strategy Config (scrubbers) ──
-    from scripts.dashboard_ng.components.poly_config import render_poly_config
-    render_poly_config()
+    with ui.tab_panels(tabs, value=tab_live).classes('w-full'):
 
-    ui.separator().classes('bg-gray-700')
+        # ━━━ TAB: Live ━━━
+        with ui.tab_panel(tab_live):
+            # Live Wallet Monitor
+            ui.label('LIVE WALLET MONITOR').classes('text-xs text-gray-500 uppercase tracking-wide')
+            live_container = ui.column().classes('w-full gap-1')
+            live_ts = ui.label('').classes('text-[11px] text-gray-600 font-mono')
 
-    # ── Running Processes (PID) ──
-    with ui.expansion('Running Processes', icon='terminal', value=True).classes('w-full'):
-        proc_container = ui.column().classes('w-full gap-1')
+            ui.separator().classes('bg-gray-700 my-2')
 
-        # Terminal command hint
-        ui.label('Terminal: ps aux | grep polymarket').classes('text-[10px] text-gray-600 font-mono mt-1')
+            # Open Orders
+            ui.label('OPEN ORDERS (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide')
+            positions_container = ui.column().classes('w-full')
 
-        async def refresh_procs():
+            # Recent Trades
+            ui.label('RECENT TRADES (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
+            trades_container = ui.column().classes('w-full')
+
+        # ━━━ TAB: Analytics ━━━
+        with ui.tab_panel(tab_analytics):
+            # PnL chart
+            ui.label('PNL').classes('text-xs text-gray-500 uppercase tracking-wide')
+            pnl_chart = ui.echart({
+                'backgroundColor': 'transparent',
+                'tooltip': {'trigger': 'axis'},
+                'grid': {'left': 50, 'right': 20, 'top': 20, 'bottom': 30},
+                'xAxis': {'type': 'category', 'data': [],
+                          'axisLabel': {'color': '#6b7280', 'fontSize': 11}},
+                'yAxis': {'type': 'value',
+                          'axisLabel': {'color': '#6b7280', 'formatter': '${value}'},
+                          'splitLine': {'lineStyle': {'color': '#1f2937'}}},
+                'series': [{'type': 'line', 'data': [], 'smooth': True,
+                            'itemStyle': {'color': '#6366f1'}, 'areaStyle': {
+                                'color': {'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
+                                          'colorStops': [
+                                              {'offset': 0, 'color': 'rgba(99,102,241,0.3)'},
+                                              {'offset': 1, 'color': 'rgba(99,102,241,0.02)'},
+                                          ]}}}],
+            }).classes('h-48 w-full')
+
+            ui.separator().classes('bg-gray-700 my-2')
+
+            # Strategy Breakdown
+            ui.label('STRATEGY BREAKDOWN').classes('text-xs text-gray-500 uppercase tracking-wide')
+            strategy_container = ui.column().classes('w-full')
+
+            # Calibration
+            ui.label('CALIBRATION').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
+            cal_container = ui.row().classes('gap-4')
+
+        # ━━━ TAB: Ops ━━━
+        with ui.tab_panel(tab_ops):
+            # Circuit breakers
+            ui.label('CIRCUIT BREAKERS').classes('text-xs text-gray-500 uppercase tracking-wide')
+            cb_container = ui.column().classes('w-full')
+
+            ui.separator().classes('bg-gray-700 my-2')
+
+            # Pipeline Status
+            with ui.expansion('Pipeline Status', icon='pending_actions').classes('w-full'):
+                cycle_container = ui.column().classes('w-full gap-1')
+
+            # Running Processes
+            with ui.expansion('Running Processes', icon='terminal', value=True).classes('w-full'):
+                proc_container = ui.column().classes('w-full gap-1')
+                ui.label('Terminal: ps aux | grep polymarket').classes('text-[13px] text-gray-600 font-mono mt-1')
+
+            ui.separator().classes('bg-gray-700 my-2')
+
+            # Strategy Config
+            from scripts.dashboard_ng.components.poly_config import render_poly_config
+            render_poly_config()
+
+    # ── Async refresh functions (outside tabs — closures reference containers above) ──
+
+    async def refresh_live():
+        from scripts.dashboard_ng.utils.poly_live import query_live
+        from datetime import datetime
+        try:
+            data = await run.io_bound(query_live)
+        except Exception as e:
+            live_container.clear()
+            with live_container:
+                ui.label(f'CLOB error: {e}').classes('text-red-400 text-sm')
+            return
+        live_container.clear()
+        with live_container:
+            if not data:
+                ui.label('Could not query CLOB').classes('text-gray-600 text-sm')
+                return
+            bal = data.get('balance', 0)
+            with ui.row().classes('items-center gap-4'):
+                with ui.column().classes('gap-0'):
+                    ui.label('USDC BALANCE').classes('text-[11px] text-gray-600 uppercase')
+                    ui.label(f'${bal:.2f}').classes('text-xl font-mono font-bold text-green-400')
+                with ui.column().classes('gap-0'):
+                    ui.label('OPEN ORDERS').classes('text-[11px] text-gray-600 uppercase')
+                    ui.label(str(data.get('open_orders', 0))).classes('text-xl font-mono font-bold')
+                with ui.column().classes('gap-0'):
+                    ui.label('TOTAL TRADES').classes('text-[11px] text-gray-600 uppercase')
+                    ui.label(str(data.get('total_trades', 0))).classes('text-xl font-mono font-bold')
+        live_ts.text = f'Live: {datetime.now().strftime("%H:%M:%S")} | {data.get("total_trades", 0)} trades | {data.get("open_orders", 0)} orders'
+
+    def _update_cycle_status(status: dict):
+        cycle_container.clear()
+        with cycle_container:
+            running = status.get('running', False)
+            with ui.row().classes('items-center gap-2'):
+                if running:
+                    ui.spinner(size='sm')
+                    ui.label('Pipeline running...').classes('text-yellow-400 text-sm')
+                else:
+                    ui.icon('check_circle').classes('text-green-400 text-sm')
+                    ui.label('Idle').classes('text-gray-400 text-sm')
+            last_run = status.get('last_run', 0)
+            if last_run:
+                from datetime import datetime
+                ts_str = datetime.fromtimestamp(last_run).strftime('%H:%M:%S')
+                dur = status.get('last_duration', 0)
+                ui.label(f'Last run: {ts_str} ({dur:.1f}s)').classes('text-xs text-gray-500 font-mono')
+            err = status.get('last_error')
+            if err:
+                ui.label(f'Last error: {err}').classes('text-xs text-red-400')
+
+    async def refresh_cycle():
+        status = await run.io_bound(_get_cycle_status)
+        _update_cycle_status(status)
+
+    async def refresh_procs():
+        try:
             procs = await run.io_bound(_get_running_processes)
+        except Exception as e:
             proc_container.clear()
             with proc_container:
-                if not procs:
-                    ui.label('No polymarket processes running').classes('text-gray-600 text-sm')
-                else:
-                    for p in procs:
-                        with ui.column().classes('w-full py-1 border-b border-gray-800 gap-0'):
-                            with ui.row().classes('items-center gap-2 w-full'):
-                                ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[10px]')
-                                ui.label(f'⏱ {p["uptime"]}').classes('text-[11px] font-mono text-amber-400')
-                                ui.label(p['cmd']).classes('text-[11px] text-gray-400 font-mono')
-                            ui.label(f'Started: {p["start"]}').classes('text-[10px] text-gray-600 font-mono pl-1')
-                            # Copy-pasteable terminal command
-                            ui.label(f'tail -f logs/ | grep {p["pid"]}').classes(
-                                'text-[9px] text-gray-700 font-mono pl-1')
+                ui.label(f'Error: {e}').classes('text-red-400 text-sm')
+            return
+        proc_container.clear()
+        with proc_container:
+            if not procs:
+                ui.label('No polymarket processes running').classes('text-gray-600 text-sm')
+            else:
+                for p in procs:
+                    with ui.column().classes('w-full py-1 border-b border-gray-800 gap-0'):
+                        with ui.row().classes('items-center gap-2 w-full'):
+                            ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[13px]')
+                            ui.label(f'⏱ {p["uptime"]}').classes('text-sm font-mono text-amber-400')
+                            ui.label(p['cmd']).classes('text-sm text-gray-400 font-mono')
+                        ui.label(f'Started: {p["start"]}').classes('text-[13px] text-gray-600 font-mono pl-1')
+                        ui.label(f'tail -f logs/ | grep {p["pid"]}').classes(
+                            'text-[12px] text-gray-700 font-mono pl-1')
 
-        ui.timer(0.1, refresh_procs, once=True)
-        ui.timer(15, refresh_procs)
-
-    # ── Cycle Status ──
-    with ui.expansion('Pipeline Status', icon='pending_actions').classes('w-full'):
-        cycle_container = ui.column().classes('w-full gap-1')
-
-        def _update_cycle_status(status: dict):
-            cycle_container.clear()
-            with cycle_container:
-                running = status.get('running', False)
-                with ui.row().classes('items-center gap-2'):
-                    if running:
-                        ui.spinner(size='sm')
-                        ui.label('Pipeline running...').classes('text-yellow-400 text-sm')
-                    else:
-                        ui.icon('check_circle').classes('text-green-400 text-sm')
-                        ui.label('Idle').classes('text-gray-400 text-sm')
-
-                last_run = status.get('last_run', 0)
-                if last_run:
-                    from datetime import datetime
-                    ts_str = datetime.fromtimestamp(last_run).strftime('%H:%M:%S')
-                    dur = status.get('last_duration', 0)
-                    ui.label(f'Last run: {ts_str} ({dur:.1f}s)').classes('text-xs text-gray-500 font-mono')
-
-                err = status.get('last_error')
-                if err:
-                    ui.label(f'Last error: {err}').classes('text-xs text-red-400')
-
-        async def refresh_cycle():
-            status = await run.io_bound(_get_cycle_status)
-            _update_cycle_status(status)
-
-        ui.timer(0.1, refresh_cycle, once=True)
-        ui.timer(10, refresh_cycle)
-
-    ui.separator().classes('bg-gray-700')
-
-    # ── Open Orders (LIVE from CLOB) ──
-    ui.label('OPEN ORDERS (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide')
-    positions_container = ui.column().classes('w-full')
-
-    # ── PnL chart ──
-    ui.label('PNL').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-    pnl_chart = ui.echart({
-        'backgroundColor': 'transparent',
-        'tooltip': {'trigger': 'axis'},
-        'grid': {'left': 50, 'right': 20, 'top': 20, 'bottom': 30},
-        'xAxis': {'type': 'category', 'data': [],
-                  'axisLabel': {'color': '#6b7280', 'fontSize': 10}},
-        'yAxis': {'type': 'value',
-                  'axisLabel': {'color': '#6b7280', 'formatter': '${value}'},
-                  'splitLine': {'lineStyle': {'color': '#1f2937'}}},
-        'series': [{'type': 'line', 'data': [], 'smooth': True,
-                    'itemStyle': {'color': '#6366f1'}, 'areaStyle': {
-                        'color': {'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
-                                  'colorStops': [
-                                      {'offset': 0, 'color': 'rgba(99,102,241,0.3)'},
-                                      {'offset': 1, 'color': 'rgba(99,102,241,0.02)'},
-                                  ]}}}],
-    }).classes('h-48 w-full')
-
-    # ── Strategy Breakdown ──
-    ui.label('STRATEGY BREAKDOWN').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-    strategy_container = ui.column().classes('w-full')
-
-    # ── Calibration ──
-    ui.label('CALIBRATION').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-    cal_container = ui.row().classes('gap-4')
-
-    # ── Trades table (LIVE from CLOB) ──
-    ui.label('RECENT TRADES (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-    trades_container = ui.column().classes('w-full')
-
-    # ── Circuit breakers (with reset) ──
-    ui.label('CIRCUIT BREAKERS').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-    cb_container = ui.column().classes('w-full')
+    ui.timer(5, refresh_live, once=True)
+    ui.timer(30, refresh_live)
+    ui.timer(0.1, refresh_cycle, once=True)
+    ui.timer(10, refresh_cycle)
+    ui.timer(0.1, refresh_procs, once=True)
+    ui.timer(15, refresh_procs)
 
     def update_all():
         d = poly_data['data']
@@ -388,6 +629,25 @@ def render_polymarket_page():
         mode_btn.text = f'Mode: {mode_str}'
         mode_btn.props(f'color={"orange" if is_dry else "green"}')
 
+        # Risk mode from mm_state.json (shown next to mode button)
+        try:
+            import os as _os
+            import json as _json_rm
+            _mm_path = _os.path.join(
+                _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading')),
+                'polymarket', 'logs', 'mm_state.json'
+            )
+            if _os.path.exists(_mm_path):
+                with open(_mm_path) as _f:
+                    _mm = _json_rm.load(_f)
+                risk_mode = _mm.get('_risk_mode', '')
+                if risk_mode:
+                    risk_color = 'text-red-400' if risk_mode == 'STOPPED' else 'text-amber-400' if risk_mode == 'PROTECTION' else 'text-green-400'
+                    kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}% ({risk_mode})'
+                    kpi_labels['exposure_pct'].classes(replace=f'text-lg font-bold font-mono {risk_color}')
+        except Exception:
+            pass
+
         # Positions — show LIVE orders from CLOB (state file positions are stale)
         live = poly_data.get('live', {})
         live_orders = live.get('orders', [])
@@ -456,7 +716,7 @@ def render_polymarket_page():
                 with ui.row().classes('gap-3 flex-wrap'):
                     for strat, count in sorted(breakdown.items(), key=lambda x: -(x[1] if isinstance(x[1], (int, float)) else 0)):
                         if isinstance(count, (int, float)) and count > 0:
-                            ui.badge(f'{strat}: {count}', color='grey').classes('font-mono text-[11px]')
+                            ui.badge(f'{strat}: {count}', color='grey').classes('font-mono text-[12px]')
             else:
                 ui.label('No strategy data').classes('text-gray-600 text-sm')
 
@@ -521,7 +781,7 @@ def render_polymarket_page():
                 # Fallback to state file trades if live not available
                 state_trades = d.get('trades', [])
                 if state_trades:
-                    ui.label('(State file trades — pipeline stale)').classes('text-[10px] text-yellow-400')
+                    ui.label('(State file trades — pipeline stale)').classes('text-[11px] text-yellow-400')
                     for t in state_trades[:5]:
                         ts = t.get('timestamp', t.get('time', ''))[:16] if t.get('timestamp') else ''
                         ui.label(f"{ts} {t.get('side','')} ${t.get('price','')}").classes('text-xs text-gray-500')
@@ -546,18 +806,18 @@ def render_polymarket_page():
                         failures = 0
 
                     with ui.row().classes('items-center gap-2 w-full'):
-                        ui.icon('circle').classes('text-[8px]').style(
+                        ui.icon('circle').classes('text-[9px]').style(
                             f'color: {"#ef4444" if triggered else "#22c55e"}')
                         ui.label(str(name)).classes('text-sm text-gray-300 min-w-[100px]')
-                        ui.label(f'{cb_state}' if isinstance(cb, dict) else '').classes('text-[10px] font-mono text-gray-500')
+                        ui.label(f'{cb_state}' if isinstance(cb, dict) else '').classes('text-[11px] font-mono text-gray-500')
                         if failures:
-                            ui.label(f'({failures} failures)').classes('text-[10px] text-yellow-400')
+                            ui.label(f'({failures} failures)').classes('text-[11px] text-yellow-400')
                         if triggered:
                             async def reset_cb(n=name):
                                 from scripts.dashboard.polymarket import handle_polymarket_reset_cb
                                 import json as _json
                                 result = await run.io_bound(
-                                    handle_polymarket_reset_cb, _json.dumps({'name': n})
+                                    handle_polymarket_reset_cb, _json.dumps({'service': n})
                                 )
                                 if isinstance(result, tuple):
                                     _, rdata = result
@@ -574,42 +834,6 @@ def render_polymarket_page():
             else:
                 ui.label('No circuit breakers').classes('text-gray-600 text-sm')
 
-    # ── Live Monitor (direct CLOB query, independent of pipeline state file) ──
-    ui.separator().classes('bg-gray-700 mt-4')
-    ui.label('LIVE WALLET MONITOR').classes('text-xs text-gray-500 uppercase tracking-wide')
-    live_container = ui.column().classes('w-full gap-1')
-    live_ts = ui.label('').classes('text-[10px] text-gray-600 font-mono')
-
-    async def refresh_live():
-        from scripts.dashboard_ng.utils.poly_live import query_live
-        from datetime import datetime
-        data = await run.io_bound(query_live)
-        live_container.clear()
-        with live_container:
-            if not data:
-                ui.label('Could not query CLOB').classes('text-gray-600 text-sm')
-                return
-
-            # Balance
-            bal = data.get('balance', 0)
-            with ui.row().classes('items-center gap-4'):
-                with ui.column().classes('gap-0'):
-                    ui.label('USDC BALANCE').classes('text-[10px] text-gray-600 uppercase')
-                    ui.label(f'${bal:.2f}').classes('text-xl font-mono font-bold text-green-400')
-
-                with ui.column().classes('gap-0'):
-                    ui.label('OPEN ORDERS').classes('text-[10px] text-gray-600 uppercase')
-                    ui.label(str(data.get('open_orders', 0))).classes('text-xl font-mono font-bold')
-
-                with ui.column().classes('gap-0'):
-                    ui.label('TOTAL TRADES').classes('text-[10px] text-gray-600 uppercase')
-                    ui.label(str(data.get('total_trades', 0))).classes('text-xl font-mono font-bold')
-
-        live_ts.text = f'Live: {datetime.now().strftime("%H:%M:%S")} | {data.get("total_trades", 0)} trades | {data.get("open_orders", 0)} orders'
-
-    ui.timer(3, refresh_live, once=True)
-    ui.timer(30, refresh_live)
-
     # ── Command Log ──
     with ui.expansion('Command Log', icon='history', value=False).classes('w-full'):
         cmd_log = ui.column().classes('w-full max-h-48 overflow-y-auto gap-0')
@@ -620,8 +844,8 @@ def render_polymarket_page():
         ts = datetime.now().strftime('%H:%M:%S')
         with cmd_log:
             with ui.row().classes('gap-2 py-0.5'):
-                ui.label(ts).classes('text-[10px] text-gray-600 font-mono min-w-[60px]')
-                ui.label(msg).classes('text-[11px] text-gray-400')
+                ui.label(ts).classes('text-[11px] text-gray-600 font-mono min-w-[60px]')
+                ui.label(msg).classes('text-[12px] text-gray-400')
 
     # ── Pipeline diagram ──
     ui.separator().classes('bg-gray-700 mt-4')

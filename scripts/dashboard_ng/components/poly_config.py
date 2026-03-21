@@ -22,6 +22,7 @@ SCRUBBERS = [
     # Scanning
     ('SCAN_INTERVAL_SEC', 'Scan Interval', 180, 30, 600, 30, 's'),
     ('MAX_MARKETS_TO_SCAN', 'Max Markets', 300, 50, 500, 50, ''),
+    ('MIN_LIQUIDITY_USDC', 'Min Liquidity', 1000, 100, 5000, 100, '$'),
     ('AI_TEMPERATURE', 'AI Temperature', 0.3, 0.0, 1.0, 0.1, ''),
     ('MAX_MARKETS_FOR_AI', 'Max AI Assess', 5, 1, 10, 1, ''),
 
@@ -41,6 +42,7 @@ SCRUBBERS = [
     ('TAKE_PROFIT_TOKEN_PRICE', 'Take Profit', 0.93, 0.80, 0.99, 0.01, ''),
     ('MAX_TOTAL_EXPOSURE', 'Max Exposure', 0.30, 0.10, 0.50, 0.01, '%'),
     ('MAX_PER_BET', 'Max Per Bet', 0.01, 0.005, 0.05, 0.005, ''),
+    ('MAX_PER_MARKET', 'Max Per Market', 0.10, 0.05, 0.30, 0.01, '%'),
     ('MAX_OPEN_POSITIONS', 'Max Positions', 5, 1, 10, 1, ''),
     ('MAX_SIGNALS_PER_CYCLE', 'Max Signals', 3, 1, 10, 1, ''),
     ('COOLDOWN_AFTER_LOSS_MIN', 'Loss Cooldown', 60, 10, 360, 10, 'm'),
@@ -148,7 +150,7 @@ def render_poly_config():
 
                 with ui.row().classes('items-center gap-2 py-1 px-2 rounded '
                                       'border border-gray-800 bg-gray-900/50'):
-                    ui.label(label).classes('text-[11px] text-gray-500 min-w-[85px]')
+                    ui.label(label).classes('text-[12px] text-gray-500 min-w-[85px]')
 
                     is_int = isinstance(default, int) and step >= 1
                     fmt = '%.0f' if is_int else f'%.{max(0, len(str(step).split(".")[-1]) if "." in str(step) else 0)}f'
@@ -158,7 +160,7 @@ def render_poly_config():
                         .classes('flex-1')
 
                     val_label = ui.label(f'{val}{unit}').classes(
-                        'text-[11px] font-mono text-gray-300 min-w-[45px] text-right')
+                        'text-[12px] font-mono text-gray-300 min-w-[45px] text-right')
 
                     async def on_change(e, k=key, u=unit, lbl=val_label, integer=is_int):
                         v = int(e.value) if integer else round(e.value, 4)
@@ -168,4 +170,4 @@ def render_poly_config():
                     slider.on('update:model-value', on_change)
 
         ui.label('Changes are live — pipeline reads params.py each cycle.').classes(
-            'text-[10px] text-gray-600 mt-2')
+            'text-[11px] text-gray-600 mt-2')

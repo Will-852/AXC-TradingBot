@@ -13,7 +13,7 @@ log = logging.getLogger('axc.poly_view')
 def render_market_view():
     """Render per-market focused dashboard section."""
     from scripts.dashboard_ng.utils.poly_market_data import (
-        get_active_markets, get_live_prices, get_market_summary,
+        get_active_markets, get_live_prices,
     )
 
     # State
@@ -35,9 +35,9 @@ def render_market_view():
     with ui.row().classes('gap-2 flex-wrap w-full'):
         def _kpi(label, key):
             with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[120px] flex-1'):
-                ui.label(label).classes('text-[9px] text-gray-600 uppercase tracking-wider')
+                ui.label(label).classes('text-[10px] text-gray-600 uppercase tracking-wider')
                 lbl = ui.label('—').classes('text-lg font-mono font-bold')
-                sub = ui.label('').classes('text-[10px] text-gray-500')
+                sub = ui.label('').classes('text-[11px] text-gray-500')
                 return lbl, sub
 
         avg_sum_val, avg_sum_sub = _kpi('AVG SUM', 'avg_sum')
@@ -58,18 +58,18 @@ def render_market_view():
     # ── Price Chart (ECharts dual-line) ──
     ui.label('PRICES').classes('text-xs text-gray-500 uppercase tracking-wide')
     with ui.row().classes('items-center gap-2'):
-        price_info = ui.label('').classes('text-[10px] font-mono text-gray-500')
+        price_info = ui.label('').classes('text-[11px] font-mono text-gray-500')
 
     price_chart = ui.echart({
         'darkMode': True, 'backgroundColor': 'transparent',
         'tooltip': {'trigger': 'axis'},
-        'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
+        'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 11}, 'top': 0},
         'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
         'xAxis': {'type': 'category', 'data': [],
-                  'axisLabel': {'color': '#475569', 'fontSize': 9},
+                  'axisLabel': {'color': '#475569', 'fontSize': 11},
                   'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
         'yAxis': {'type': 'value', 'min': 0, 'max': 1,
-                  'axisLabel': {'color': '#475569', 'fontSize': 9, 'formatter': '${value}'},
+                  'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
                   'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
         'series': [
             {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
@@ -87,7 +87,7 @@ def render_market_view():
         'xAxis': {'type': 'category', 'data': [],
                   'axisLabel': {'show': False}},
         'yAxis': {'type': 'value',
-                  'axisLabel': {'color': '#475569', 'fontSize': 9, 'formatter': '${value}'},
+                  'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
                   'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
         'series': [
             {'type': 'bar', 'data': [], 'itemStyle': {'color': '#f59e0b'}, 'barWidth': '60%'},
@@ -194,39 +194,39 @@ def render_market_view():
                 direction = 'UP' if bridge > 0.5 else 'DOWN'
                 dir_score = abs(bridge - 0.5) * 200  # 0-100 scale
                 dir_color = 'green' if direction == 'UP' else 'red'
-                ui.badge(f'{direction} {dir_score:.0f}', color=dir_color).classes('text-[11px] font-mono')
+                ui.badge(f'{direction} {dir_score:.0f}', color=dir_color).classes('text-[12px] font-mono')
 
                 # Signal strength (bridge distance from 0.5)
                 strength = min(10, dir_score / 5)  # 0-10 scale
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
-                    ui.label('SIGNAL').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('SIGNAL').classes('text-[10px] text-gray-600 uppercase')
                     ui.label(f'{strength:.1f}/10').classes('text-sm font-mono font-bold')
                     ui.linear_progress(value=strength / 10).props(f'color={dir_color} size=4px rounded')
 
                 # Key metrics as compact badges
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[90px]'):
-                    ui.label('BRIDGE').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('BRIDGE').classes('text-[10px] text-gray-600 uppercase')
                     b_color = 'text-green-400' if bridge > 0.5 else 'text-red-400'
                     ui.label(f'{bridge:.3f}').classes(f'text-sm font-mono font-bold {b_color}')
 
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
-                    ui.label('CVD').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('CVD').classes('text-[10px] text-gray-600 uppercase')
                     c_color = 'text-green-400' if cvd > 0.5 else 'text-red-400' if cvd < 0.3 else 'text-gray-300'
                     ui.label(f'{cvd:.3f}').classes(f'text-sm font-mono font-bold {c_color}')
 
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
-                    ui.label('M1').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('M1').classes('text-[10px] text-gray-600 uppercase')
                     ui.label(f'{m1_sigma:.1f}σ').classes('text-sm font-mono font-bold')
 
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
-                    ui.label('OB ADJ').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('OB ADJ').classes('text-[10px] text-gray-600 uppercase')
                     ui.label(f'{ob_adj:+.4f}').classes('text-sm font-mono font-bold')
 
                 with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[70px]'):
-                    ui.label('FAIR').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label('FAIR').classes('text-[10px] text-gray-600 uppercase')
                     ui.label(f'${fair:.3f}').classes('text-sm font-mono font-bold')
 
-                ui.label(f'{sym} @ {ts}').classes('text-[9px] text-gray-600 font-mono self-end')
+                ui.label(f'{sym} @ {ts}').classes('text-[10px] text-gray-600 font-mono self-end')
             else:
                 ui.label('No signal data for this market').classes('text-gray-600 text-sm')
 
