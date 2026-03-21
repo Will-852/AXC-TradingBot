@@ -38,6 +38,11 @@
 | `logical_arb.py` | Logical arbitrage detection（negRisk + ordering，零 AI，2.5% fee buffer） |
 | `spread_analyzer.py` | Pre-trade OB gate：spread + depth check，live book → Gamma fallback |
 
+## data/
+| File | 用途 |
+|------|------|
+| `market_data.py` | Multi-exchange parallel data fetcher（6 exchanges, 22+ sources, ~2s cycle）— MarketSnapshot + SnapshotHistory |
+
 ## exchange/
 | File | 用途 |
 |------|------|
@@ -101,6 +106,7 @@
 | File | 用途 |
 |------|------|
 | `mm_v15_pipeline.md` | MM v15 signal pipeline（完整版，取代 v9） |
+| `1h_conviction_pipeline.md` | 1H Conviction bot 完整 pipeline（Brownian Bridge + conviction model） |
 | `mm_v9_pipeline_correct.md` | ~~v9 pipeline~~（DEPRECATED，保留做歷史參考） |
 | `cluster_analysis_report.md` | BMD 四大 Cluster 調優分析（2026-03-21） |
 | `mm_v9_signal_pipeline.svg` | Signal pipeline diagram |

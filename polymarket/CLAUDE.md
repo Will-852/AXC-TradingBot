@@ -70,6 +70,7 @@ pipeline.py（DORMANT）
 核心：market_maker.py | hourly_engine.py | edge_finder.py | gto.py
 設定：config/settings.py | config/params.py | config/categories.py
 風控：risk_manager.py | circuit_breaker.py | binary_kelly.py
+數據：data/market_data.py（6 exchanges, 22+ sources, parallel fetch）
 交易所：polymarket_client.py | gamma_client.py | hl_hedge_client.py | executor.py
 工具：tools/（5 files）| analysis/（1 file）| backtest/（10 files）
 ```
