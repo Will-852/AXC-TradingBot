@@ -71,6 +71,9 @@ _PROTECTION_BET_PCT = 0.01   # 1% per market during protection
 _PROTECTION_MAX_MARKETS = 1  # 1 market per cycle (= 1 per 15min window)
 _MAX_ROUNDS = 3          # max scalp rounds per market window
 _REENTRY_COOLDOWN_S = 30 # seconds after sell before re-entry
+# Live execution gate: only these coins place real orders.
+# ETH + SOL = discover + log signals but NEVER execute (observation only).
+_LIVE_TRADE_COINS = {"btc"}  # lowercase slug prefix
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -987,7 +990,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # Enter — detect coin from title
         _title_lower = wl["title"].lower()
-        _sym = "ETHUSDT" if "ethereum" in _title_lower else "BTCUSDT"
+        if "ethereum" in _title_lower:
+            _sym, _coin_slug = "ETHUSDT", "eth"
+        elif "solana" in _title_lower:
+            _sym, _coin_slug = "SOLUSDT", "sol"
+        else:
+            _sym, _coin_slug = "BTCUSDT", "btc"
+
+        # Observation gate: non-live coins → log signals but skip execution
+        _observe_only = _coin_slug not in _LIVE_TRADE_COINS
 
         # ── Momentum Filter ──
         _m1_vol = _vol_1m(_sym)
@@ -1194,7 +1205,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "ob_best_ask": round(_ob_best_ask, 4),
                     "ob_bid_vol": round(_ob_bid_vol, 1),
                     "ob_ask_vol": round(_ob_ask_vol, 1),
-                    "ob_depth": _ob_depth}
+                    "ob_depth": _ob_depth,
+                    "coin": _coin_slug, "observe_only": _observe_only}
+
+        # Observation gate: log everything but don't place orders for non-live coins
+        if _observe_only:
+            logger.info("OBSERVE %s %s: fair=%.3f bridge=%.3f cvd=%.3f (no execution — %s not in _LIVE_TRADE_COINS)",
+                        cid[:8], _coin_slug.upper(), fair, bridge_p_up, _cvd, _coin_slug)
+            del state["watchlist"][cid]
+            continue
+
         results = _execute(orders, client, cid=cid, signal_ctx=_sig_ctx)
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
