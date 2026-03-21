@@ -228,7 +228,7 @@ def _cross_exchange_price(symbol: str = "BTCUSDT") -> tuple[float, float]:
     Cached 10s — heavy cycle only."""
     key = f"xprice_{symbol}"
     now = time.time()
-    if key in _cache and now - _cache[key][1] < 10:
+    if key in _cache and now - _cache[key][1] < 5:  # 5s for faster flash crash detection
         return _cache[key][0]
 
     prices = []
