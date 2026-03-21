@@ -230,7 +230,7 @@ def _collect_analysis(cached_markets: list):
 #  Holder Imbalance — smart money directional signal
 # ═══════════════════════════════════════
 
-_HOLDER_STRONG_IMBAL = 0.20    # >0.20 against direction → SKIP
+_HOLDER_STRONG_IMBAL = 0.20    # >0.20 against direction → FLIP (follow smart money)
 _HOLDER_MILD_IMBAL = 0.10      # 0.10-0.20 against → size × 50%
 _holder_cache: dict = {}        # {cid: (ts, imbalance)}
 _HOLDER_CACHE_TTL = 30          # cache 30s (don't fetch every heavy cycle)
