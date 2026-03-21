@@ -19,7 +19,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from ..core.context import PolyMarket
+from ..core.context import PolyMarket, EdgeAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +58,9 @@ def detect_arb(
     """
     opportunities: list[ArbOpportunity] = []
 
-    # Group markets by event_id (exclude weather — thin book friction ≠ arb)
-    # Weather sum(YES) deviates from 100% due to illiquidity, not mispricing.
-    # False arb on weather caused HK 21°C incident (2026-03-19).
     event_groups: dict[str, list[PolyMarket]] = defaultdict(list)
     for m in markets:
-        if m.event_id and m.category != "weather":
+        if m.event_id:
             event_groups[m.event_id].append(m)
 
     # Pre-fetch all markets once for negRisk sibling resolution
@@ -274,3 +271,73 @@ def _check_ordering(
             ))
 
     return opps
+
+
+def arb_to_edge_assessments(opps: list[ArbOpportunity]) -> list[EdgeAssessment]:
+    """Convert ArbOpportunity list to EdgeAssessment list for pipeline consumption.
+
+    Arb signals bypass GTO (mathematically guaranteed edge).
+    """
+    assessments = []
+    for opp in opps:
+        if opp.arb_type == "neg_risk_overpriced":
+            most_overpriced = max(opp.markets, key=lambda m: m.yes_price)
+            assessments.append(EdgeAssessment(
+                condition_id=most_overpriced.condition_id,
+                title=most_overpriced.title,
+                category=most_overpriced.category or "arb",
+                market_price=most_overpriced.yes_price,
+                ai_probability=most_overpriced.yes_price - opp.edge_pct,
+                edge=-opp.edge_pct,
+                edge_pct=opp.edge_pct,
+                confidence=0.95,
+                side="NO",
+                reasoning=f"Logical arb: {opp.detail}",
+                signal_source="logical_arb",
+                gto_approved=True,
+                gto_reasoning="logical arb — GTO bypass",
+                gto_order_type="LIMIT",
+                is_dominant_strategy=True,
+            ))
+
+        elif opp.arb_type == "neg_risk_underpriced":
+            most_underpriced = min(opp.markets, key=lambda m: m.yes_price)
+            assessments.append(EdgeAssessment(
+                condition_id=most_underpriced.condition_id,
+                title=most_underpriced.title,
+                category=most_underpriced.category or "arb",
+                market_price=most_underpriced.yes_price,
+                ai_probability=most_underpriced.yes_price + opp.edge_pct,
+                edge=opp.edge_pct,
+                edge_pct=opp.edge_pct,
+                confidence=0.95,
+                side="YES",
+                reasoning=f"Logical arb: {opp.detail}",
+                signal_source="logical_arb",
+                gto_approved=True,
+                gto_reasoning="logical arb — GTO bypass",
+                gto_order_type="LIMIT",
+                is_dominant_strategy=True,
+            ))
+
+        elif opp.arb_type == "ordering_violation" and len(opp.markets) >= 2:
+            m_low, m_high = opp.markets[0], opp.markets[1]
+            assessments.append(EdgeAssessment(
+                condition_id=m_high.condition_id,
+                title=m_high.title,
+                category=m_high.category or "arb",
+                market_price=m_high.yes_price,
+                ai_probability=m_low.yes_price,
+                edge=-(m_high.yes_price - m_low.yes_price),
+                edge_pct=opp.edge_pct,
+                confidence=0.90,
+                side="NO",
+                reasoning=f"Ordering violation: {opp.detail}",
+                signal_source="logical_arb",
+                gto_approved=True,
+                gto_reasoning="logical arb — GTO bypass",
+                gto_order_type="LIMIT",
+                is_dominant_strategy=True,
+            ))
+
+    return assessments

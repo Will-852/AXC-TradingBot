@@ -118,13 +118,11 @@ def classify_gto_type(market: PolyMarket) -> str:
     """Classify market into GTO type by keyword matching.
 
     Priority: live_event > news_driven > quantifiable (higher risk wins).
-    crypto_15m / weather matched by existing category field.
+    crypto_15m matched by existing category field.
     """
     # Existing category-based types
     if market.category == "crypto_15m":
         return "crypto_15m"
-    if market.category == "weather":
-        return "quantifiable"
 
     title_lower = (market.title or "").lower()
     desc_lower = (market.description or "").lower()[:300]

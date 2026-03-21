@@ -166,7 +166,7 @@ def render_polymarket_pipeline():
     S2 -->|Tripped| STOP[❌ Abort Pipeline]
     S2 -->|OK| S3[3. Scan Gamma API<br/>Active Markets]
 
-    S3 --> S4[4. Filter by Category<br/>crypto_15m / weather]
+    S3 --> S4[4. Filter by Category<br/>crypto_15m]
     S4 --> S5[5. Fetch Order Books]
     S5 --> S6[6. Calculate Fair Value<br/>Brownian Bridge]
 

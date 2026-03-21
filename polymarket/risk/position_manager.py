@@ -10,7 +10,7 @@ hybrid_backtest 證明 asymmetric SL 大幅優於 HOLD 同 symmetric exit：
 核心邏輯：cut losers fast (9% SL at 5m+10m), let winners ride to resolution.
 W/L ratio = 2.27, Kelly = 33.2%.
 
-長期市場（weather、general crypto）用 drift + loss cut。
+長期市場（general crypto）用 drift + loss cut。
 """
 
 import logging
@@ -142,16 +142,8 @@ def _evaluate_single(pos: PolyPosition, now: datetime) -> ExitSignal:
             signal.action = ""
         return signal
 
-    # ─── 3. Weather: NO EXIT — hold to resolution ───
-    # Weather = binary, resolves in 1-3 days, $1.42 per bet (1% bankroll).
-    # Selling on thin books ($200-$1500 liquidity) costs more than it saves.
-    # ColdMath ($77K PnL) holds $70K portfolio = he holds everything.
-    # Token ≥93% still applies above (step 2), but that's all.
-    if pos.category == "weather":
-        return signal  # no exit evaluation — hold to resolution
-
     # ══════════════════════════════════════════════
-    # 以下只適用於長期市場（weather, general crypto 等）
+    # 以下只適用於長期市場（general crypto 等）
     # ══════════════════════════════════════════════
 
     # ─── 4. Probability Drift ───

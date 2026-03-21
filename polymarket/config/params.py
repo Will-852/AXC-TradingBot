@@ -10,7 +10,7 @@ Bankroll: live balance（pipeline 每次 cycle 查 CLOB API）
 - 每次落注 = 實際資金 1%（Kelly cap，唔係 Kelly target）
 - 每個市場（完整賭局 = 一個城市+日期 或 一個 15M window）最多 10%
 - 即係要連輸 100 局先清零（1% per bet）
-- BTC 15M 同天氣用同一套規則
+- BTC 15M 用同一套規則
 """
 
 # ─── Risk Limits（動態 bankroll，按比例） ───
@@ -25,9 +25,9 @@ CRYPTO_15M_MAX_BET_USDC = 50.0 # 15M 絕對上限（百分比 cap 先生效）
 CRYPTO_15M_MIN_EDGE_PCT = 0.065  # 6.5% edge after fees
 
 # ─── Market Scanning ───
-MAX_MARKETS_TO_SCAN = 300      # 加大掃描範圍，天氣市場流動性低排唔到 top 50
-MIN_LIQUIDITY_USDC = 1000      # 最低 $1000 流動性（天氣/15M 有各自嘅門檻）
-MIN_EDGE_PCT = 0.10            # 最低 10% edge（非 15M，非 weather）
+MAX_MARKETS_TO_SCAN = 300      # 加大掃描範圍
+MIN_LIQUIDITY_USDC = 1000      # 最低 $1000 流動性（15M 有自己門檻）
+MIN_EDGE_PCT = 0.10            # 最低 10% edge（非 15M）
 
 # ─── Cycle ───
 CYCLE_INTERVAL_MIN = 1          # 1 min cycle → positions checked every min, heavy steps time-gated

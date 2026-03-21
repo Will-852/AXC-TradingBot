@@ -44,21 +44,7 @@ def _get_calibration() -> dict:
     if _cal_cache is not None and (now - _cal_ts) < _CAL_TTL:
         return _cal_cache
 
-    result = {}
-    try:
-        from polymarket.strategy.weather_tracker import compute_brier_score
-        result["brier"] = compute_brier_score()
-    except Exception as e:
-        log.debug("Brier score unavailable: %s", e)
-        result["brier"] = None
-
-    try:
-        from polymarket.strategy.weather_tracker import compute_edge_calibration
-        result["edge"] = compute_edge_calibration()
-    except Exception as e:
-        log.debug("Edge calibration unavailable: %s", e)
-        result["edge"] = None
-
+    result = {"brier": None, "edge": None}
     _cal_cache = result
     _cal_ts = now
     return result

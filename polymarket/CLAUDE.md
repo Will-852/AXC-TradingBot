@@ -1,6 +1,6 @@
 # Polymarket — Claude Code 入口
 > ⚠️ 此文件上限 150 行。Claude Code 自動載入。
-> 最後更新：2026-03-21
+> 最後更新：2026-03-22
 
 ## 身份
 獨立預測市場交易子系統，寄生於 AXC shared_infra 但邏輯完全獨立。
@@ -13,7 +13,7 @@
 | 1H Conviction (v15) | 🟢 LIVE | `run_1h_live.py` |
 | Research Cycle | 🟢 ACTIVE（6h） | `research_cycle.py` |
 | General Pipeline | 🟡 DORMANT | `pipeline.py`（last run 2026-03-20） |
-| Weather | ❌ 廢棄（冇 edge） | 代碼仍 entangled in edge_finder |
+| Weather | ❌ 廢棄 + 代碼已清除（2026-03-22） | — |
 
 ## 業務範圍（紅線 — 2026-03-19 事故後確立，2026-03-21 擴大）
 - **自動化只限：BTC+ETH 15M（MM bot）+ BTC+ETH 1H（Conviction bot）**
@@ -38,9 +38,10 @@
 - 獨立 state：`mm_state_1h.json`, `mm_trades_1h.jsonl`
 
 ### 3. General Pipeline（`pipeline.py`）— DORMANT
-- 14-step pipeline，覆蓋 crypto / weather / logical arb
+- 14-step pipeline，覆蓋 crypto / logical arb（天氣已清除）
 - LaunchAgent plist 存在但未 load
-- edge_finder.py 仲有 Claude AI fallback（`_call_claude()`），但 pipeline 冇跑
+- edge_finder.py 有 Claude AI fallback（`_call_claude()`），但 pipeline 冇跑
+- 2026-03-22 重構：execution logic 抽到 `exchange/executor.py`
 
 ## Pipeline 步驟（順序已修正 — gotcha fix）
 ```
@@ -69,7 +70,7 @@ pipeline.py（DORMANT）
 核心：market_maker.py | hourly_engine.py | edge_finder.py | gto.py
 設定：config/settings.py | config/params.py | config/categories.py
 風控：risk_manager.py | circuit_breaker.py | binary_kelly.py
-交易所：polymarket_client.py | gamma_client.py | hl_hedge_client.py
+交易所：polymarket_client.py | gamma_client.py | hl_hedge_client.py | executor.py
 工具：tools/（5 files）| analysis/（1 file）| backtest/（10 files）
 ```
 
@@ -115,7 +116,7 @@ PYTHONPATH=.:scripts python3 polymarket/position_watcher.py --live
 4. **Position Merger Phase 2**：on-chain merge execution 未做
 5. ~~mm_v9 doc 過時~~ ✅ 已修（2026-03-21）：新建 `docs/mm_v15_pipeline.md`
 6. ~~紅線 scope 不符~~ ✅ 已修（2026-03-21）：紅線擴大至 BTC+ETH 15M + 1H
-7. **Weather 代碼未清理**：edge_finder.py top-level import weather_tracker（entangled）
+7. ~~Weather 代碼未清理~~ ✅ 已修（2026-03-22）：全部天氣代碼已移除（weather_tracker.py + run_weather_paper.py 刪除，12 個文件清理）
 
 ## Gotchas
 - GTO live_event = 永遠 BLOCK（場內有人睇住比分）

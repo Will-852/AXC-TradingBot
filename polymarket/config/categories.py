@@ -3,9 +3,8 @@ categories.py — Polymarket 市場分類、過濾規則
 定義我哋關注嘅市場類別同埋 tag。
 Gamma API 支援 tag-based filtering。
 
-設計決定：只做 Crypto + Weather，因為：
+設計決定：只做 Crypto，因為：
 - Crypto: 有現有數據源（SCAN_CONFIG BTC/ETH 價格、news_sentiment）
-- Weather: 有免費 forecast API (Open-Meteo)
 - 其他類別（政治、體育）需要專門知識，暫時唔做
 """
 
@@ -34,38 +33,6 @@ CRYPTO_15M_COINS: dict[str, str] = {
     "dogecoin": "DOGEUSDT",
     "bnb": "BNBUSDT",
     "hype": "HYPEUSDT",
-}
-
-
-# ─── Weather City Coordinates ───
-# (lat, lon, unit) — unit determines bucket interpretation:
-#   "F" = US cities, °F 2°F range buckets
-#   "C" = International, °C 1°C exact buckets
-WEATHER_CITIES: dict[str, tuple[float, float, str]] = {
-    # US (°F, 2°F buckets) — airport coordinates for Wunderground match
-    "atlanta": (33.637, -84.428, "F"),       # KATL
-    "chicago": (41.974, -87.907, "F"),       # KORD O'Hare
-    "new york": (40.640, -73.779, "F"),      # KJFK
-    "seattle": (47.449, -122.309, "F"),      # KSEA
-    "dallas": (32.847, -96.852, "F"),        # KDAL Love Field (Polymarket resolution station)
-    "miami": (25.796, -80.287, "F"),         # KMIA
-    "los angeles": (33.943, -118.408, "F"),  # KLAX
-    "phoenix": (33.437, -112.008, "F"),      # KPHX Sky Harbor
-    # International (°C, 1°C buckets) — airport coordinates for Wunderground match
-    "tokyo": (35.553, 139.781, "C"),         # RJTT Haneda
-    "hong kong": (22.309, 113.915, "C"),     # VHHH
-    "taipei": (25.080, 121.232, "C"),        # RCTP Taoyuan
-    "singapore": (1.350, 103.994, "C"),      # WSSS Changi
-    "wellington": (-41.327, 174.805, "C"),   # NZWN
-    "paris": (49.013, 2.551, "C"),           # LFPG CDG
-    "milan": (45.630, 8.723, "C"),           # LIMC Malpensa
-    "ankara": (40.128, 32.995, "C"),         # LTAC Esenboga
-    "toronto": (43.677, -79.631, "C"),       # CYYZ Pearson
-    "shanghai": (31.143, 121.805, "C"),      # ZSPD Pudong
-    "sao paulo": (-23.435, -46.473, "C"),    # SBGR Guarulhos
-    "london": (51.505, 0.055, "C"),          # EGLC London City (Polymarket resolution station)
-    "sydney": (-33.946, 151.177, "C"),       # YSSY Kingsford Smith
-    "seoul": (37.469, 126.451, "C"),         # RKSI Incheon
 }
 
 
@@ -100,16 +67,6 @@ CATEGORIES: dict[str, CategoryConfig] = {
         keywords=[],            # regex-only, no keyword matching
         max_exposure_pct=0.10,  # 快市場 → 更保守
     ),
-    "weather": CategoryConfig(
-        name="Weather",
-        slug="weather",
-        keywords=[
-            "temperature", "weather", "hurricane", "tornado",
-            "rainfall", "snow", "heatwave", "storm",
-            "celsius", "fahrenheit", "drought", "flood",
-        ],
-        max_exposure_pct=0.15,
-    ),
 }
 
 # Short keywords that need word-boundary matching (avoid "sol" in "resolve")
@@ -122,9 +79,8 @@ TITLE_BLOCKLIST = [
     "trump", "biden", "election", "president", "congress",
     "war", "invasion", "assassination",
     "will i", "personal",  # personal prediction markets
-    # Sports team names that collide with weather keywords
-    "hurricanes", "thunder", "lightning", "heat",
-    "avalanche", "flames", "blizzard",
+    # Sports team names that collide with crypto/general keywords
+    "thunder", "heat",
     # Sports context markers
     "moneyline", "spread", "o/u", "over/under", "1h ",
     "vs.", "eagles vs", "match",

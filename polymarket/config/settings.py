@@ -60,7 +60,6 @@ CRYPTO_15M_CONFIDENCE_THRESHOLD = 0.55
 CRYPTO_15M_INDICATOR_THRESHOLD = 0.55            # P(Up) 需要偏離 0.5 至少 5%
 CRYPTO_15M_MAX_ASSESSMENTS = 3                   # 每 cycle 最多 3 個 AI 評估
 CRYPTO_15M_MIN_LIQUIDITY = 200                   # 15M 市場流動性門檻較低
-WEATHER_MIN_LIQUIDITY = 100                      # 天氣 per-bucket 流動性低但正常（$200-$1500）
 CRYPTO_15M_MAX_BET_USDC = 50.0                   # 快市場 → 細注
 
 # ─── CVD Strategy (Cumulative Volume Delta) ───
@@ -105,17 +104,14 @@ KELLY_MAX_BET_USDC = 100.0     # 最高下注 $100（初期）
 
 # ─── 自動化範圍（紅線 — CORE.md §2）───
 # Pipeline 只准自動落注/Exit 呢個 category
-# 其他 category（sports、general crypto、weather 等）= 唔准自動操作
-# 2026-03-19: weather 移除 — 結論：天氣市場冇辦法持續盈利
-#   原因：公開數據 = 冇 edge，ensemble forecast 同市場定價幾乎一致，
-#   剩餘 edge 太細（<3%）扣除 variance 後 EV ≈ 0
+# 其他 category（sports、general crypto 等）= 唔准自動操作
 AUTOMATED_CATEGORIES = {"crypto_15m"}
 
 # ─── Position Management ───
 # Binary markets (crypto_15m):
 #   SL=9% at 5m+10m checkpoints, no TP (hold winners to resolution)
 #   hybrid_backtest: SL9% +$150 vs HOLD +$91 (+65% improvement, Sharpe 0.457 vs 0.244)
-# 以下 drift/loss threshold 只用於長期市場（weather, general crypto）
+# 以下 drift/loss threshold 只用於長期市場（general crypto）
 BINARY_SL_PCT = 0.09           # Binary market stop-loss: 9% of unrealized (5m+10m checkpoints)
 EXIT_PROBABILITY_DRIFT = 0.30  # 概率漂移 >30 cents 觸發（舊 0.15 太敏感）
 PROFIT_TAKE_PCT = 0.50         # 持倉升 50% → 考慮止盈
@@ -144,55 +140,13 @@ MM_MAX_CONCURRENT = 3              # max 3 markets at once
 MM_DAILY_LOSS_LIMIT = 50.0         # kill switch: stop if daily loss > $50
 MM_CYCLE_INTERVAL_S = 30           # main loop interval
 
-# ─── Weather Data ───
-OPEN_METEO_BASE = "https://api.open-meteo.com/v1"
-OWM_BASE = "https://api.openweathermap.org/data/2.5"
-OWM_API_KEY = os.environ.get("OWM_API_KEY", "")
 
-# Forecast uncertainty σ (°C) by lead days — conservative estimates
-# Higher σ → flatter distribution → more conservative probability
-WEATHER_SIGMA_BY_LEAD = {0: 0.8, 1: 1.2, 2: 1.8, 3: 2.3, 4: 2.8, 5: 2.8, 6: 3.5, 7: 3.5}
+def get_edge_thresholds(category: str) -> tuple[float, float]:
+    """Return (min_edge, min_confidence) by category."""
+    if category == "crypto_15m":
+        return CRYPTO_15M_MIN_EDGE_PCT, CRYPTO_15M_CONFIDENCE_THRESHOLD
+    return MIN_EDGE_PCT, EDGE_CONFIDENCE_THRESHOLD
 
-# Confidence decay by lead days — shorter lead = more confident
-WEATHER_CONFIDENCE_BY_LEAD = {
-    1: 0.90, 2: 0.80, 3: 0.70, 4: 0.60, 5: 0.55, 6: 0.50, 7: 0.45,
-}
-
-# Weather edge threshold — dynamic by price (low price tail = lower bar, high payout compensates)
-# Rationale: weather data is public → large edges are rare, but tail bucket payouts are 10-25x
-WEATHER_EDGE_BY_PRICE = {
-    0.10: 0.03,   # ≤10¢ (tail): 10x+ payout, 3% edge enough
-    0.20: 0.04,   # 11-20¢: 5-9x payout
-    0.35: 0.06,   # 21-35¢ (peak): 2.9-4.8x payout
-    1.00: 0.08,   # >35¢: low payout, need bigger edge
-}
-# Lead-time edge multiplier: longer lead = less reliable forecast = need bigger edge
-# Data: lead ≥2d forecast drifts >1°C in 27-30% of cases (A/B test 2026-03-19)
-WEATHER_LEAD_EDGE_MULT = {
-    0: 1.0,   # same day: forecast stable, use base threshold
-    1: 1.0,   # 1 day: avg drift 0.33°C, 6% >1°C → reliable
-    2: 2.0,   # 2 days: avg drift 0.77°C, 27% >1°C → double threshold
-    3: 3.0,   # 3 days: avg drift 0.76°C, 30% >1°C → triple threshold
-}
-WEATHER_MAX_LEAD_DAYS = 3         # Lead >3d σ too large → unreliable edge, hurts Sharpe
-WEATHER_ENTRY_PRICE_CAP = 0.70    # Entry >$0.70 = <1.43x odds, one miss wipes gains
-WEATHER_MAX_ASSESSMENTS = 15      # Weather = zero AI cost, scan more for edge
-
-
-def weather_min_edge(market_price: float, lead_days: int = 1) -> float:
-    """Return minimum edge threshold based on market price × lead time.
-
-    Lower price → lower threshold (payout compensates).
-    Longer lead → higher threshold (forecast less reliable).
-    Data: lead ≥2d forecasts drift >1°C in 27-30% of cases.
-    """
-    base = 0.08  # fallback
-    for price_cap, min_edge in sorted(WEATHER_EDGE_BY_PRICE.items()):
-        if market_price <= price_cap:
-            base = min_edge
-            break
-    lead_mult = WEATHER_LEAD_EDGE_MULT.get(min(lead_days, 3), 3.0)
-    return base * lead_mult
 
 # ─── GTO (Game Theory Optimal) ───
 GTO_ADVERSE_BLOCK_THRESHOLD = 0.80    # adverse selection > 80% → block

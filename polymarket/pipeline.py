@@ -101,7 +101,7 @@ class SafetyCheckStep:
 
 
 class ScanMarketsStep:
-    """Step 4: Scan Gamma API for crypto/weather markets.
+    """Step 4: Scan Gamma API for crypto markets.
 
     Time-gated: skip if last scan < SCAN_INTERVAL_SEC ago.
     Reuses cached scanned_markets from state on skip.
@@ -111,11 +111,8 @@ class ScanMarketsStep:
     def run(self, ctx: PolyContext) -> PolyContext:
         from polymarket.config.settings import SCAN_INTERVAL_SEC
         from polymarket.exchange.gamma_client import GammaClient
-        from polymarket.strategy.market_scanner import scan_markets
-        from polymarket.core.context import PolyMarket
+        from polymarket.strategy.market_scanner import scan_markets, markets_from_cache
 
-        # Always init GammaClient (zero API calls on init) so downstream
-        # steps (LogicalArbStep) can fetch sibling markets even on cached cycles
         gamma = ctx.gamma_client or GammaClient()
         ctx.gamma_client = gamma
 
@@ -123,23 +120,8 @@ class ScanMarketsStep:
         last_scan_ts = ctx.state.get("last_scan_ts", 0)
         elapsed = time.time() - last_scan_ts
         if elapsed < SCAN_INTERVAL_SEC:
-            # Rebuild scanned_markets from state cache
             cached = ctx.state.get("cached_scanned_markets", [])
-            for m_data in cached:
-                ctx.scanned_markets.append(PolyMarket(
-                    condition_id=m_data.get("condition_id", ""),
-                    title=m_data.get("title", ""),
-                    category=m_data.get("category", ""),
-                    yes_price=float(m_data.get("yes_price", 0)),
-                    no_price=float(m_data.get("no_price", 0)),
-                    liquidity=float(m_data.get("liquidity", 0)),
-                    volume_24h=float(m_data.get("volume_24h", 0)),
-                    end_date=m_data.get("end_date", ""),
-                    event_id=m_data.get("event_id", ""),
-                    neg_risk=m_data.get("neg_risk", False),
-                    yes_token_id=m_data.get("yes_token_id", ""),
-                    no_token_id=m_data.get("no_token_id", ""),
-                ))
+            ctx.scanned_markets = markets_from_cache(cached)
             ctx.filtered_markets = list(ctx.scanned_markets)
             if ctx.verbose:
                 skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
@@ -375,18 +357,12 @@ class CloseHedgeStep:
 
 
 class ExecuteExitStep:
-    """Step 6.7: Execute sell orders for positions flagged to exit.
-
-    Iterates ctx.exit_signals where should_exit=True, sells via CLOB SDK,
-    removes exited positions from ctx.open_positions, and recalculates exposure.
-    Uses WAL for crash safety (same pattern as ExecuteTradesStep).
-    """
+    """Step 6.7: Execute sell orders for positions flagged to exit."""
     name = "execute_exits"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.state.trade_log import log_trade
-
         from polymarket.config.settings import AUTOMATED_CATEGORIES
+        from polymarket.exchange.executor import execute_sell, recalc_exposure
 
         exits = [sig for sig in ctx.exit_signals if sig.should_exit]
         if not exits:
@@ -397,133 +373,33 @@ class ExecuteExitStep:
         for sig in exits:
             pos = sig.position
 
-            # ─── Scope guard: 只操作 automated categories ───
             if pos.category not in AUTOMATED_CATEGORIES:
                 logger.warning(
                     "SKIP EXIT: %s category=%s 唔喺自動化範圍 (%s)",
                     pos.title[:30], pos.category, AUTOMATED_CATEGORIES,
                 )
                 continue
-            trade_record = {
-                "condition_id": pos.condition_id,
-                "title": pos.title,
-                "category": pos.category,
-                "side": pos.side,
-                "action": "sell",
-                "shares": pos.shares,
-                "price": pos.current_price,
-                "pnl": pos.unrealized_pnl,
-                "reasons": sig.reasons,
-                "urgency": sig.urgency,
-            }
 
-            if ctx.dry_run:
-                trade_record["dry_run"] = True
-                if ctx.verbose:
-                    print(
-                        f"    DRY_RUN EXIT: would sell {pos.side} "
-                        f"{pos.title[:40]} ({sig.urgency}) "
-                        f"PnL=${pos.unrealized_pnl:+.2f}"
-                    )
-
-                log_trade(
-                    condition_id=pos.condition_id,
-                    title=pos.title,
-                    category=pos.category,
-                    side=pos.side,
-                    action="sell",
-                    shares=pos.shares,
-                    price=pos.current_price,
-                    amount_usdc=pos.market_value,
-                    reasoning="; ".join(sig.reasons),
-                    pnl=pos.unrealized_pnl,
-                    dry_run=True,
-                )
+            success = execute_sell(ctx, pos, sig.reasons, sig.urgency)
+            if success:
                 exited_ids.add(pos.condition_id)
+                ctx.executed_trades.append({
+                    "condition_id": pos.condition_id, "title": pos.title,
+                    "category": pos.category, "side": pos.side, "action": "sell",
+                    "shares": pos.shares, "price": pos.current_price,
+                    "amount": pos.market_value,
+                    "pnl": pos.unrealized_pnl, "dry_run": ctx.dry_run,
+                })
 
-            else:
-                # ─── Live Exit with WAL ───
-                intent_id = None
-                try:
-                    if ctx.wal:
-                        intent_id = ctx.wal.log_intent(
-                            op="sell",
-                            pair=pos.condition_id,
-                            direction=pos.side,
-                            qty=pos.shares,
-                            price=pos.current_price,
-                            sl_price=0,
-                            platform="polymarket",
-                        )
-
-                    # FOK market sell (price=0) for immediate exit
-                    result = ctx.exchange_client.sell_shares(
-                        token_id=pos.token_id,
-                        shares=pos.shares,
-                        price=0,
-                    )
-
-                    order_id = result.get("orderID", result.get("id", ""))
-                    trade_record["order_id"] = order_id
-                    trade_record["dry_run"] = False
-
-                    if ctx.wal and intent_id:
-                        ctx.wal.log_done(intent_id, order_id)
-
-                    log_trade(
-                        condition_id=pos.condition_id,
-                        title=pos.title,
-                        category=pos.category,
-                        side=pos.side,
-                        action="sell",
-                        shares=pos.shares,
-                        price=pos.current_price,
-                        amount_usdc=pos.market_value,
-                        reasoning="; ".join(sig.reasons),
-                        order_id=order_id,
-                        pnl=pos.unrealized_pnl,
-                        dry_run=False,
-                    )
-
-                    if ctx.verbose:
-                        print(
-                            f"    LIVE EXIT: sold {pos.side} "
-                            f"{pos.title[:40]} → {order_id}"
-                        )
-
-                    exited_ids.add(pos.condition_id)
-
-                except Exception as e:
-                    if ctx.wal and intent_id:
-                        ctx.wal.log_failed(intent_id, str(e))
-                    trade_record["error"] = str(e)
-                    ctx.errors.append(
-                        f"Exit failed: {pos.title[:30]} — {e}"
-                    )
-                    logger.error("Exit execution failed: %s", e)
-                    continue
-
-            ctx.executed_trades.append(trade_record)
-
-        # Remove exited positions + recalculate exposure
         if exited_ids:
             ctx.open_positions = [
-                p for p in ctx.open_positions
-                if p.condition_id not in exited_ids
+                p for p in ctx.open_positions if p.condition_id not in exited_ids
             ]
-            ctx.total_exposure = sum(
-                p.cost_basis for p in ctx.open_positions
-            )
-            bankroll = ctx.usdc_balance + ctx.total_exposure
-            ctx.exposure_pct = (
-                ctx.total_exposure / bankroll if bankroll > 0 else 0.0
-            )
-
+            recalc_exposure(ctx)
             if ctx.verbose:
                 print(
                     f"    Exited {len(exited_ids)} position(s). "
-                    f"Exposure: ${ctx.total_exposure:.2f} "
-                    f"({ctx.exposure_pct:.0%})"
+                    f"Exposure: ${ctx.total_exposure:.2f} ({ctx.exposure_pct:.0%})"
                 )
 
         return ctx
@@ -539,9 +415,7 @@ class FindEdgeStep:
     name = "find_edge"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.config.settings import (
-            MAX_MARKETS_FOR_AI, SCAN_INTERVAL_SEC, WEATHER_MAX_ASSESSMENTS,
-        )
+        from polymarket.config.settings import MAX_MARKETS_FOR_AI, SCAN_INTERVAL_SEC
         from polymarket.strategy.edge_finder import assess_markets
 
         if ctx.risk_blocked:
@@ -554,39 +428,23 @@ class FindEdgeStep:
                 print("    No markets to assess")
             return ctx
 
-        # ─── Weather: always run (zero AI cost, deterministic forecast) ───
-        weather_markets = [m for m in ctx.filtered_markets if m.category == "weather"]
-        non_weather = [m for m in ctx.filtered_markets if m.category != "weather"]
-
-        weather_edges = []
-        if weather_markets:
-            weather_edges = assess_markets(
-                weather_markets,
-                max_assessments=WEATHER_MAX_ASSESSMENTS,
-                verbose=ctx.verbose,
-            )
-            if ctx.verbose:
-                print(f"    Weather: {len(weather_edges)} edges (no gate, zero AI cost)")
-
-        # ─── Non-weather: time-gated (Claude API cost) ───
-        non_weather_edges = []
+        # Time-gated: Claude API has cost per call
         last_edge_ts = ctx.state.get("last_edge_ts", 0)
         elapsed = time.time() - last_edge_ts
         if elapsed < SCAN_INTERVAL_SEC:
-            if ctx.verbose and non_weather:
-                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
-                print(f"    Non-weather edge skipped (gate: {skip_sec}s left)")
-        elif non_weather:
             if ctx.verbose:
-                print(f"    Assessing up to {MAX_MARKETS_FOR_AI} non-weather markets via Claude...")
-            non_weather_edges = assess_markets(
-                non_weather,
-                max_assessments=MAX_MARKETS_FOR_AI,
-                verbose=ctx.verbose,
-            )
-            ctx.state_updates["last_edge_ts"] = time.time()
+                skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
+                print(f"    Edge assessment skipped (gate: {skip_sec}s left)")
+            return ctx
 
-        ctx.edge_assessments = weather_edges + non_weather_edges
+        if ctx.verbose:
+            print(f"    Assessing up to {MAX_MARKETS_FOR_AI} markets...")
+        ctx.edge_assessments = assess_markets(
+            ctx.filtered_markets,
+            max_assessments=MAX_MARKETS_FOR_AI,
+            verbose=ctx.verbose,
+        )
+        ctx.state_updates["last_edge_ts"] = time.time()
 
         if ctx.verbose:
             print(f"    Edge assessments: {len(ctx.edge_assessments)}")
@@ -612,17 +470,10 @@ class LogicalArbStep:
     name = "logical_arb"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.strategy.logical_arb import detect_arb
-        from polymarket.core.context import EdgeAssessment
+        from polymarket.strategy.logical_arb import detect_arb, arb_to_edge_assessments
 
-        # Scan ALL markets (not just filtered) to see full event groups
-        # Pass gamma_client so negRisk events can fetch ALL sibling markets
         all_markets = list(ctx.scanned_markets)
-        opps = detect_arb(
-            all_markets,
-            gamma_client=ctx.gamma_client,
-            verbose=ctx.verbose,
-        )
+        opps = detect_arb(all_markets, gamma_client=ctx.gamma_client, verbose=ctx.verbose)
         ctx.arb_opportunities = opps
 
         if not opps:
@@ -630,73 +481,9 @@ class LogicalArbStep:
                 print("    No logical arb opportunities")
             return ctx
 
-        # Convert arb opportunities to EdgeAssessments
-        for opp in opps:
-            if opp.arb_type == "neg_risk_overpriced":
-                # Find the most overpriced outcome to sell NO on
-                most_overpriced = max(opp.markets, key=lambda m: m.yes_price)
-                ctx.edge_assessments.append(EdgeAssessment(
-                    condition_id=most_overpriced.condition_id,
-                    title=most_overpriced.title,
-                    category=most_overpriced.category or "arb",
-                    market_price=most_overpriced.yes_price,
-                    ai_probability=most_overpriced.yes_price - opp.edge_pct,
-                    edge=-opp.edge_pct,
-                    edge_pct=opp.edge_pct,
-                    confidence=0.95,  # math-based, high confidence
-                    side="NO",
-                    reasoning=f"Logical arb: {opp.detail}",
-                    signal_source="logical_arb",
-                    gto_approved=True,
-                    gto_reasoning="logical arb — GTO bypass",
-                    gto_order_type="LIMIT",
-                    is_dominant_strategy=True,
-                ))
+        ctx.edge_assessments.extend(arb_to_edge_assessments(opps))
 
-            elif opp.arb_type == "neg_risk_underpriced":
-                # Find the most underpriced outcome to buy YES on
-                most_underpriced = min(opp.markets, key=lambda m: m.yes_price)
-                ctx.edge_assessments.append(EdgeAssessment(
-                    condition_id=most_underpriced.condition_id,
-                    title=most_underpriced.title,
-                    category=most_underpriced.category or "arb",
-                    market_price=most_underpriced.yes_price,
-                    ai_probability=most_underpriced.yes_price + opp.edge_pct,
-                    edge=opp.edge_pct,
-                    edge_pct=opp.edge_pct,
-                    confidence=0.95,
-                    side="YES",
-                    reasoning=f"Logical arb: {opp.detail}",
-                    signal_source="logical_arb",
-                    gto_approved=True,
-                    gto_reasoning="logical arb — GTO bypass",
-                    gto_order_type="LIMIT",
-                    is_dominant_strategy=True,
-                ))
-
-            elif opp.arb_type == "ordering_violation":
-                # Two markets: sell the overpriced one (NO), buy the underpriced one (YES)
-                if len(opp.markets) >= 2:
-                    m_low, m_high = opp.markets[0], opp.markets[1]
-                    ctx.edge_assessments.append(EdgeAssessment(
-                        condition_id=m_high.condition_id,
-                        title=m_high.title,
-                        category=m_high.category or "arb",
-                        market_price=m_high.yes_price,
-                        ai_probability=m_low.yes_price,
-                        edge=-(m_high.yes_price - m_low.yes_price),
-                        edge_pct=opp.edge_pct,
-                        confidence=0.90,
-                        side="NO",
-                        reasoning=f"Ordering violation: {opp.detail}",
-                        signal_source="logical_arb",
-                        gto_approved=True,
-                        gto_reasoning="logical arb — GTO bypass",
-                        gto_order_type="LIMIT",
-                        is_dominant_strategy=True,
-                    ))
-
-        # Ensure arb markets are in filtered_markets so GenerateSignalsStep can find them
+        # Ensure arb markets are in filtered_markets for GenerateSignalsStep
         existing_cids = {m.condition_id for m in ctx.filtered_markets}
         for opp in opps:
             for m in opp.markets:
@@ -705,7 +492,7 @@ class LogicalArbStep:
                     existing_cids.add(m.condition_id)
 
         if ctx.verbose:
-            print(f"    Logical arb: {len(opps)} opportunities → {len(opps)} edge assessments added")
+            print(f"    Logical arb: {len(opps)} opportunities → edge assessments added")
 
         return ctx
 
@@ -791,10 +578,8 @@ class GenerateSignalsStep:
 
     def run(self, ctx: PolyContext) -> PolyContext:
         from polymarket.config.settings import (
-            MIN_EDGE_PCT, EDGE_CONFIDENCE_THRESHOLD, MAX_SIGNALS_PER_CYCLE,
-            MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
-            CRYPTO_15M_MIN_EDGE_PCT, CRYPTO_15M_CONFIDENCE_THRESHOLD,
-            weather_min_edge,
+            MAX_SIGNALS_PER_CYCLE, MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
+            get_edge_thresholds,
         )
         from polymarket.core.context import PolySignal
         from polymarket.strategy.spread_analyzer import analyze_spread
@@ -809,19 +594,7 @@ class GenerateSignalsStep:
                     print(f"      Skipped (GTO): {edge.title[:40]} — {edge.gto_reasoning}")
                 continue
 
-            # Category-aware thresholds
-            if edge.category == "crypto_15m":
-                min_edge = CRYPTO_15M_MIN_EDGE_PCT
-                min_conf = CRYPTO_15M_CONFIDENCE_THRESHOLD
-            elif edge.category == "weather":
-                # Dynamic threshold: price × lead time (longer lead = bigger threshold)
-                entry = edge.market_price if edge.side == "YES" else (1 - edge.market_price)
-                lead = max(0, edge.lead_days) if edge.lead_days >= 0 else 1
-                min_edge = weather_min_edge(entry, lead_days=lead)
-                min_conf = EDGE_CONFIDENCE_THRESHOLD
-            else:
-                min_edge = MIN_EDGE_PCT
-                min_conf = EDGE_CONFIDENCE_THRESHOLD
+            min_edge, min_conf = get_edge_thresholds(edge.category)
 
             if edge.edge_pct < min_edge:
                 continue
@@ -837,8 +610,8 @@ class GenerateSignalsStep:
             if not market:
                 continue
 
-            # 15M + weather use taker/limit orders on thin books — skip spread/depth check
-            if edge.category not in ("crypto_15m", "weather"):
+            # 15M uses taker/limit orders on thin books — skip spread/depth check
+            if edge.category != "crypto_15m":
                 spread_info = analyze_spread(
                     market, ctx.exchange_client, MAX_SPREAD_PCT, MIN_BOOK_DEPTH_USDC,
                     side=edge.side,
@@ -919,10 +692,8 @@ class ExecuteTradesStep:
     name = "execute_trades"
 
     def run(self, ctx: PolyContext) -> PolyContext:
-        from polymarket.state.trade_log import log_trade
-        from polymarket.core.context import PolyPosition
-
         from polymarket.config.settings import AUTOMATED_CATEGORIES
+        from polymarket.exchange.executor import execute_buy
 
         if not ctx.signals:
             return ctx
@@ -931,7 +702,6 @@ class ExecuteTradesStep:
             if signal.bet_size_usdc <= 0:
                 continue
 
-            # ─── Scope guard: 只落注 automated categories ───
             if signal.category not in AUTOMATED_CATEGORIES:
                 logger.warning(
                     "SKIP TRADE: %s category=%s 唔喺自動化範圍 (%s)",
@@ -939,179 +709,45 @@ class ExecuteTradesStep:
                 )
                 continue
 
-            # ─── Pre-exec liquidity re-check ───
-            # Scan-time liquidity can be up to 180s stale; re-check before real money
-            if signal.category in ("crypto_15m", "weather") and not ctx.dry_run:
-                from polymarket.config.settings import WEATHER_MIN_LIQUIDITY
+            # Pre-exec liquidity re-check (scan-time can be 180s stale)
+            if signal.category == "crypto_15m" and not ctx.dry_run:
                 try:
                     from polymarket.exchange.gamma_client import GammaClient
                     _g = ctx.gamma_client or GammaClient()
                     fresh_market = _g.get_market(signal.condition_id)
                     fresh_liq = float(fresh_market.get("liquidityNum", 0) or 0)
-                    min_liq = WEATHER_MIN_LIQUIDITY if signal.category == "weather" else 100
-                    if fresh_liq < min_liq:
+                    if fresh_liq < 100:
                         logger.warning(
-                            "SKIP TRADE: %s liquidity dried up ($%.0f < $%.0f)",
-                            signal.title[:30], fresh_liq, min_liq,
+                            "SKIP TRADE: %s liquidity dried up ($%.0f < $100)",
+                            signal.title[:30], fresh_liq,
                         )
                         continue
                 except Exception as e:
                     logger.warning("Pre-exec liquidity check failed: %s (proceeding)", e)
 
-            trade_record = {
-                "condition_id": signal.condition_id,
-                "title": signal.title,
-                "category": signal.category,
-                "side": signal.side,
-                "amount": signal.bet_size_usdc,
-                "price": signal.price,
-                "edge": signal.edge,
-                "confidence": signal.confidence,
-                "gto_type": signal.gto_type,
-                "gto_order_type": signal.gto_order_type,
-                "gto_limit_offset": signal.gto_limit_offset,
-                "adverse_selection": signal.adverse_selection_score,
-                "unexploitability": signal.unexploitability_score,
-                "is_dominant_strategy": signal.is_dominant_strategy,
-            }
+            pos = execute_buy(ctx, signal)
 
-            if ctx.dry_run:
-                trade_record["dry_run"] = True
-                if ctx.verbose:
-                    print(f"    DRY_RUN: would buy {signal.side} {signal.title[:40]} ${signal.bet_size_usdc:.2f}")
+            if pos is None:
+                # Failed — log error but don't add to executed_trades (avoid misleading Telegram)
+                logger.warning("TRADE FAILED: %s %s $%.2f",
+                               signal.side, signal.title[:30], signal.bet_size_usdc)
+                continue
 
-                # Log dry-run trade
-                log_trade(
-                    condition_id=signal.condition_id,
-                    title=signal.title,
-                    category=signal.category,
-                    side=signal.side,
-                    action="buy",
-                    shares=signal.bet_size_usdc / signal.price if signal.price > 0 else 0,
-                    price=signal.price,
-                    amount_usdc=signal.bet_size_usdc,
-                    edge=signal.edge,
-                    confidence=signal.confidence,
-                    kelly_fraction=signal.kelly_fraction,
-                    reasoning=signal.reasoning,
-                    dry_run=True,
-                )
+            ctx.open_positions.append(pos)
+            ctx.executed_trades.append({
+                "condition_id": signal.condition_id, "title": signal.title,
+                "category": signal.category, "side": signal.side, "action": "buy",
+                "amount": signal.bet_size_usdc, "price": signal.price,
+                "edge": signal.edge, "confidence": signal.confidence,
+                "dry_run": ctx.dry_run,
+            })
 
-                # Add simulated position for state tracking
-                shares = signal.bet_size_usdc / signal.price if signal.price > 0 else 0
-                end_date = ""
-                for m in ctx.filtered_markets:
-                    if m.condition_id == signal.condition_id:
-                        end_date = m.end_date
-                        break
-                pos = PolyPosition(
-                    condition_id=signal.condition_id,
-                    title=signal.title,
-                    category=signal.category,
-                    side=signal.side,
-                    token_id=signal.token_id,
-                    shares=shares,
-                    avg_price=signal.price,
-                    current_price=signal.price,
-                    cost_basis=signal.bet_size_usdc,
-                    market_value=signal.bet_size_usdc,
-                    entry_time=ctx.timestamp_str,
-                    end_date=end_date,
-                )
-                ctx.open_positions.append(pos)
-
-            else:
-                # ─── Live Execution with WAL ───
-                intent_id = None
-                try:
-                    # WAL: log intent before executing
-                    if ctx.wal:
-                        intent_id = ctx.wal.log_intent(
-                            op="buy",
-                            pair=signal.condition_id,
-                            direction=signal.side,
-                            qty=signal.bet_size_usdc / signal.price if signal.price > 0 else 0,
-                            price=signal.price,
-                            sl_price=0,
-                            platform="polymarket",
-                        )
-
-                    # Execute buy via SDK — ALWAYS use FOK (market order)
-                    # GTC limit orders assumed filled = phantom shares (gotcha 🔴)
-                    # GTO may recommend LIMIT, but pipeline uses FOK for safety.
-                    # Maker limit orders belong in run_mm_live.py, not here.
-                    result = ctx.exchange_client.buy_shares(
-                        token_id=signal.token_id,
-                        amount_usdc=signal.bet_size_usdc,
-                        price=0,  # FOK — fills or fails atomically
-                    )
-
-                    order_id = result.get("orderID", result.get("id", ""))
-                    trade_record["order_id"] = order_id
-                    trade_record["dry_run"] = False
-
-                    # WAL: mark done
-                    if ctx.wal and intent_id:
-                        ctx.wal.log_done(intent_id, order_id)
-
-                    # Log trade
-                    shares = signal.bet_size_usdc / signal.price if signal.price > 0 else 0
-                    log_trade(
-                        condition_id=signal.condition_id,
-                        title=signal.title,
-                        category=signal.category,
-                        side=signal.side,
-                        action="buy",
-                        shares=shares,
-                        price=signal.price,
-                        amount_usdc=signal.bet_size_usdc,
-                        edge=signal.edge,
-                        confidence=signal.confidence,
-                        kelly_fraction=signal.kelly_fraction,
-                        reasoning=signal.reasoning,
-                        order_id=order_id,
-                        dry_run=False,
-                    )
-
-                    # ── Track position for state persistence + cross-cycle dedup ──
-                    shares = signal.bet_size_usdc / signal.price if signal.price > 0 else 0
-                    end_date = ""
-                    for m in ctx.filtered_markets:
-                        if m.condition_id == signal.condition_id:
-                            end_date = m.end_date
-                            break
-                    pos = PolyPosition(
-                        condition_id=signal.condition_id,
-                        title=signal.title,
-                        category=signal.category,
-                        side=signal.side,
-                        token_id=signal.token_id,
-                        shares=shares,
-                        avg_price=signal.price,
-                        current_price=signal.price,
-                        cost_basis=signal.bet_size_usdc,
-                        market_value=signal.bet_size_usdc,
-                        entry_time=ctx.timestamp_str,
-                        end_date=end_date,
-                    )
-                    ctx.open_positions.append(pos)
-
-                    if ctx.verbose:
-                        print(f"    LIVE: bought {signal.side} {signal.title[:40]} ${signal.bet_size_usdc:.2f} → {order_id}")
-
-                except Exception as e:
-                    # WAL: mark failed
-                    if ctx.wal and intent_id:
-                        ctx.wal.log_failed(intent_id, str(e))
-                    trade_record["error"] = str(e)
-                    ctx.errors.append(f"Trade failed: {signal.title[:30]} — {e}")
-                    logger.error("Trade execution failed: %s", e)
-                    continue
-
-            ctx.executed_trades.append(trade_record)
-
-            # ─── Hyperliquid Hedge (crypto_15m only) ───
+            # Hyperliquid Hedge (crypto_15m only)
             self._try_open_hedge(ctx, signal, trade_record)
+
+        # Recalculate exposure after all buys
+        from polymarket.exchange.executor import recalc_exposure
+        recalc_exposure(ctx)
 
         return ctx
 
@@ -1129,7 +765,6 @@ class ExecuteTradesStep:
         if trade_record.get("error"):
             return
 
-        # Inverse direction: Poly YES (predict UP) → HL SHORT (hedge against UP being wrong)
         hedge_direction = "SHORT" if signal.side == "YES" else "LONG"
 
         try:
@@ -1145,13 +780,10 @@ class ExecuteTradesStep:
             )
 
             trade_record["hedge"] = {
-                "direction": hedge_direction,
-                "usdc_size": HEDGE_USD,
-                "leverage": HEDGE_LEVERAGE,
-                "status": result.get("status", "unknown"),
+                "direction": hedge_direction, "usdc_size": HEDGE_USD,
+                "leverage": HEDGE_LEVERAGE, "status": result.get("status", "unknown"),
             }
 
-            # Record hedge info on the position (last appended)
             for pos in reversed(ctx.open_positions):
                 if pos.condition_id == signal.condition_id:
                     pos.hedge_side = hedge_direction
@@ -1160,10 +792,9 @@ class ExecuteTradesStep:
                     break
 
             if ctx.verbose:
-                status = result.get("status", "?")
                 print(
-                    f"    HEDGE ({status}): {hedge_direction} {HEDGE_SYMBOL} "
-                    f"${HEDGE_USD:.0f} at {HEDGE_LEVERAGE}x"
+                    f"    HEDGE ({result.get('status', '?')}): {hedge_direction} "
+                    f"{HEDGE_SYMBOL} ${HEDGE_USD:.0f} at {HEDGE_LEVERAGE}x"
                 )
 
         except Exception as e:
@@ -1217,7 +848,7 @@ def build_pipeline() -> Pipeline:
     Pipeline order (safety check AFTER positions loaded — gotcha fix):
       1.   read_state          — POLYMARKET_STATE.json
       2.   replay_wal          — WAL crash recovery (live only)
-      3.   scan_markets        — Gamma API → filter crypto/weather
+      3.   scan_markets        — Gamma API → filter crypto
       4.   check_positions     — sync positions + USDC balance
       5.   safety_check        — circuit breaker, daily loss, cooldown, position limits
       5.5  merge_check         — detect mergeable YES+NO pairs (report only)

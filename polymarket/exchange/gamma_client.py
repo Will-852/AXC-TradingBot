@@ -2,7 +2,7 @@
 gamma_client.py — Gamma API wrapper for Polymarket market discovery
 
 Gamma API 係公開 REST API，唔需要 auth。
-用途：搵所有 active 市場、過濾 crypto/weather、取得 market metadata。
+用途：搵所有 active 市場、過濾 crypto、取得 market metadata。
 
 Gamma API 返回嘅 market 包含：
 - condition_id (market ID)

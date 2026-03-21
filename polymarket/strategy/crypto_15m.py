@@ -523,7 +523,7 @@ def assess_crypto_15m_edge(market: PolyMarket) -> EdgeAssessment | None:
         return None
 
     # Calculate edge vs market price — side determined by edge direction
-    # (same pattern as weather + generic crypto paths in edge_finder.py)
+    # (same pattern as generic crypto path in edge_finder.py)
     raw_edge = p_up - market.yes_price
     if raw_edge > 0:
         side = "YES"
