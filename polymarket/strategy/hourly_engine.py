@@ -93,7 +93,9 @@ class HourlyConfig:
     ob_bad_threshold: float = 0.30      # ob_quality < 0.30 = bad, penalize conviction
     ob_depth_override_mult: float = 10.0  # depth >= 10x baseline → override spread penalty
     # Late window cutoff
-    late_cutoff_min: float = 56.0       # don't enter after minute 56
+    late_cutoff_min: float = 56.0       # normal entries stop at minute 56
+    late_entry_cutoff_min: float = 58.0 # high-conviction entries allowed until minute 58
+    late_entry_min_confidence: float = 0.40  # need ≥40% confidence for late entry (= fair ≥0.70 or ≤0.30)
     # Skip near coin-flip
     min_fair_deviation: float = 0.05    # fair must deviate >=5c from 0.50
     # Fat-tail adjustment: BTC kurtosis > 9, normal CDF overestimates confidence
@@ -159,11 +161,17 @@ def conviction_signal(
             fair_up=0, p_win=0, reason="budget fully invested")
 
     # ─── Guard: too late ───
-    if t_elapsed >= config.late_cutoff_min:
+    # Normal entries: stop at minute 56
+    # Late high-conviction entries: allowed t=56-58 if confidence ≥ 40%
+    # Rationale: at t=57, BTC +0.5% above open → P(UP) > 90% = "you know the answer"
+    # Inspired by Woeful-Analyst wallet (63K markets, 100% WR, enters when outcome is near-certain)
+    _hard_cutoff = t_elapsed >= config.late_entry_cutoff_min
+    _soft_cutoff = t_elapsed >= config.late_cutoff_min and t_elapsed < config.late_entry_cutoff_min
+    if _hard_cutoff:
         return ConvictionSignal(
             action="SKIP", direction="", conviction=0, confidence=0,
             time_trust=1.0, entry_price=0, size_fraction=0,
-            fair_up=0, p_win=0, reason=f"too late ({t_elapsed:.0f}min)")
+            fair_up=0, p_win=0, reason=f"too late ({t_elapsed:.0f}min, hard cutoff)")
 
     # ─── 1. Fair value (Brownian Bridge) ───
     if vol_1m <= 0 or btc_current <= 0 or btc_open <= 0 or t_remaining <= 0:
@@ -186,6 +194,14 @@ def conviction_signal(
     direction = "UP" if fair_up >= 0.50 else "DOWN"
     p_win = max(fair_up, 1.0 - fair_up)  # probability of winning side
     confidence = (p_win - 0.50) * 2.0     # scale to [0, 1]
+
+    # ─── 2a. Soft cutoff: t=56-58 needs high confidence ───
+    if _soft_cutoff and confidence < config.late_entry_min_confidence:
+        return ConvictionSignal(
+            action="SKIP", direction=direction, conviction=0, confidence=confidence,
+            time_trust=1.0, entry_price=0, size_fraction=0,
+            fair_up=fair_up, p_win=p_win,
+            reason=f"late ({t_elapsed:.0f}min) + low confidence {confidence:.2f} < {config.late_entry_min_confidence}")
 
     # ─── 2b. Position awareness: EXIT / HOLD check ───
     if current_position is not None:
