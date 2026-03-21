@@ -225,7 +225,7 @@ def _cross_exchange_price(symbol: str = "BTCUSDT") -> tuple[float, float]:
     """Fetch price from 3 exchanges, return (median, max_divergence_pct).
     divergence = (max - min) / median. High = anomaly.
     Falls back to Binance-only if others fail.
-    Cached 10s — heavy cycle only."""
+    Cached 5s — faster flash crash detection."""
     key = f"xprice_{symbol}"
     now = time.time()
     if key in _cache and now - _cache[key][1] < 5:  # 5s for faster flash crash detection
