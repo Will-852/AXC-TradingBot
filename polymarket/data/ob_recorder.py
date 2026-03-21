@@ -46,7 +46,7 @@ _HTTP_TIMEOUT = 5
 _CLOB_BASE = "https://clob.polymarket.com"
 _GAMMA_BASE = "https://gamma-api.polymarket.com"
 
-_CYCLE_S = 60         # target OB snapshot interval (12 markets × 3 calls ≈ 50s actual)
+_CYCLE_S = 300        # 5 min cycle — enough for holder/depth analysis, frees CLOB headroom for MM bot
 _DISCOVERY_S = 300    # re-discover markets every 5 min
 _DISCOVERY_WINDOWS = 2  # current + next window (max 4 markets for BTC+ETH)
 _INTER_REQ_DELAY = 0.5  # delay between CLOB requests (share budget with live MM bot)
