@@ -326,6 +326,90 @@ def calc_trade_flow(trades: list[dict], window_sec: float = 300) -> dict:
     }
 
 
+# ─── Known smart money wallets (from wallet reverse engineering) ───
+# proxyWallet → pseudonym. Presence on a side = directional signal.
+_SMART_MONEY: dict[str, str] = {
+    "0x55ea4558f31dc5df0bcaa660a356ecafd11d7f0d": "stargate5",
+    "0x4a29c8ff7e5b1caa34d1a0e4f14d435dc580d500": "MangoTrolley7",
+    "0x7a53adf33e09a7e4f64b1774d89350e40e8a322b": "distinct-baguette",
+    "0x9629804e001a60ebe8a289a334ccf2e5553aee15": "turaxmaniac",
+    "0x4130235fdd6ab5e7fc31b144b04c305baedb5d00": "XaineChaeson",
+}
+
+
+def fetch_holders(condition_id: str, limit: int = 20) -> list[dict]:
+    """Fetch top holders per token from Polymarket Data API.
+
+    Returns list of token groups: [{"token": ..., "holders": [...]}, ...]
+    Each holder has: proxyWallet, pseudonym, amount (shares), outcomeIndex.
+    """
+    url = f"https://data-api.polymarket.com/holders?market={condition_id}&limit={limit}"
+    data = _http_get(url)
+    if data and isinstance(data, list):
+        return data
+    return []
+
+
+def calc_holder_metrics(holder_groups: list[dict], up_token_id: str) -> dict:
+    """Compute holder-based directional signals.
+
+    Metrics:
+    - up_shares / down_shares: total shares held per side (top N holders)
+    - holder_imbalance: (up - down) / (up + down), range [-1, +1]
+    - smart_money_side: "UP" / "DOWN" / "BOTH" / "NONE"
+    - smart_money_count: how many known wallets are holding
+    """
+    up_shares = 0.0
+    down_shares = 0.0
+    up_count = 0
+    down_count = 0
+    smart_up = []
+    smart_down = []
+
+    for group in holder_groups:
+        token = group.get("token", "")
+        is_up = token == up_token_id
+        holders = group.get("holders", [])
+
+        for h in holders:
+            amt = _safe_float(h.get("amount", 0))
+            wallet = h.get("proxyWallet", "")
+
+            if is_up:
+                up_shares += amt
+                up_count += 1
+                if wallet in _SMART_MONEY:
+                    smart_up.append(_SMART_MONEY[wallet])
+            else:
+                down_shares += amt
+                down_count += 1
+                if wallet in _SMART_MONEY:
+                    smart_down.append(_SMART_MONEY[wallet])
+
+    total = up_shares + down_shares
+    imbalance = (up_shares - down_shares) / total if total > 0 else 0.0
+
+    if smart_up and smart_down:
+        sm_side = "BOTH"
+    elif smart_up:
+        sm_side = "UP"
+    elif smart_down:
+        sm_side = "DOWN"
+    else:
+        sm_side = "NONE"
+
+    return {
+        "h_up_shares": round(up_shares, 2),
+        "h_down_shares": round(down_shares, 2),
+        "h_up_count": up_count,
+        "h_down_count": down_count,
+        "h_imbalance": round(imbalance, 4),
+        "h_smart_side": sm_side,
+        "h_smart_up": smart_up[:3],   # top 3 names
+        "h_smart_down": smart_down[:3],
+    }
+
+
 def fetch_prices_history(token_id: str, lookback_sec: int = 300, fidelity: int = 30) -> list[dict]:
     """Fetch token price history from CLOB (public, no auth).
 
@@ -393,6 +477,10 @@ def take_snapshot(market: dict) -> dict | None:
     # Fetch prices-history (UP token, 30s fidelity, last 5 min)
     # Fallback/complement to signal_tape — finer granularity from CLOB
     up_price_hist = fetch_prices_history(market["up_token_id"])
+    time.sleep(_INTER_REQ_DELAY)
+
+    # Fetch holders (position imbalance + smart money tracking)
+    holder_groups = fetch_holders(market["condition_id"])
 
     if up_book is None and down_book is None:
         logger.warning("Both OB fetches failed for %s", market["slug"])
@@ -429,6 +517,7 @@ def take_snapshot(market: dict) -> dict | None:
         "combined_best_ask": combined_best_ask,
         **calc_trade_flow(trades, window_sec=300),  # 5-min window
         **calc_price_momentum(up_price_hist),  # price trajectory fallback
+        **calc_holder_metrics(holder_groups, market["up_token_id"]),  # position imbalance + smart money
     }
 
 
