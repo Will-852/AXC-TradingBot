@@ -34,6 +34,12 @@ logger = logging.getLogger(__name__)
 _UA = {"User-Agent": "AXC/1.0"}
 _DEFAULT_TIMEOUT = 3  # seconds per HTTP call
 
+# Absolute price sanity bounds — reject obviously wrong prices
+_PRICE_BOUNDS: dict[str, tuple[float, float]] = {
+    "BTCUSDT": (5_000, 500_000),
+    "ETHUSDT": (100, 50_000),
+}
+
 
 # ════════════════════════════════════════
 #  Data Model
@@ -195,10 +201,20 @@ def _fetch_funding_deribit(symbol: str) -> dict:
     data = _http_get(f"https://www.deribit.com/api/v2/public/ticker?instrument_name={coin}-PERPETUAL")
     result = data.get("result", {})
     rate = _safe_float(result.get("current_funding"))
-    # Deribit perp OI is already in USD
-    oi_usd = _safe_float(result.get("open_interest"))
-    # Note: mark_iv from perp is NOT the DVOL index — DVOL comes from _fetch_dvol_deribit
-    return {"funding_rate": rate, "oi_usd": oi_usd}
+    # Deribit perp OI — for BTC-PERPETUAL (inverse), open_interest is in USD.
+    # For ETH-PERPETUAL (linear), it's in ETH — multiply by mark_price.
+    oi_raw = _safe_float(result.get("open_interest"))
+    mark_price = _safe_float(result.get("mark_price"))
+    # Heuristic: if OI < 1M, likely in coins (ETH), need conversion
+    if oi_raw > 0 and oi_raw < 1_000_000 and mark_price > 0:
+        oi_usd = oi_raw * mark_price  # coin-denominated → USD
+    else:
+        oi_usd = oi_raw  # already USD (BTC inverse perp)
+    out: dict = {"oi_usd": oi_usd}
+    # Only include funding if non-zero (Deribit often returns 0.0 for BTC perp)
+    if rate != 0.0:
+        out["funding_rate"] = rate
+    return out
 
 
 def _fetch_funding_hl(symbol: str) -> dict:
@@ -222,23 +238,35 @@ def _fetch_funding_hl(symbol: str) -> dict:
         if asset.get("name") == coin and i < len(ctxs):
             ctx = ctxs[i]
             rate = _safe_float(ctx.get("funding"))
+            # HL funding is per-hour; normalize to 8h scale to match Binance/OKX/Bybit
+            rate_8h = rate * 8
             oi = _safe_float(ctx.get("openInterest"))
             mark = _safe_float(ctx.get("markPx"))
-            return {"funding_rate": rate, "oi_coins": oi, "mark": mark}
+            return {"funding_rate": rate_8h, "oi_coins": oi, "mark": mark}
     return {}
 
 
 # ─── SLOT 3: Open Interest ───
 
 def _fetch_oi_binance(symbol: str) -> dict:
-    data = _http_get(f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}")
-    oi = _safe_float(data.get("openInterest"))
-    # OI in contracts — need price to convert to USD
-    # premiumIndex gives us markPrice; fetch it if needed
-    price_data = _http_get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}")
-    mark = _safe_float(price_data.get("markPrice"))
-    oi_usd = oi * mark if mark > 0 else 0.0
-    return {"oi_usd": oi_usd}
+    """Fetch Binance futures OI. Single call — premiumIndex includes both OI-related
+    markPrice and OI via a separate call, but we combine into one to avoid phantom drops."""
+    # premiumIndex has markPrice; openInterest is separate endpoint
+    # Fetch both, but if price fails, use a fallback to avoid zeroing OI
+    oi_data = _http_get(f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}")
+    oi = _safe_float(oi_data.get("openInterest"))
+    if oi <= 0:
+        return {}
+    try:
+        price_data = _http_get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}")
+        mark = _safe_float(price_data.get("markPrice"))
+    except Exception:
+        mark = 0.0
+    if mark <= 0:
+        # Price fetch failed — return coins, let _aggregate skip rather than inject 0
+        logger.debug("Binance OI: got %.0f coins but no markPrice", oi)
+        return {}
+    return {"oi_usd": oi * mark}
 
 
 def _fetch_oi_okx(symbol: str) -> dict:
@@ -560,6 +588,11 @@ class StaggeredFetcher:
         # ─── Aggregate into MarketSnapshot ───
         snap = self._aggregate(symbol, results, sources_ok, sources_total,
                                (time.time() - t0) * 1000, slot_timings)
+        if sources_ok == 0:
+            logger.error("ALL %d sources failed for %s — snapshot has no data", sources_total, symbol)
+        elif snap.price == 0.0:
+            logger.error("Price = 0 for %s (%d/%d sources) — snapshot invalid",
+                         symbol, sources_ok, sources_total)
         self._history.append(snap)
         return snap
 
@@ -577,13 +610,17 @@ class StaggeredFetcher:
         """Build MarketSnapshot from raw slot results."""
         now = time.time()
 
-        # ── Price: median of all sources ──
+        # ── Price: median of all sources (with sanity bounds) ──
+        lo, hi = _PRICE_BOUNDS.get(symbol, (0.01, 1e9))
         price_sources = {}
         for key, data in results.items():
             if key.startswith("price_"):
                 for exchange, px in data.items():
-                    if px > 0:
+                    if lo < px < hi:
                         price_sources[exchange] = px
+                    elif px > 0:
+                        logger.warning("Price sanity REJECT %s: $%.2f (bounds: $%.0f–$%.0f)",
+                                       exchange, px, lo, hi)
         prices = list(price_sources.values())
         price = statistics.median(prices) if prices else 0.0
         price_div = ((max(prices) - min(prices)) / price
