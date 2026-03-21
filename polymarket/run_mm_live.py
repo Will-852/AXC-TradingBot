@@ -1459,14 +1459,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _post_fill_checks.clear()
         _post_fill_checks.extend(_remaining)
 
-    # ── Exit: Free Roll + Black Swan + Stop Loss ──
-    # Layer 1: BLACK SWAN (mid ≥ 94¢) → sell ALL (any time)
-    # Layer 2: COST RECOVERY (mid ≥ 55¢, early) → sell enough to recover cost → free roll
+    # ── Exit: Profit Lock + Cost Recovery + Stop Loss ──
+    # Layer 1: PROFIT LOCK (mid ≥ 95¢) → sell 95%, keep 5% free roll + 2-share hedge
+    # Layer 2: COST RECOVERY (mid ≥ 64¢, early) → sell enough to recover cost → free roll
     # Layer 3: STOP LOSS (-25%, pre-recovery only) → cut losses
     # Layer 4: HOLD → default (free shares or waiting)
     _EXIT_STOP_PCT = 0.25       # -25% → stop loss (pre-recovery only)
-    _BLACK_SWAN_MID = 0.95      # sell 90% at 95¢+ → lock profit, keep 10% free roll
-    _BLACK_SWAN_SELL_PCT = 0.90 # sell 90%, keep 10% as free upside
+    _BLACK_SWAN_MID = 0.95      # sell 95% at 95¢+ → lock profit, keep 5% free roll
+    _BLACK_SWAN_SELL_PCT = 0.95 # sell 95%, keep 5% as free upside
     _COST_RECOVERY_MID = 0.64   # recover cost when mid ≥ 64¢ (keep 3 free shares vs 2 at 55¢)
     if client and hasattr(client, "sell_shares") and not dry_run:
         for cid, mkt in state["markets"].items():
@@ -1495,11 +1495,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
                 # ── Layer 1: PROFIT LOCK (93¢+) → sell 90%, keep 10% free roll + hedge ──
                 if mid >= _BLACK_SWAN_MID:
-                    # Sell 90% to lock profit, keep 10% as free upside ($0 risk)
+                    # Sell 95% to lock profit, keep 5% as free roll ($0 risk)
                     _sell_shares = max(1, int(shares * _BLACK_SWAN_SELL_PCT))
                     _keep = shares - _sell_shares
                     try:
-                        _sell_price = round(max(0.01, mid * 0.99), 2)
+                        # Aggressive taker: hit best bid (mid × 0.97) to guarantee fill
+                        # Last 2-3s bots can move price — speed > price
+                        _sell_price = round(max(0.01, mid * 0.97), 2)
                         client.sell_shares(tok, _sell_shares, price=_sell_price)
                         _pnl = _sell_shares * (_sell_price - avg)
                         _remaining_cost = _keep * avg
@@ -1516,24 +1518,24 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     except Exception as e:
                         logger.warning("Profit lock sell failed %s: %s", cid[:8], e)
                         continue
-                    # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
-                    # Must execute instantly — if market reverses, price moves fast.
-                    # At 94¢ our side, opposite ≈ 6¢. Max risk = 5 × 0.15 = $0.75.
+                    # Mini hedge: buy 2 shares opposite at market (insurance, not sizing)
+                    # At 95¢ our side, opposite ≈ 5¢. Cost = 2 × 0.10 = $0.20 max.
+                    # If we're wrong: 2 × $1 = $2 recovery. 100 trades: 5 wrong × $2 = $10.
+                    _HEDGE_SHARES = 2
                     _opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
                     _opp_side = "DOWN" if side == "UP" else "UP"
                     if _opp_tok:
                         _opp_mid = _poly_midpoint(client, _opp_tok)
-                        # Use mid + 50% overpay as aggressive limit = pseudo market order
-                        # At 6¢ mid → bid 9¢. At 10¢ mid → bid 15¢. Instant fill.
-                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 1.50), 2)
-                        if _hedge_price < 0.15:  # cap: don't pay more than 15¢
-                            try:
-                                _hedge_cost = round(5 * _hedge_price, 2)
-                                client.buy_shares(_opp_tok, _hedge_cost, price=_hedge_price)
-                                logger.info("HEDGE %s %s: 5 shares @ $%.2f ($%.2f) — market order",
-                                            cid[:8], _opp_side, _hedge_price, _hedge_cost)
-                            except Exception as e:
-                                logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
+                        # Aggressive taker: 2x mid to guarantee instant fill
+                        _hedge_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.06) * 2.0), 2)
+                        _hedge_price = min(_hedge_price, 0.15)  # cap at 15¢
+                        try:
+                            _hedge_cost = round(_HEDGE_SHARES * _hedge_price, 2)
+                            client.buy_shares(_opp_tok, _hedge_cost, price=_hedge_price)
+                            logger.info("HEDGE %s %s: %d shares @ $%.2f ($%.2f)",
+                                        cid[:8], _opp_side, _HEDGE_SHARES, _hedge_price, _hedge_cost)
+                        except Exception as e:
+                            logger.warning("HEDGE FAILED %s: %s", cid[:8], e)
                     break  # exit inner for-side loop — market is RESOLVED
 
                 if _cost_recovered:

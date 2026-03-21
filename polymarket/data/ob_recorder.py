@@ -109,12 +109,45 @@ def _safe_float(val, default: float = 0.0) -> float:
 #  Discovery — find active 15M markets
 # ════════════════════════════════════════
 
-def discover_markets() -> list[dict]:
-    """Find active BTC + ETH 15M markets via Gamma slug scan.
+def _parse_gamma_market(raw: dict, slug: str, ts: int, te: int, coin_slug: str) -> dict | None:
+    """Parse a single Gamma API market response into our internal format."""
+    outcomes_raw = raw.get("outcomes", "[]")
+    tokens_raw = raw.get("clobTokenIds", "[]")
+    try:
+        outcomes = json.loads(outcomes_raw) if isinstance(outcomes_raw, str) else outcomes_raw
+    except (json.JSONDecodeError, TypeError):
+        outcomes = []
+    try:
+        token_ids = json.loads(tokens_raw) if isinstance(tokens_raw, str) else tokens_raw
+    except (json.JSONDecodeError, TypeError):
+        token_ids = []
 
-    Scans current + next 2 windows (max 6 markets for 2 coins).
-    Returns list of dicts with token IDs and window metadata.
-    """
+    if len(outcomes) < 2 or len(token_ids) < 2:
+        logger.warning("Incomplete market %s: outcomes=%s tokens=%d", slug, outcomes, len(token_ids))
+        return None
+
+    if outcomes[0].lower() not in ("up", "yes"):
+        logger.error("OUTCOME SWAPPED %s: %s — skipping", slug, outcomes)
+        return None
+
+    return {
+        "condition_id": raw.get("conditionId", ""),
+        "title": raw.get("question", slug),
+        "slug": slug,
+        "up_token_id": str(token_ids[0]),
+        "down_token_id": str(token_ids[1]),
+        "start_ts": ts,
+        "end_ts": te,
+        "coin": coin_slug.upper(),
+    }
+
+
+# 1H slug helpers (same pattern as run_1h_live.py)
+_COIN_SLUGS_1H = {"btc": "bitcoin", "eth": "ethereum"}
+
+
+def _discover_15m() -> list[dict]:
+    """Find active BTC + ETH 15M markets."""
     results = []
     now_s = int(time.time())
     now_et = datetime.now(tz=_ET)
@@ -125,53 +158,53 @@ def discover_markets() -> list[dict]:
         ws = base + timedelta(minutes=slot + i * 15)
         we = ws + timedelta(minutes=15)
         ts, te = int(ws.timestamp()), int(we.timestamp())
-        # Skip expired windows (>2 min past end)
         if now_s > te + 120:
             continue
-
         for coin_slug, _ in _COINS:
             slug = f"{coin_slug}-updown-15m-{ts}"
-            url = f"{_GAMMA_BASE}/markets?slug={slug}"
-            data = _http_get(url)
-            if not data or not isinstance(data, list) or len(data) == 0:
+            data = _http_get(f"{_GAMMA_BASE}/markets?slug={slug}")
+            if not data or not isinstance(data, list) or not data:
                 continue
+            parsed = _parse_gamma_market(data[0], slug, ts, te, coin_slug)
+            if parsed:
+                results.append(parsed)
+    return results
 
-            raw = data[0]
 
-            # Parse outcomes + token IDs (Gamma returns JSON strings)
-            outcomes_raw = raw.get("outcomes", "[]")
-            tokens_raw = raw.get("clobTokenIds", "[]")
-            try:
-                outcomes = json.loads(outcomes_raw) if isinstance(outcomes_raw, str) else outcomes_raw
-            except (json.JSONDecodeError, TypeError):
-                outcomes = []
-            try:
-                token_ids = json.loads(tokens_raw) if isinstance(tokens_raw, str) else tokens_raw
-            except (json.JSONDecodeError, TypeError):
-                token_ids = []
+def _discover_1h() -> list[dict]:
+    """Find active BTC + ETH 1H markets (same slug pattern as run_1h_live.py)."""
+    results = []
+    now_s = int(time.time())
+    now_et = datetime.now(tz=_ET)
+    base = now_et.replace(minute=0, second=0, microsecond=0)
 
-            if len(outcomes) < 2 or len(token_ids) < 2:
-                logger.warning("Incomplete market %s: outcomes=%s tokens=%d", slug, outcomes, len(token_ids))
+    for i in range(2):  # current + next hour
+        ws = base + timedelta(hours=i)
+        we = ws + timedelta(hours=1)
+        ts, te = int(ws.timestamp()), int(we.timestamp())
+        if now_s > te + 300:
+            continue
+        for coin_slug, coin_name in _COIN_SLUGS_1H.items():
+            hour = ws.strftime("%I").lstrip("0")
+            ampm = ws.strftime("%p").lower()
+            slug = f"{coin_name}-up-or-down-{ws.strftime('%B').lower()}-{ws.day}-{ws.year}-{hour}{ampm}-et"
+            data = _http_get(f"{_GAMMA_BASE}/markets?slug={slug}")
+            if not data or not isinstance(data, list) or not data:
                 continue
+            parsed = _parse_gamma_market(data[0], slug, ts, te, coin_slug)
+            if parsed:
+                results.append(parsed)
+    return results
 
-            # Validate outcome order: first must be Up
-            if outcomes[0].lower() not in ("up", "yes"):
-                logger.error("OUTCOME SWAPPED %s: %s — skipping", slug, outcomes)
-                continue
 
-            condition_id = raw.get("conditionId", "")
-            results.append({
-                "condition_id": condition_id,
-                "title": raw.get("question", slug),
-                "slug": slug,
-                "up_token_id": str(token_ids[0]),
-                "down_token_id": str(token_ids[1]),
-                "start_ts": ts,
-                "end_ts": te,
-                "coin": coin_slug.upper(),
-            })
-
-    logger.info("Discovery: found %d active markets", len(results))
+def discover_markets() -> list[dict]:
+    """Find active 15M + 1H markets for BTC + ETH."""
+    results_15m = _discover_15m()
+    results_1h = _discover_1h()
+    results = results_15m + results_1h
+    now_s = int(time.time())
+    logger.info("Discovery: found %d markets (%d 15M + %d 1H)",
+                len(results), len(results_15m), len(results_1h))
     for m in results:
         tte = m["end_ts"] - now_s
         logger.info("  %s %s (ends in %dm%ds)", m["coin"], m["slug"], tte // 60, tte % 60)

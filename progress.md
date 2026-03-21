@@ -1,45 +1,51 @@
-# Progress Log — AS Defense: Fix Fill Rate + Per-Order Logging
+# Progress Log: Data Diversity Layer
 
-## Session: 2026-03-21
+## Session: 2026-03-22
 
-### Phase 1: Fix cancel defense TTL ✅
-- Adverse threshold: BTC 0.3%→0.5%, ETH 0.5%→0.7%
-- TTL: fixed 5min → dynamic `min(10min, window_end - 3min - entry_ts)`
-  - Entry min 1.5 → 10 min on book (max)
-  - Entry min 8 → 4 min on book (respects window end)
-- Added book/end time to cancel logs
+### Phase 0: Research ✅
+- 3 × Opus subagent parallel research:
+  1. Exchange API audit — 6 exchanges, 25+ unused endpoints confirmed
+  2. Anti-overfitting data strategies — ranked by independence × practicality
+  3. MM/1H integration point audit — signal flow mapped, file:line references
+- Key insight from user: **用數量壓延遲** — parallel fetch N sources, fastest wins
+- Architecture decision: `market_data.py` shared fetcher with ThreadPoolExecutor
+- Plan written, ready for Phase 1
 
-### Phase 2: Per-order logging ✅
-- New: `mm_order_log.jsonl` — per-order lifecycle
-  - submit: order_id, cid, outcome, price, size, status + signal context (fair, bridge, cvd, vol, m1)
-  - fill: mid_at_fill
-  - cancel: reason, time_on_book_s, dist_to_end_s
-  - cancelled_external: detected by _check_fills
-  - expired: window ended with pending orders
-  - post_fill_60s: midpoint 60s after fill (AS cost measurement)
-- _execute() now takes cid + signal_ctx params
-- _check_fills() logs fill/cancel/expired events
-- Deferred post-fill checker runs each cycle
+### Phase 1: In Progress
+- ✅ 1A: Created `polymarket/data/market_data.py` — StaggeredFetcher + MarketSnapshot + SnapshotHistory
+- ✅ 1B: Price from 5 sources (Binance spot/fut, OKX, Bybit, HL) — all working
+- ✅ 1C: Funding from 5 sources (Binance, OKX, Bybit, Deribit, HL) — all working
+- ✅ 1D: MarketSnapshot dataclass with all fields + metadata
+- ✅ CLI test: **22/22 sources, 1.8-1.9s** for BTC + ETH
+- ✅ DVOL working (BTC=52.3, ETH=76.5), OI correct per-symbol, L/S extreme detection working
+- 🔲 1E: Wire into MM bot
+- 🔲 1F: Wire into 1H bot
+- 🔲 1G: Funding as sizing modifier
+- 🔲 1H: Signal log
+- 🔲 1I: Dry-run timing benchmark
 
-### Phase 3: Round-dependent pricing ✅
-- R2 bid × 0.90 ($0.36), R3 bid × 0.80 ($0.32)
-- BTC move > 0.3% since window open → skip re-entry (regime change)
-- **Fixed pre-existing bug**: _re_mkt was NameError (never defined) → re-entry never worked
+### Phase 4: Fill Model Data Collection ✅
+- ✅ #1: σ_poly by hour — 3.2x ToD effect (07:00 HKT best, 05:00 worst). r=0.063 vs σ_btc.
+- ✅ #2: OB recorder — poly_ob_tape.jsonl, 5s interval, rate-limited to ~24 req/min
+- ✅ #3: Arb spread — 0.5% of snapshots < $0.98, 96% last 1 tick. Not viable as strategy.
+- ✅ Safety: OB recorder rate limit reduced (2 windows, 0.5s delay), disk-full protected
+- ✅ SOL + ETH 15M discovery enabled (dry-run only)
 
-### Phase 4: 2check ✅
-- 🔴 Pre-existing: _re_mkt NameError → now fixed
-- 🟡 _time_on_book computed twice (cosmetic)
-- 🟡 _post_fill_checks lost on crash (acceptable for diagnostic data)
-- 🟢 TTL math verified: entry min 1.5 → 10min, entry min 8 → 4min
-- 🟢 No security issues
-- 🟢 All imports verified OK
+### Key Findings (from analysis)
+- σ_poly ≠ σ_btc (r=0.063) → fill model must track Poly OB, not exchange vol
+- ToD effect 3.2x → free edge from entry timing
+- Arb transient → use as dislocation signal, not standalone strategy
+- Cancel policy kills 43pp of fill rate → TTL review is highest priority
 
-### Cluster 3+4: Vol Estimation + Fat-tail Haircut ✅
-- Vol: `limit=60→120` in _vol_1m() — SE 9.2%→6.5%, zero API cost
-- Fat-tail: Normal CDF + fixed 10% HC → Student-t(ν=5) CDF
-  - market_maker.py: new _student_t_cdf() using Simpson's rule (~455μs)
-  - compute_fair_up(): bridge = T5(d) instead of Φ(d)
-  - run_mm_live.py: removed 2 fixed haircut lines (initial entry + re-entry)
-  - coin_shadow_test.py: removed 1 fixed haircut line
-  - KEY FINDING: old HC over-corrected by 3-5pp. T5 is LESS aggressive = more edge
-  - Verified: T5(1.0)=0.818 (expected 0.818), T5(2.0)=0.949 (expected 0.949) ✅
+### Next Steps
+1. Start OB recorder daemon (collect 48h of depth data)
+2. Wire market_data.py into MM bot (15M BTC live, ETH+SOL dry-run)
+3. Cancel policy review (TTL diagnostic mode → extend TTL → validate)
+
+## Reboot Check
+| Question | Answer |
+|----------|--------|
+| 做緊咩？ | 增加 MM/1H bot 數據來源數量 + 真實性，用數量壓延遲 |
+| 目標？ | 25 endpoints / 6 exchanges / parallel fetch <500ms |
+| 到邊？ | Phase 0 research done, Phase 1 ready |
+| 紅線？ | 唔改 bridge 公式，新 signal 只做 gate/modifier |

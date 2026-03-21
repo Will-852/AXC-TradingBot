@@ -1,60 +1,68 @@
-# Task Plan: AS Defense — Fix Fill Rate + Per-Order Logging
+# Task Plan: Data Diversity + Fill Model Calibration
 
 ## Goal
-v14 live fill rate = 0% (6 submitted, 6 cancelled, 0 filled)。
-修復 cancel defense TTL + 加 per-order logging 為 AS 分析打基礎。
+1. ✅ Multi-exchange parallel data fetcher (market_data.py — 22 sources, 6 exchanges)
+2. 🔲 Fill model calibration: σ_poly by hour, OB depth collection, arb spread monitor
+3. 🔲 Wire into MM bot (15M BTC only, ETH+SOL dry-run)
 
-## 診斷
-- fill_stats: submitted=6, filled=0, cancelled=6 → 全部被自己 cancel
-- Cancel defense 有 3 trigger: window_end-2min, adverse move 0.3%, TTL 5min
-- M1 gate 要等 60s → entry at min 1-3 → TTL 5min = cancel at min 6-8
-- Maker order 在 15M market 可能需要 10+ min 先有 taker 食
-- **根因: TTL 太短，唔係 AS**
+## Current Phase
+Phase 4: Fill Model Data Collection (3 parallel tasks)
 
-## Phases
+## Key Finding (drives Phase 4)
+```
+σ_poly 同 σ_btc 幾乎零相關 (r=0.063)
+→ Fill probability 由 Polymarket OB flow 驅動，唔係 BTC vol
+→ 要監控 Polymarket OB 本身，唔止 exchange data
+→ P(fill) = 2Φ(-(M₀-b) / (σ_poly√τ))
+→ Master metric: σ_poly√τ
+```
 
-### Phase 1: Fix cancel defense TTL (P0 — 解決 0% fill)
-- [ ] 1A: TTL 改為動態: `min(10min, window_end - 3min - entry_ts)` 代替固定 5min
-- [ ] 1B: Adverse move threshold BTC 0.3% → 0.5% (v14 data顯示 0.3% 太敏感)
-- [ ] 1C: 加 cancel reason log (reason + time_on_book + distance_to_end)
+## Completed Phases
+- Phase 0: Research ✅
+- Phase 1: market_data.py (22/22 sources, 1.8s) ✅
+- Phase 2: OI + Taker + L/S (all in market_data.py) ✅
+- Phase 3: DVOL + Book depth (CEX — in market_data.py) ✅
+- Pipeline P1-P4 fixes ✅
+- ETH + SOL discovery enabled ✅
+- Safety hardening (price bounds, funding scale, OI units) ✅
+
+## Phase 4: Fill Model Data Collection
+
+### #1: σ_poly by Hour-of-Day (existing data, zero API cost)
+- [ ] Read signal_tape.jsonl (6367 records, 117 markets)
+- [ ] Compute σ_poly per market (std of consecutive up_mid changes)
+- [ ] Aggregate by HKT hour (168 hours/week)
+- [ ] Output: heatmap/table of σ_poly by hour
+- [ ] Find: predictable high-σ windows → optimal entry timing
+- **Status:** pending
+- **Data:** already have signal_tape.jsonl
+
+### #2: Polymarket OB Depth Collection (new data)
+- [ ] Add Polymarket CLOB OB fetch to market_data.py or separate recorder
+- [ ] Track: bid_depth, ask_depth, best_bid, best_ask for UP + DOWN tokens
+- [ ] 5s interval for active markets
+- [ ] Output: poly_ob_tape.jsonl (append-only, like signal_tape)
+- [ ] Purpose: calibrate depth-aware fill model (simulated 71.8% → real 28.6%)
 - **Status:** pending
 
-### Phase 2: Per-order logging (P1 — AS 分析基礎)
-- [ ] 2A: 新 JSONL: `mm_order_log.jsonl` — 每個 order 獨立記錄
-  - submit: order_id, submit_ts, token_id, outcome, price, size, fair, mid, cvd, vol, bridge
-  - fill: fill_ts, mid_at_fill
-  - cancel: cancel_ts, cancel_reason
-  - post_fill: mid_60s_post_fill (scheduled check)
-- [ ] 2B: _execute() 寫 submit record
-- [ ] 2C: _check_fills() 寫 fill/cancel record
-- [ ] 2D: 新 deferred check — fill 後 60s 記錄 mid (AS cost measurement)
-- **Status:** pending
-
-### Phase 3: Round-dependent pricing (P2 — 減少 re-entry loss)
-- [ ] 3A: R2 bid × 0.90, R3 bid × 0.80 (更保守)
-- [ ] 3B: BTC move > 0.3% since window open → skip re-entry
-- **Status:** pending
-
-### Phase 4: 2check + bmd
-- [ ] 重讀所有改動文件
-- [ ] 2check all changes
+### #3: Arb Spread Monitor (UP_ask + DOWN_ask)
+- [ ] Track combined best_ask(UP) + best_ask(DOWN) per market
+- [ ] Log when combined < $0.98 (arb opportunity)
+- [ ] Frequency + magnitude + duration of opportunities
+- [ ] Output: arb_spread_tape.jsonl
+- [ ] Purpose: 64% of profitable wallets use arb — quantify opportunity
 - **Status:** pending
 
 ## Decisions
-| Decision | Rationale |
-|----------|-----------|
-| 動態 TTL, 唔係延長固定 | 早 entry → 長 TTL; 遲 entry → 短 TTL (唔需要 sit 到 window end) |
-| Adverse 0.3% → 0.5% | 0.3% BTC = $210, 日常 noise; 0.5% = $350, 真正 adverse |
-| Per-order JSONL 唔係 DB | 同 mm_trades.jsonl 格式一致，簡單可靠 |
-| 唔做 logistic model | n=15 太少，先收 6 個月 data |
-| 唔做 EW toxicity | CVD 已 cover 大部分，加 complexity 冇必要 |
+| # | Decision | Reason |
+|---|----------|--------|
+| D1-D4 | (previous — see git history) | |
+| D5 | σ_poly by hour from existing data first | Zero cost, immediate insight |
+| D6 | OB depth → separate tape file | signal_tape is mid-only, OB needs bid/ask/depth |
+| D7 | BTC 15M only this session | 1H by separate agent, ETH+SOL dry-run only |
+| D8 | σ_poly r=0.063 vs σ_btc | Fill model must track Poly OB, not just exchange vol |
 
-## Risk
-| Risk | Mitigation |
-|------|------------|
-| TTL 太長 → orphan orders at window end | window_end - 3min 硬 cancel 依然生效 |
-| Per-order log 增加 I/O | append-only JSONL, 每次 1 line, negligible |
-| Round pricing 太保守 → R2/R3 永遠唔 fill | R2 × 0.90 = $0.36 仍在合理範圍 |
-
-## Files to modify
-1. `polymarket/run_mm_live.py` — cancel defense + per-order logging + round pricing
+## Red Lines
+- 唔改 bridge 公式
+- 15M BTC = live scope, ETH+SOL = dry-run/analysis only
+- 1H = 唔碰（另一個 agent）
