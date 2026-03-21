@@ -46,7 +46,7 @@ _HTTP_TIMEOUT = 5
 _CLOB_BASE = "https://clob.polymarket.com"
 _GAMMA_BASE = "https://gamma-api.polymarket.com"
 
-_CYCLE_S = 5          # target OB snapshot interval
+_CYCLE_S = 60         # target OB snapshot interval (12 markets × 3 calls ≈ 50s actual)
 _DISCOVERY_S = 300    # re-discover markets every 5 min
 _DISCOVERY_WINDOWS = 2  # current + next window (max 4 markets for BTC+ETH)
 _INTER_REQ_DELAY = 0.5  # delay between CLOB requests (share budget with live MM bot)
@@ -273,11 +273,11 @@ def fetch_trades(condition_id: str, limit: int = 100) -> list[dict]:
     return []
 
 
-def calc_trade_flow(trades: list[dict], window_sec: float = 60) -> dict:
+def calc_trade_flow(trades: list[dict], window_sec: float = 300) -> dict:
     """Compute trade flow metrics from recent trades.
 
     Returns: count, volume, buy_volume, sell_volume, largest_trade, taker_ratio
-    Only considers trades within window_sec of now.
+    Only considers trades within window_sec (default 5 min) of now.
     """
     now = time.time()
     count = 0
