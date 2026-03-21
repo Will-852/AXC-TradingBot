@@ -220,11 +220,11 @@ window 結束           → EXPIRED（唔當 filled）
 
 ### 3-Layer Exit（每個 side UP/DOWN 獨立 check）
 
-**Layer 1 — Profit Lock（mid ≥ 95¢）**
+**Layer 1 — Profit Lock（mid ≥ 97¢）**
 ```
-mid ≥ 0.95 →
-  sell 95% shares @ mid×0.97 taker（lock profit, guarantee fill）
-  keep 5%（free roll to resolution）
+mid ≥ 0.97 →
+  sell 97% shares @ mid×0.97 taker（lock profit, guarantee fill）
+  keep 3%（free roll to resolution）
   + buy opposite side 2 shares at mid×2.0 taker（cap $0.15）= mini hedge
 ```
 
@@ -313,8 +313,8 @@ Every 5s
     │
     └─ Watchlist → 逐個 market:
         │
-        G1  elapsed > 60s?          ─ No → wait
-        G2  remaining > 4min?       ─ No → SKIP
+        G1  (removed — Gate 3 guards directionless entry)
+        G2  remaining > 1.5min?     ─ No → SKIP
         G3  M1 ≥ 1σ?               ─ Weak < 3min → wait
                                     ─ Weak ≥ 3min → SKIP
             (or --continuous-momentum: log(cur/open) vs vol×√t×0.7)
@@ -339,7 +339,7 @@ Every 5s
           Post-fill 60s AS check
           Tranche 2+ (heavy cycle)
           Early exit:
-            L1 Profit Lock (mid≥95¢ → sell 90% + greed hedge)
+            L1 Profit Lock (mid≥97¢ → sell 97% + 2-share hedge)
             L2 Cost Recovery (mid≥64¢ → recover cost, keep free roll)
             L3 Stop Loss (<-25% → sell all @ mid×0.97)
           Scalp re-entry (after SL, up to 3 rounds, R2×0.90 R3×0.80)
@@ -364,7 +364,7 @@ Every 5s
 | Cancel T3 TTL | 固定 5min | **Dynamic 60s–600s** |
 | Directional cap | 固定 $0.40 | **Dynamic 0.40/0.35/0.28/0.24** |
 | Directional orders | Single order | **2-rung ladder**（3¢ step） |
-| Early exit profit | pnl_pct > +30% | **Profit Lock (mid≥95¢) + Cost Recovery (mid≥64¢)** |
+| Early exit profit | pnl_pct > +30% | **Profit Lock (mid≥97¢) + Cost Recovery (mid≥64¢)** |
 | Early exit stop | pnl_pct < -25% | pnl_pct < -25%（unchanged） |
 | Forced hold | Last 2 min | **Last 5 min** |
 | G5 deadzone | "3% deadzone" | **唔存在**（any conflict = skip） |
