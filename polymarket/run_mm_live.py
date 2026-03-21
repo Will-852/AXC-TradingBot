@@ -1240,27 +1240,43 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             cid[:8], _mid)
                 continue  # keep in watchlist, might recover
 
-        # ── Wide Ladder DCA: 4 rungs at fixed prices ──
-        # Backtest-validated: 0.43/0.37/0.31/0.26 = 78% fill, 44% WR, +EV
-        # Budget: 10% of bankroll per window, split across 4 rungs
-        _LADDER_RUNGS = [0.43, 0.37, 0.31, 0.26]
-        _LADDER_BUDGET_PCT = 0.10  # 10% of bankroll per window
+        # ── Wide Ladder DCA: 2 auto rungs + 2 conditional (checkpoint) ──
+        # Backtest: 0.43/0.37/0.31/0.26, tiered TP at x1.3/1.5/1.8 → Sharpe 0.43
+        # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
+        _LADDER_AUTO = [0.43, 0.37]         # always place
+        _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
+        _LADDER_BUDGET_PCT = 0.10           # 10% of bankroll per window
 
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
+        _all_rungs = _LADDER_AUTO + _LADDER_COND
         _window_budget = bankroll * _LADDER_BUDGET_PCT / max(1, n_tranches)
-        _rung_budget = _window_budget / len(_LADDER_RUNGS)
+        _rung_budget = _window_budget / len(_all_rungs)
 
         _dir_tok = wl["up_tok"] if _fair_up else wl["dn_tok"]
         _dir_side = "UP" if _fair_up else "DOWN"
 
         orders = []
-        for _rung_price in _LADDER_RUNGS:
+        # Auto rungs (always place)
+        for _rung_price in _LADDER_AUTO:
             _shares = max(config.min_order_size, _rung_budget / _rung_price)
             orders.append(PlannedOrder(
                 token_id=_dir_tok, side="BUY",
                 price=_rung_price, size=round(_shares, 1),
                 outcome=_dir_side))
+
+        # Conditional rungs: only place if whale agrees or neutral
+        # Checkpoint: if whale is AGAINST us (FOLLOW_LOG) → skip deep rungs
+        if _whale_action not in ("FOLLOW_LOG", "EXIT"):
+            for _rung_price in _LADDER_COND:
+                _shares = max(config.min_order_size, _rung_budget / _rung_price)
+                orders.append(PlannedOrder(
+                    token_id=_dir_tok, side="BUY",
+                    price=_rung_price, size=round(_shares, 1),
+                    outcome=_dir_side))
+        else:
+            logger.info("CHECKPOINT %s: skipping deep rungs (whale=%s) — 2 rungs only",
+                        cid[:8], _whale_action)
 
         if not orders:
             del state["watchlist"][cid]
@@ -1658,7 +1674,37 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if mid <= 0:
                     continue
 
-                # ── Layer 1: PROFIT LOCK (93¢+) → sell 90%, keep 10% free roll + hedge ──
+                # ── Layer 0.5: TIERED PARTIAL TP (Sharpe-optimal) ──
+                # Sell portions as mid rises: lock profit progressively
+                # Backtest: tiered 30/50/80 → Sharpe 0.43 (29x vs HOLD)
+                _PARTIAL_TP_TIERS = [
+                    (1.3, 0.25),   # mid ≥ entry×1.3 → sell 25%
+                    (1.5, 0.35),   # mid ≥ entry×1.5 → sell 35%
+                    (1.8, 0.35),   # mid ≥ entry×1.8 → sell 35%
+                ]
+                _tp_key = f"_tp_tier_{side}"
+                _tp_done = mkt.get(_tp_key, 0)  # how many tiers already executed
+                if _tp_done < len(_PARTIAL_TP_TIERS) and not _cost_recovered:
+                    _mult, _sell_pct = _PARTIAL_TP_TIERS[_tp_done]
+                    _tp_target = avg * _mult
+                    if mid >= _tp_target:
+                        _tp_sell = max(1, int(shares * _sell_pct))
+                        try:
+                            _tp_price = round(max(0.01, mid * 0.97), 2)
+                            client.sell_shares(tok, _tp_sell, price=_tp_price)
+                            _tp_pnl = _tp_sell * (_tp_price - avg)
+                            mkt[shares_key] = shares - _tp_sell
+                            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _tp_sell * avg)
+                            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _tp_pnl
+                            mkt[_tp_key] = _tp_done + 1
+                            logger.info("PARTIAL TP T%d %s %s: sell %d/%d @ $%.3f (target $%.3f, x%.1f) pnl=$%.2f",
+                                        _tp_done + 1, cid[:8], side, _tp_sell, int(shares),
+                                        _tp_price, _tp_target, _mult, _tp_pnl)
+                        except Exception as e:
+                            logger.warning("Partial TP failed %s: %s", cid[:8], e)
+                        continue  # re-check next cycle for next tier
+
+                # ── Layer 1: PROFIT LOCK (97¢+) → sell 97%, keep 3% free roll + hedge ──
                 if mid >= _BLACK_SWAN_MID:
                     # Sell 97% to lock profit, keep 3% as free roll ($0 risk)
                     _sell_shares = max(1, int(shares * _BLACK_SWAN_SELL_PCT))
