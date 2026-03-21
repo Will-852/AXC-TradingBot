@@ -698,12 +698,17 @@ _post_fill_checks: list[tuple[float, str, str, str]] = []
 
 
 def _get_rolling_wr(state: dict, window: int = 30) -> tuple[float, int]:
-    """Rolling win rate over last N resolved markets.
-    Returns (wr, count). If count < 10, returns (0.68, count) = assume baseline.
+    """Rolling win rate over last N resolved markets that actually filled.
+
+    Only counts markets with entry_cost > 0 (i.e., orders were filled).
+    Unfilled markets (entry_cost=0, PnL=0) are excluded — no fill = no play.
+    Returns (wr, count). If count < 5, returns (0.68, count) = assume baseline.
     """
     resolved = [m for m in state["markets"].values() if m["phase"] == "RESOLVED"]
-    recent = resolved[-window:] if len(resolved) > window else resolved
-    if len(recent) < 10:
+    # Only count markets that had fills (entry_cost > 0)
+    filled = [m for m in resolved if m.get("entry_cost", 0) > 0 or m.get("realized_pnl", 0) != 0]
+    recent = filled[-window:] if len(filled) > window else filled
+    if len(recent) < 5:
         return 0.68, len(recent)  # not enough data, assume baseline
     wins = sum(1 for m in recent if m.get("realized_pnl", 0) > 0)
     return wins / len(recent), len(recent)
