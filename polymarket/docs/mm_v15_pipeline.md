@@ -1,7 +1,7 @@
-# ⚠️ DEPRECATED — 請睇 `mm_v15_pipeline.md`
-# MM v9 Signal Pipeline — 正確版（基於 code）
+# MM v15 Signal Pipeline（基於 code）
 > 來源：`run_mm_live.py` + `strategy/market_maker.py`
-> 更新：2026-03-20（已被 v15 取代）
+> 更新：2026-03-21
+> 取代：`mm_v9_pipeline_correct.md`（已過時）
 
 ---
 
@@ -9,19 +9,21 @@
 
 ```
 ┌─ Fast Loop（每 5s）────────────────────────────────────┐
-│  BTC 價格（3s cache）                                   │
+│  BTC/ETH 價格（3s cache）                               │
 │  OB imbalance 監控（活躍持倉）                           │
 │  Cancel Defense（3 個 trigger）                          │
 │  Fill Confirmation（get_trades）                         │
-│  Early Exit（止蝕 / 止賺 / hold）                        │
+│  Per-order lifecycle log → mm_order_log.jsonl            │
+│  Post-fill 60s midpoint check（AS measurement）          │
+│  Early Exit（3-layer: profit lock / cost recovery / SL） │
 │  Resolution（window 結束 +2min 後）                      │
 └────────────────────────────────────────────────────────┘
 
-┌─ Heavy Cycle（每 30s）─────────────────────────────────┐
+┌─ Heavy Cycle（每 10s）─────────────────────────────────┐
 │  Vol 1m（60s cache）                                    │
 │  Bankroll refresh（CLOB balance）                        │
 │  Risk mode 計算（rolling WR）                            │
-│  Discovery scan（每 300s，slug-based）                    │
+│  Discovery scan（每 300s，slug-based，BTC+ETH）           │
 │  Signal Pipeline → plan_opening → Submit                │
 │  Phased entry（tranche 2-4）                             │
 └────────────────────────────────────────────────────────┘
@@ -43,32 +45,31 @@ G4  Cross-exchange    divergence > 0.3%?    → 留 watchlist（唔 skip，等 r
     3 所：Binance + OKX + Bybit，取 median
 ```
 
+> **--continuous-momentum 模式**（可選 flag）：
+> 取代 M1 return，改用 `log(current/open)`，threshold = `max(0.0005, vol_1m × √elapsed_mins × 0.7)`
+
 全部過晒 → 入 Signal Pipeline。
 
 ---
 
-## Signal Pipeline：三源 + 混合
+## Signal Pipeline：Bridge + OB
+
+> ⚠️ v9 嘅 Triple Signal（assess_edge: indicator/CVD/microstructure + AI fallback）**已移除**。
+> 原因：傳統指標（RSI/MACD/BB/EMA）係 backward-looking，cause mean-reversion bias in trending markets。
+> v15 只用 Bridge + OB，足夠 15M binary。
 
 ### Source 1 — Brownian Bridge（永遠有）
 ```
 d = log(price / open) / (vol_1m × √mins_left)
-P(Up) = Φ(d)        ← 標準正態 CDF
+P(Up) = T₅(d)       ← Student-t CDF, ν=5（fat-tail correction）
 clamp [0.005, 0.995]
 ```
 
-### Source 2 — Triple Signal（assess_edge）
-```
-3 選最佳：Indicator 8-指標 / CVD divergence / Microstructure
-fallback：Claude AI（sonnet，temperature 0.3）
+> **Student-t vs Normal（v15 改動）：**
+> Normal CDF + 10% haircut 過度 conservative → 丟失 3-5pp edge。
+> Student-t(ν=5) 自然有 fat tails，回收呢部分 edge。
 
-8 指標加權（assess_edge 內部）：
-  RSI 20% | MACD 15% | BB 15% | EMA 10%
-  Stoch 10% | VWAP 10% | Funding 10% | Sentiment 10%
-
-output → signal_p_up ∈ [0, 1]，0 = 冇 signal
-```
-
-### Source 3 — OB Imbalance（Polymarket order book）
+### Source 2 — OB Imbalance（Polymarket order book）
 ```
 imbalance = (bid_vol − ask_vol) / (bid_vol + ask_vol)    ← ∈ [-1, +1]
 ob_adjustment = imbalance × 0.05                          ← ±5% max
@@ -76,20 +77,16 @@ ob_adjustment = imbalance × 0.05                          ← ±5% max
 
 ### 混合
 ```
-如果 signal_p_up > 0：
-  先 check conflict：signal 同 bridge 方向相反
-    AND |signal_p_up − 0.50| > 0.03
-    → SKIP（留 watchlist）
-
-  冇 conflict → fair = signal × 0.70 + bridge × 0.30 + ob_adjustment
-
-如果 signal_p_up = 0（冇 signal）：
-  fair = bridge + ob_adjustment
-
+fair = bridge + ob_adjustment
 clamp fair ∈ [0.05, 0.95]
 ```
 
-> ⚠️ conflict 判斷：唔係「方向唔同就 skip」。signal 離 50% < 3% 嘅話，即使方向反都照入（deadzone）。
+### CVD Disagree Override
+```
+如果 CVD 強烈反對 fair 方向：
+  → 覆蓋所有 orders 為 single cheap rung at fair × 0.60
+  → 減少 exposure when flow disagrees
+```
 
 ---
 
@@ -109,18 +106,25 @@ G6  Poly mid check   我哋買嗰邊 mid < $0.38?    → SKIP（留 watchlist）
 ```json
 {"ts", "cid", "sym", "m1", "m1_sigma", "bridge", "signal", "fair", "xdiv", "ob_adj"}
 ```
-用途：Phase 2 taker 研究。
 
 ---
 
 ## plan_opening — Dual-Layer 定價
 
-### Pricing Cap
-| Layer | Max bid | 邏輯 |
-|-------|---------|------|
+### Pricing Cap — Dynamic（v15 改動）
+| Layer | Default cap | 邏輯 |
+|-------|------------|------|
 | Hedge（兩邊） | $0.475 | combined ≤ $0.95 → guaranteed 5%+ edge |
-| Directional（單邊） | $0.40 | win/loss = 1.5x（唔係 1.1x） |
+| Directional（單邊） | **Dynamic** | 按 confidence 調整（見下） |
 | Floor | $0.25 | 低過呢個 = 市場強烈反對 |
+
+**Directional cap by confidence（v15 新增）：**
+| confidence | max_directional_bid |
+|-----------|-------------------|
+| ≥ 0.70 | $0.40 |
+| ≥ 0.62 | $0.35 |
+| ≥ 0.57 | $0.28 |
+| < 0.57 | $0.24 |
 
 Bid = min(cap, max(floor, fair − spread))，spread = 2.5%
 
@@ -132,6 +136,13 @@ Bid = min(cap, max(floor, fair − spread))，spread = 2.5%
 | 3 | > 0.65 | 25% hedge / 75% dir | 40% / 60% |
 
 Zone 1 + bankroll 唔夠 hedge（< ~$48）→ fallback directional（conf > 0.52 先）
+
+### 2-Rung Directional Ladder（v15 新增）
+Zone 2/3 有足夠 budget 時，directional orders 分 2 rung：
+```
+Rung 1 (bottom): dir_bid − 0.03（3¢ cheaper）
+Rung 2 (top):    dir_bid
+```
 
 ### Budget
 ```
@@ -156,10 +167,20 @@ CLOB minimum = 5 shares/order
 | # | 條件 | 取消範圍 | 備注 |
 |---|------|---------|------|
 | 1 | window end 前 2 min | ALL pending | 最後防線 |
-| 2 | 逆向 spot move > 0.3%（BTC）/ 0.5%（ETH） | DIRECTIONAL only | hedge 留低 |
-| 3 | 掛單 > 5 min 未成交 | DIRECTIONAL only | TTL 過期 |
+| 2 | 逆向 spot move > **0.5%**（BTC）/ **0.7%**（ETH） | DIRECTIONAL only | hedge 留低 |
+| 3 | 掛單 > **dynamic TTL**（60s–600s） | DIRECTIONAL only | min(10min, window_end−3min−entry_ts) |
+
+> **v15 改動：** T2 由 0.3%/0.5% 放寬至 0.5%/0.7%（v14 live 太 tight，6/6 orders 全 cancel）。
+> T3 由固定 5min 改為 dynamic TTL，按 entry 時間同 window 剩餘時間計算。
 
 Directional = 唔屬於等量 UP+DN hedge pair 嘅 order。
+
+### Per-Order Lifecycle Log（v15 新增）
+每個 order 嘅 submit/fill/cancel/post_fill 事件寫入 `mm_order_log.jsonl`：
+```json
+{"ts", "event", "order_id", "cid", "side", "price", "size", "time_to_fill", "mid_at_fill"}
+```
+用途：AS diagnostic（time_to_fill vs WR），fill rate by cancel reason。
 
 ### Fill Confirmation
 ```
@@ -171,6 +192,8 @@ order_id ∈ open_ids   → still on book
 both 冇               → likely CANCELLED
 window 結束           → EXPIRED（唔當 filled）
 ```
+
+**Post-fill 60s midpoint check**：fill 後 60 秒記錄 mid price，計算 adverse selection cost。
 
 ### Phased Entry（tranche 2+，heavy cycle only）
 ```
@@ -187,37 +210,52 @@ window 結束           → EXPIRED（唔當 filled）
 
 ## Early Exit（5s loop，fills_confirmed = True 先 check）
 
+> ⚠️ **v15 完全重新設計。** v9 嘅 pnl_pct +30%/-25% 邏輯已替換。
+
 ### 時間窗口
 ```
-可以 sell：window start 到 window end − 2min
-唔可以 sell：最後 2 分鐘 = forced hold
+可以 sell：window start 到 window end − 5min
+唔可以 sell：最後 5 分鐘 = forced hold
 ```
-> 15 min window → 可 sell 範圍 = min 0 ~ min 13（唔係 2-11）
 
-### Exit 邏輯
+### 3-Layer Exit（每個 side UP/DOWN 獨立 check）
+
+**Layer 1 — Profit Lock（mid ≥ 95¢）**
 ```
-每個 side (UP / DOWN) 獨立 check：
-  shares < 1 或 avg ≤ 0  → skip
-  mid = Polymarket midpoint
+mid ≥ 0.95 →
+  sell 90% shares（lock profit）
+  keep 10%（free roll to resolution）
+  + buy opposite side 5 shares at aggressive limit（mid × 1.50, cap $0.15）= greed hedge
+```
 
-  pnl_pct = (mid − avg) / avg
+**Layer 2 — Cost Recovery（mid ≥ 64¢）**
+```
+mid ≥ 0.64 →
+  sell enough shares to recover full entry cost
+  keep remaining shares as free roll（zero-risk position）
+```
 
-  LOSING:
-    pnl_pct < −25%        → STOP LOSS sell @ mid × 0.97（3% discount）
+**Layer 3 — Stop Loss（pnl_pct < -25%）**
+```
+pnl_pct = (mid − avg) / avg
+pnl_pct < −0.25 →
+  sell ALL at mid × 0.97（3% discount for immediate fill）
+```
 
-  WINNING + EARLY (elapsed < 7min):
-    pnl_pct > +30%         → TAKE PROFIT sell
-
-  WINNING + LATE (elapsed ≥ 7min):
-    → HOLD to resolution（趨勢加速，等 $1 payout）
-
-  LAST 2 MIN:
-    → Forced hold（sell 唔到）
+### Scalp Re-Entry（v15 新增，Stop Loss 後觸發）
+```
+Stop loss 後唔直接放棄 → 重跑 signal pipeline：
+  - 最多 3 rounds per window（_MAX_ROUNDS = 3）
+  - Round 2: bid × 0.90（10% discount）
+  - Round 3: bid × 0.80（20% discount）
+  - 每 round 都要通過 regime change check
 ```
 
 ### Exit 後 vs Resolution
-- STOP / TAKE → shares 歸零，resolution payout = $0（已經 sell 咗）
-- HOLD / FORCED → shares 保留，resolution payout = $1/share（贏）或 $0（輸）
+- PROFIT LOCK → 90% sold, 10% kept → resolution payout on remaining
+- COST RECOVERY → partial sold, rest = free roll → resolution payout
+- STOP LOSS → all sold, possible scalp re-entry
+- FORCED HOLD → all shares kept → resolution payout = $1/share（贏）或 $0（輸）
 
 ---
 
@@ -264,9 +302,10 @@ max_concurrent_markets = 1
 ```
 Every 5s
 │
-├─ [Fast] BTC price, OB monitor, cancel, fills, exit, resolution
+├─ [Fast] BTC/ETH price, OB monitor, cancel, fills, exit, resolution
+│         per-order log, post-fill AS check
 │
-└─ [Heavy 每 30s]
+└─ [Heavy 每 10s]
     │
     ├─ Kill switch check
     ├─ Risk mode (WR rolling 30)
@@ -278,27 +317,59 @@ Every 5s
         G2  remaining > 4min?       ─ No → SKIP
         G3  M1 ≥ 1σ?               ─ Weak < 3min → wait
                                     ─ Weak ≥ 3min → SKIP
+            (or --continuous-momentum: log(cur/open) vs vol×√t×0.7)
         G4  cross-ex div < 0.3%?    ─ High → wait
         │
-        Signal: bridge + triple + OB
-        Blend: signal×70% + bridge×30% + OB
+        Signal: bridge(Student-t ν=5) + OB(×0.05)
+        CVD disagree? → single cheap rung override
         │
         G5  M1 同 fair 方向一致?     ─ No → SKIP
         G6  Poly mid ≥ $0.38?       ─ No → SKIP
         │
         ▼
         plan_opening (Zone 1/2/3, risk_mode)
+        → Dynamic directional cap (0.40/0.35/0.28/0.24)
+        → 2-rung ladder (Zone 2/3)
         → Submit GTC limit orders
         → Log signal → mm_signals.jsonl
         │
         Position Management (5s loop):
-          Cancel (window_end/adverse/TTL)
-          Fill confirm (get_trades)
+          Cancel (window_end 2min / adverse BTC 0.5% ETH 0.7% / dynamic TTL)
+          Fill confirm (get_trades) + per-order log
+          Post-fill 60s AS check
           Tranche 2+ (heavy cycle)
-          Early exit (stop/take/hold/forced)
+          Early exit:
+            L1 Profit Lock (mid≥95¢ → sell 90% + greed hedge)
+            L2 Cost Recovery (mid≥64¢ → recover cost, keep free roll)
+            L3 Stop Loss (<-25% → sell all @ mid×0.97)
+          Scalp re-entry (after SL, up to 3 rounds, R2×0.90 R3×0.80)
+          Forced hold (last 5 min)
           │
           ▼
         Resolution (+2min after window end)
           → Win = $1/share, Lose = $0
           → PnL → state → trade log
 ```
+
+---
+
+## v9 → v15 Changelog
+
+| 項目 | v9 | v15 |
+|------|-----|-----|
+| Heavy cycle | 30s | **10s** |
+| Bridge CDF | Normal Φ(d) | **Student-t(ν=5)** |
+| Signal blend | signal×0.70 + bridge×0.30 + OB | **bridge + OB only**（assess_edge 移除） |
+| Cancel T2 threshold | BTC 0.3% / ETH 0.5% | **BTC 0.5% / ETH 0.7%** |
+| Cancel T3 TTL | 固定 5min | **Dynamic 60s–600s** |
+| Directional cap | 固定 $0.40 | **Dynamic 0.40/0.35/0.28/0.24** |
+| Directional orders | Single order | **2-rung ladder**（3¢ step） |
+| Early exit profit | pnl_pct > +30% | **Profit Lock (mid≥95¢) + Cost Recovery (mid≥64¢)** |
+| Early exit stop | pnl_pct < -25% | pnl_pct < -25%（unchanged） |
+| Forced hold | Last 2 min | **Last 5 min** |
+| G5 deadzone | "3% deadzone" | **唔存在**（any conflict = skip） |
+| Post-SL | 放棄 | **Scalp re-entry**（3 rounds, R2×0.90, R3×0.80） |
+| Order logging | 冇 | **mm_order_log.jsonl**（submit/fill/cancel/post_fill） |
+| AS measurement | 冇 | **Post-fill 60s midpoint check** |
+| CVD override | 冇 | **Strong disagree → single cheap rung** |
+| Greed hedge | 冇 | **Profit lock → buy opposite 5 shares** |
