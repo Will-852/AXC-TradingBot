@@ -253,7 +253,10 @@ def _passes_quality_filter(market: PolyMarket, verbose: bool = False) -> bool:
 
 
 def markets_from_cache(cached: list[dict]) -> list[PolyMarket]:
-    """Rebuild PolyMarket list from state cache dicts."""
+    """Rebuild PolyMarket list from state cache dicts.
+
+    向後兼容：old cache entries missing new fields get safe defaults via .get().
+    """
     return [
         PolyMarket(
             condition_id=m.get("condition_id", ""),
@@ -268,6 +271,16 @@ def markets_from_cache(cached: list[dict]) -> list[PolyMarket]:
             neg_risk=m.get("neg_risk", False),
             yes_token_id=m.get("yes_token_id", ""),
             no_token_id=m.get("no_token_id", ""),
+            slug=m.get("slug", ""),
+            spread=float(m.get("spread", 0.0)),
+            description=m.get("description", ""),
+            event_slug=m.get("event_slug", ""),
+            volume=float(m.get("volume", 0)),
+            tick_size=float(m.get("tick_size", 0.01)),
+            min_order_size=float(m.get("min_order_size", 5)),
+            outcomes=m.get("outcomes", []),
+            outcome_prices=m.get("outcome_prices", {}),
+            outcome_tokens=m.get("outcome_tokens", {}),
         )
         for m in cached
     ]

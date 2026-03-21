@@ -111,7 +111,9 @@ class ScanMarketsStep:
     def run(self, ctx: PolyContext) -> PolyContext:
         from polymarket.config.settings import SCAN_INTERVAL_SEC
         from polymarket.exchange.gamma_client import GammaClient
-        from polymarket.strategy.market_scanner import scan_markets, markets_from_cache
+        from polymarket.strategy.market_scanner import (
+            scan_markets, markets_from_cache, _passes_quality_filter,
+        )
 
         gamma = ctx.gamma_client or GammaClient()
         ctx.gamma_client = gamma
@@ -122,10 +124,15 @@ class ScanMarketsStep:
         if elapsed < SCAN_INTERVAL_SEC:
             cached = ctx.state.get("cached_scanned_markets", [])
             ctx.scanned_markets = markets_from_cache(cached)
-            ctx.filtered_markets = list(ctx.scanned_markets)
+            # Re-apply quality filter + 5M exclusion (same logic as live scan)
+            ctx.filtered_markets = [
+                m for m in ctx.scanned_markets
+                if _passes_quality_filter(m, ctx.verbose)
+                and not (m.category == "crypto_15m" and "-5m-" in m.slug)
+            ]
             if ctx.verbose:
                 skip_sec = int(SCAN_INTERVAL_SEC - elapsed)
-                print(f"    Scan skipped (gate: {skip_sec}s left). Cached: {len(ctx.scanned_markets)}")
+                print(f"    Scan skipped (gate: {skip_sec}s left). Cached: {len(ctx.scanned_markets)}, filtered: {len(ctx.filtered_markets)}")
             return ctx
 
         try:
@@ -145,6 +152,13 @@ class ScanMarketsStep:
                 "volume_24h": m.volume_24h, "end_date": m.end_date,
                 "event_id": m.event_id, "neg_risk": m.neg_risk,
                 "yes_token_id": m.yes_token_id, "no_token_id": m.no_token_id,
+                "slug": m.slug, "spread": m.spread,
+                "description": m.description, "event_slug": m.event_slug,
+                "volume": m.volume, "tick_size": m.tick_size,
+                "min_order_size": m.min_order_size,
+                "outcomes": m.outcomes,
+                "outcome_prices": m.outcome_prices,
+                "outcome_tokens": m.outcome_tokens,
             }
             for m in ctx.scanned_markets
         ]
@@ -164,10 +178,18 @@ class CheckPositionsStep:
 
     def run(self, ctx: PolyContext) -> PolyContext:
         from polymarket.core.context import PolyPosition
+        from polymarket.config.categories import CATEGORIES
 
         # Load positions from state (dry-run or state-based tracking)
         stored_positions = ctx.state.get("positions", [])
         for pos_data in stored_positions:
+            # Skip positions from retired categories (e.g. old weather)
+            # Empty category = keep (conservative, avoid accidental deletion)
+            pos_cat = pos_data.get("category", "")
+            if pos_cat and pos_cat not in CATEGORIES:
+                logger.info("Skipping position from retired category %r: %s",
+                            pos_cat, pos_data.get("title", "?")[:50])
+                continue
             pos = PolyPosition(
                 condition_id=pos_data.get("condition_id", ""),
                 title=pos_data.get("title", ""),

@@ -115,6 +115,13 @@ def _build_event_siblings(
     """
     import json
 
+    # Inherit category from known_markets (same event group)
+    inherited_category = ""
+    for km in known_markets:
+        if km.category:
+            inherited_category = km.category
+            break
+
     siblings = []
     for raw in all_raw_markets:
         raw_events = raw.get("events", [])
@@ -131,6 +138,7 @@ def _build_event_siblings(
                 siblings.append(PolyMarket(
                     condition_id=cid,
                     title=raw.get("question", ""),
+                    category=inherited_category,
                     yes_price=yes_price,
                     neg_risk=True,
                     event_id=event_id,
