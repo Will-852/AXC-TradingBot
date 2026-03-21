@@ -284,19 +284,25 @@ CP_INFLATION_FACTOR = 1.5          # cold start inflation
 # Cross-period stability test: only cells stable across BOTH periods get rules.
 # Philosophy: 唔好每個 regime 都 trade。只做有 edge 嘅 deal。
 
-# ── Defaults (v5 engine baseline) ──
-SIGNAL_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50}
+# ── Defaults: D_xrp_wf (shootout 2026-03-18, best 3/4 symbols) ──
+SIGNAL_CONF_GATE = {"range": 0.40, "trend": 0.48, "crash": 0.33}
+
+# Per-symbol override: ETH best with A_default (higher gates)
+# Lookup: SIGNAL_CONF_GATE_PER_SYMBOL[pair] → per-strategy gate, else SIGNAL_CONF_GATE
+SIGNAL_CONF_GATE_PER_SYMBOL = {
+    "ETHUSDT": {"range": 0.50, "trend": 0.50, "crash": 0.50},
+}
 
 SIGNAL_MODE_AFFINITY = {
-    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0},
-    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0},
-    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30},
+    "TREND": {"trend": 0.0, "range": -0.23, "crash": 0.0},
+    "RANGE": {"range": 0.0, "trend": -0.42, "crash": 0.0},
+    "CRASH": {"crash": 0.0, "trend": -0.08, "range": -0.30},
 }
-SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0}
+SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.18, "range": -0.20, "crash": 0.0}
 
-SIGNAL_PERSISTENCE = {"range": 3, "trend": 4, "crash": 1}
+SIGNAL_PERSISTENCE = {"range": 3, "trend": 1, "crash": 2}
 
-SIGNAL_COOLDOWN_HOURS = 8
+SIGNAL_COOLDOWN_HOURS = 12
 
 # ── Regime-Conditional Rules ──
 # Key: (pair, vol_regime, market_mode, strategy)

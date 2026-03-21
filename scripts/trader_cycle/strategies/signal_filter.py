@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 from config.params import (
     SIGNAL_CONF_GATE,
+    SIGNAL_CONF_GATE_PER_SYMBOL,
     SIGNAL_MODE_AFFINITY,
     SIGNAL_MODE_DEFAULT_PENALTY,
     SIGNAL_PERSISTENCE,
@@ -106,9 +107,13 @@ class SignalFilterStep:
                 blocked_count += 1
                 continue
 
-            # Determine conf_gate: regime rule override or default
+            # Determine conf_gate: regime rule → per-symbol → global default
             if isinstance(rule, dict) and "conf_gate" in rule:
                 gate = rule["conf_gate"]
+            elif signal.pair in SIGNAL_CONF_GATE_PER_SYMBOL:
+                gate = SIGNAL_CONF_GATE_PER_SYMBOL[signal.pair].get(
+                    signal.strategy, 0.50
+                )
             else:
                 gate = SIGNAL_CONF_GATE.get(signal.strategy, 0.50)
 

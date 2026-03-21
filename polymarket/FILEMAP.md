@@ -107,10 +107,7 @@
 |------|------|
 | `mm_v15_pipeline.md` | MM v15 signal pipeline（完整版，取代 v9） |
 | `1h_conviction_pipeline.md` | 1H Conviction bot 完整 pipeline（Brownian Bridge + conviction model） |
-| `mm_v9_pipeline_correct.md` | ~~v9 pipeline~~（DEPRECATED，保留做歷史參考） |
 | `cluster_analysis_report.md` | BMD 四大 Cluster 調優分析（2026-03-21） |
-| `mm_v9_signal_pipeline.svg` | Signal pipeline diagram |
-| `mm_v9_signal_pipeline_v2.svg` | Signal pipeline diagram v2 |
 
 ## tests/
 | File | 用途 |

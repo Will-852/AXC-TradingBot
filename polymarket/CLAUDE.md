@@ -90,8 +90,8 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab）
 - `hl_hedge_client.py` 直接用 `hyperliquid-python-sdk`
 
 ## 落注規則速查
-- Bankroll: **live balance** | Per bet: **1%** | Per market: **10%** | Max exposure: **30%**
-- Kelly: half Kelly × confidence × GTO × capped at 1%
+- Bankroll: **live balance** | Per bet: **3%** | Per market: **10%** | Max exposure: **30%**
+- Kelly: half Kelly × confidence × GTO × capped at 3%
 - Daily loss > 15% → CB（6h cooldown）
 - MM kill switch: -20% daily / -20% total / 5 consecutive / WR<48%
 

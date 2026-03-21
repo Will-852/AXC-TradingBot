@@ -90,7 +90,7 @@ MIN_BOOK_DEPTH_USDC = 500      # 最低 order book 深度
 
 # ─── Risk — Hard Limits (非 negotiable) ───
 MAX_TOTAL_EXPOSURE = 0.30      # 最多 30% bankroll 放預測市場
-MAX_PER_BET = 0.01             # 每注最多 1% bankroll（百分比 cap）
+MAX_PER_BET = 0.03             # 每注最多 3% bankroll（was 1%, raised 2026-03-22 per Kelly analysis）
 MAX_PER_MARKET = 0.10          # 每個市場/event 最多 10%
 MAX_PER_CATEGORY = 0.20        # 每類最多 20%
 MAX_DAILY_LOSS_PCT = 0.15      # 日損 15% 熔斷

@@ -87,7 +87,7 @@ class MMConfig:
     """
     half_spread: float = 0.025      # 2.5%（Anon/LampStore range: 2-3%）
 
-    bet_pct: float = 0.01           # bankroll × 1%
+    bet_pct: float = 0.03           # bankroll × 3% (was 1%, raised 2026-03-22 per Kelly analysis)
     max_concurrent_markets: int = 3
     min_liquidity: float = 100.0
     min_order_size: float = 5.0     # Polymarket CLOB minimum

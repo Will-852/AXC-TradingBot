@@ -42,7 +42,7 @@
 | live_event | 0.95 | BLOCK | NBA score, match result |
 | news_driven | 0.75 | LIMIT near mid (3%) | Fed rate, CEO fired |
 | quantifiable | 0.15 | LIMIT aggressive (10%) | Temperature, gas fee |
-| crypto_15m | 0.40 | MARKET (FOK) | BTC Up/Down |
+| crypto_15m | 0.55 | MARKET (FOK) | BTC Up/Down |
 | crypto | 0.50 | LIMIT near mid (5%) | Default |
 
 **GTO Decision Rules（對應 gto.py:343-368）**
@@ -104,8 +104,8 @@ Forced hold:            last 5 min = 唔可以 sell
 > 詳細 → `docs/mm_v15_pipeline.md`
 
 ## 7. 落注規則
-- Bankroll: **live balance** | Per bet: **1%** | Per market: **10%** | Max exposure: **30%**
-- Kelly: half Kelly × confidence × GTO × capped at 1% bankroll
+- Bankroll: **live balance** | Per bet: **3%** | Per market: **10%** | Max exposure: **30%**
+- Kelly: half Kelly × confidence × GTO × capped at 3% bankroll
 - Daily loss > 15% → circuit breaker（6h cooldown）
 - Consecutive loss CB：Pipeline = **3** (`risk_manager.py`) / MM bot = **5** (`run_mm_live.py`)
 - MM kill switch: -20% daily / -20% total / WR<48% (rolling 30) → STOPPED

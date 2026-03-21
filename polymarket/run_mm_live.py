@@ -103,10 +103,10 @@ _cache: dict = {}
 
 
 def _price(symbol: str = "BTCUSDT") -> float:
-    """Latest price. Cached 3s — fast enough for cancel defense."""
+    """Latest price. Cached 1s — tighter for cancel defense (was 3s, reduced 2026-03-22)."""
     key = f"price_{symbol}"
     now = time.time()
-    if key in _cache and now - _cache[key][1] < 3:
+    if key in _cache and now - _cache[key][1] < 1:
         return _cache[key][0]
     if not _rate_ok("binance"):
         return _cache.get(key, (0, 0))[0]
@@ -1048,11 +1048,25 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # backward-looking, cause mean-reversion bias in trending markets.
         # Bridge + OB + cross-exchange = sufficient for 15M binary.
         ob_adjustment = 0.0
+        _ob_best_bid = 0.0   # instrument: OB snapshot at submit time
+        _ob_best_ask = 0.0
+        _ob_bid_vol = 0.0
+        _ob_ask_vol = 0.0
+        _ob_depth = 0
         if client and hasattr(client, "get_order_book") and not dry_run:
             try:
                 up_book = client.get_order_book(wl["up_tok"])
-                bid_vol = sum(b["size"] for b in up_book.get("bids", []))
-                ask_vol = sum(a["size"] for a in up_book.get("asks", []))
+                bids = up_book.get("bids", [])
+                asks = up_book.get("asks", [])
+                bid_vol = sum(b["size"] for b in bids)
+                ask_vol = sum(a["size"] for a in asks)
+                _ob_bid_vol = bid_vol
+                _ob_ask_vol = ask_vol
+                _ob_depth = len(bids) + len(asks)
+                if bids:
+                    _ob_best_bid = max(b["price"] for b in bids)
+                if asks:
+                    _ob_best_ask = min(a["price"] for a in asks)
                 if bid_vol + ask_vol > 0:
                     imbalance = (bid_vol - ask_vol) / (bid_vol + ask_vol)
                     ob_adjustment = imbalance * 0.05  # ±5% max adjustment
@@ -1156,7 +1170,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _sig_ctx = {"fair": round(fair, 4), "bridge": round(bridge_p_up, 4),
                     "cvd": round(_cvd, 3), "vol": round(_coin_vol, 6),
                     "m1": round(_m1, 6), "ob_adj": round(ob_adjustment, 4),
-                    "btc": round(_coin_price, 2)}
+                    "btc": round(_coin_price, 2),
+                    # OB snapshot at submit — answers "why didn't this fill?"
+                    "ob_best_bid": round(_ob_best_bid, 4),
+                    "ob_best_ask": round(_ob_best_ask, 4),
+                    "ob_bid_vol": round(_ob_bid_vol, 1),
+                    "ob_ask_vol": round(_ob_ask_vol, 1),
+                    "ob_depth": _ob_depth}
         results = _execute(orders, client, cid=cid, signal_ctx=_sig_ctx)
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
@@ -1380,14 +1400,17 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 oid = po.get("order_id", "")
                 if oid:
                     try:
+                        _cancel_t0 = time.time()
                         client.client.cancel(order_id=oid)
-                        logger.info("CANCEL %s %s [%s] book=%ds end=%ds",
+                        _cancel_rtt_ms = round((time.time() - _cancel_t0) * 1000, 1)
+                        logger.info("CANCEL %s %s [%s] book=%ds end=%ds rtt=%dms",
                                     cid[:8], po["outcome"], reason,
-                                    _time_on_book, _dist_to_end_s)
+                                    _time_on_book, _dist_to_end_s, _cancel_rtt_ms)
                         _log_order("cancel", oid, cid,
                                    outcome=po.get("outcome", ""), reason=reason,
                                    time_on_book_s=_time_on_book,
-                                   dist_to_end_s=int(_dist_to_end_s))
+                                   dist_to_end_s=int(_dist_to_end_s),
+                                   cancel_rtt_ms=_cancel_rtt_ms)
                         actually_cancelled.append(po)
                     except Exception as e:
                         logger.warning("Cancel FAILED %s %s: %s — keeping in pending",
