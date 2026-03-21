@@ -1634,7 +1634,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         for cid, mkt in state["markets"].items():
             if mkt["phase"] != "OPEN":
                 continue
-            if not mkt.get("fills_confirmed"):
+            # Stop loss can fire even with pending rungs (wide ladder defense)
+            # Other exits (profit lock, cost recovery) still need fills_confirmed
+            _has_any_fill = (mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0)
+            if not mkt.get("fills_confirmed") and not _has_any_fill:
                 continue
             end_ms = mkt.get("window_end_ms", 0)
             if end_ms > 0 and now_ms > end_ms - 300_000:
@@ -1744,6 +1747,18 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         _rd = mkt["rounds"]
                         logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) pnl=$%.2f",
                                     _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
+                        # Cancel remaining unfilled rungs (prevent DCA into losing position)
+                        try:
+                            _open_orders = client.get_orders(market=cid) if hasattr(client, "get_orders") else []
+                            for _oo in (_open_orders or []):
+                                _oid = _oo.get("id", "")
+                                if _oid:
+                                    client.client.cancel(order_id=_oid)
+                            if _open_orders:
+                                logger.info("SL CANCEL %s: cancelled %d remaining orders after stop loss",
+                                            cid[:8], len(_open_orders))
+                        except Exception as _ce:
+                            logger.warning("SL cancel remaining failed %s: %s", cid[:8], _ce)
                         if _rd >= _MAX_ROUNDS:
                             mkt["phase"] = "RESOLVED"
                             mkt["early_exit"] = "stop_loss"
