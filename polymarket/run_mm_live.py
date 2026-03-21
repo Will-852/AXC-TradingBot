@@ -1293,9 +1293,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
         # ── Whale signal: 3 modes ──
         # 1. Whale + bridge AGREE → full size (high conviction)
-        # 2. Whale AGAINST bridge (|imbalance| > 0.20) → FOLLOW WHALE direction, reduce size
+        # 2. Whale AGAINST bridge (|imbalance| > 0.30) → LOG ONLY + halve (validation pending)
         # 3. Whale EXIT (delta > 0.15 against) → halve size
-        _whale_action = "NORMAL"  # NORMAL / FOLLOW / EXIT / SKIP
+        _whale_action = "NORMAL"  # NORMAL / AGREE / FOLLOW_LOG / EXIT
         _whale_favors_up = _h_imbalance > 0  # positive = more UP holders
 
         # Check absolute imbalance — whale consensus
