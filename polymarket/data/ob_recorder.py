@@ -326,6 +326,51 @@ def calc_trade_flow(trades: list[dict], window_sec: float = 300) -> dict:
     }
 
 
+def fetch_prices_history(token_id: str, lookback_sec: int = 300, fidelity: int = 30) -> list[dict]:
+    """Fetch token price history from CLOB (public, no auth).
+
+    Returns list of {"t": unix_ts, "p": price} or empty list on failure.
+    Fallback to signal_tape — provides 30s-fidelity price trajectory.
+    """
+    end_ts = int(time.time())
+    start_ts = end_ts - lookback_sec
+    url = (f"{_CLOB_BASE}/prices-history?market={token_id}"
+           f"&startTs={start_ts}&endTs={end_ts}&fidelity={fidelity}")
+    data = _http_get(url)
+    if data and isinstance(data, dict):
+        return data.get("history", [])
+    return []
+
+
+def calc_price_momentum(history: list[dict]) -> dict:
+    """Compute momentum metrics from price history.
+
+    Returns: price_now, price_5m_ago, momentum (change), volatility (std of changes).
+    """
+    if not history or len(history) < 2:
+        return {"ph_price": 0.0, "ph_price_5m_ago": 0.0, "ph_momentum": 0.0, "ph_vol": 0.0, "ph_points": 0}
+
+    prices = [_safe_float(h.get("p", 0)) for h in history if _safe_float(h.get("p", 0)) > 0]
+    if len(prices) < 2:
+        return {"ph_price": 0.0, "ph_price_5m_ago": 0.0, "ph_momentum": 0.0, "ph_vol": 0.0, "ph_points": 0}
+
+    now_p = prices[-1]
+    old_p = prices[0]
+    momentum = now_p - old_p
+
+    # Volatility: std of consecutive changes
+    changes = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+    vol = (sum(c * c for c in changes) / len(changes)) ** 0.5 if changes else 0.0
+
+    return {
+        "ph_price": round(now_p, 4),
+        "ph_price_5m_ago": round(old_p, 4),
+        "ph_momentum": round(momentum, 4),
+        "ph_vol": round(vol, 6),
+        "ph_points": len(prices),
+    }
+
+
 def take_snapshot(market: dict) -> dict | None:
     """Fetch UP + DOWN order books + trade flow and compute depth metrics.
 
@@ -343,6 +388,11 @@ def take_snapshot(market: dict) -> dict | None:
 
     # Fetch recent trades (market-level, not per-token)
     trades = fetch_trades(market["condition_id"])
+    time.sleep(_INTER_REQ_DELAY)
+
+    # Fetch prices-history (UP token, 30s fidelity, last 5 min)
+    # Fallback/complement to signal_tape — finer granularity from CLOB
+    up_price_hist = fetch_prices_history(market["up_token_id"])
 
     if up_book is None and down_book is None:
         logger.warning("Both OB fetches failed for %s", market["slug"])
@@ -378,6 +428,7 @@ def take_snapshot(market: dict) -> dict | None:
         "down_ask_depth_10": round(down_ask_depth, 2),
         "combined_best_ask": combined_best_ask,
         **calc_trade_flow(trades, window_sec=300),  # 5-min window
+        **calc_price_momentum(up_price_hist),  # price trajectory fallback
     }
 
 
