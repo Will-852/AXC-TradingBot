@@ -1620,12 +1620,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _post_fill_checks.extend(_remaining)
 
     # ── Exit: Profit Lock + Cost Recovery + Stop Loss ──
-    # Layer 1: PROFIT LOCK (mid ≥ 95¢) → sell 97%, keep 3% free roll + 2-share hedge
+    # Layer 1: PROFIT LOCK (mid ≥ 97¢) → sell 97%, keep 3% free roll + 2-share hedge
     # Layer 2: COST RECOVERY (mid ≥ 64¢, early) → sell enough to recover cost → free roll
     # Layer 3: STOP LOSS (-25%, pre-recovery only) → cut losses
     # Layer 4: HOLD → default (free shares or waiting)
     _EXIT_STOP_PCT = 0.25       # -25% → stop loss (pre-recovery only)
-    _BLACK_SWAN_MID = 0.95      # sell 97% at 95¢+ → lock profit, keep 3% free roll
+    _BLACK_SWAN_MID = 0.97      # sell 97% at 97¢+ → lock profit, keep 3% free roll
     _BLACK_SWAN_SELL_PCT = 0.97 # sell 97%, keep 3% as free upside
     _COST_RECOVERY_MID = 0.64   # recover cost when mid ≥ 64¢ (keep 3 free shares vs 2 at 55¢)
     if client and hasattr(client, "sell_shares") and not dry_run:
