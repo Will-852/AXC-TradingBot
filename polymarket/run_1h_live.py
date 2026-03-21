@@ -227,6 +227,48 @@ def _collect_analysis(cached_markets: list):
 
 
 # ═══════════════════════════════════════
+#  Holder Imbalance — smart money directional signal
+# ═══════════════════════════════════════
+
+_HOLDER_STRONG_IMBAL = 0.20    # >0.20 against direction → SKIP
+_HOLDER_MILD_IMBAL = 0.10      # 0.10-0.20 against → size × 50%
+_holder_cache: dict = {}        # {cid: (ts, imbalance)}
+_HOLDER_CACHE_TTL = 30          # cache 30s (don't fetch every heavy cycle)
+
+
+def _holder_imbalance(cid: str) -> float:
+    """Fetch holder imbalance for a market. Returns float in [-1, +1].
+    Positive = UP dominant, negative = DOWN dominant. 0 = balanced or unavailable.
+    Cached for 30s to save API budget."""
+    now = time.time()
+    if cid in _holder_cache and now - _holder_cache[cid][0] < _HOLDER_CACHE_TTL:
+        return _holder_cache[cid][1]
+    try:
+        data = _get_json(f"{_DATA_API}/holders?market={cid}&limit=10&minBalance=10", timeout=2)
+        if not data or not isinstance(data, list):
+            _holder_cache[cid] = (now, 0.0)
+            return 0.0
+        up_total, dn_total = 0.0, 0.0
+        for group in data:
+            hs = group.get("holders", []) if isinstance(group, dict) else []
+            if not hs:
+                continue
+            idx = hs[0].get("outcomeIndex", -1)
+            total = sum(float(h.get("amount", 0)) for h in hs)
+            if idx == 0:
+                up_total = total
+            elif idx == 1:
+                dn_total = total
+        combined = up_total + dn_total
+        imbal = (up_total - dn_total) / combined if combined > 0 else 0.0
+        _holder_cache[cid] = (now, imbal)
+        return imbal
+    except Exception:
+        _holder_cache[cid] = (now, 0.0)
+        return 0.0
+
+
+# ═══════════════════════════════════════
 #  Market Data
 # ═══════════════════════════════════════
 
@@ -970,6 +1012,34 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 logger.debug("DEDUP %s: ADD blocked, pending order exists", coin)
                 continue
 
+            # ── Holder imbalance gate — smart money directional signal ──
+            # Positive imbalance = UP dominant. If bot wants DOWN but holders heavy UP → conflict.
+            h_imbal = _holder_imbalance(cid)
+            # imbal_against: how much holders disagree with our direction (0 = agree, >0 = disagree)
+            if sig.direction == "UP":
+                imbal_against = max(0, -h_imbal)  # negative imbal = DOWN dominant = against UP
+            else:
+                imbal_against = max(0, h_imbal)   # positive imbal = UP dominant = against DOWN
+
+            _size_mult = 1.0
+            if imbal_against > _HOLDER_STRONG_IMBAL:
+                # Smart money strongly disagrees → FOLLOW them, flip direction
+                _holder_dir = "UP" if h_imbal > 0 else "DOWN"
+                logger.info("HOLDER FLIP %s: bridge=%s but holders=%.2f → follow smart money %s",
+                            coin, sig.direction, h_imbal, _holder_dir)
+                sig = sig._replace(direction=_holder_dir) if hasattr(sig, '_replace') else sig
+                # ConvictionSignal is not a namedtuple — manually override
+                sig.direction = _holder_dir
+                sig.fair_up = 1.0 - sig.fair_up  # flip fair value
+                sig.p_win = max(sig.fair_up, 1.0 - sig.fair_up)
+                # Recalculate entry price for flipped direction (use same spread logic)
+                sig.entry_price = round(min(sig.p_win - 0.05, config.max_entry_price), 2)
+                _size_mult = 0.7  # slightly reduced size for holder-driven trades
+            elif imbal_against > _HOLDER_MILD_IMBAL:
+                _size_mult = 0.5
+                logger.info("HOLDER REDUCE %s %s: imbalance %.2f against %s — size ×50%%",
+                            coin, sig.direction, h_imbal, sig.direction)
+
             # Mid sanity check: market must somewhat agree with our direction
             our_tok = up_tok if sig.direction == "UP" else dn_tok
             market_mid = _poly_midpoint(our_tok)
@@ -981,7 +1051,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             # Determine token and size
             token_id = our_tok
 
-            size_usd = sig.size_fraction * state["bankroll"]
+            size_usd = sig.size_fraction * state["bankroll"] * _size_mult
             budget_left = window_budget - budget_spent
             # FIX: hard block when budget exhausted. Old max(2.50, ...) bypassed budget
             # and allowed infinite $2.50 orders → 119 shares / $50 on one market.
