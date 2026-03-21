@@ -77,6 +77,7 @@ _BINANCE_SPOT = "https://api.binance.com"
 # Rate limit safety: track API calls per minute
 _api_calls: dict = {}  # {"binance": [(ts, count), ...]}
 _API_LIMIT_PER_MIN = 200  # conservative: 200/min out of 2400 limit
+_mkt_fetcher = None  # StaggeredFetcher instance (set in main, used in run_cycle for logging)
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -1082,7 +1083,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # CVD: taker buy ratio (3 min) — computed here for logging + gate
         _cvd = _cvd_buy_ratio(_sym, minutes=3)
 
-        # ── Log signal data for future taker research (Phase 2) ──
+        # ── Log signal data + market snapshot (log-only, no decision impact) ──
         try:
             _sig_record = {
                 "ts": datetime.now(tz=_HKT).isoformat(), "cid": cid[:8],
@@ -1092,6 +1093,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 "fair": round(fair, 4), "xdiv": round(_xdiv, 5),
                 "ob_adj": round(ob_adjustment, 4), "cvd": round(_cvd, 3),
             }
+            # Append market_data snapshot if available (log-only)
+            if _mkt_fetcher is not None:
+                _snap = _mkt_fetcher.latest()
+                if _snap and _snap.price > 0 and _snap.age_ms < 30_000:
+                    _sig_record["mkt"] = {
+                        "price": round(_snap.price, 2),
+                        "src": _snap.sources_responded,
+                        "fund_agg": round(_snap.funding_agg, 8),
+                        "fund_prem": round(_snap.funding_premium, 2),
+                        "oi_total": round(_snap.oi_total / 1e9, 2),  # billions
+                        "oi_d5m": round(_snap.oi_delta_5m / 1e9, 3),
+                        "ls": round(_snap.ls_ratio, 3),
+                        "ls_ext": _snap.ls_extreme,
+                        "dvol": round(_snap.dvol, 1),
+                        "taker": round(_snap.taker_buy_sell_ratio, 3),
+                        "age_ms": round(_snap.age_ms),
+                    }
             os.makedirs(_LOG_DIR, exist_ok=True)
             with open(_SIGNAL_LOG, "a") as _sf:
                 _sf.write(json.dumps(_sig_record) + "\n")
@@ -1830,6 +1848,16 @@ def main():
 
     print(f"  MODE: {'DRY-RUN' if dry_run else 'LIVE'}")
 
+    # ─── Start market data fetcher (background, log-only for now) ───
+    global _mkt_fetcher
+    try:
+        from polymarket.data.market_data import StaggeredFetcher
+        _mkt_fetcher = StaggeredFetcher()
+        _mkt_fetcher.start_background("BTCUSDT", interval_sec=10)
+        print("  MARKET DATA: background fetcher started (log-only)")
+    except Exception as e:
+        logger.warning("Market data fetcher failed to start: %s — continuing without", e)
+
     gamma = GammaClient()
     client = None
     if not dry_run:
@@ -1926,6 +1954,9 @@ def main():
                     pass
             _save(state)
             _status(state)
+            # Shutdown market data fetcher
+            if _mkt_fetcher:
+                _mkt_fetcher.shutdown()
 
 
 if __name__ == "__main__":
