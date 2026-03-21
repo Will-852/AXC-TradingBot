@@ -1566,6 +1566,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 _hard_cancel_s = (end_ms - 120_000) / 1000  # 2 min before window end (was 3)
                 _max_ttl_s = max(60, _hard_cancel_s - entry_ts)  # no cap — full window
                 _time_on_book = now_s - entry_ts
+                # Log when order exceeds old 600s cap (diagnostic — n=35 not enough to validate removal)
+                if _time_on_book > 600 and not mkt.get("_ttl_extended_logged"):
+                    logger.info("TTL_EXTENDED %s: on book %ds (old cap would cancel at 600s, now max=%ds)",
+                                cid[:8], int(_time_on_book), int(_max_ttl_s))
+                    mkt["_ttl_extended_logged"] = True
                 if _time_on_book > _max_ttl_s:
                     to_cancel = _find_directional_orders(pending)
                     if to_cancel:
