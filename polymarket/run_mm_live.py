@@ -1299,7 +1299,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _whale_favors_up = _h_imbalance > 0  # positive = more UP holders
 
         # Check absolute imbalance — whale consensus
-        if abs(_h_imbalance) > 0.20:
+        # 0.30 = extreme (top holders 65%/35% split). Conservative until validated.
+        if abs(_h_imbalance) > 0.30:
             _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
             if _whale_agrees:
                 # Whale + bridge same direction → confidence boost (keep full size)
@@ -1307,25 +1308,20 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 logger.info("WHALE AGREE %s: imbalance %+.3f confirms %s",
                             cid[:8], _h_imbalance, "UP" if _fair_up else "DOWN")
             else:
-                # Whale says opposite of bridge → FOLLOW WHALE, flip direction, reduce size
-                _whale_action = "FOLLOW"
-                logger.warning("WHALE FOLLOW %s: imbalance %+.3f says %s but bridge says %s — follow whale, reduce size",
-                               cid[:8], _h_imbalance, "UP" if _whale_favors_up else "DOWN",
+                # Whale says opposite of bridge → LOG ONLY (not validated yet)
+                # BMD #1: n=0 FOLLOW trades, holder data = cumulative not flow.
+                # Log the signal for offline analysis. Enable execution after
+                # 50+ FOLLOW signals confirm hit rate > bridge-only.
+                _whale_action = "FOLLOW_LOG"
+                _whale_dir = "UP" if _whale_favors_up else "DOWN"
+                logger.warning("WHALE FOLLOW(log) %s: imbalance %+.3f says %s but bridge says %s — NOT acting (validation pending)",
+                               cid[:8], _h_imbalance, _whale_dir,
                                "UP" if _fair_up else "DOWN")
-                # Flip: swap token + direction
-                if _whale_favors_up and not _fair_up:
-                    _dir_tok = wl["up_tok"]
-                    _dir_side = "UP"
-                elif not _whale_favors_up and _fair_up:
-                    _dir_tok = wl["dn_tok"]
-                    _dir_side = "DOWN"
-                # Rebuild orders following whale at reduced size (single rung, min size)
-                _whale_price = round(max(0.25, min(0.40, (1 - fair) * 0.80)), 3)
-                orders = [PlannedOrder(
-                    token_id=_dir_tok, side="BUY",
-                    price=_whale_price, size=config.min_order_size, outcome=_dir_side)]
-                logger.info("WHALE OVERRIDE %s: %s @ $%.3f × %.0f (following whale, not bridge)",
-                            cid[:8], _dir_side, _whale_price, config.min_order_size)
+                # Don't modify orders — keep bridge direction, but halve size as caution
+                if orders:
+                    for o in orders:
+                        o.size = max(config.min_order_size, o.size * 0.5)
+                    logger.info("WHALE CAUTION %s: halved bridge orders (whale disagrees)", cid[:8])
 
         # Check delta — whale exit (rapid shift against us)
         if abs(_h_delta) > 0.15 and _whale_action == "NORMAL":
@@ -1387,12 +1383,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         mkt_dict["entry_ts"] = int(time.time())
         mkt_dict["tranches_done"] = 1
         mkt_dict["tranches_total"] = n_tranches
-        # When FOLLOW flips direction, use whale's direction (not bridge's)
-        if _whale_action == "FOLLOW":
-            mkt_dict["original_dir"] = _dir_side  # whale direction
-            mkt_dict["whale_follow"] = True
-        else:
-            mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+        # FOLLOW_LOG = log only, bridge direction kept. No flip.
+        mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+        if _whale_action == "FOLLOW_LOG":
+            mkt_dict["whale_disagree"] = True  # track for offline analysis
         mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]

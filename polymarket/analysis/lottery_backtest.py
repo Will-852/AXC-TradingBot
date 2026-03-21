@@ -101,12 +101,14 @@ def main():
         if not mids:
             continue
 
+        # Use FIRST tick (entry-time) mid, not average — more realistic entry decision
+        first_mid = mids[0]
         avg_mid = statistics.mean(mids)
         min_mid = min(mids)
         max_mid = max(mids)
-        # Cheap side: min of avg(up_mid) vs avg(1-up_mid) = avg(dn_mid)
-        cheap_side_price = min(avg_mid, 1 - avg_mid)
-        cheap_side = "UP" if avg_mid < 0.5 else "DOWN"
+        # Cheap side at entry time: whichever side is cheaper when we'd decide
+        cheap_side_price = min(first_mid, 1 - first_mid)
+        cheap_side = "UP" if first_mid < 0.5 else "DOWN"
         cheap_won = (cheap_side == outcome)
 
         title = ticks[0].get("title", "?")
