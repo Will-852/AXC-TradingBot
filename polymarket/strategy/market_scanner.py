@@ -29,6 +29,8 @@ _15M_WINDOW_S = 900
 # Coin → slug prefix mapping
 _15M_SLUG_PREFIX = {
     "bitcoin": "btc",
+    "ethereum": "eth",
+    "solana": "sol",
 }
 # How many windows to fetch: current (running) + next (upcoming)
 _15M_LOOKAHEAD = 2

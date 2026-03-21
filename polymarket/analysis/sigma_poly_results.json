@@ -1,0 +1,4797 @@
+{
+  "metadata": {
+    "generated_at": "2026-03-22T01:49:02.680939+08:00",
+    "source": "/Users/wai/projects/axc-trading/polymarket/logs/signal_tape.jsonl",
+    "n_markets": 251,
+    "min_ticks": 5
+  },
+  "hourly": {
+    "0": {
+      "n_markets": 16,
+      "mean": 0.050544980170061676,
+      "median": 0.05052351590119393,
+      "p25": 0.03953953460951579,
+      "p75": 0.061215298277443986
+    },
+    "1": {
+      "n_markets": 16,
+      "mean": 0.030942491321933843,
+      "median": 0.033317968469335935,
+      "p25": 0.024008929736169197,
+      "p75": 0.03943262976491152
+    },
+    "2": {
+      "n_markets": 8,
+      "mean": 0.03711632112135194,
+      "median": 0.037914566775332795,
+      "p25": 0.030589345742813794,
+      "p75": 0.04335985596469166
+    },
+    "3": {
+      "n_markets": 8,
+      "mean": 0.03440199998422122,
+      "median": 0.03661381389890263,
+      "p25": 0.025671969449253637,
+      "p75": 0.040194483302084
+    },
+    "4": {
+      "n_markets": 8,
+      "mean": 0.026089448640915773,
+      "median": 0.018845897975300924,
+      "p25": 0.016580208790098874,
+      "p75": 0.027208565463330527
+    },
+    "5": {
+      "n_markets": 8,
+      "mean": 0.01922866585108632,
+      "median": 0.01691410861119689,
+      "p25": 0.015499297620819922,
+      "p75": 0.022489086933862316
+    },
+    "6": {
+      "n_markets": 8,
+      "mean": 0.03336172558519557,
+      "median": 0.03016575329098924,
+      "p25": 0.020828676683068228,
+      "p75": 0.04074269044948451
+    },
+    "7": {
+      "n_markets": 8,
+      "mean": 0.0614677323385533,
+      "median": 0.06348076202672367,
+      "p25": 0.05539359856593691,
+      "p75": 0.07320602519171011
+    },
+    "8": {
+      "n_markets": 8,
+      "mean": 0.04461860778397487,
+      "median": 0.03712719963062097,
+      "p25": 0.033658155895565756,
+      "p75": 0.04843933252854647
+    },
+    "9": {
+      "n_markets": 8,
+      "mean": 0.044492342236379316,
+      "median": 0.04285066758488769,
+      "p25": 0.038647432336063124,
+      "p75": 0.051340359484843966
+    },
+    "10": {
+      "n_markets": 8,
+      "mean": 0.048398381788061585,
+      "median": 0.05474760653507497,
+      "p25": 0.03379365866327672,
+      "p75": 0.06105375061093146
+    },
+    "11": {
+      "n_markets": 8,
+      "mean": 0.0440855696239398,
+      "median": 0.040079531448088415,
+      "p25": 0.02632672248843126,
+      "p75": 0.05122354347293044
+    },
+    "12": {
+      "n_markets": 7,
+      "mean": 0.024465037789476732,
+      "median": 0.018730966100645757,
+      "p25": 0.004747161862159828,
+      "p75": 0.03251711863305835
+    },
+    "13": {
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "14": {
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "15": {
+      "n_markets": 14,
+      "mean": 0.035817336729299244,
+      "median": 0.032579398220992956,
+      "p25": 0.026228225659481595,
+      "p75": 0.04398149018080263
+    },
+    "16": {
+      "n_markets": 16,
+      "mean": 0.036926920376604826,
+      "median": 0.026815573875072687,
+      "p25": 0.022319081125812202,
+      "p75": 0.04768474016774484
+    },
+    "17": {
+      "n_markets": 16,
+      "mean": 0.02939511444860818,
+      "median": 0.0255994352284405,
+      "p25": 0.021043273517194816,
+      "p75": 0.03032048510017818
+    },
+    "18": {
+      "n_markets": 16,
+      "mean": 0.031696372495030975,
+      "median": 0.028984520471106195,
+      "p25": 0.02138285302199945,
+      "p75": 0.040067386872691235
+    },
+    "19": {
+      "n_markets": 16,
+      "mean": 0.030729842242085116,
+      "median": 0.024944362609111037,
+      "p25": 0.020198612157734924,
+      "p75": 0.03992259089555206
+    },
+    "20": {
+      "n_markets": 18,
+      "mean": 0.0315999972890779,
+      "median": 0.03192685677335849,
+      "p25": 0.02396039663153079,
+      "p75": 0.038825015301860034
+    },
+    "21": {
+      "n_markets": 8,
+      "mean": 0.02451326765521286,
+      "median": 0.018826921504695032,
+      "p25": 0.015921826041522993,
+      "p75": 0.026632996195357486
+    },
+    "22": {
+      "n_markets": 10,
+      "mean": 0.022972004475635594,
+      "median": 0.023935259575677534,
+      "p25": 0.022038088235989142,
+      "p75": 0.031045403309016437
+    },
+    "23": {
+      "n_markets": 18,
+      "mean": 0.05342874696585195,
+      "median": 0.04852812748008864,
+      "p25": 0.030387493295369956,
+      "p75": 0.058596021847489216
+    }
+  },
+  "dow_hour": {
+    "Mon-00": {
+      "dow": 0,
+      "hour": 0,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-01": {
+      "dow": 0,
+      "hour": 1,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-02": {
+      "dow": 0,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-03": {
+      "dow": 0,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-04": {
+      "dow": 0,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-05": {
+      "dow": 0,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-06": {
+      "dow": 0,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-07": {
+      "dow": 0,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-08": {
+      "dow": 0,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-09": {
+      "dow": 0,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-10": {
+      "dow": 0,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-11": {
+      "dow": 0,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-12": {
+      "dow": 0,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-13": {
+      "dow": 0,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-14": {
+      "dow": 0,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-15": {
+      "dow": 0,
+      "hour": 15,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-16": {
+      "dow": 0,
+      "hour": 16,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-17": {
+      "dow": 0,
+      "hour": 17,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-18": {
+      "dow": 0,
+      "hour": 18,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-19": {
+      "dow": 0,
+      "hour": 19,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-20": {
+      "dow": 0,
+      "hour": 20,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-21": {
+      "dow": 0,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-22": {
+      "dow": 0,
+      "hour": 22,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Mon-23": {
+      "dow": 0,
+      "hour": 23,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-00": {
+      "dow": 1,
+      "hour": 0,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-01": {
+      "dow": 1,
+      "hour": 1,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-02": {
+      "dow": 1,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-03": {
+      "dow": 1,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-04": {
+      "dow": 1,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-05": {
+      "dow": 1,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-06": {
+      "dow": 1,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-07": {
+      "dow": 1,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-08": {
+      "dow": 1,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-09": {
+      "dow": 1,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-10": {
+      "dow": 1,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-11": {
+      "dow": 1,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-12": {
+      "dow": 1,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-13": {
+      "dow": 1,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-14": {
+      "dow": 1,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-15": {
+      "dow": 1,
+      "hour": 15,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-16": {
+      "dow": 1,
+      "hour": 16,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-17": {
+      "dow": 1,
+      "hour": 17,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-18": {
+      "dow": 1,
+      "hour": 18,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-19": {
+      "dow": 1,
+      "hour": 19,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-20": {
+      "dow": 1,
+      "hour": 20,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-21": {
+      "dow": 1,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-22": {
+      "dow": 1,
+      "hour": 22,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Tue-23": {
+      "dow": 1,
+      "hour": 23,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-00": {
+      "dow": 2,
+      "hour": 0,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-01": {
+      "dow": 2,
+      "hour": 1,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-02": {
+      "dow": 2,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-03": {
+      "dow": 2,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-04": {
+      "dow": 2,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-05": {
+      "dow": 2,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-06": {
+      "dow": 2,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-07": {
+      "dow": 2,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-08": {
+      "dow": 2,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-09": {
+      "dow": 2,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-10": {
+      "dow": 2,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-11": {
+      "dow": 2,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-12": {
+      "dow": 2,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-13": {
+      "dow": 2,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-14": {
+      "dow": 2,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-15": {
+      "dow": 2,
+      "hour": 15,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-16": {
+      "dow": 2,
+      "hour": 16,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-17": {
+      "dow": 2,
+      "hour": 17,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-18": {
+      "dow": 2,
+      "hour": 18,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-19": {
+      "dow": 2,
+      "hour": 19,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-20": {
+      "dow": 2,
+      "hour": 20,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-21": {
+      "dow": 2,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-22": {
+      "dow": 2,
+      "hour": 22,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Wed-23": {
+      "dow": 2,
+      "hour": 23,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-00": {
+      "dow": 3,
+      "hour": 0,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-01": {
+      "dow": 3,
+      "hour": 1,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-02": {
+      "dow": 3,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-03": {
+      "dow": 3,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-04": {
+      "dow": 3,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-05": {
+      "dow": 3,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-06": {
+      "dow": 3,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-07": {
+      "dow": 3,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-08": {
+      "dow": 3,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-09": {
+      "dow": 3,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-10": {
+      "dow": 3,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-11": {
+      "dow": 3,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-12": {
+      "dow": 3,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-13": {
+      "dow": 3,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-14": {
+      "dow": 3,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-15": {
+      "dow": 3,
+      "hour": 15,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-16": {
+      "dow": 3,
+      "hour": 16,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-17": {
+      "dow": 3,
+      "hour": 17,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-18": {
+      "dow": 3,
+      "hour": 18,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-19": {
+      "dow": 3,
+      "hour": 19,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-20": {
+      "dow": 3,
+      "hour": 20,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-21": {
+      "dow": 3,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-22": {
+      "dow": 3,
+      "hour": 22,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Thu-23": {
+      "dow": 3,
+      "hour": 23,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-00": {
+      "dow": 4,
+      "hour": 0,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-01": {
+      "dow": 4,
+      "hour": 1,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-02": {
+      "dow": 4,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-03": {
+      "dow": 4,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-04": {
+      "dow": 4,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-05": {
+      "dow": 4,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-06": {
+      "dow": 4,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-07": {
+      "dow": 4,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-08": {
+      "dow": 4,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-09": {
+      "dow": 4,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-10": {
+      "dow": 4,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-11": {
+      "dow": 4,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-12": {
+      "dow": 4,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-13": {
+      "dow": 4,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-14": {
+      "dow": 4,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Fri-15": {
+      "dow": 4,
+      "hour": 15,
+      "n_markets": 8,
+      "mean": 0.03291949960531047,
+      "median": 0.0318767467880259,
+      "p25": 0.02806041357969032,
+      "p75": 0.03293493150928077
+    },
+    "Fri-16": {
+      "dow": 4,
+      "hour": 16,
+      "n_markets": 8,
+      "mean": 0.04572653560092159,
+      "median": 0.03812902472480485,
+      "p25": 0.022559501944647335,
+      "p75": 0.06490875029330065
+    },
+    "Fri-17": {
+      "dow": 4,
+      "hour": 17,
+      "n_markets": 8,
+      "mean": 0.023581695731274395,
+      "median": 0.024175749283109935,
+      "p25": 0.021043273517194816,
+      "p75": 0.025889326493722168
+    },
+    "Fri-18": {
+      "dow": 4,
+      "hour": 18,
+      "n_markets": 8,
+      "mean": 0.03152950103706362,
+      "median": 0.02774336759977037,
+      "p25": 0.020309051796947558,
+      "p75": 0.04060300767600028
+    },
+    "Fri-19": {
+      "dow": 4,
+      "hour": 19,
+      "n_markets": 8,
+      "mean": 0.020371074707807784,
+      "median": 0.021597547188483286,
+      "p25": 0.017371112865705595,
+      "p75": 0.023647624941712513
+    },
+    "Fri-20": {
+      "dow": 4,
+      "hour": 20,
+      "n_markets": 8,
+      "mean": 0.0320468468377402,
+      "median": 0.03301218535113627,
+      "p25": 0.030241727711690442,
+      "p75": 0.03379866878639641
+    },
+    "Fri-21": {
+      "dow": 4,
+      "hour": 21,
+      "n_markets": 8,
+      "mean": 0.02451326765521286,
+      "median": 0.018826921504695032,
+      "p25": 0.015921826041522993,
+      "p75": 0.026632996195357486
+    },
+    "Fri-22": {
+      "dow": 4,
+      "hour": 22,
+      "n_markets": 8,
+      "mean": 0.02847468345899093,
+      "median": 0.027150509665760734,
+      "p25": 0.023372509293567146,
+      "p75": 0.03258347171140273
+    },
+    "Fri-23": {
+      "dow": 4,
+      "hour": 23,
+      "n_markets": 8,
+      "mean": 0.03398799877985122,
+      "median": 0.029380408288752033,
+      "p25": 0.02529244699725334,
+      "p75": 0.03631982342109314
+    },
+    "Sat-00": {
+      "dow": 5,
+      "hour": 0,
+      "n_markets": 8,
+      "mean": 0.033749083727062125,
+      "median": 0.03716887661348181,
+      "p25": 0.028099430696202164,
+      "p75": 0.042704856456136184
+    },
+    "Sat-01": {
+      "dow": 5,
+      "hour": 1,
+      "n_markets": 8,
+      "mean": 0.029561980216073397,
+      "median": 0.031106504105911495,
+      "p25": 0.024008929736169197,
+      "p75": 0.03628238022644509
+    },
+    "Sat-02": {
+      "dow": 5,
+      "hour": 2,
+      "n_markets": 8,
+      "mean": 0.03711632112135194,
+      "median": 0.037914566775332795,
+      "p25": 0.030589345742813794,
+      "p75": 0.04335985596469166
+    },
+    "Sat-03": {
+      "dow": 5,
+      "hour": 3,
+      "n_markets": 8,
+      "mean": 0.03440199998422122,
+      "median": 0.03661381389890263,
+      "p25": 0.025671969449253637,
+      "p75": 0.040194483302084
+    },
+    "Sat-04": {
+      "dow": 5,
+      "hour": 4,
+      "n_markets": 8,
+      "mean": 0.026089448640915773,
+      "median": 0.018845897975300924,
+      "p25": 0.016580208790098874,
+      "p75": 0.027208565463330527
+    },
+    "Sat-05": {
+      "dow": 5,
+      "hour": 5,
+      "n_markets": 8,
+      "mean": 0.01922866585108632,
+      "median": 0.01691410861119689,
+      "p25": 0.015499297620819922,
+      "p75": 0.022489086933862316
+    },
+    "Sat-06": {
+      "dow": 5,
+      "hour": 6,
+      "n_markets": 8,
+      "mean": 0.03336172558519557,
+      "median": 0.03016575329098924,
+      "p25": 0.020828676683068228,
+      "p75": 0.04074269044948451
+    },
+    "Sat-07": {
+      "dow": 5,
+      "hour": 7,
+      "n_markets": 8,
+      "mean": 0.0614677323385533,
+      "median": 0.06348076202672367,
+      "p25": 0.05539359856593691,
+      "p75": 0.07320602519171011
+    },
+    "Sat-08": {
+      "dow": 5,
+      "hour": 8,
+      "n_markets": 8,
+      "mean": 0.04461860778397487,
+      "median": 0.03712719963062097,
+      "p25": 0.033658155895565756,
+      "p75": 0.04843933252854647
+    },
+    "Sat-09": {
+      "dow": 5,
+      "hour": 9,
+      "n_markets": 8,
+      "mean": 0.044492342236379316,
+      "median": 0.04285066758488769,
+      "p25": 0.038647432336063124,
+      "p75": 0.051340359484843966
+    },
+    "Sat-10": {
+      "dow": 5,
+      "hour": 10,
+      "n_markets": 8,
+      "mean": 0.048398381788061585,
+      "median": 0.05474760653507497,
+      "p25": 0.03379365866327672,
+      "p75": 0.06105375061093146
+    },
+    "Sat-11": {
+      "dow": 5,
+      "hour": 11,
+      "n_markets": 8,
+      "mean": 0.0440855696239398,
+      "median": 0.040079531448088415,
+      "p25": 0.02632672248843126,
+      "p75": 0.05122354347293044
+    },
+    "Sat-12": {
+      "dow": 5,
+      "hour": 12,
+      "n_markets": 7,
+      "mean": 0.024465037789476732,
+      "median": 0.018730966100645757,
+      "p25": 0.004747161862159828,
+      "p75": 0.03251711863305835
+    },
+    "Sat-13": {
+      "dow": 5,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sat-14": {
+      "dow": 5,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sat-15": {
+      "dow": 5,
+      "hour": 15,
+      "n_markets": 6,
+      "mean": 0.03968111956128428,
+      "median": 0.041418635750373925,
+      "p25": 0.022700314334395028,
+      "p75": 0.05058385122370576
+    },
+    "Sat-16": {
+      "dow": 5,
+      "hour": 16,
+      "n_markets": 8,
+      "mean": 0.028127305152288062,
+      "median": 0.024519842199674756,
+      "p25": 0.020551348896871935,
+      "p75": 0.03204137274641432
+    },
+    "Sat-17": {
+      "dow": 5,
+      "hour": 17,
+      "n_markets": 8,
+      "mean": 0.03520853316594196,
+      "median": 0.03148195253698888,
+      "p25": 0.023933466877122233,
+      "p75": 0.041549231863062204
+    },
+    "Sat-18": {
+      "dow": 5,
+      "hour": 18,
+      "n_markets": 8,
+      "mean": 0.031863243952998346,
+      "median": 0.03163824116111956,
+      "p25": 0.023378907711637885,
+      "p75": 0.037927894031354104
+    },
+    "Sat-19": {
+      "dow": 5,
+      "hour": 19,
+      "n_markets": 8,
+      "mean": 0.041088609776362445,
+      "median": 0.041169704431559845,
+      "p25": 0.03242620854466116,
+      "p75": 0.05290746974292616
+    },
+    "Sat-20": {
+      "dow": 5,
+      "hour": 20,
+      "n_markets": 10,
+      "mean": 0.031242517650148065,
+      "median": 0.028988972140565717,
+      "p25": 0.010940542544951706,
+      "p75": 0.04153810426580105
+    },
+    "Sat-21": {
+      "dow": 5,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sat-22": {
+      "dow": 5,
+      "hour": 22,
+      "n_markets": 2,
+      "mean": 0.0009612885422142471,
+      "median": 0.0009612885422142471,
+      "p25": 0.000903356818159961,
+      "p75": 0.001019220266268533
+    },
+    "Sat-23": {
+      "dow": 5,
+      "hour": 23,
+      "n_markets": 10,
+      "mean": 0.06898134551465254,
+      "median": 0.05622668880125904,
+      "p25": 0.05024052806443923,
+      "p75": 0.07836408724903793
+    },
+    "Sun-00": {
+      "dow": 6,
+      "hour": 0,
+      "n_markets": 8,
+      "mean": 0.06734087661306123,
+      "median": 0.06609749764503849,
+      "p25": 0.0545658871856539,
+      "p75": 0.07609083749889278
+    },
+    "Sun-01": {
+      "dow": 6,
+      "hour": 1,
+      "n_markets": 8,
+      "mean": 0.03232300242779429,
+      "median": 0.035993390050448375,
+      "p25": 0.023468799405324387,
+      "p75": 0.04183104156367639
+    },
+    "Sun-02": {
+      "dow": 6,
+      "hour": 2,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-03": {
+      "dow": 6,
+      "hour": 3,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-04": {
+      "dow": 6,
+      "hour": 4,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-05": {
+      "dow": 6,
+      "hour": 5,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-06": {
+      "dow": 6,
+      "hour": 6,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-07": {
+      "dow": 6,
+      "hour": 7,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-08": {
+      "dow": 6,
+      "hour": 8,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-09": {
+      "dow": 6,
+      "hour": 9,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-10": {
+      "dow": 6,
+      "hour": 10,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-11": {
+      "dow": 6,
+      "hour": 11,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-12": {
+      "dow": 6,
+      "hour": 12,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-13": {
+      "dow": 6,
+      "hour": 13,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-14": {
+      "dow": 6,
+      "hour": 14,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-15": {
+      "dow": 6,
+      "hour": 15,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-16": {
+      "dow": 6,
+      "hour": 16,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-17": {
+      "dow": 6,
+      "hour": 17,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-18": {
+      "dow": 6,
+      "hour": 18,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-19": {
+      "dow": 6,
+      "hour": 19,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-20": {
+      "dow": 6,
+      "hour": 20,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-21": {
+      "dow": 6,
+      "hour": 21,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-22": {
+      "dow": 6,
+      "hour": 22,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    },
+    "Sun-23": {
+      "dow": 6,
+      "hour": 23,
+      "n_markets": 0,
+      "mean": null,
+      "median": null,
+      "p25": null,
+      "p75": null
+    }
+  },
+  "coin_hourly": {
+    "BTC": {
+      "0": {
+        "n_markets": 8,
+        "mean": 0.049445186276307465,
+        "median": 0.05052351590119393,
+        "p25": 0.039954498444956216,
+        "p75": 0.06011851774979984
+      },
+      "1": {
+        "n_markets": 8,
+        "mean": 0.03213070439608595,
+        "median": 0.033786348886510865,
+        "p25": 0.02493196317896154,
+        "p75": 0.039476003698254165
+      },
+      "2": {
+        "n_markets": 4,
+        "mean": 0.034624836008016475,
+        "median": 0.03251827897343579,
+        "p25": 0.030589345742813794,
+        "p75": 0.03655376923863846
+      },
+      "3": {
+        "n_markets": 4,
+        "mean": 0.03623425417405393,
+        "median": 0.03661381389890263,
+        "p25": 0.032685951474284686,
+        "p75": 0.040162116598671874
+      },
+      "4": {
+        "n_markets": 4,
+        "mean": 0.024412189712050874,
+        "median": 0.019783940121058816,
+        "p25": 0.016987564369779162,
+        "p75": 0.027208565463330527
+      },
+      "5": {
+        "n_markets": 4,
+        "mean": 0.019064534420192507,
+        "median": 0.01691410861119689,
+        "p25": 0.015630353675820656,
+        "p75": 0.02034828935556874
+      },
+      "6": {
+        "n_markets": 4,
+        "mean": 0.034505128057256446,
+        "median": 0.02962394710994178,
+        "p25": 0.01999856334637161,
+        "p75": 0.04413051182082661
+      },
+      "7": {
+        "n_markets": 4,
+        "mean": 0.05677017768369358,
+        "median": 0.06233319379418724,
+        "p25": 0.05288971249700838,
+        "p75": 0.06621365898087245
+      },
+      "8": {
+        "n_markets": 4,
+        "mean": 0.04532125220921493,
+        "median": 0.03735829669474261,
+        "p25": 0.03424021637541108,
+        "p75": 0.04843933252854647
+      },
+      "9": {
+        "n_markets": 4,
+        "mean": 0.04700821746006505,
+        "median": 0.04927074195088535,
+        "p25": 0.040673567246557005,
+        "p75": 0.0556053921643934
+      },
+      "10": {
+        "n_markets": 4,
+        "mean": 0.0456830279292523,
+        "median": 0.04393891009495961,
+        "p25": 0.03379365866327672,
+        "p75": 0.05582827936093518
+      },
+      "11": {
+        "n_markets": 4,
+        "mean": 0.0387031149347262,
+        "median": 0.038322515721512074,
+        "p25": 0.025802087183307836,
+        "p75": 0.05122354347293044
+      },
+      "12": {
+        "n_markets": 4,
+        "mean": 0.02502352732623632,
+        "median": 0.011049185934845133,
+        "p25": 0.0029607484666726263,
+        "p75": 0.033111964794408824
+      },
+      "13": {
+        "n_markets": 0,
+        "mean": null,
+        "median": null,
+        "p25": null,
+        "p75": null
+      },
+      "14": {
+        "n_markets": 0,
+        "mean": null,
+        "median": null,
+        "p25": null,
+        "p75": null
+      },
+      "15": {
+        "n_markets": 7,
+        "mean": 0.0412485484899515,
+        "median": 0.03313641127746583,
+        "p25": 0.030219488130206494,
+        "p75": 0.0550074014676878
+      },
+      "16": {
+        "n_markets": 8,
+        "mean": 0.036129865381350545,
+        "median": 0.02944112307841342,
+        "p25": 0.021667274587093697,
+        "p75": 0.04768474016774484
+      },
+      "17": {
+        "n_markets": 8,
+        "mean": 0.031026475094550674,
+        "median": 0.026355912602522007,
+        "p25": 0.018976291763064874,
+        "p75": 0.03502531795381911
+      },
+      "18": {
+        "n_markets": 8,
+        "mean": 0.02882496108499453,
+        "median": 0.0281538207695379,
+        "p25": 0.02093415850204629,
+        "p75": 0.03433042491515781
+      },
+      "19": {
+        "n_markets": 8,
+        "mean": 0.03231208657349056,
+        "median": 0.023872341708633858,
+        "p25": 0.02192151549802167,
+        "p75": 0.04169737344270326
+      },
+      "20": {
+        "n_markets": 9,
+        "mean": 0.029402282212827233,
+        "median": 0.03296722119429752,
+        "p25": 0.028307433789503376,
+        "p75": 0.03325137688735086
+      },
+      "21": {
+        "n_markets": 4,
+        "mean": 0.02375012811539012,
+        "median": 0.017838207995024453,
+        "p25": 0.014955339915057087,
+        "p75": 0.026632996195357486
+      },
+      "22": {
+        "n_markets": 5,
+        "mean": 0.022575888088171674,
+        "median": 0.022592675416316318,
+        "p25": 0.021853225842546748,
+        "p75": 0.03137288637886064
+      },
+      "23": {
+        "n_markets": 9,
+        "mean": 0.05776493449293422,
+        "median": 0.04772547393773498,
+        "p25": 0.029677344421977985,
+        "p75": 0.06965157948962199
+      }
+    },
+    "ETH": {
+      "0": {
+        "n_markets": 8,
+        "mean": 0.05164477406381589,
+        "median": 0.048347805840172176,
+        "p25": 0.03953953460951579,
+        "p75": 0.0612718490928426
+      },
+      "1": {
+        "n_markets": 8,
+        "mean": 0.029754278247781724,
+        "median": 0.033317968469335935,
+        "p25": 0.024008929736169197,
+        "p75": 0.037048866645419676
+      },
+      "2": {
+        "n_markets": 4,
+        "mean": 0.039607806234687404,
+        "median": 0.04245195792603493,
+        "p25": 0.03755571203811034,
+        "p75": 0.044504052122612
+      },
+      "3": {
+        "n_markets": 4,
+        "mean": 0.03256974579438852,
+        "median": 0.032228345225651434,
+        "p25": 0.02460360771795595,
+        "p75": 0.040194483302084
+      },
+      "4": {
+        "n_markets": 4,
+        "mean": 0.027766707569780676,
+        "median": 0.018391702244037078,
+        "p25": 0.01593999123823912,
+        "p75": 0.030218418575578637
+      },
+      "5": {
+        "n_markets": 4,
+        "mean": 0.019392797281980134,
+        "median": 0.018253936293392115,
+        "p25": 0.014915685790913263,
+        "p75": 0.022731047784458988
+      },
+      "6": {
+        "n_markets": 4,
+        "mean": 0.03221832311313469,
+        "median": 0.03016575329098924,
+        "p25": 0.022116684772143503,
+        "p75": 0.040267391631980426
+      },
+      "7": {
+        "n_markets": 4,
+        "mean": 0.06616528699341302,
+        "median": 0.06873044266347203,
+        "p25": 0.05711495091474158,
+        "p75": 0.07778077874214347
+      },
+      "8": {
+        "n_markets": 4,
+        "mean": 0.0439159633587348,
+        "median": 0.03631912034464929,
+        "p25": 0.03112196847499168,
+        "p75": 0.049113115228392415
+      },
+      "9": {
+        "n_markets": 4,
+        "mean": 0.041976467012693586,
+        "median": 0.040308057681026604,
+        "p25": 0.038647432336063124,
+        "p75": 0.043637092357657066
+      },
+      "10": {
+        "n_markets": 4,
+        "mean": 0.051113735646870884,
+        "median": 0.059664883861481,
+        "p25": 0.04972486889742042,
+        "p75": 0.06105375061093146
+      },
+      "11": {
+        "n_markets": 4,
+        "mean": 0.0494680243131534,
+        "median": 0.040079531448088415,
+        "p25": 0.029097777583948745,
+        "p75": 0.060449778177293065
+      },
+      "12": {
+        "n_markets": 3,
+        "mean": 0.023720385073797284,
+        "median": 0.019630531212666436,
+        "p25": 0.012878724583970791,
+        "p75": 0.03251711863305835
+      },
+      "13": {
+        "n_markets": 0,
+        "mean": null,
+        "median": null,
+        "p25": null,
+        "p75": null
+      },
+      "14": {
+        "n_markets": 0,
+        "mean": null,
+        "median": null,
+        "p25": null,
+        "p75": null
+      },
+      "15": {
+        "n_markets": 7,
+        "mean": 0.03038612496864699,
+        "median": 0.03229102485543349,
+        "p25": 0.02326868167755365,
+        "p75": 0.03458034923803448
+      },
+      "16": {
+        "n_markets": 8,
+        "mean": 0.037723975371859106,
+        "median": 0.024519842199674756,
+        "p25": 0.022559501944647335,
+        "p75": 0.04412107041850571
+      },
+      "17": {
+        "n_markets": 8,
+        "mean": 0.02776375380266568,
+        "median": 0.0255994352284405,
+        "p25": 0.023612035317180858,
+        "p75": 0.02754343168161437
+      },
+      "18": {
+        "n_markets": 8,
+        "mean": 0.03456778390506743,
+        "median": 0.033551949019828296,
+        "p25": 0.023378907711637885,
+        "p75": 0.044802349136396594
+      },
+      "19": {
+        "n_markets": 8,
+        "mean": 0.029147597910679668,
+        "median": 0.025825249025042893,
+        "p25": 0.016238873372000064,
+        "p75": 0.037183924189106564
+      },
+      "20": {
+        "n_markets": 9,
+        "mean": 0.033797712365328574,
+        "median": 0.030886492352419463,
+        "p25": 0.02251138424553993,
+        "p75": 0.039953172241302355
+      },
+      "21": {
+        "n_markets": 4,
+        "mean": 0.0252764071950356,
+        "median": 0.018826921504695032,
+        "p25": 0.01700060134791187,
+        "p75": 0.02710272735181876
+      },
+      "22": {
+        "n_markets": 5,
+        "mean": 0.02336812086309951,
+        "median": 0.024238065232037642,
+        "p25": 0.023632453919317422,
+        "p75": 0.03006295409948383
+      },
+      "23": {
+        "n_markets": 9,
+        "mean": 0.049092559438769695,
+        "median": 0.049330781022442295,
+        "p25": 0.032517939915545864,
+        "p75": 0.057717013547433305
+      }
+    }
+  },
+  "per_market": [
+    {
+      "cid": "0xf49fff6c0b667f840e48cdfad0fa5a42a13d9c0c3314e921a8ea4bcd5d7eb56e",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:15AM-3:30AM ET",
+      "sigma": 0.02897650753979468,
+      "n_ticks": 40,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:30:25+08:00"
+    },
+    {
+      "cid": "0xb701f32d7c9d3c924c19fa34766889b3bfa707b310a30a2755144aac62ed6843",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:15AM-3:30AM ET",
+      "sigma": 0.02122523165573007,
+      "n_ticks": 40,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:30:25+08:00"
+    },
+    {
+      "cid": "0x48af7b3cd2f466cc99f227e25194e2b53ebe8540877891d0c6f3284cb8c3b2ee",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:30AM-3:45AM ET",
+      "sigma": 0.03146246872061831,
+      "n_ticks": 84,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:45:06+08:00"
+    },
+    {
+      "cid": "0xeaa1a440609041f990c81fb7f728de054cb3230b69c4401b9e41cca74d9d9e41",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:30AM-3:45AM ET",
+      "sigma": 0.025312131699377235,
+      "n_ticks": 84,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:45:06+08:00"
+    },
+    {
+      "cid": "0x1974d78e8ae4bc8e24d57bc0890ba44dd733fc865d085c41bf0ffac1e18a1cf2",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:45AM-4:00AM ET",
+      "sigma": 0.058084449507511696,
+      "n_ticks": 128,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:59:46+08:00"
+    },
+    {
+      "cid": "0x00589a6573e38dec6a0dc356406da545908dbd7974368e05f8d23d5fb41687ab",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:45AM-4:00AM ET",
+      "sigma": 0.03229102485543349,
+      "n_ticks": 128,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:17:25+08:00",
+      "last_ts": "2026-03-20T15:59:46+08:00"
+    },
+    {
+      "cid": "0x8afc34495b5456899fd161581db067e1ccf77a2b525c3573181e17a4b5861dec",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:00AM-4:15AM ET",
+      "sigma": 0.03313641127746583,
+      "n_ticks": 136,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:30:45+08:00",
+      "last_ts": "2026-03-20T16:15:46+08:00"
+    },
+    {
+      "cid": "0x57ec33ee1041948e7de638b089fcceb578ad3dffe7ced651d2cc5b5c186a30dd",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:00AM-4:15AM ET",
+      "sigma": 0.03286777158655242,
+      "n_ticks": 136,
+      "hkt_hour": 15,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:30:45+08:00",
+      "last_ts": "2026-03-20T16:15:46+08:00"
+    },
+    {
+      "cid": "0xc8d0da44a95ba182bf59360d1a9ab667063a554208a526808db2bf4deaa144f4",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:15AM-4:30AM ET",
+      "sigma": 0.07165013886319783,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:45:26+08:00",
+      "last_ts": "2026-03-20T16:30:26+08:00"
+    },
+    {
+      "cid": "0xc3a8d4f85e9ddcb34aa90a51d5cd12853fb28e67a8b59a5412c44640a91bc637",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:15AM-4:30AM ET",
+      "sigma": 0.0226010414745084,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T15:45:26+08:00",
+      "last_ts": "2026-03-20T16:30:26+08:00"
+    },
+    {
+      "cid": "0x1e1ed0515675d75393b60499f33d99d62f373ef86f5ec223fc7013d451f1fd4a",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:30AM-4:45AM ET",
+      "sigma": 0.02880737815094345,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:00:06+08:00",
+      "last_ts": "2026-03-20T16:45:06+08:00"
+    },
+    {
+      "cid": "0x503b3226c00f6793d94ab5286c1b16267b8f83cdf0896cbda652ab0e55f3cedb",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:30AM-4:45AM ET",
+      "sigma": 0.06266162077000158,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:00:06+08:00",
+      "last_ts": "2026-03-20T16:45:06+08:00"
+    },
+    {
+      "cid": "0xd668f4dfb2708fd9215e11057e9a4791190d82186ed337acf0a8ef30161e33be",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:45AM-5:00AM ET",
+      "sigma": 0.04745067129866626,
+      "n_ticks": 132,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:16:06+08:00",
+      "last_ts": "2026-03-20T16:59:47+08:00"
+    },
+    {
+      "cid": "0xde55fc139817a4d89f5ee34b7d5626e7ecf8ae12fd977859397e4ed7f440389a",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:45AM-5:00AM ET",
+      "sigma": 0.08823487645693466,
+      "n_ticks": 132,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:16:06+08:00",
+      "last_ts": "2026-03-20T16:59:47+08:00"
+    },
+    {
+      "cid": "0x26bab1b0e3320a29c8c7dc9664c1f6e8e33ca4f86c4adac4241b2cda919d76ff",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:00AM-5:15AM ET",
+      "sigma": 0.02197167443805638,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:30:46+08:00",
+      "last_ts": "2026-03-20T17:15:47+08:00"
+    },
+    {
+      "cid": "0x8560892ddc4e657ad72f2177b7b51de97f17a0faa32c2ebe22e01368d32ab6dd",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:00AM-5:15AM ET",
+      "sigma": 0.022434883355064144,
+      "n_ticks": 136,
+      "hkt_hour": 16,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:30:46+08:00",
+      "last_ts": "2026-03-20T17:15:47+08:00"
+    },
+    {
+      "cid": "0x766070bb639e67b941ea84eb56de444966b4feeea84641112b0df69a1f2e37cc",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:15AM-5:30AM ET",
+      "sigma": 0.018295749203476982,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:45:26+08:00",
+      "last_ts": "2026-03-20T17:30:27+08:00"
+    },
+    {
+      "cid": "0x9d3f59dcbd5f9ca29d508a29901f5fec155f500c0d931c2ff2e6249f09fbb457",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:15AM-5:30AM ET",
+      "sigma": 0.02165665159528392,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T16:45:26+08:00",
+      "last_ts": "2026-03-20T17:30:27+08:00"
+    },
+    {
+      "cid": "0x43bcbee51f4c30ca2618c666ed2265c6899256fe3c737e613f8e8ee18af048fa",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:30AM-5:45AM ET",
+      "sigma": 0.019203139282927505,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:00:07+08:00",
+      "last_ts": "2026-03-20T17:45:07+08:00"
+    },
+    {
+      "cid": "0xdd5fd3e23a4f3fe28b3f6595201f71fe5a6c39a93b789b2d5496f16d752cf445",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:30AM-5:45AM ET",
+      "sigma": 0.027004903021029997,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:00:07+08:00",
+      "last_ts": "2026-03-20T17:45:07+08:00"
+    },
+    {
+      "cid": "0x8ca3748e077887945b44d47ac4b7e3f1e22a496759cccd67b4b6f702abd37797",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:45AM-6:00AM ET",
+      "sigma": 0.02862415652997064,
+      "n_ticks": 132,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:16:07+08:00",
+      "last_ts": "2026-03-20T17:59:47+08:00"
+    },
+    {
+      "cid": "0xd68931c0a59101124b6e930e9455ea4261d26fb52e91035ab4fd136013556ed6",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:45AM-6:00AM ET",
+      "sigma": 0.024263829891146504,
+      "n_ticks": 132,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:16:07+08:00",
+      "last_ts": "2026-03-20T17:59:47+08:00"
+    },
+    {
+      "cid": "0x854882c038f2db24c59d669988eda67baeb30284182ccc12a4a0da24cb81e9eb",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:00AM-6:15AM ET",
+      "sigma": 0.02408766867507337,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:30:47+08:00",
+      "last_ts": "2026-03-20T18:15:47+08:00"
+    },
+    {
+      "cid": "0xdaa042ffe00a6b967adadde76bbc5429d37a25b1b8f5954ac8f9bb93907b79e8",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:00AM-6:15AM ET",
+      "sigma": 0.025517467651286225,
+      "n_ticks": 136,
+      "hkt_hour": 17,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:30:47+08:00",
+      "last_ts": "2026-03-20T18:15:47+08:00"
+    },
+    {
+      "cid": "0xbfe6b5c3733f190f899a8e5af84d409973949a658e5fa421f713b98990ec50d4",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:15AM-6:30AM ET",
+      "sigma": 0.04682253848904733,
+      "n_ticks": 136,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:45:27+08:00",
+      "last_ts": "2026-03-20T18:30:27+08:00"
+    },
+    {
+      "cid": "0xe5b56e9bbeb1b4b55a253682ea76957d1f39dfa3fcdb707cf690686724a191c1",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:15AM-6:30AM ET",
+      "sigma": 0.055986504336065224,
+      "n_ticks": 136,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T17:45:27+08:00",
+      "last_ts": "2026-03-20T18:30:27+08:00"
+    },
+    {
+      "cid": "0xd3b6b36533196244da9618393a084a1bdb856fad1d9a38a1e3b2062714a37f4d",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:30AM-6:45AM ET",
+      "sigma": 0.016264698246994384,
+      "n_ticks": 136,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:00:07+08:00",
+      "last_ts": "2026-03-20T18:45:08+08:00"
+    },
+    {
+      "cid": "0x0bb8f0759a3310cdb6b26c5c2901cfc735d72f7714ec9720b5b277909125773c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:30AM-6:45AM ET",
+      "sigma": 0.018100448335919873,
+      "n_ticks": 136,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:00:07+08:00",
+      "last_ts": "2026-03-20T18:45:08+08:00"
+    },
+    {
+      "cid": "0x58d3554cc97b1880c1e3cf13ede8c0cdbb465b8c7371ff61d833e6c4a186a2ac",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:45AM-7:00AM ET",
+      "sigma": 0.021045252950623455,
+      "n_ticks": 132,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:16:07+08:00",
+      "last_ts": "2026-03-20T18:59:48+08:00"
+    },
+    {
+      "cid": "0x3b21f43ed81f5b410e176098c5ce7bdcf9fcae95c4feae41505444fa522b6c8a",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:45AM-7:00AM ET",
+      "sigma": 0.03852983073831793,
+      "n_ticks": 132,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:16:07+08:00",
+      "last_ts": "2026-03-20T18:59:48+08:00"
+    },
+    {
+      "cid": "0xb00c213052a32278b308362b3d0da464453ce1e0d207e911b4c5db835a02735f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:00AM-7:15AM ET",
+      "sigma": 0.026912667898202076,
+      "n_ticks": 169,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:30:47+08:00",
+      "last_ts": "2026-03-20T19:15:48+08:00"
+    },
+    {
+      "cid": "0x47cf0c6c33e2d92c22421aa643d1551c42cfa3462d6079bdb24c62b331bbc01d",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:00AM-7:15AM ET",
+      "sigma": 0.028574067301338664,
+      "n_ticks": 169,
+      "hkt_hour": 18,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:30:47+08:00",
+      "last_ts": "2026-03-20T19:15:48+08:00"
+    },
+    {
+      "cid": "0x7afcc9b1590f18809326d808e82349523751a48f49177318c25491a790e7494e",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:15AM-7:30AM ET",
+      "sigma": 0.017945616922720144,
+      "n_ticks": 208,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:45:28+08:00",
+      "last_ts": "2026-03-20T19:30:28+08:00"
+    },
+    {
+      "cid": "0xecc2da1bc1e96b598ae4260dc5f6cb7f19c247cc936d2fdedcf914065dfdd665",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:15AM-7:30AM ET",
+      "sigma": 0.01141817312655389,
+      "n_ticks": 208,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T18:45:28+08:00",
+      "last_ts": "2026-03-20T19:30:28+08:00"
+    },
+    {
+      "cid": "0x1afadaa3e8f3608b577c830054da771972a8126e77d5a5a605e750b8c53f2676",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:30AM-7:45AM ET",
+      "sigma": 0.020949610569406515,
+      "n_ticks": 247,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:00:08+08:00",
+      "last_ts": "2026-03-20T19:45:18+08:00"
+    },
+    {
+      "cid": "0x2e558f4aed8db7d2e3ff5e4eb2f99705cbb68c1bd005d5ab6efec0c2079eff6b",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:30AM-7:45AM ET",
+      "sigma": 0.01564760069466195,
+      "n_ticks": 247,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:00:08+08:00",
+      "last_ts": "2026-03-20T19:45:18+08:00"
+    },
+    {
+      "cid": "0xbb64a765c7445a12715a5cda1490bc8ed7b1fa304e59abd5ef00ed85167076c2",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:45AM-8:00AM ET",
+      "sigma": 0.023111614491473923,
+      "n_ticks": 249,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:15:33+08:00",
+      "last_ts": "2026-03-20T20:00:31+08:00"
+    },
+    {
+      "cid": "0x4a2f7d972f2221051c1e6a7e28824bf890132d1b16d857f49e3b6aae14b4d337",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:45AM-8:00AM ET",
+      "sigma": 0.026394841757657498,
+      "n_ticks": 249,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:15:33+08:00",
+      "last_ts": "2026-03-20T20:00:31+08:00"
+    },
+    {
+      "cid": "0x205ff3b8fa9f8d3f433b29b1e34e48fc1e7465d375ec6107de9e60540168aff4",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:00AM-8:15AM ET",
+      "sigma": 0.022245483807560057,
+      "n_ticks": 253,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:30:36+08:00",
+      "last_ts": "2026-03-20T20:15:48+08:00"
+    },
+    {
+      "cid": "0x469ec86ae45c9636448633c22ff4c8ca1bd31948b0829b4dbe66a8fa109bec4d",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:00AM-8:15AM ET",
+      "sigma": 0.025255656292428288,
+      "n_ticks": 253,
+      "hkt_hour": 19,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:30:36+08:00",
+      "last_ts": "2026-03-20T20:15:48+08:00"
+    },
+    {
+      "cid": "0xf806ef923bbfa8d754e45225d5d17f468d5c3efd75f9f59d5455a8f1e2eeb165",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:15AM-8:30AM ET",
+      "sigma": 0.03296722119429752,
+      "n_ticks": 250,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:45:28+08:00",
+      "last_ts": "2026-03-20T20:30:29+08:00"
+    },
+    {
+      "cid": "0x501d121715578305463106a6b727f556aa84456327945c822d71f187174044a1",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:15AM-8:30AM ET",
+      "sigma": 0.035440544483533065,
+      "n_ticks": 250,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T19:45:28+08:00",
+      "last_ts": "2026-03-20T20:30:29+08:00"
+    },
+    {
+      "cid": "0xe1ad31deb07d6f490245772efbb08d15e97ccbe51ebc6ace12deee9bedbe7f4b",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:30AM-8:45AM ET",
+      "sigma": 0.028307433789503376,
+      "n_ticks": 250,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:00:08+08:00",
+      "last_ts": "2026-03-20T20:45:09+08:00"
+    },
+    {
+      "cid": "0xb7e0d8fc440b8d594b9ac7e904ec7a4d8ab749b6af4178c6ea50a6ff499d5f89",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:30AM-8:45AM ET",
+      "sigma": 0.02251138424553993,
+      "n_ticks": 250,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:00:08+08:00",
+      "last_ts": "2026-03-20T20:45:09+08:00"
+    },
+    {
+      "cid": "0x462e917687315d4d9ca572b078bc5cc24a6d3cec77b01ec0454b958703383975",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:45AM-9:00AM ET",
+      "sigma": 0.03325137688735086,
+      "n_ticks": 246,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:16:03+08:00",
+      "last_ts": "2026-03-20T21:00:01+08:00"
+    },
+    {
+      "cid": "0x54f47f6cbdafe0e23c03857c5f3dfc62206e7dfbf9afac4ed6d8ed2399a23d1c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:45AM-9:00AM ET",
+      "sigma": 0.030886492352419463,
+      "n_ticks": 246,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:16:03+08:00",
+      "last_ts": "2026-03-20T21:00:01+08:00"
+    },
+    {
+      "cid": "0x1ccfde3f6d689c5266cfe195edf0f457326a9b711cd59b56fd79366e62a181d2",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:00AM-9:15AM ET",
+      "sigma": 0.033057149507975024,
+      "n_ticks": 253,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:30:01+08:00",
+      "last_ts": "2026-03-20T21:15:49+08:00"
+    },
+    {
+      "cid": "0x25ac7b3978c1c9e859a44b93b36a51df458bc87cd4dffd7d8fc4157b127c9066",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:00AM-9:15AM ET",
+      "sigma": 0.039953172241302355,
+      "n_ticks": 253,
+      "hkt_hour": 20,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:30:01+08:00",
+      "last_ts": "2026-03-20T21:15:49+08:00"
+    },
+    {
+      "cid": "0xcd1bbb53f9098f5934ed67b1c0438a86a8d056af7d4906f48de870f318618cc5",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:15AM-9:30AM ET",
+      "sigma": 0.014387044444234698,
+      "n_ticks": 253,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:45:12+08:00",
+      "last_ts": "2026-03-20T21:30:29+08:00"
+    },
+    {
+      "cid": "0x4e111b1e338516cecb7a3fc57cab3894fa626afba25c010e69bbfa0a18645866",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:15AM-9:30AM ET",
+      "sigma": 0.01727385374972389,
+      "n_ticks": 253,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T20:45:12+08:00",
+      "last_ts": "2026-03-20T21:30:29+08:00"
+    },
+    {
+      "cid": "0x963513c2145ca4b41ae6233364dc84a82cdddda897c8f6d2bc6dcf765c4ee815",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:30AM-9:45AM ET",
+      "sigma": 0.015144771738664551,
+      "n_ticks": 253,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:00:09+08:00",
+      "last_ts": "2026-03-20T21:45:31+08:00"
+    },
+    {
+      "cid": "0x4421984916f6a37de33db1b04cbd030b7e51b905e6b7a7db8078ef98e4b8edb4",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:30AM-9:45AM ET",
+      "sigma": 0.01618084414247581,
+      "n_ticks": 253,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:00:09+08:00",
+      "last_ts": "2026-03-20T21:45:31+08:00"
+    },
+    {
+      "cid": "0x03182bffeeeaea439438cefd3657f9b970eb7ae374b01cfbdb6d6a7a0aad8023",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:45AM-10:00AM ET",
+      "sigma": 0.020531644251384356,
+      "n_ticks": 249,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:15:40+08:00",
+      "last_ts": "2026-03-20T22:00:47+08:00"
+    },
+    {
+      "cid": "0x0b9748f0dd3f9b25921d4b8863ce16be44241686c261d2a7dc41262c28d32db4",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:45AM-10:00AM ET",
+      "sigma": 0.02037998925966618,
+      "n_ticks": 249,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:15:40+08:00",
+      "last_ts": "2026-03-20T22:00:47+08:00"
+    },
+    {
+      "cid": "0x08456435466b845505526d8bc432e4b9b6f9da906e7aa39e9d8e1d75e227d6bf",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:00AM-10:15AM ET",
+      "sigma": 0.04493705202727688,
+      "n_ticks": 250,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:30:47+08:00",
+      "last_ts": "2026-03-20T22:15:50+08:00"
+    },
+    {
+      "cid": "0x091338cb7b1215940ca6f91f4b373c771285e1950214e7d45c14d04383f419bb",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:00AM-10:15AM ET",
+      "sigma": 0.04727094162827652,
+      "n_ticks": 249,
+      "hkt_hour": 21,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:30:47+08:00",
+      "last_ts": "2026-03-20T22:15:50+08:00"
+    },
+    {
+      "cid": "0x9bdcf1bfcc23223b5d4e244c7617f622bac1fae869a06dd0c3673348fcc1c708",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:15AM-10:30AM ET",
+      "sigma": 0.03137288637886064,
+      "n_ticks": 250,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:45:29+08:00",
+      "last_ts": "2026-03-20T22:30:30+08:00"
+    },
+    {
+      "cid": "0x222118517cf43adbdcbcbde7c9fb3fc2c955d5d5a9eb67e44615b2af26604073",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:15AM-10:30AM ET",
+      "sigma": 0.03006295409948383,
+      "n_ticks": 249,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T21:45:29+08:00",
+      "last_ts": "2026-03-20T22:30:30+08:00"
+    },
+    {
+      "cid": "0x96c5cbb5b6ddad2fc3d418055826a682175a00fd68d361bc03845caf87906803",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:30AM-10:45AM ET",
+      "sigma": 0.021853225842546748,
+      "n_ticks": 250,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:00:10+08:00",
+      "last_ts": "2026-03-20T22:45:10+08:00"
+    },
+    {
+      "cid": "0x90cb3e3a4a1048b14aaa5357952dfabc9863f1a6a496ebd6269e230b0598bdd8",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:30AM-10:45AM ET",
+      "sigma": 0.024238065232037642,
+      "n_ticks": 250,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:00:10+08:00",
+      "last_ts": "2026-03-20T22:45:10+08:00"
+    },
+    {
+      "cid": "0x9e16b1b3fcbaea619c49cf527286710cf949e33bb156a1159773482ed194b360",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:45AM-11:00AM ET",
+      "sigma": 0.022592675416316318,
+      "n_ticks": 249,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:15:16+08:00",
+      "last_ts": "2026-03-20T23:00:15+08:00"
+    },
+    {
+      "cid": "0x1ab6797d9ec3ebf03abc34ab18bcf09fd4429a7019b4efe95d66031adab4adf2",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:45AM-11:00AM ET",
+      "sigma": 0.023632453919317422,
+      "n_ticks": 249,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:15:16+08:00",
+      "last_ts": "2026-03-20T23:00:15+08:00"
+    },
+    {
+      "cid": "0xd37352039eb1e73a89987bb0fb2998e5d1445dcd0e972f5608643ac6fa8b8bf1",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:00AM-11:15AM ET",
+      "sigma": 0.036215227709029,
+      "n_ticks": 253,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:30:24+08:00",
+      "last_ts": "2026-03-20T23:15:50+08:00"
+    },
+    {
+      "cid": "0xfaf3d84cd8f9739342d1e0f5e6fd5bc31c9883c15d5fc1b95b6c9c3536a90a1c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:00AM-11:15AM ET",
+      "sigma": 0.037829979074335836,
+      "n_ticks": 253,
+      "hkt_hour": 22,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:30:24+08:00",
+      "last_ts": "2026-03-20T23:15:50+08:00"
+    },
+    {
+      "cid": "0x2466661969b12fb02f4e0bc9fa36e466c7bb5b8099597d56ea90bce0babf6675",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:15AM-11:30AM ET",
+      "sigma": 0.04772547393773498,
+      "n_ticks": 253,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:45:28+08:00",
+      "last_ts": "2026-03-20T23:30:31+08:00"
+    },
+    {
+      "cid": "0x5a28f4d2a457e12432a4f749320f86db84b322fe26e03eff15c58f12c87e76b9",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:15AM-11:30AM ET",
+      "sigma": 0.05888902461417452,
+      "n_ticks": 253,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T22:45:28+08:00",
+      "last_ts": "2026-03-20T23:30:31+08:00"
+    },
+    {
+      "cid": "0x69d92e08c62d3fd2f5620197fd3aa37403d01fd8bb7ceeb6892de09cd982ac2f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:30AM-11:45AM ET",
+      "sigma": 0.02533504073168703,
+      "n_ticks": 253,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:00:10+08:00",
+      "last_ts": "2026-03-20T23:45:35+08:00"
+    },
+    {
+      "cid": "0xb79cac5ee5730325ae29bb23ec5b5e8ba44aada0b4c723965274c8f8e90e58d1",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:30AM-11:45AM ET",
+      "sigma": 0.02908347215552608,
+      "n_ticks": 253,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:00:10+08:00",
+      "last_ts": "2026-03-20T23:45:35+08:00"
+    },
+    {
+      "cid": "0x137703eb2406481cfa445c09053011107a21730d0166efd5803d1657bc57f7d6",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:45AM-12:00PM ET",
+      "sigma": 0.029677344421977985,
+      "n_ticks": 249,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:15:44+08:00",
+      "last_ts": "2026-03-21T00:00:39+08:00"
+    },
+    {
+      "cid": "0xde86758535c7abc02e504b301df0f934ea50df2c5f963334bf2a6843a3f3a815",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:45AM-12:00PM ET",
+      "sigma": 0.032517939915545864,
+      "n_ticks": 249,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:15:44+08:00",
+      "last_ts": "2026-03-21T00:00:39+08:00"
+    },
+    {
+      "cid": "0xb64f62d659ad57946785eaffd54e86fdc9eaaffd980b9065247ad8acc5cdfcaa",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 12:00PM-12:15PM ET",
+      "sigma": 0.02516466579395226,
+      "n_ticks": 250,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:30:49+08:00",
+      "last_ts": "2026-03-21T00:15:51+08:00"
+    },
+    {
+      "cid": "0xe91790f8213dfb8d820210f7857168f4e68d2983e3a895b96bf4f7cdd921815f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 12:00PM-12:15PM ET",
+      "sigma": 0.023511028668211018,
+      "n_ticks": 250,
+      "hkt_hour": 23,
+      "dow": 4,
+      "first_ts": "2026-03-20T23:30:49+08:00",
+      "last_ts": "2026-03-21T00:15:51+08:00"
+    },
+    {
+      "cid": "0x0a1a8c54cd80e3d170abcf8b69a3676c9fb0af6a4b5ed330f74c74d9497c07ba",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 12:15PM-12:30PM ET",
+      "sigma": 0.042591729422614716,
+      "n_ticks": 250,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-20T23:45:31+08:00",
+      "last_ts": "2026-03-21T00:30:31+08:00"
+    },
+    {
+      "cid": "0x71a4be4cd683839693d84fe044864ba6a2ca0ca7a9e5f719a29bbde59f1a1fa4",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 12:15PM-12:30PM ET",
+      "sigma": 0.04304423755670058,
+      "n_ticks": 250,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-20T23:45:31+08:00",
+      "last_ts": "2026-03-21T00:30:31+08:00"
+    },
+    {
+      "cid": "0xaa7617d2270ce41fa60caf739b456c9b69f7827df72276fbad8dae2d9a4da671",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 12:30PM-12:45PM ET",
+      "sigma": 0.01304825115015308,
+      "n_ticks": 250,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:00:11+08:00",
+      "last_ts": "2026-03-21T00:45:11+08:00"
+    },
+    {
+      "cid": "0x25e3b65f2ea6b14718779aabf84185a69dfbacf8e08088dfb99fdff0dbdf08b7",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 12:30PM-12:45PM ET",
+      "sigma": 0.016269306248866505,
+      "n_ticks": 250,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:00:11+08:00",
+      "last_ts": "2026-03-21T00:45:11+08:00"
+    },
+    {
+      "cid": "0x22834e93e0242e154299785629202f0db8b6fdec576b5c9f77474ad117f8f1e8",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 12:45PM-1:00PM ET",
+      "sigma": 0.032042805511980715,
+      "n_ticks": 246,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:15:03+08:00",
+      "last_ts": "2026-03-21T00:59:52+08:00"
+    },
+    {
+      "cid": "0xbba83f87da3f9d838a7a23bc221cec2ce4d946e5b54df03b2cea54b6843ed462",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 12:45PM-1:00PM ET",
+      "sigma": 0.03242756062141385,
+      "n_ticks": 246,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:15:03+08:00",
+      "last_ts": "2026-03-21T00:59:52+08:00"
+    },
+    {
+      "cid": "0xca617da69d7b83d13785a62a27e2ed3e8f234c0c4ef0cfd5329e4bd6476608ec",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 1:00PM-1:15PM ET",
+      "sigma": 0.04865858669921775,
+      "n_ticks": 247,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:30:15+08:00",
+      "last_ts": "2026-03-21T01:15:52+08:00"
+    },
+    {
+      "cid": "0x52c49f31a2f2bb5c8bd7d5567cafef83fd25daf94b7a482ffe0072edfc5d2702",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 1:00PM-1:15PM ET",
+      "sigma": 0.041910192605549776,
+      "n_ticks": 247,
+      "hkt_hour": 0,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:30:15+08:00",
+      "last_ts": "2026-03-21T01:15:52+08:00"
+    },
+    {
+      "cid": "0x7adc1b2fa86b49c5ad07875a3ca30136164095040ddd3b2e9c48b8c28b6f9f05",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 1:15PM-1:30PM ET",
+      "sigma": 0.028607766497624153,
+      "n_ticks": 244,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:45:24+08:00",
+      "last_ts": "2026-03-21T01:30:32+08:00"
+    },
+    {
+      "cid": "0xb1eb896a017ec69d9b3240efa6cc18223e313f8490fe86a28352de7612884ca7",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 1:15PM-1:30PM ET",
+      "sigma": 0.035777734050434606,
+      "n_ticks": 244,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T00:45:24+08:00",
+      "last_ts": "2026-03-21T01:30:32+08:00"
+    },
+    {
+      "cid": "0x63d162bd2e309100687c91581fa38dbe8893ef0720e6ed0639e38c6997082720",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 1:30PM-1:45PM ET",
+      "sigma": 0.03779631875447653,
+      "n_ticks": 244,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:00:03+08:00",
+      "last_ts": "2026-03-21T01:45:12+08:00"
+    },
+    {
+      "cid": "0x0c038800c5d8c2f66e31f2d2ef148353e6127d8511611fee07e46edd7c8bfc03",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 1:30PM-1:45PM ET",
+      "sigma": 0.025133625809771475,
+      "n_ticks": 244,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:00:03+08:00",
+      "last_ts": "2026-03-21T01:45:12+08:00"
+    },
+    {
+      "cid": "0x458da5b42b1f37dd3cc27fa5f22923c01d6218d264664f44f7e3726e869eedd6",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 1:45PM-2:00PM ET",
+      "sigma": 0.013904553222973712,
+      "n_ticks": 240,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:15:09+08:00",
+      "last_ts": "2026-03-21T01:59:57+08:00"
+    },
+    {
+      "cid": "0xc9ae7d1afbfe877a2f6bb10f6c24f034b6e1f009ff8583ce15a7771fce0f7249",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 1:45PM-2:00PM ET",
+      "sigma": 0.020634841515362358,
+      "n_ticks": 240,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:15:09+08:00",
+      "last_ts": "2026-03-21T01:59:57+08:00"
+    },
+    {
+      "cid": "0x675c8806478a8ea2a152fa2a0eb0452d54628c87c0240677935266e5e6805497",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 2:00PM-2:15PM ET",
+      "sigma": 0.04103576016374548,
+      "n_ticks": 244,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:30:07+08:00",
+      "last_ts": "2026-03-21T02:15:52+08:00"
+    },
+    {
+      "cid": "0x4fbaf8a40d6e30e926ec95ff01d9e6a6cfc1a6be70d0e4d0995f56c33fc21bba",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 2:00PM-2:15PM ET",
+      "sigma": 0.03360524171419884,
+      "n_ticks": 243,
+      "hkt_hour": 1,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:30:07+08:00",
+      "last_ts": "2026-03-21T02:15:52+08:00"
+    },
+    {
+      "cid": "0x3c4e3c3d1c7485924595c9dc7b4c7084c82a7250519b488901f5289b3ae927c2",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 2:15PM-2:30PM ET",
+      "sigma": 0.02859076114103194,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:45:13+08:00",
+      "last_ts": "2026-03-21T02:30:32+08:00"
+    },
+    {
+      "cid": "0xc8ceea7ff445dfc19bd44cd681852e88686260952f821bbce8459e5defde7b5c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 2:15PM-2:30PM ET",
+      "sigma": 0.02407849951083603,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T01:45:13+08:00",
+      "last_ts": "2026-03-21T02:30:32+08:00"
+    },
+    {
+      "cid": "0x0e0b11207ecc2cb42da8728f8b9bccef53205132fb903279f59d660a7a78aefe",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 2:30PM-2:45PM ET",
+      "sigma": 0.03125554061007441,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:00:12+08:00",
+      "last_ts": "2026-03-21T02:45:13+08:00"
+    },
+    {
+      "cid": "0x1ad71fc2357c5f5588cf9746a16328b7f6fd91f13f85185e80e5a3aad788af3c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 2:30PM-2:45PM ET",
+      "sigma": 0.04204811621386844,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:00:12+08:00",
+      "last_ts": "2026-03-21T02:45:13+08:00"
+    },
+    {
+      "cid": "0x4727de296d63cf65ae6d061e4119ca3f41b42ada3e39eac4595144ad745bb795",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 2:45PM-3:00PM ET",
+      "sigma": 0.033781017336797156,
+      "n_ticks": 240,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:15:26+08:00",
+      "last_ts": "2026-03-21T03:00:08+08:00"
+    },
+    {
+      "cid": "0xc8f0bb604e5c7027ee1fea9ae2f571d9ff28ac155f2b44b37adb23f89b5aec36",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 2:45PM-3:00PM ET",
+      "sigma": 0.04944880957584375,
+      "n_ticks": 240,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:15:26+08:00",
+      "last_ts": "2026-03-21T03:00:08+08:00"
+    },
+    {
+      "cid": "0xc1f07efc6a3f68d4e0fb682819b8432ff5908d8e9ff14ea67d8b4337a3b41fd2",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:00PM-3:15PM ET",
+      "sigma": 0.04487202494416239,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:30:28+08:00",
+      "last_ts": "2026-03-21T03:15:53+08:00"
+    },
+    {
+      "cid": "0xe7b8441b48165b6f39de719de1cdbc97a17eaa83777a8d863c24ef79dac078f8",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:00PM-3:15PM ET",
+      "sigma": 0.042855799638201415,
+      "n_ticks": 244,
+      "hkt_hour": 2,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:30:28+08:00",
+      "last_ts": "2026-03-21T03:15:53+08:00"
+    },
+    {
+      "cid": "0x67d9ab8b6612fdab5cf4263e6f9dde473f52619f2c0c8b0efaac0eea56de8a66",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:15PM-3:30PM ET",
+      "sigma": 0.04572022059104841,
+      "n_ticks": 244,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:45:29+08:00",
+      "last_ts": "2026-03-21T03:30:33+08:00"
+    },
+    {
+      "cid": "0x9fd177a58c21bc96cbd58b91b76c395481aaded4db73cb6490b73cf13b409bb0",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:15PM-3:30PM ET",
+      "sigma": 0.04156898047921248,
+      "n_ticks": 244,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T02:45:29+08:00",
+      "last_ts": "2026-03-21T03:30:33+08:00"
+    },
+    {
+      "cid": "0xd5ab831360bf1e6a91219ca6f2116b98d7fdb54a5e7477217d9aea467a622617",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:30PM-3:45PM ET",
+      "sigma": 0.0383094152678797,
+      "n_ticks": 244,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:00:13+08:00",
+      "last_ts": "2026-03-21T03:45:13+08:00"
+    },
+    {
+      "cid": "0x0d594894fc9baec2fe9f46444ce40e569c292c78eefdddb339eed1ebbaf80ed3",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:30PM-3:45PM ET",
+      "sigma": 0.03973631757637451,
+      "n_ticks": 244,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:00:13+08:00",
+      "last_ts": "2026-03-21T03:45:13+08:00"
+    },
+    {
+      "cid": "0xa7a42e1c13564afa2695ce15a7b59264637ce4c3a521010153e3903ab2946edf",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 3:45PM-4:00PM ET",
+      "sigma": 0.02598916830736206,
+      "n_ticks": 240,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:15:33+08:00",
+      "last_ts": "2026-03-21T04:00:04+08:00"
+    },
+    {
+      "cid": "0x1961e1697c79c7efa62fd899004d04bb4e2c8eeb776a9ba7a502c5acdf190043",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 3:45PM-4:00PM ET",
+      "sigma": 0.02425331224703871,
+      "n_ticks": 240,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:15:33+08:00",
+      "last_ts": "2026-03-21T04:00:04+08:00"
+    },
+    {
+      "cid": "0x3eda83e30768f0724f62d1e610e7a5b8e7c5b57a17e8fe911ad5a72d7813be3a",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:00PM-4:15PM ET",
+      "sigma": 0.034918212529925566,
+      "n_ticks": 247,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:30:30+08:00",
+      "last_ts": "2026-03-21T04:15:53+08:00"
+    },
+    {
+      "cid": "0x5f184b6b3cf282e938fb47077077986c5d18e017fe60e641c75d92f5b2f8eab7",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:00PM-4:15PM ET",
+      "sigma": 0.024720372874928363,
+      "n_ticks": 247,
+      "hkt_hour": 3,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:30:30+08:00",
+      "last_ts": "2026-03-21T04:15:53+08:00"
+    },
+    {
+      "cid": "0x338ba5e26f51eddb8f996129f07606729b37508143a59f0ff621c29fc098337a",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:15PM-4:30PM ET",
+      "sigma": 0.01671717779870661,
+      "n_ticks": 250,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:45:29+08:00",
+      "last_ts": "2026-03-21T04:30:33+08:00"
+    },
+    {
+      "cid": "0x15b7e04bfdd8c46f94a2af4919892aa20edbcb2b8447e06392a3f23c911f45c9",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:15PM-4:30PM ET",
+      "sigma": 0.015252059660129507,
+      "n_ticks": 250,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T03:45:29+08:00",
+      "last_ts": "2026-03-21T04:30:33+08:00"
+    },
+    {
+      "cid": "0xd2445457e72340bbcfc487ba6e20514983db69b470126e0df8dcad769b723440",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:30PM-4:45PM ET",
+      "sigma": 0.022490187015314283,
+      "n_ticks": 253,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:00:13+08:00",
+      "last_ts": "2026-03-21T04:45:14+08:00"
+    },
+    {
+      "cid": "0x99ca1b00933bb834ad35e0364d2aaaeb924e5508273fcb280675b71d47fd3bf6",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:30PM-4:45PM ET",
+      "sigma": 0.020614102723798503,
+      "n_ticks": 253,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:00:13+08:00",
+      "last_ts": "2026-03-21T04:45:14+08:00"
+    },
+    {
+      "cid": "0x6560254549bc64bde20fb6d92a550673576b41f808d4ec1dcb9f64c358f59485",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 4:45PM-5:00PM ET",
+      "sigma": 0.017077693226803345,
+      "n_ticks": 249,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:15:32+08:00",
+      "last_ts": "2026-03-21T05:00:16+08:00"
+    },
+    {
+      "cid": "0xbe330152e0884c5a9609e0712bff6cef98a25db94f966b932b9420a60714cdac",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 4:45PM-5:00PM ET",
+      "sigma": 0.016169301764275657,
+      "n_ticks": 249,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:15:32+08:00",
+      "last_ts": "2026-03-21T05:00:16+08:00"
+    },
+    {
+      "cid": "0x522e216a9854ed284452714408c6fc602721b249a6ebea9e533fbd5917ab75cc",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:00PM-5:15PM ET",
+      "sigma": 0.04136370080737926,
+      "n_ticks": 253,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:30:32+08:00",
+      "last_ts": "2026-03-21T05:15:54+08:00"
+    },
+    {
+      "cid": "0xe56299da6cda32825b7905c1a753d66d143c75c94037fe0e98388640899791a7",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:00PM-5:15PM ET",
+      "sigma": 0.059031366130919034,
+      "n_ticks": 253,
+      "hkt_hour": 4,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:30:32+08:00",
+      "last_ts": "2026-03-21T05:15:54+08:00"
+    },
+    {
+      "cid": "0xa26e6c1b4d467b7270ec5e18ab48a7bbc9b4501583253085e3b50eee795244f8",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:15PM-5:30PM ET",
+      "sigma": 0.014071990348995308,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:45:33+08:00",
+      "last_ts": "2026-03-21T05:30:34+08:00"
+    },
+    {
+      "cid": "0x72a48f74033b9ed13c0c21417e1fc8d5dc75424591fbc2a944ae66d1350fd19b",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:15PM-5:30PM ET",
+      "sigma": 0.015975066711428128,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T04:45:33+08:00",
+      "last_ts": "2026-03-21T05:30:34+08:00"
+    },
+    {
+      "cid": "0x0c68cbf56e1375d33273d2fcfd8a44e8a934eb4f4aa9bb84b147189c648a6008",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:30PM-5:45PM ET",
+      "sigma": 0.02835793010938095,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:00:14+08:00",
+      "last_ts": "2026-03-21T05:45:27+08:00"
+    },
+    {
+      "cid": "0x520b0ac785fca9b00f3ae8126b266fe388b01bf841f5c868d60d6fc96f68722f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:30PM-5:45PM ET",
+      "sigma": 0.02932577351176763,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:00:14+08:00",
+      "last_ts": "2026-03-21T05:45:27+08:00"
+    },
+    {
+      "cid": "0x60f2146bd4d7bb8f8325970454a333c6b273696e3039e4c64cbfe7ba8525d0f8",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 5:45PM-6:00PM ET",
+      "sigma": 0.017678409104298003,
+      "n_ticks": 249,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:15:38+08:00",
+      "last_ts": "2026-03-21T06:00:31+08:00"
+    },
+    {
+      "cid": "0xb1762eea9fbf555310605f682d89c4bba30f58327402549c2a604b20019e984b",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 5:45PM-6:00PM ET",
+      "sigma": 0.020532805875356105,
+      "n_ticks": 249,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:15:38+08:00",
+      "last_ts": "2026-03-21T06:00:31+08:00"
+    },
+    {
+      "cid": "0xd14d15657565ba9fbe0e61b38035aaf0fcc6854e53e40c1c908ba8b0dee8b73b",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:00PM-6:15PM ET",
+      "sigma": 0.016149808118095774,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:30:42+08:00",
+      "last_ts": "2026-03-21T06:15:54+08:00"
+    },
+    {
+      "cid": "0x6ae41c950050d38a046464dc3e8892549dbc530dc53c375e5e2e0e848a870acf",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:00PM-6:15PM ET",
+      "sigma": 0.011737543029368669,
+      "n_ticks": 253,
+      "hkt_hour": 5,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:30:42+08:00",
+      "last_ts": "2026-03-21T06:15:54+08:00"
+    },
+    {
+      "cid": "0xe165298811457308a55d83cb0344063626f1bf8c1e3cc5f7064639be5e371245",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:15PM-6:30PM ET",
+      "sigma": 0.021330547402979613,
+      "n_ticks": 206,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:45:34+08:00",
+      "last_ts": "2026-03-21T06:29:37+08:00"
+    },
+    {
+      "cid": "0x2ef8c8d71ca824049cec710e9efb4b0a431e83c8206b161c2ca915e5d784fff1",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:15PM-6:30PM ET",
+      "sigma": 0.019323064523334068,
+      "n_ticks": 206,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T05:45:34+08:00",
+      "last_ts": "2026-03-21T06:29:37+08:00"
+    },
+    {
+      "cid": "0xfeba0802a766ad93aafff2ae6228ac487e62d2cd7aa71e7409f3a801a905d801",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:30PM-6:45PM ET",
+      "sigma": 0.06277000683259462,
+      "n_ticks": 162,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:00:14+08:00",
+      "last_ts": "2026-03-21T06:44:45+08:00"
+    },
+    {
+      "cid": "0x0f7e9666cd14f84d5674431163364d088dc4a326d4bb56c1e5edf22e830e7234",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:30PM-6:45PM ET",
+      "sigma": 0.04921872134722621,
+      "n_ticks": 162,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:00:14+08:00",
+      "last_ts": "2026-03-21T06:44:45+08:00"
+    },
+    {
+      "cid": "0x556fdb9a9520ba5390ad52b5560db7fa0a57e197220cdc890336fac500e6db7d",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 6:45PM-7:00PM ET",
+      "sigma": 0.037917346816903945,
+      "n_ticks": 114,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:16:00+08:00",
+      "last_ts": "2026-03-21T06:59:53+08:00"
+    },
+    {
+      "cid": "0xa12029b0f7357dc470f2cf89cc46bbc6a76dcb0eb348a29ff00e66fc0d8724d6",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 6:45PM-7:00PM ET",
+      "sigma": 0.03728361506023183,
+      "n_ticks": 114,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:16:00+08:00",
+      "last_ts": "2026-03-21T06:59:53+08:00"
+    },
+    {
+      "cid": "0xb1f890a2fdbf5596878f673252b6bed4992630ffa598288acf8bc4e3cd0db966",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:00PM-7:15PM ET",
+      "sigma": 0.0160026111765476,
+      "n_ticks": 117,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:30:01+08:00",
+      "last_ts": "2026-03-21T07:15:03+08:00"
+    },
+    {
+      "cid": "0xc0711625fd99ac43519c83efab2923b1f8507f06f76c2be7a7d84c57a379d2d0",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:00PM-7:15PM ET",
+      "sigma": 0.023047891521746647,
+      "n_ticks": 117,
+      "hkt_hour": 6,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:30:01+08:00",
+      "last_ts": "2026-03-21T07:15:03+08:00"
+    },
+    {
+      "cid": "0x56b7fda8af3ba47a0e92f7cdd149cc060676fdcfbc15778ff4dbf92a2ad7a989",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:15PM-7:30PM ET",
+      "sigma": 0.0640298960346407,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:45:08+08:00",
+      "last_ts": "2026-03-21T07:30:13+08:00"
+    },
+    {
+      "cid": "0xe0b9215f69c5b47bba3d8f0d89597cc11cdb77968dc0eb864dbc156abf514891",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:15PM-7:30PM ET",
+      "sigma": 0.039664919602546304,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T06:45:08+08:00",
+      "last_ts": "2026-03-21T07:30:13+08:00"
+    },
+    {
+      "cid": "0xf13bcabff7f0536f9f8ee85390d3b8368e2fe3fe91e6643be9425b29142eabf4",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:30PM-7:45PM ET",
+      "sigma": 0.029649375326832164,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:00:16+08:00",
+      "last_ts": "2026-03-21T07:45:23+08:00"
+    },
+    {
+      "cid": "0xb2d9a87dc336593d4abf86f45f113889d59dc0f7994983f9c26207578101aac1",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:30PM-7:45PM ET",
+      "sigma": 0.06293162801880667,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:00:16+08:00",
+      "last_ts": "2026-03-21T07:45:23+08:00"
+    },
+    {
+      "cid": "0xa086817a36477849aebd043be782cc97e49d50a40f507983762f4b6fb81eb01f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 7:45PM-8:00PM ET",
+      "sigma": 0.07276494781956769,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:15:25+08:00",
+      "last_ts": "2026-03-21T08:00:33+08:00"
+    },
+    {
+      "cid": "0x2fc2092dd17ac1c07ba4eb15a681c2f474d5d68b6849557f32ac8496b3744034",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 7:45PM-8:00PM ET",
+      "sigma": 0.08753534304416172,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:15:25+08:00",
+      "last_ts": "2026-03-21T08:00:33+08:00"
+    },
+    {
+      "cid": "0x9b1852ecf7485527ad3d255d5fdcf0f8b44a21f94f15088b4926307c5a080bbc",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:00PM-8:15PM ET",
+      "sigma": 0.06063649155373378,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:30:35+08:00",
+      "last_ts": "2026-03-21T08:15:44+08:00"
+    },
+    {
+      "cid": "0x3dddf9cf7f40a228698da3dd66959ef0215384f477ff6024ac7170f123e57abd",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:00PM-8:15PM ET",
+      "sigma": 0.07452925730813738,
+      "n_ticks": 117,
+      "hkt_hour": 7,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:30:35+08:00",
+      "last_ts": "2026-03-21T08:15:44+08:00"
+    },
+    {
+      "cid": "0xf3fd8126979ea0317d8cd79de381063de8acaeca586d77bc4871f0c50865fc79",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:15PM-8:30PM ET",
+      "sigma": 0.034329226793840824,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:45:45+08:00",
+      "last_ts": "2026-03-21T08:29:43+08:00"
+    },
+    {
+      "cid": "0x28c1c9279a1d6311a8ba837733ad29370b6923c27a38f5668baaf72d7f11cdbe",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:15PM-8:30PM ET",
+      "sigma": 0.03271306822189747,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T07:45:45+08:00",
+      "last_ts": "2026-03-21T08:29:43+08:00"
+    },
+    {
+      "cid": "0xa251fec483c4131cc3659d2d574e8cdeaf70080aab020311faec291c6486233e",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:30PM-8:45PM ET",
+      "sigma": 0.0403873665956444,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:00:55+08:00",
+      "last_ts": "2026-03-21T08:44:57+08:00"
+    },
+    {
+      "cid": "0xe7850b8d14fa072483e8c7ca06574d2fb39ab16090588408b1c6d34c8c813e5a",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:30PM-8:45PM ET",
+      "sigma": 0.07667694351136631,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:00:55+08:00",
+      "last_ts": "2026-03-21T08:44:57+08:00"
+    },
+    {
+      "cid": "0x872b0c832bfc087295ef475e5751825fe990ca362e644d3e7693d321fa6af10f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 8:45PM-9:00PM ET",
+      "sigma": 0.03397318512012185,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:16:07+08:00",
+      "last_ts": "2026-03-21T09:00:13+08:00"
+    },
+    {
+      "cid": "0xe5ecdbdb6adcc35d971b2ec5e5a3694ee3aa48468cc23d38959b90d34f09ca97",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 8:45PM-9:00PM ET",
+      "sigma": 0.02634866923427431,
+      "n_ticks": 114,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:16:07+08:00",
+      "last_ts": "2026-03-21T09:00:13+08:00"
+    },
+    {
+      "cid": "0x4eba003ae77c1b293537bc94a733afe18eb3a2f28471ca502373a801b3a3ae6b",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:00PM-9:15PM ET",
+      "sigma": 0.07259523032725267,
+      "n_ticks": 117,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:30:07+08:00",
+      "last_ts": "2026-03-21T09:15:27+08:00"
+    },
+    {
+      "cid": "0x38b53773841aa0b7ccc728af853560524d35541c9b4dd92a15625f4423d7756f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:00PM-9:15PM ET",
+      "sigma": 0.03992517246740112,
+      "n_ticks": 117,
+      "hkt_hour": 8,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:30:07+08:00",
+      "last_ts": "2026-03-21T09:15:27+08:00"
+    },
+    {
+      "cid": "0xf4ca8562640a1efdb409423339b33334079045a5ecad16e0dbaaf5d3436cb0ec",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:15PM-9:30PM ET",
+      "sigma": 0.029761695633590952,
+      "n_ticks": 117,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:45:20+08:00",
+      "last_ts": "2026-03-21T09:30:42+08:00"
+    },
+    {
+      "cid": "0x1e6b054cf4da79cb341858d2bc0817fcb2b8c293cf38a6e8febc085a36cf2f37",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:15PM-9:30PM ET",
+      "sigma": 0.03922563797649018,
+      "n_ticks": 117,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T08:45:20+08:00",
+      "last_ts": "2026-03-21T09:30:42+08:00"
+    },
+    {
+      "cid": "0xc60c354f133517997a0f3be34a4ec8345bde82e26b0a0555cdb2f49cbb1211aa",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:30PM-9:45PM ET",
+      "sigma": 0.05423062611755835,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:00:36+08:00",
+      "last_ts": "2026-03-21T09:44:49+08:00"
+    },
+    {
+      "cid": "0x5e45490e1f1fcd3a9bd5c25314363a896dde63731b8aaed8eb1551dc5eeb8014",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:30PM-9:45PM ET",
+      "sigma": 0.03691281541478196,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:00:36+08:00",
+      "last_ts": "2026-03-21T09:44:49+08:00"
+    },
+    {
+      "cid": "0x52058993670c00e1c6adc8bd9e03da992ce8b3faaf65da5488462704e3b5d3f7",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 9:45PM-10:00PM ET",
+      "sigma": 0.05972969030489854,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:15:50+08:00",
+      "last_ts": "2026-03-21T10:00:03+08:00"
+    },
+    {
+      "cid": "0x311c5c6711544d7eb5df2cfee37b4831dbdbddc6a75e9321eedcce59d3d547bf",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 9:45PM-10:00PM ET",
+      "sigma": 0.04139047738556303,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:15:50+08:00",
+      "last_ts": "2026-03-21T10:00:03+08:00"
+    },
+    {
+      "cid": "0xe39067d4a9e24d6d7ba9d10e49a225cfe13b49df925d57dd590a715a851b6596",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:00PM-10:15PM ET",
+      "sigma": 0.04431085778421236,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:31:05+08:00",
+      "last_ts": "2026-03-21T10:15:18+08:00"
+    },
+    {
+      "cid": "0x3d1dd17ab77d673b4d1a0f0a785a80f7ed3753a7d98629b31d0c192dbb8f3493",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:00PM-10:15PM ET",
+      "sigma": 0.050376937273939174,
+      "n_ticks": 114,
+      "hkt_hour": 9,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:31:05+08:00",
+      "last_ts": "2026-03-21T10:15:18+08:00"
+    },
+    {
+      "cid": "0xae993d12787f9cf02811d24be4fdfd71596205e4bffd24e2c0b293073205ca47",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:15PM-10:30PM ET",
+      "sigma": 0.022558544108471468,
+      "n_ticks": 117,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:45:12+08:00",
+      "last_ts": "2026-03-21T10:30:36+08:00"
+    },
+    {
+      "cid": "0x67b880bf5382f262af04370acc2bc270d84d15ff77b36493e9b17b633914df19",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:15PM-10:30PM ET",
+      "sigma": 0.02143120640435407,
+      "n_ticks": 117,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T09:45:12+08:00",
+      "last_ts": "2026-03-21T10:30:36+08:00"
+    },
+    {
+      "cid": "0x09bb183f23abf783a0c4367743b886c2ca90ccafcb59f24590f8fe122455737c",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:30PM-10:45PM ET",
+      "sigma": 0.03753869684821181,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:00:26+08:00",
+      "last_ts": "2026-03-21T10:44:38+08:00"
+    },
+    {
+      "cid": "0x8106e5973e0e9999b701759edf2c825591060f3f3354e170bf0caeefe42d7819",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:30PM-10:45PM ET",
+      "sigma": 0.05915608972844254,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:00:26+08:00",
+      "last_ts": "2026-03-21T10:44:38+08:00"
+    },
+    {
+      "cid": "0x5ccbd9b32de4f8a3d4a94bfce211551c29bd35c3c63821f295394e17b354de3f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 10:45PM-11:00PM ET",
+      "sigma": 0.0503391233417074,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:15:41+08:00",
+      "last_ts": "2026-03-21T10:59:51+08:00"
+    },
+    {
+      "cid": "0x2c410528d02775bd0c09029dd18c41760578af29f4366a615306afcdb35c1a79",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 10:45PM-11:00PM ET",
+      "sigma": 0.06017367799451947,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:15:41+08:00",
+      "last_ts": "2026-03-21T10:59:51+08:00"
+    },
+    {
+      "cid": "0xf127de6047705eee8978837d3402e4fdc76f6be9844b6f792f97ad8c46739754",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:00PM-11:15PM ET",
+      "sigma": 0.07229574741861852,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:30:59+08:00",
+      "last_ts": "2026-03-21T11:15:09+08:00"
+    },
+    {
+      "cid": "0x4cded493afd266bc639fc159b9bde25ec9f2a0cb154ccda365b1f6a7c05609bd",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:00PM-11:15PM ET",
+      "sigma": 0.06369396846016744,
+      "n_ticks": 114,
+      "hkt_hour": 10,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:30:59+08:00",
+      "last_ts": "2026-03-21T11:15:09+08:00"
+    },
+    {
+      "cid": "0xfc15593f8a0281fa5c8167cd0064d9d2405433f13422f02f9e21138ce4188b78",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:15PM-11:30PM ET",
+      "sigma": 0.05445222656155802,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:45:01+08:00",
+      "last_ts": "2026-03-21T11:30:20+08:00"
+    },
+    {
+      "cid": "0xb00f1aed85b9b831601019de8c42c72e358d58f6f122c1ea62ed5429a1458b29",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:15PM-11:30PM ET",
+      "sigma": 0.0918992914016204,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T10:45:01+08:00",
+      "last_ts": "2026-03-21T11:30:20+08:00"
+    },
+    {
+      "cid": "0x33d3c736f6deb47f5419cc9174eccdd513ef577bfff4c0e165ee1e41124bb9c8",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:30PM-11:45PM ET",
+      "sigma": 0.026497715666302893,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:00:14+08:00",
+      "last_ts": "2026-03-21T11:45:29+08:00"
+    },
+    {
+      "cid": "0x6fb88e5dc433e423965c43441116169b3943aae6da12314fb48c98150ec62c1e",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:30PM-11:45PM ET",
+      "sigma": 0.025813742954816362,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:00:14+08:00",
+      "last_ts": "2026-03-21T11:45:29+08:00"
+    },
+    {
+      "cid": "0xfa00a13f60e7477468f8114fc63a54f25392a6caf11ba89951b244722685bbcd",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 20, 11:45PM-12:00AM ET",
+      "sigma": 0.05014731577672125,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:15:32+08:00",
+      "last_ts": "2026-03-21T12:00:39+08:00"
+    },
+    {
+      "cid": "0x1ebaafb8e5d13cb8d55f3b9802b07d0c188a7532caf79d0204ca69ef825f599d",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 20, 11:45PM-12:00AM ET",
+      "sigma": 0.04996660710251729,
+      "n_ticks": 117,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:15:32+08:00",
+      "last_ts": "2026-03-21T12:00:39+08:00"
+    },
+    {
+      "cid": "0x13a327733129a279bb084adf7f55cd9e596111a0080c26ebe14d47593fe5c5f3",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:00AM-12:15AM ET",
+      "sigma": 0.02371520173432266,
+      "n_ticks": 114,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:30:43+08:00",
+      "last_ts": "2026-03-21T12:14:38+08:00"
+    },
+    {
+      "cid": "0x572ddcc3c732bd7da3ffb86b011cdf43e373bdfe4b7871625a46989aa8885f44",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:00AM-12:15AM ET",
+      "sigma": 0.03019245579365954,
+      "n_ticks": 114,
+      "hkt_hour": 11,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:30:43+08:00",
+      "last_ts": "2026-03-21T12:14:38+08:00"
+    },
+    {
+      "cid": "0x259c8150f31edcc050ba44c9b0d2e70a78ce2ba5426862bca0e1e3be8c7b70b8",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:15AM-12:30AM ET",
+      "sigma": 0.07625496087569802,
+      "n_ticks": 114,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:45:52+08:00",
+      "last_ts": "2026-03-21T12:29:52+08:00"
+    },
+    {
+      "cid": "0x82dea71ff5c43ecc73e0e3d15a9c308b8473d5b73347e7037852dba57fa468b3",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:15AM-12:30AM ET",
+      "sigma": 0.04540370605345027,
+      "n_ticks": 114,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T11:45:52+08:00",
+      "last_ts": "2026-03-21T12:29:52+08:00"
+    },
+    {
+      "cid": "0xf2f7deb121e08fd7b68cc2c36f902368db4b81683fc9817448e7c5d55168d4af",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:30AM-12:45AM ET",
+      "sigma": 0.018730966100645757,
+      "n_ticks": 110,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T12:01:02+08:00",
+      "last_ts": "2026-03-21T12:44:44+08:00"
+    },
+    {
+      "cid": "0x2aad13b81a69d932307062aa9e4ade6ce8e4693db32c27947ebd824aa555b63e",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:30AM-12:45AM ET",
+      "sigma": 0.019630531212666436,
+      "n_ticks": 110,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T12:01:02+08:00",
+      "last_ts": "2026-03-21T12:44:44+08:00"
+    },
+    {
+      "cid": "0x806502518a50a0437bf1b121df99716e13defd470fedb534d4c54feb525a0b73",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:45AM-1:00AM ET",
+      "sigma": 0.0033674057690445086,
+      "n_ticks": 74,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T12:15:00+08:00",
+      "last_ts": "2026-03-21T12:44:44+08:00"
+    },
+    {
+      "cid": "0x08d0ed7af7d1b053870224cfeefe8e8c6043bbfdc06147ed34ea6043633300ef",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:45AM-1:00AM ET",
+      "sigma": 0.006126917955275147,
+      "n_ticks": 73,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T12:15:00+08:00",
+      "last_ts": "2026-03-21T12:44:33+08:00"
+    },
+    {
+      "cid": "0xa72695082837cca0113077e1ff5137480738f99faba250f8aaeedfb5f2468b39",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 1:00AM-1:15AM ET",
+      "sigma": 0.0017407765595569796,
+      "n_ticks": 34,
+      "hkt_hour": 12,
+      "dow": 5,
+      "first_ts": "2026-03-21T12:30:15+08:00",
+      "last_ts": "2026-03-21T12:44:33+08:00"
+    },
+    {
+      "cid": "0x7e707362e02688e74b36c341b352b88c1ab5ac61f29e7a3ff17a4024275ddeb0",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 3:30AM-3:45AM ET",
+      "sigma": 0.006928335892210634,
+      "n_ticks": 18,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T15:45:11+08:00"
+    },
+    {
+      "cid": "0xb4be8fe47642a89f25afb66f2867c9743276643974210d574ec34133f21d8767",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 3:30AM-3:45AM ET",
+      "sigma": 0.01816944348268786,
+      "n_ticks": 18,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T15:45:11+08:00"
+    },
+    {
+      "cid": "0x2f46a7b316029de7f0e769fc3f5f1c21dff63eb90eba4b1a58af0df97d5b0c60",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 3:45AM-4:00AM ET",
+      "sigma": 0.05193035342786391,
+      "n_ticks": 57,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T16:00:31+08:00"
+    },
+    {
+      "cid": "0x8b5fb3441424c31b18e5b217fc0036c29f9ccc10050140e876e5aac2ea242a7a",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 3:45AM-4:00AM ET",
+      "sigma": 0.03629292688951653,
+      "n_ticks": 57,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T16:00:31+08:00"
+    },
+    {
+      "cid": "0xe45fa2f6705f807fe8d09c7c22b06086338cc3ef5b2d2495aeb0baf379283a59",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 4:00AM-4:15AM ET",
+      "sigma": 0.07822131306419537,
+      "n_ticks": 93,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T16:15:19+08:00"
+    },
+    {
+      "cid": "0x11d4e649d99fc90b364b0aaa40cea05ecc3f06bcc1b8a57c6a540dfe16ff6bab",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 4:00AM-4:15AM ET",
+      "sigma": 0.046544344611231324,
+      "n_ticks": 93,
+      "hkt_hour": 15,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:38:03+08:00",
+      "last_ts": "2026-03-21T16:15:19+08:00"
+    },
+    {
+      "cid": "0x4e2e74f616947f78cad369b534d7944050c07e7bf9f9d1dca87bd6b48eb5c230",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 4:15AM-4:30AM ET",
+      "sigma": 0.019943170484870803,
+      "n_ticks": 114,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:45:35+08:00",
+      "last_ts": "2026-03-21T16:30:40+08:00"
+    },
+    {
+      "cid": "0x081afeef293e11eaa05ab81f6eb793934ed283fd8b11c0dd0d1b03c9dac5bf34",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 4:15AM-4:30AM ET",
+      "sigma": 0.018878809551007476,
+      "n_ticks": 114,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T15:45:35+08:00",
+      "last_ts": "2026-03-21T16:30:40+08:00"
+    },
+    {
+      "cid": "0x216d45fa90c5c370210eae7fe34d873a759907ca701bb844993d1e0844d079b9",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 4:30AM-4:45AM ET",
+      "sigma": 0.030074868005883392,
+      "n_ticks": 111,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:00:53+08:00",
+      "last_ts": "2026-03-21T16:45:01+08:00"
+    },
+    {
+      "cid": "0x52e0bea8030efb98684370cc9d3b3176a84d0cdaf89f4960604bf6f5bea23b00",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 4:30AM-4:45AM ET",
+      "sigma": 0.024823769599201923,
+      "n_ticks": 111,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:00:53+08:00",
+      "last_ts": "2026-03-21T16:45:01+08:00"
+    },
+    {
+      "cid": "0xbc4cf96726795f4806109df3284ab7084a980f32122094c5efffb229e8dcc609",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 4:45AM-5:00AM ET",
+      "sigma": 0.048386946774980594,
+      "n_ticks": 114,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:15:42+08:00",
+      "last_ts": "2026-03-21T17:00:23+08:00"
+    },
+    {
+      "cid": "0xddf82c0fc9a8aa7da412401b9616b25ad032facaf2a0eacfb723e29d0bba5897",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 4:45AM-5:00AM ET",
+      "sigma": 0.037940886968007084,
+      "n_ticks": 114,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:15:42+08:00",
+      "last_ts": "2026-03-21T17:00:23+08:00"
+    },
+    {
+      "cid": "0x82e6c6524a820360593f70ce508c02bce7c3a47ac981b23eae7325b04fd26cb0",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 5:00AM-5:15AM ET",
+      "sigma": 0.020754075034205646,
+      "n_ticks": 111,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:31:04+08:00",
+      "last_ts": "2026-03-21T17:15:16+08:00"
+    },
+    {
+      "cid": "0x27d8ea4aa87250c24875b2f1539d207310adb63524d3e8b41df337f021a0fe99",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 5:00AM-5:15AM ET",
+      "sigma": 0.02421591480014759,
+      "n_ticks": 111,
+      "hkt_hour": 16,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:31:04+08:00",
+      "last_ts": "2026-03-21T17:15:16+08:00"
+    },
+    {
+      "cid": "0xe1c1282f60ddfc6a06255f1cf4be80d54072dbaee9b6443ff53f647cc6bebf03",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 5:15AM-5:30AM ET",
+      "sigma": 0.0146106793155969,
+      "n_ticks": 114,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:45:24+08:00",
+      "last_ts": "2026-03-21T17:30:45+08:00"
+    },
+    {
+      "cid": "0xbf970a2f2ba5bac7d08138485e7e8a01f92b90b30648d8efb57b99303a810640",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 5:15AM-5:30AM ET",
+      "sigma": 0.025681402805594774,
+      "n_ticks": 114,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T16:45:24+08:00",
+      "last_ts": "2026-03-21T17:30:45+08:00"
+    },
+    {
+      "cid": "0x0955f489c7e59556e5bfaf0d038b7bd2873c25154918f7493cf7a5fb62dcda54",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 5:30AM-5:45AM ET",
+      "sigma": 0.03380488741061027,
+      "n_ticks": 111,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:00:48+08:00",
+      "last_ts": "2026-03-21T17:44:47+08:00"
+    },
+    {
+      "cid": "0xa596bd63cb44416f570ba430a0c1278355cfc8577da3add75dd8696a1f35cc92",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 5:30AM-5:45AM ET",
+      "sigma": 0.018689659091704607,
+      "n_ticks": 111,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:00:48+08:00",
+      "last_ts": "2026-03-21T17:44:47+08:00"
+    },
+    {
+      "cid": "0x24bf73374a40ed40aebca1a74adfafd8dc22306156e8395a69226303599fe374",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 5:45AM-6:00AM ET",
+      "sigma": 0.03868660958344562,
+      "n_ticks": 114,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:15:39+08:00",
+      "last_ts": "2026-03-21T18:00:14+08:00"
+    },
+    {
+      "cid": "0x019c9acaf71b2d35ce5b0176fee81e1b0c0897b70be95f50e1f195b2d4a4da27",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 5:45AM-6:00AM ET",
+      "sigma": 0.05013709870191194,
+      "n_ticks": 114,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:15:39+08:00",
+      "last_ts": "2026-03-21T18:00:14+08:00"
+    },
+    {
+      "cid": "0x70a2e1f395449464fbe4cd17f1764fb232aa5a1b3eaeaca2d9c54e71aedeebdc",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 6:00AM-6:15AM ET",
+      "sigma": 0.07089891075530409,
+      "n_ticks": 111,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:31:07+08:00",
+      "last_ts": "2026-03-21T18:14:44+08:00"
+    },
+    {
+      "cid": "0xb991541faa0ac6b16ae05a8f0c128134f55cb8f1a46e1069ff04ac64142a8144",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 6:00AM-6:15AM ET",
+      "sigma": 0.029159017663367485,
+      "n_ticks": 111,
+      "hkt_hour": 17,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:31:07+08:00",
+      "last_ts": "2026-03-21T18:14:44+08:00"
+    },
+    {
+      "cid": "0x6dffab08fa6bf57ea7c4ae744bbf1dbf8323627555ce19664f5ad880ebe0e2a9",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 6:15AM-6:30AM ET",
+      "sigma": 0.0206008751563148,
+      "n_ticks": 114,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:45:12+08:00",
+      "last_ts": "2026-03-21T18:30:35+08:00"
+    },
+    {
+      "cid": "0x5edc376b28605fe27c65729646a0c1aae76d16a753995a32c48895856e5f04c9",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 6:15AM-6:30AM ET",
+      "sigma": 0.02400674815580892,
+      "n_ticks": 114,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T17:45:12+08:00",
+      "last_ts": "2026-03-21T18:30:35+08:00"
+    },
+    {
+      "cid": "0x9a710957ba9f8b63673ee59c167bdca7759f51a1da99d6dcf17852859bd4c6f5",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 6:30AM-6:45AM ET",
+      "sigma": 0.03567717361653508,
+      "n_ticks": 111,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:00:36+08:00",
+      "last_ts": "2026-03-21T18:44:43+08:00"
+    },
+    {
+      "cid": "0xe050b3d9e27dd799b652d394c6534438ffc9297e78d1c53ec544321a61c5fcd9",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 6:30AM-6:45AM ET",
+      "sigma": 0.04516923071815287,
+      "n_ticks": 111,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:00:36+08:00",
+      "last_ts": "2026-03-21T18:44:43+08:00"
+    },
+    {
+      "cid": "0x2ebdd10e5f99ab27b9a7bb2931c9a2eed68e7b216ae3bd9972f87115e8ae9cd5",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 6:45AM-7:00AM ET",
+      "sigma": 0.029394973640873727,
+      "n_ticks": 114,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:15:08+08:00",
+      "last_ts": "2026-03-21T18:59:56+08:00"
+    },
+    {
+      "cid": "0x7af4b788c870476afc07a83f9ae2b19206750c0401fc72814ef5f6fee6f83fcb",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 6:45AM-7:00AM ET",
+      "sigma": 0.021495386379124785,
+      "n_ticks": 114,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:15:08+08:00",
+      "last_ts": "2026-03-21T18:59:56+08:00"
+    },
+    {
+      "cid": "0x54e096f5e1d25187f3ce01b11252145ce984b10d3828adf1b882fee52eed447b",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 7:00AM-7:15AM ET",
+      "sigma": 0.033881508681365385,
+      "n_ticks": 111,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:30:59+08:00",
+      "last_ts": "2026-03-21T19:14:48+08:00"
+    },
+    {
+      "cid": "0x11fedb9a010c990ad9ed68a02ba07e24717b60e55cefdd7f2bc5ab539f94122b",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 7:00AM-7:15AM ET",
+      "sigma": 0.04468005527581117,
+      "n_ticks": 111,
+      "hkt_hour": 18,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:30:59+08:00",
+      "last_ts": "2026-03-21T19:14:48+08:00"
+    },
+    {
+      "cid": "0x646f875edc6386881c22c4f728a3e98b5a13d104b39f800d0e9ba1c80682235e",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 7:15AM-7:30AM ET",
+      "sigma": 0.02463306892579379,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:45:06+08:00",
+      "last_ts": "2026-03-21T19:30:10+08:00"
+    },
+    {
+      "cid": "0x796d82b655d7225eef33ff331462427fa40331dd07c58ed1fc3eeb99a5b812a2",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 7:15AM-7:30AM ET",
+      "sigma": 0.0164359642644461,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T18:45:06+08:00",
+      "last_ts": "2026-03-21T19:30:10+08:00"
+    },
+    {
+      "cid": "0xb657f73a26ed8645cb1912277e187e54d36d97bd08126269b17b00b6d6ed2578",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 7:30AM-7:45AM ET",
+      "sigma": 0.060172758819245525,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:00:19+08:00",
+      "last_ts": "2026-03-21T19:45:17+08:00"
+    },
+    {
+      "cid": "0x798f9dfc5a48462aac05db1b06ceaf456fe2c373aec7890cb0afd7c03654e51a",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 7:30AM-7:45AM ET",
+      "sigma": 0.03502392175095028,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:00:19+08:00",
+      "last_ts": "2026-03-21T19:45:17+08:00"
+    },
+    {
+      "cid": "0x5594db5326f6d8445925924a20d10a1d1563bafbfabe636f70fccd444cac1221",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 7:45AM-8:00AM ET",
+      "sigma": 0.050763061692180235,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:15:11+08:00",
+      "last_ts": "2026-03-21T19:59:51+08:00"
+    },
+    {
+      "cid": "0x4a145aedf0062b932ddef6e9bbd1b330e7b996e3a667038527baf1d03749cfb8",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 7:45AM-8:00AM ET",
+      "sigma": 0.05934069389516392,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:15:11+08:00",
+      "last_ts": "2026-03-21T19:59:51+08:00"
+    },
+    {
+      "cid": "0x078885a46f2d2ab2e94fed311e458db024c84407e7221030aeb383072018b877",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 8:00AM-8:15AM ET",
+      "sigma": 0.03867547735954427,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:30:33+08:00",
+      "last_ts": "2026-03-21T20:15:11+08:00"
+    },
+    {
+      "cid": "0xb0e430d148ae8290d9dd87f82b7bdee32474b04c6b4ee0fed6c7ece71e66722d",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 8:00AM-8:15AM ET",
+      "sigma": 0.043663931503575414,
+      "n_ticks": 114,
+      "hkt_hour": 19,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:30:33+08:00",
+      "last_ts": "2026-03-21T20:15:11+08:00"
+    },
+    {
+      "cid": "0xf6c67f11b91860b1913fa9063ceb12ec1717445b2f09f350a45dbbfa5f3cbee7",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 8:15AM-8:30AM ET",
+      "sigma": 0.04827148126916233,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:45:41+08:00",
+      "last_ts": "2026-03-21T20:30:40+08:00"
+    },
+    {
+      "cid": "0xe822b2dc596de5e1b8839449f904c4ed7dd9fcf28e14f60d9a2506afca9eeff5",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 8:15AM-8:30AM ET",
+      "sigma": 0.09360763526834215,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T19:45:41+08:00",
+      "last_ts": "2026-03-21T20:30:40+08:00"
+    },
+    {
+      "cid": "0x7f7e44fe20046a8eeda4c2c0023112ecd1a4f1bce4038c425bdfc9cbf255cada",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 8:30AM-8:45AM ET",
+      "sigma": 0.04144823169014816,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:00:15+08:00",
+      "last_ts": "2026-03-21T20:44:45+08:00"
+    },
+    {
+      "cid": "0xdd2a5a6b165e9e3519c6073ff8a5dd5b9da5f65eddf132f69d2331d45a7bcc1f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 8:30AM-8:45AM ET",
+      "sigma": 0.029223089801731276,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:00:15+08:00",
+      "last_ts": "2026-03-21T20:44:45+08:00"
+    },
+    {
+      "cid": "0x0b60f52a367d29c0301193178ec91b79e2e8af967eb7d1072080cf2ee6a422df",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 8:45AM-9:00AM ET",
+      "sigma": 0.02875485447940016,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:15:34+08:00",
+      "last_ts": "2026-03-21T21:00:50+08:00"
+    },
+    {
+      "cid": "0x2f554e3154899200836bd3836019202fba06d15147ad038a6ff20126c6cf1cf3",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 8:45AM-9:00AM ET",
+      "sigma": 0.04156806179101868,
+      "n_ticks": 114,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:15:34+08:00",
+      "last_ts": "2026-03-21T21:00:50+08:00"
+    },
+    {
+      "cid": "0x8644be014bbf7e14254680e0f7c17cff9e2e91bbc4bb9c19b044fe135a431c1f",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 9:00AM-9:15AM ET",
+      "sigma": 0.01691880122455406,
+      "n_ticks": 75,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:31:02+08:00",
+      "last_ts": "2026-03-21T21:00:50+08:00"
+    },
+    {
+      "cid": "0xe1af669bb5e26ee003417eb409287cfd85ab67e26c816330945f8e1f08ab6e40",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 9:00AM-9:15AM ET",
+      "sigma": 0.008947789651750922,
+      "n_ticks": 75,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:31:02+08:00",
+      "last_ts": "2026-03-21T21:00:50+08:00"
+    },
+    {
+      "cid": "0xf83b473cc67bd9ff89bbdbe764ebe9b325e147bd818306ae77e5176122316f57",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 9:15AM-9:30AM ET",
+      "sigma": 0.0016439898730535743,
+      "n_ticks": 38,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:45:10+08:00",
+      "last_ts": "2026-03-21T21:00:24+08:00"
+    },
+    {
+      "cid": "0xfb209109168bf031f165b91128bedbebc97a693f298129b9cf958dc138868926",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 9:15AM-9:30AM ET",
+      "sigma": 0.002041241452319317,
+      "n_ticks": 38,
+      "hkt_hour": 20,
+      "dow": 5,
+      "first_ts": "2026-03-21T20:45:10+08:00",
+      "last_ts": "2026-03-21T21:00:24+08:00"
+    },
+    {
+      "cid": "0xd2073d850353d94722971d8129c25b3e451702364128d42c8376a0a6a182e492",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 10:45AM-11:00AM ET",
+      "sigma": 0.0008454250941056751,
+      "n_ticks": 14,
+      "hkt_hour": 22,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:00:33+08:00"
+    },
+    {
+      "cid": "0x9edc41a44141e9bef7ff9d650b30a07f64015ceb6bb8f08b1775d479ed975c72",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 10:45AM-11:00AM ET",
+      "sigma": 0.001077151990322819,
+      "n_ticks": 14,
+      "hkt_hour": 22,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:00:33+08:00"
+    },
+    {
+      "cid": "0x72e9de66af708699d75284e45c46073d071a2282ae15f8403d5ba7785de903cf",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 11:00AM-11:15AM ET",
+      "sigma": 0.1457129091533739,
+      "n_ticks": 34,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:15:44+08:00"
+    },
+    {
+      "cid": "0xb0ab09ae9ca29f0d4bbae5df1681d8ec4a4658d267f8acc2cd97954aa03063f7",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 11:00AM-11:15AM ET",
+      "sigma": 0.09022221619675802,
+      "n_ticks": 34,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:15:44+08:00"
+    },
+    {
+      "cid": "0x3f903902fdb539eb38f98a062673473f777f9c2113a655211e555161552be5ba",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 11:15AM-11:30AM ET",
+      "sigma": 0.06965157948962199,
+      "n_ticks": 54,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:30:30+08:00"
+    },
+    {
+      "cid": "0x02d54d83ba43adf725b8384147b6d0890ef994edd1d1f493e1b96b7694c50288",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 11:15AM-11:30AM ET",
+      "sigma": 0.04582519477375137,
+      "n_ticks": 54,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T22:53:39+08:00",
+      "last_ts": "2026-03-21T23:30:30+08:00"
+    },
+    {
+      "cid": "0xa2728bc6fd27c0e466f03f169db2de0b8410bb900e10bdfa0a95a0e7eff10c23",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 11:30AM-11:45AM ET",
+      "sigma": 0.08126825650217658,
+      "n_ticks": 60,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:01:22+08:00",
+      "last_ts": "2026-03-21T23:45:07+08:00"
+    },
+    {
+      "cid": "0x3113e33f93e7df86c4df280ecc001244c45d82932dfa2aa438e4bd15b7d94ba6",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 11:30AM-11:45AM ET",
+      "sigma": 0.05473636405508478,
+      "n_ticks": 60,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:01:22+08:00",
+      "last_ts": "2026-03-21T23:45:07+08:00"
+    },
+    {
+      "cid": "0x33a7c3ed0c8ce05ebb87cf8613f5d11edf28e3cc69cd9c8330bcd3d0448a3f70",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 11:45AM-12:00PM ET",
+      "sigma": 0.042379371215453196,
+      "n_ticks": 60,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:16:27+08:00",
+      "last_ts": "2026-03-21T23:59:40+08:00"
+    },
+    {
+      "cid": "0xe5ee4cf03404a9ccc121adeb0546252adac7f2af253b39c6643dfff17c562d2f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 11:45AM-12:00PM ET",
+      "sigma": 0.057717013547433305,
+      "n_ticks": 60,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:16:27+08:00",
+      "last_ts": "2026-03-21T23:59:40+08:00"
+    },
+    {
+      "cid": "0xe2710edce33df5e9e020a178b7b13d05b124f71744fc61b7767788ddd43ed6cb",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:00PM-12:15PM ET",
+      "sigma": 0.05296976919043005,
+      "n_ticks": 62,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:31:11+08:00",
+      "last_ts": "2026-03-22T00:15:40+08:00"
+    },
+    {
+      "cid": "0x8fafcbf7cfeb0509e444a31aed8f3bcab09e6e55b1922a8e5771f8fcbf0d1dcc",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:00PM-12:15PM ET",
+      "sigma": 0.049330781022442295,
+      "n_ticks": 62,
+      "hkt_hour": 23,
+      "dow": 5,
+      "first_ts": "2026-03-21T23:31:11+08:00",
+      "last_ts": "2026-03-22T00:15:40+08:00"
+    },
+    {
+      "cid": "0xc8c297eee5d4231576630eee992f6dd31ca51850964579235f824c6388a16dd6",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:15PM-12:30PM ET",
+      "sigma": 0.07609905107010527,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-21T23:45:50+08:00",
+      "last_ts": "2026-03-22T00:30:32+08:00"
+    },
+    {
+      "cid": "0xd6f7954a6bc1d9be38c533bf6b79ffc7d366701abe8983432d92011032a92347",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:15PM-12:30PM ET",
+      "sigma": 0.07608809964182195,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-21T23:45:50+08:00",
+      "last_ts": "2026-03-22T00:30:32+08:00"
+    },
+    {
+      "cid": "0x918b34af36935cdf428f3646d2b4dff511f80e337fafa476113d917243270d30",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:30PM-12:45PM ET",
+      "sigma": 0.07586189638022749,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:00:22+08:00",
+      "last_ts": "2026-03-22T00:44:49+08:00"
+    },
+    {
+      "cid": "0x570f3ac83d97101a3206efd4ac9fa14aec9e8013867491965fe923cbcd135c47",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:30PM-12:45PM ET",
+      "sigma": 0.09343432280268119,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:00:22+08:00",
+      "last_ts": "2026-03-22T00:44:49+08:00"
+    },
+    {
+      "cid": "0x2f1a9217b7f66e38d7089467c695cb4d1a7e0fc22667bc4b280d623b38b2281a",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 12:45PM-1:00PM ET",
+      "sigma": 0.05487072487299062,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:16:26+08:00",
+      "last_ts": "2026-03-22T01:00:38+08:00"
+    },
+    {
+      "cid": "0x1b79f23f935bc2d2fa8eb9d3644cc3f469fc3b0e360923cfff4d2d4ffcf9699f",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 12:45PM-1:00PM ET",
+      "sigma": 0.056333098909849486,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:16:26+08:00",
+      "last_ts": "2026-03-22T01:00:38+08:00"
+    },
+    {
+      "cid": "0x68b2f5d6c9352c7ad54d125791c7f679fe64d42412faa7913e4be28b50ef12f0",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 1:00PM-1:15PM ET",
+      "sigma": 0.05238844510317012,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:31:13+08:00",
+      "last_ts": "2026-03-22T01:14:35+08:00"
+    },
+    {
+      "cid": "0x8f1e9e215d27ab627a6729f763a401aec41825727f51f3bbbb9784d8e598c547",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 1:00PM-1:15PM ET",
+      "sigma": 0.053651374123643764,
+      "n_ticks": 62,
+      "hkt_hour": 0,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:31:13+08:00",
+      "last_ts": "2026-03-22T01:14:35+08:00"
+    },
+    {
+      "cid": "0xaf4e4dab546a8b4e4648093c9becbaf60a1d93c853e7aa401b9403ba6351a0a3",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 1:15PM-1:30PM ET",
+      "sigma": 0.03895608487642373,
+      "n_ticks": 64,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:45:31+08:00",
+      "last_ts": "2026-03-22T01:29:44+08:00"
+    },
+    {
+      "cid": "0x9c04efb77e78a559ae21ef1b04a294a438b54e6643bdc72409b3221f159c64ba",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 1:15PM-1:30PM ET",
+      "sigma": 0.040862264430374884,
+      "n_ticks": 64,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T00:45:31+08:00",
+      "last_ts": "2026-03-22T01:29:44+08:00"
+    },
+    {
+      "cid": "0x2bec7fed2e6c5732137ea224c11571f7473fac3b6134f2da5053a0690df5064a",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 1:30PM-1:45PM ET",
+      "sigma": 0.06242271206923689,
+      "n_ticks": 64,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:01:19+08:00",
+      "last_ts": "2026-03-22T01:45:08+08:00"
+    },
+    {
+      "cid": "0xefcfde3570a79336dcf9f2d2354d826ced6a419db5b56ac27f00cde298ee3381",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 1:30PM-1:45PM ET",
+      "sigma": 0.044737372963580914,
+      "n_ticks": 64,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:01:19+08:00",
+      "last_ts": "2026-03-22T01:45:08+08:00"
+    },
+    {
+      "cid": "0x5c247d34d610b9226f5729eb3f37fa7c4f0add69e170ba10078000d2fc2e3533",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 1:45PM-2:00PM ET",
+      "sigma": 0.0297763790185452,
+      "n_ticks": 48,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:15:14+08:00",
+      "last_ts": "2026-03-22T01:48:07+08:00"
+    },
+    {
+      "cid": "0xd0bc64edc353b33ee0335322b79f371c464ed6a0a2b44d6274445454c319944c",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 1:45PM-2:00PM ET",
+      "sigma": 0.03303069522447302,
+      "n_ticks": 48,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:15:14+08:00",
+      "last_ts": "2026-03-22T01:48:07+08:00"
+    },
+    {
+      "cid": "0x1dd124c5d4fbaac8b57ae5274fc0caa53637992164183a6d53d3d28a86ca84c0",
+      "coin": "BTC",
+      "title": "Bitcoin Up or Down - March 21, 2:00PM-2:15PM ET",
+      "sigma": 0.004546060565661956,
+      "n_ticks": 26,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:30:24+08:00",
+      "last_ts": "2026-03-22T01:48:07+08:00"
+    },
+    {
+      "cid": "0xe76e9e4fdbaa3490da61c8cd8fea567a29dc73b2f8d48282daa3cd470b9868b8",
+      "coin": "ETH",
+      "title": "Ethereum Up or Down - March 21, 2:00PM-2:15PM ET",
+      "sigma": 0.004252450274057695,
+      "n_ticks": 26,
+      "hkt_hour": 1,
+      "dow": 6,
+      "first_ts": "2026-03-22T01:30:24+08:00",
+      "last_ts": "2026-03-22T01:48:07+08:00"
+    }
+  ]
+}

@@ -376,7 +376,7 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
     slot = (now_et.minute // 15) * 15
     base = now_et.replace(minute=0, second=0, microsecond=0)
 
-    _COINS = [("btc", "bitcoin"), ("eth", "ethereum")]
+    _COINS = [("btc", "bitcoin"), ("eth", "ethereum"), ("sol", "solana")]
 
     for i in range(5):
         ws = base + timedelta(minutes=slot + i * 15)

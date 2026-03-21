@@ -38,6 +38,7 @@ _DEFAULT_TIMEOUT = 3  # seconds per HTTP call
 _PRICE_BOUNDS: dict[str, tuple[float, float]] = {
     "BTCUSDT": (5_000, 500_000),
     "ETHUSDT": (100, 50_000),
+    "SOLUSDT": (1, 5_000),
 }
 
 

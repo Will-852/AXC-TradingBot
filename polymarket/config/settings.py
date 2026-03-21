@@ -52,7 +52,7 @@ AI_MAX_TOKENS = 1024
 AI_TEMPERATURE = 0.3           # 低 temp = 更穩定概率估計
 
 # ─── Crypto 15M Binary Markets ───
-CRYPTO_15M_ENABLED_COINS = ["bitcoin", "ethereum"]  # BTC + ETH
+CRYPTO_15M_ENABLED_COINS = ["bitcoin", "ethereum", "solana"]  # BTC + ETH + SOL
 CRYPTO_15M_MIN_LEAD_MIN = 15                     # 市場開始前至少 15 min
 CRYPTO_15M_MAX_LEAD_MIN = 50                     # 唔超過 50 min（within one cycle）
 CRYPTO_15M_MIN_EDGE_PCT = 0.065                   # net >5% after ~1.5% taker fee
