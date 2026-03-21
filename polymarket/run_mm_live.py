@@ -61,6 +61,7 @@ _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
 _SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # OB + cross-exchange data for taker research
 _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle: submit/fill/cancel/post_fill
+_POS_LOG = os.path.join(_LOG_DIR, "mm_positions.jsonl")  # position snapshots for post-session analysis
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
 _HEAVY_INTERVAL_S = 10 # heavy ops every 10s (3x from 30s, 24 req/min, 50% total budget)
@@ -104,6 +105,67 @@ def _track_call(source: str = "binance", n: int = 1):
 # ═══════════════════════════════════════
 
 _cache: dict = {}
+
+# ─── Holder imbalance tracking (whale exit detection) ───
+_holder_cache: dict = {}  # cid → (imbalance, timestamp)
+_HOLDER_CACHE_TTL = 30    # seconds — holders don't change every second
+_DATA_API = "https://data-api.polymarket.com"
+
+
+def _holder_imbalance(condition_id: str, up_token_id: str,
+                      ttl_override: float = 0) -> tuple[float, float]:
+    """Fetch holder position imbalance + delta from previous reading.
+
+    Returns (imbalance, delta). imbalance ∈ [-1, +1], delta = change since last.
+    Positive imbalance = more UP shares. Negative delta = whale exit from UP.
+    Cached 30s (or ttl_override for last-minute burst mode).
+    Uses Data API (separate rate limit from CLOB).
+    """
+    key = f"holder_{condition_id}"
+    now = time.time()
+    ttl = ttl_override if ttl_override > 0 else _HOLDER_CACHE_TTL
+
+    # Check cache
+    if key in _cache and now - _cache[key][1] < ttl:
+        return _cache[key][0]
+
+    try:
+        url = f"{_DATA_API}/holders?market={condition_id}&limit=20"
+        req = urllib.request.Request(url, headers={"User-Agent": "AXC/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            groups = json.loads(r.read())
+    except Exception as e:
+        logger.debug("Holder fetch failed: %s", e)
+        cached = _cache.get(key, ((0.0, 0.0), 0))[0]
+        return cached
+
+    if not groups or not isinstance(groups, list):
+        return (0.0, 0.0)
+
+    up_shares = 0.0
+    down_shares = 0.0
+    for group in groups:
+        token = group.get("token", "")
+        is_up = token == up_token_id
+        for h in group.get("holders", []):
+            amt = float(h.get("amount", 0)) if h.get("amount") else 0.0
+            if is_up:
+                up_shares += amt
+            else:
+                down_shares += amt
+
+    total = up_shares + down_shares
+    imbalance = (up_shares - down_shares) / total if total > 0 else 0.0
+
+    # Delta from previous reading
+    prev_imbalance = _holder_cache.get(condition_id, (0.0, 0))[0]
+    prev_ts = _holder_cache.get(condition_id, (0.0, 0))[1]
+    delta = imbalance - prev_imbalance if prev_ts > 0 else 0.0
+
+    _holder_cache[condition_id] = (imbalance, now)
+    result = (round(imbalance, 4), round(delta, 4))
+    _cache[key] = (result, now)
+    return result
 
 
 def _price(symbol: str = "BTCUSDT") -> float:
@@ -645,6 +707,28 @@ def _save(state: dict):
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+def _log_positions(state: dict):
+    """Append position snapshot to mm_positions.jsonl (post-session analysis)."""
+    try:
+        markets = state.get("markets", {})
+        if not markets:
+            return
+        ts = datetime.now(_HKT).isoformat()
+        for cid, m in markets.items():
+            up_s = m.get("up_shares", 0)
+            dn_s = m.get("down_shares", 0)
+            if up_s == 0 and dn_s == 0:
+                continue
+            row = {"ts": ts, "cid": cid[:16], "up_s": round(up_s, 2),
+                   "dn_s": round(dn_s, 2), "up_a": round(m.get("up_avg_price", 0), 4),
+                   "dn_a": round(m.get("down_avg_price", m.get("dn_avg_price", 0)), 4),
+                   "cost": round(m.get("entry_cost", 0), 2)}
+            with open(_POS_LOG, "a") as f:
+                f.write(json.dumps(row) + "\n")
+    except Exception:
+        pass  # non-critical logging
 
 
 def _to_dict(s: MMMarketState) -> dict:
@@ -1201,6 +1285,31 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
                         cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
+        # ── Holder imbalance: whale exit detection ──
+        # Burst mode: last 2 min → 5s refresh (normal = 30s)
+        _tte_s = (wl["end_ms"] - now_ms) / 1000
+        _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
+        _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
+        # Whale exit signal: imbalance shifted AGAINST our direction
+        # fair > 0.50 = we bet UP. If h_delta < -0.15 = whales LEFT UP side.
+        _whale_exit = False
+        if abs(_h_delta) > 0.15:
+            _whale_favors_up = _h_delta > 0
+            if _fair_up and not _whale_favors_up:
+                _whale_exit = True
+                logger.warning("WHALE EXIT %s: imbalance %.3f→%.3f (Δ%+.3f) AGAINST our UP — reduce size",
+                               cid[:8], _h_imbalance - _h_delta, _h_imbalance, _h_delta)
+            elif not _fair_up and _whale_favors_up:
+                _whale_exit = True
+                logger.warning("WHALE EXIT %s: imbalance %.3f→%.3f (Δ%+.3f) AGAINST our DOWN — reduce size",
+                               cid[:8], _h_imbalance - _h_delta, _h_imbalance, _h_delta)
+
+        # Whale exit → reduce all order sizes by 50%
+        if _whale_exit and orders:
+            for o in orders:
+                o.size = max(config.min_order_size, o.size * 0.5)
+            logger.info("WHALE GATE %s: all orders halved (%.0f shares each)", cid[:8], orders[0].size)
+
         _sig_ctx = {"fair": round(fair, 4), "bridge": round(bridge_p_up, 4),
                     "cvd": round(_cvd, 3), "vol": round(_coin_vol, 6),
                     "m1": round(_m1, 6), "ob_adj": round(ob_adjustment, 4),
@@ -1211,7 +1320,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "ob_bid_vol": round(_ob_bid_vol, 1),
                     "ob_ask_vol": round(_ob_ask_vol, 1),
                     "ob_depth": _ob_depth,
-                    "coin": _coin_slug, "observe_only": _observe_only}
+                    "coin": _coin_slug, "observe_only": _observe_only,
+                    "h_imb": _h_imbalance, "h_delta": _h_delta,
+                    "whale_exit": _whale_exit}
 
         # Observation gate: log everything but don't place orders for non-live coins
         if _observe_only:
@@ -1957,6 +2068,7 @@ def main():
                     state = run_cycle(state, gamma, client, config, dry_run,
                                   continuous_momentum=getattr(args, 'continuous_momentum', False))
                     _save(state)
+                    _log_positions(state)
                 except Exception as e:
                     logger.error("Cycle error: %s", e, exc_info=True)
                 time.sleep(_CYCLE_S)
