@@ -1240,31 +1240,28 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             cid[:8], _mid)
                 continue  # keep in watchlist, might recover
 
-        # 5% bankroll cap, phased entry across tranches
+        # ── Wide Ladder DCA: 4 rungs at fixed prices ──
+        # Backtest-validated: 0.43/0.37/0.31/0.26 = 78% fill, 44% WR, +EV
+        # Budget: 10% of bankroll per window, split across 4 rungs
+        _LADDER_RUNGS = [0.43, 0.37, 0.31, 0.26]
+        _LADDER_BUDGET_PCT = 0.10  # 10% of bankroll per window
+
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
+        _window_budget = bankroll * _LADDER_BUDGET_PCT / max(1, n_tranches)
+        _rung_budget = _window_budget / len(_LADDER_RUNGS)
 
-        # ── Dynamic pricing: confidence → bid cap ──
-        # Weak signal = demand better price (lower bid = higher ratio = safer)
-        # Strong signal = accept higher price (more likely to fill)
-        _confidence = max(fair, 1.0 - fair)
-        _entry_config = _copy(config)
-        if _confidence >= 0.70:
-            pass  # $0.40 cap (default) — strong signal, 1.50x ratio
-        elif _confidence >= 0.62:
-            _entry_config.max_directional_bid = 0.35  # 1.86x ratio
-        elif _confidence >= 0.57:
-            _entry_config.max_directional_bid = 0.28  # 2.57x ratio
-        else:
-            _entry_config.max_directional_bid = 0.24  # 3.17x ratio
-        if _entry_config.max_directional_bid != config.max_directional_bid:
-            logger.info("DYNAMIC PRICE %s: conf=%.0f%% → bid cap $%.2f (was $%.2f)",
-                        cid[:8], _confidence * 100,
-                        _entry_config.max_directional_bid, config.max_directional_bid)
+        _dir_tok = wl["up_tok"] if _fair_up else wl["dn_tok"]
+        _dir_side = "UP" if _fair_up else "DOWN"
 
-        orders = plan_opening(mkt, fair, _entry_config, bankroll=bankroll,
-                              tranche=0, total_tranches=n_tranches,
-                              risk_mode=risk_mode)
+        orders = []
+        for _rung_price in _LADDER_RUNGS:
+            _shares = max(config.min_order_size, _rung_budget / _rung_price)
+            orders.append(PlannedOrder(
+                token_id=_dir_tok, side="BUY",
+                price=_rung_price, size=round(_shares, 1),
+                outcome=_dir_side))
+
         if not orders:
             del state["watchlist"][cid]
             continue
