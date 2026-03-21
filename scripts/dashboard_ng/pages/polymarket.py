@@ -63,6 +63,14 @@ def _get_running_processes() -> list[dict]:
 
 def render_polymarket_page():
     """Render the full Polymarket page content."""
+
+    # ── Per-market focused view (distinct-baguette style) ──
+    from scripts.dashboard_ng.components.poly_market_view import render_market_view
+    render_market_view()
+
+    ui.separator().classes('bg-gray-700 my-2')
+
+    # ── Aggregate view (existing) ──
     poly_data = {'data': {}}
 
     async def refresh():
