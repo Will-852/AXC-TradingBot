@@ -64,7 +64,7 @@ _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle
 _POS_LOG = os.path.join(_LOG_DIR, "mm_positions.jsonl")  # position snapshots for post-session analysis
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
-_HEAVY_INTERVAL_S = 10 # heavy ops every 10s (3x from 30s, 24 req/min, 50% total budget)
+_HEAVY_INTERVAL_S = 7  # heavy ops every 7s (~85 CLOB req/min with OB recorder, safe under 100 limit)
 
 # Newbie protection: first N hours of live trading, cap exposure
 _PROTECTION_HOURS = 3
