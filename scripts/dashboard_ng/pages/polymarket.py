@@ -25,41 +25,6 @@ def _get_cycle_status() -> dict:
     return data
 
 
-def _get_running_processes() -> list[dict]:
-    """Find all running polymarket-related processes with start time + uptime."""
-    try:
-        # ps with lstart (start time) and etime (elapsed time)
-        result = subprocess.run(
-            ['ps', '-eo', 'pid,lstart,etime,command'],
-            capture_output=True, text=True, timeout=5
-        )
-        procs = []
-        for line in result.stdout.strip().split('\n')[1:]:  # skip header
-            if 'polymarket' not in line.lower() and 'poly' not in line.lower():
-                continue
-            if 'grep' in line or 'ps -eo' in line:
-                continue
-            parts = line.strip().split()
-            if len(parts) < 8:
-                continue
-            pid = parts[0]
-            # lstart format: "Day Mon DD HH:MM:SS YYYY" (5 fields)
-            start_time = ' '.join(parts[1:6])
-            elapsed = parts[6]
-            cmd = ' '.join(parts[7:])
-            # Shorten cmd for display
-            cmd_short = cmd.replace('/opt/homebrew/bin/python3 -u ', '').replace('/opt/homebrew/bin/python3 ', '')
-            procs.append({
-                'pid': pid,
-                'start': start_time,
-                'uptime': elapsed,
-                'cmd': cmd_short,
-                'cmd_full': cmd,
-            })
-        return procs
-    except Exception:
-        return []
-
 
 def render_polymarket_page():
     """Render the full Polymarket page content."""

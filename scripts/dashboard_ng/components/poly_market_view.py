@@ -17,7 +17,8 @@ def render_market_view():
     )
 
     # State
-    view_state = {'selected_cid': None, 'prices_history': [], 'pos_history': []}
+    view_state = {'selected_cid': None, 'prices_history': [], 'pos_history': [],
+                  'start_ts': None, 'window_minutes': 15}
 
     # ── Market selector + countdown ──
     with ui.row().classes('items-center justify-between w-full'):
@@ -60,37 +61,47 @@ def render_market_view():
     with ui.row().classes('items-center gap-2'):
         price_info = ui.label('').classes('text-[11px] font-mono text-gray-500')
 
+    # Shared X axis config: elapsed minutes, fixed window
+    def _x_elapsed(show_label=True):
+        return {'type': 'value', 'min': 0, 'max': 15,
+                'axisLabel': {'color': '#475569', 'fontSize': 11, 'show': show_label,
+                              'formatter': '{value}m'},
+                'axisLine': {'lineStyle': {'color': '#1e2d45'}},
+                'splitLine': {'show': False}}
+
     price_chart = ui.echart({
         'darkMode': True, 'backgroundColor': 'transparent',
-        'tooltip': {'trigger': 'axis'},
+        'tooltip': {'trigger': 'axis', 'formatter': None},
         'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 11}, 'top': 0},
-        'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
-        'xAxis': {'type': 'category', 'data': [],
-                  'axisLabel': {'color': '#475569', 'fontSize': 11},
-                  'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
+        'grid': {'left': 45, 'right': 60, 'top': 25, 'bottom': 20},
+        'xAxis': _x_elapsed(),
         'yAxis': {'type': 'value', 'min': 0, 'max': 1,
                   'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
                   'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
         'series': [
             {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
-             'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'}},
+             'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'},
+             'markLine': {'data': [], 'silent': True}},
             {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
              'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'}},
         ],
     }).classes('h-40 w-full')
 
     # ── Spread Chart ──
-    ui.label('SPREAD').classes('text-xs text-gray-500 uppercase tracking-wide mt-2')
+    with ui.row().classes('items-center gap-2 mt-2'):
+        ui.label('SPREAD').classes('text-xs text-gray-500 uppercase tracking-wide')
+        spread_info = ui.label('').classes('text-[11px] font-mono text-amber-400')
     spread_chart = ui.echart({
         'darkMode': True, 'backgroundColor': 'transparent',
-        'grid': {'left': 45, 'right': 15, 'top': 10, 'bottom': 20},
-        'xAxis': {'type': 'category', 'data': [],
-                  'axisLabel': {'show': False}},
+        'grid': {'left': 45, 'right': 60, 'top': 10, 'bottom': 20},
+        'xAxis': _x_elapsed(show_label=False),
         'yAxis': {'type': 'value',
                   'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
                   'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
         'series': [
-            {'type': 'bar', 'data': [], 'itemStyle': {'color': '#f59e0b'}, 'barWidth': '60%'},
+            {'type': 'line', 'data': [], 'step': 'end',
+             'showSymbol': False, 'lineStyle': {'width': 1.5, 'color': '#f59e0b'},
+             'areaStyle': {'color': 'rgba(245,158,11,0.15)'}},
         ],
     }).classes('h-24 w-full')
 
@@ -104,10 +115,8 @@ def render_market_view():
                 'darkMode': True, 'backgroundColor': 'transparent',
                 'tooltip': {'trigger': 'axis'},
                 'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
-                'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
-                'xAxis': {'type': 'category', 'data': [],
-                          'axisLabel': {'color': '#475569', 'fontSize': 10},
-                          'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
+                'grid': {'left': 50, 'right': 15, 'top': 25, 'bottom': 20},
+                'xAxis': _x_elapsed(),
                 'yAxis': {'type': 'value',
                           'axisLabel': {'color': '#475569', 'fontSize': 10},
                           'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
@@ -131,9 +140,7 @@ def render_market_view():
                 'tooltip': {'trigger': 'axis'},
                 'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
                 'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
-                'xAxis': {'type': 'category', 'data': [],
-                          'axisLabel': {'color': '#475569', 'fontSize': 10},
-                          'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
+                'xAxis': _x_elapsed(),
                 'yAxis': {'type': 'value', 'min': 0, 'max': 1,
                           'axisLabel': {'color': '#475569', 'fontSize': 10, 'formatter': '${value}'},
                           'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
@@ -165,6 +172,7 @@ def render_market_view():
         view_state['selected_cid'] = e.value
         view_state['prices_history'] = []  # reset chart history
         view_state['pos_history'] = []
+        view_state['start_ts'] = None  # reset elapsed origin
         update_kpis()
 
     market_select.on_value_change(on_market_change)
@@ -218,30 +226,40 @@ def render_market_view():
         capital_val.text = f"${m['capital']:.2f}" if has_position else '—'
         capital_sub.text = m.get('phase', '') if m.get('phase') else ''
 
-        # ── Accumulate position history (every 5s from local file, zero API) ──
-        from datetime import datetime as _dt
-        _ts = _dt.now().strftime('%H:%M:%S')
+        # ── Accumulate position history (every 5s, elapsed minutes X axis) ──
+        import time as _time
+        if not view_state['start_ts']:
+            ws = m.get('window_end_ms', 0)
+            remaining = m.get('remaining_s', 0)
+            if ws and remaining:
+                window_total = m.get('window_total_s', 15 * 60)
+                view_state['start_ts'] = _time.time() - (window_total - remaining)
+                view_state['window_minutes'] = window_total / 60
+            else:
+                view_state['start_ts'] = _time.time()
+        _elapsed = (_time.time() - view_state['start_ts']) / 60
+        _win = view_state['window_minutes']
+
         _ph = view_state['pos_history']
         _ph.append({
-            'ts': _ts,
+            'x': round(_elapsed, 2),
             'up_s': m['up_shares'], 'dn_s': m['down_shares'],
             'up_a': m['up_avg'], 'dn_a': m['down_avg'],
         })
-        if len(_ph) > 180:  # 15 min at 5s
+        if len(_ph) > 180:
             _ph.pop(0)
 
-        # Update positions chart
-        _times = [p['ts'] for p in _ph]
-        pos_chart.options['xAxis']['data'] = _times
-        pos_chart.options['series'][0]['data'] = [p['up_s'] for p in _ph]
-        pos_chart.options['series'][1]['data'] = [p['dn_s'] for p in _ph]
+        # Update positions chart — [x, y] pairs
+        pos_chart.options['xAxis']['max'] = int(_win)
+        pos_chart.options['series'][0]['data'] = [[p['x'], p['up_s']] for p in _ph]
+        pos_chart.options['series'][1]['data'] = [[p['x'], p['dn_s']] for p in _ph]
         pos_chart.update()
         pos_info.text = f'▲ {m["up_shares"]:.1f}  ▼ {m["down_shares"]:.1f}'
 
-        # Update avg prices chart
-        avg_chart.options['xAxis']['data'] = _times
-        avg_chart.options['series'][0]['data'] = [p['up_a'] for p in _ph]
-        avg_chart.options['series'][1]['data'] = [p['dn_a'] for p in _ph]
+        # Update avg prices chart — [x, y] pairs
+        avg_chart.options['xAxis']['max'] = int(_win)
+        avg_chart.options['series'][0]['data'] = [[p['x'], p['up_a']] for p in _ph]
+        avg_chart.options['series'][1]['data'] = [[p['x'], p['dn_a']] for p in _ph]
         avg_chart.update()
         avg_info.text = f'▲ ${m["up_avg"]:.3f}  ▼ ${m["down_avg"]:.3f}'
         _sum = m['avg_sum']
@@ -341,9 +359,6 @@ def render_market_view():
         except (TypeError, ValueError):
             return
 
-        # Update price info
-        price_info.text = f'Up: ${up_mid:.3f}  Down: ${dn_mid:.3f}  Spread: ${up_spread:.4f}'
-
         # EV calculation
         pnl_up = m['pnl_if_up']
         pnl_down = m['pnl_if_down']
@@ -356,28 +371,51 @@ def render_market_view():
         ev_val.classes(replace='text-lg font-mono font-bold ' +
                        ('text-green-400' if ev >= 0 else 'text-red-400'))
 
-        # Append to price history for chart
-        from datetime import datetime
-        ts = datetime.now().strftime('%H:%M:%S')
+        # Compute elapsed minutes from window start
+        import time as _time
+        if not view_state['start_ts']:
+            # Use market window_start if available, else now
+            ws = m.get('window_end_ms', 0)
+            remaining = m.get('remaining_s', 0)
+            if ws and remaining:
+                window_total = m.get('window_total_s', 15 * 60)  # 15 min default
+                view_state['start_ts'] = _time.time() - (window_total - remaining)
+                view_state['window_minutes'] = window_total / 60
+            else:
+                view_state['start_ts'] = _time.time()
+        elapsed_min = (_time.time() - view_state['start_ts']) / 60
+        win_min = view_state['window_minutes']
+
+        # Append to price history (with elapsed minutes as X)
         history = view_state['prices_history']
-        history.append({'ts': ts, 'up': up_mid, 'dn': dn_mid, 'spread': up_spread})
-        if len(history) > 90:  # keep 30 min at 20s intervals
+        history.append({'x': round(elapsed_min, 2), 'up': up_mid, 'dn': dn_mid, 'spread': up_spread})
+        if len(history) > 90:
             history.pop(0)
 
-        # Update price chart
-        times = [p['ts'] for p in history]
-        ups = [p['up'] for p in history]
-        dns = [p['dn'] for p in history]
-        price_chart.options['xAxis']['data'] = times
+        # Update price chart — data as [x, y] pairs for value axis
+        ups = [[p['x'], p['up']] for p in history]
+        dns = [[p['x'], p['dn']] for p in history]
+        price_chart.options['xAxis']['max'] = int(win_min)
         price_chart.options['series'][0]['data'] = ups
+        # "Now" vertical dashed line
+        price_chart.options['series'][0]['markLine'] = {
+            'silent': True, 'symbol': 'none',
+            'lineStyle': {'type': 'dashed', 'color': '#f59e0b', 'width': 1},
+            'data': [{'xAxis': round(elapsed_min, 1)}],
+            'label': {'show': False},
+        }
         price_chart.options['series'][1]['data'] = dns
         price_chart.update()
 
-        # Update spread chart
-        spreads = [p['spread'] for p in history]
-        spread_chart.options['xAxis']['data'] = times
+        # Update price info (right side values like distinct-baguette)
+        price_info.text = f'▲ ${up_mid:.3f}  ▼ ${dn_mid:.3f}'
+
+        # Update spread chart + info
+        spreads = [[p['x'], p['spread']] for p in history]
+        spread_chart.options['xAxis']['max'] = int(win_min)
         spread_chart.options['series'][0]['data'] = spreads
         spread_chart.update()
+        spread_info.text = f'${up_spread:.4f}'
 
     # ── Timers ──
     ui.timer(0.5, update_market_list, once=True)

@@ -97,8 +97,10 @@ def get_active_markets() -> list[dict]:
             elapsed = now_ms - window_start
             total_window = window_end - window_start
             progress_pct = min(100, max(0, elapsed / total_window * 100))
+            window_total_s = total_window / 1000
         else:
             progress_pct = 0
+            window_total_s = 15 * 60  # default 15min
 
         up_token = m.get('up_token_id', m.get('up_tok', ''))
         dn_token = m.get('down_token_id', m.get('dn_tok', ''))
@@ -121,6 +123,7 @@ def get_active_markets() -> list[dict]:
             'remaining_str': f'{remaining_min}:{remaining_sec:02d}',
             'progress_pct': round(progress_pct, 1),
             'window_end_ms': window_end,
+            'window_total_s': int(window_total_s),
             'up_token': up_token,
             'dn_token': dn_token,
             'phase': m.get('phase', ''),

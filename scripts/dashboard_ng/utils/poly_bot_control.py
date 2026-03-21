@@ -25,8 +25,9 @@ BOT_DEFS = [
 def get_running_processes() -> list[dict]:
     """Find all running polymarket-related processes with PID, uptime, command."""
     try:
+        # Use pid,etime,command only — lstart field count varies by locale
         result = subprocess.run(
-            ['ps', '-eo', 'pid,lstart,etime,command'],
+            ['ps', '-eo', 'pid,etime,command'],
             capture_output=True, text=True, timeout=5
         )
         procs = []
@@ -35,20 +36,18 @@ def get_running_processes() -> list[dict]:
                 continue
             if 'grep' in line or 'ps -eo' in line:
                 continue
-            parts = line.strip().split()
-            if len(parts) < 8:
+            parts = line.strip().split(None, 2)  # split into 3: pid, etime, command
+            if len(parts) < 3:
                 continue
             pid = parts[0]
-            start_time = ' '.join(parts[1:6])
-            elapsed = parts[6]
-            cmd = ' '.join(parts[7:])
+            elapsed = parts[1]
+            cmd = parts[2]
             cmd_short = cmd.replace('/opt/homebrew/bin/python3 -u ', '') \
                            .replace('/opt/homebrew/bin/python3 ', '') \
                            .replace(f'{MINIFORGE_PYTHON} -u ', '') \
                            .replace(f'{MINIFORGE_PYTHON} ', '')
             procs.append({
                 'pid': pid,
-                'start': start_time,
                 'uptime': elapsed,
                 'cmd': cmd_short,
                 'cmd_full': cmd,
