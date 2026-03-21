@@ -1700,6 +1700,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             logger.info("PARTIAL TP T%d %s %s: sell %d/%d @ $%.3f (target $%.3f, x%.1f) pnl=$%.2f",
                                         _tp_done + 1, cid[:8], side, _tp_sell, int(shares),
                                         _tp_price, _tp_target, _mult, _tp_pnl)
+                            # Free roll: buy opposite side with 2.5% + 2.5% of sold revenue
+                            # Only if > 60s remaining (market may reject late orders)
+                            _tte_exit = (end_ms - now_ms) / 1000 if end_ms > 0 else 999
+                            if _tte_exit > 60:
+                                _opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
+                                if _opp_tok:
+                                    _fr_budget = _tp_sell * _tp_price * 0.05  # 5% of sold value (2.5%+2.5%)
+                                    _opp_mid = _poly_midpoint(client, _opp_tok)
+                                    _fr_price = round(max(0.01, (_opp_mid if _opp_mid > 0 else 0.10) * 2.0), 2)
+                                    _fr_price = min(_fr_price, 0.15)  # cap 15¢
+                                    if _fr_budget >= _fr_price:  # enough for at least 1 share
+                                        try:
+                                            client.buy_shares(_opp_tok, round(_fr_budget, 2), price=_fr_price)
+                                            logger.info("FREE ROLL T%d %s: buy opp @ $%.2f ($%.2f) — %ds left",
+                                                        _tp_done + 1, cid[:8], _fr_price, _fr_budget, int(_tte_exit))
+                                        except Exception as _fre:
+                                            logger.debug("Free roll buy failed: %s", _fre)
                         except Exception as e:
                             logger.warning("Partial TP failed %s: %s", cid[:8], e)
                         continue  # re-check next cycle for next tier
