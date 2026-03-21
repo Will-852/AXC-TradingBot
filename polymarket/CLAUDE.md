@@ -10,7 +10,7 @@
 | 系統 | 狀態 | 入口 |
 |------|------|------|
 | MM 15M (v15) | 🟢 LIVE | `run_mm_live.py`（BTC+ETH） |
-| 1H Conviction (v15) | 🟢 LIVE | `run_1h_live.py` |
+| 1H Conviction (v15) | 🟢 LIVE (BTC) | `run_1h_live.py` |
 | Research Cycle | 🟢 ACTIVE（6h） | `research_cycle.py` |
 | General Pipeline | 🟡 DORMANT | `pipeline.py`（last run 2026-03-20） |
 | Weather | ❌ 廢棄 + 代碼已清除（2026-03-22） | — |
@@ -33,10 +33,12 @@
 - 詳細（含 2-rung ladder / scalp re-entry / CVD disagree / per-order log 等）→ `docs/mm_v15_pipeline.md`
 
 ### 2. 1H Conviction Bot（`run_1h_live.py`）
+- **BTC live execution | ETH observe-only**（`_LIVE_COINS = {"BTC"}`）
 - Brownian Bridge fair-value + OB conviction model
 - BTC + ETH 1H candles，slug-based discovery
 - 共用 `market_maker.py`（MMMarketState + resolve_market）
 - 獨立 state：`mm_state_1h.json`, `mm_trades_1h.jsonl`
+- One-order-per-market guard（唔會重複入同一 market）
 
 ### 3. General Pipeline（`pipeline.py`）— DORMANT
 - 14-step pipeline，覆蓋 crypto / logical arb（天氣已清除）

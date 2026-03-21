@@ -23,7 +23,7 @@
 │  Vol 1m（60s cache）                                    │
 │  Bankroll refresh（CLOB balance）                        │
 │  Risk mode 計算（rolling WR）                            │
-│  Discovery scan（每 300s，slug-based，BTC+ETH）           │
+│  Discovery scan（每 300s，slug-based，BTC+ETH+SOL）           │
 │  Signal Pipeline → plan_opening → Submit                │
 │  Phased entry（tranche 2-4）                             │
 └────────────────────────────────────────────────────────┘
@@ -223,9 +223,9 @@ window 結束           → EXPIRED（唔當 filled）
 **Layer 1 — Profit Lock（mid ≥ 95¢）**
 ```
 mid ≥ 0.95 →
-  sell 90% shares（lock profit）
-  keep 10%（free roll to resolution）
-  + buy opposite side 5 shares at aggressive limit（mid × 1.50, cap $0.15）= greed hedge
+  sell 95% shares @ mid×0.97 taker（lock profit, guarantee fill）
+  keep 5%（free roll to resolution）
+  + buy opposite side 2 shares at mid×2.0 taker（cap $0.15）= mini hedge
 ```
 
 **Layer 2 — Cost Recovery（mid ≥ 64¢）**
@@ -291,7 +291,7 @@ PnL ≥ 0 → consecutive_losses = 0
 
 ### Newbie Protection（首 3 小時 live）
 ```
-bet_pct = 1%（正常都係 1%，但 max_markets = 1）
+bet_pct = 1%（正常 3%，protection 期間降到 1%，max_markets = 1）
 max_concurrent_markets = 1
 ```
 
@@ -372,4 +372,4 @@ Every 5s
 | Order logging | 冇 | **mm_order_log.jsonl**（submit/fill/cancel/post_fill） |
 | AS measurement | 冇 | **Post-fill 60s midpoint check** |
 | CVD override | 冇 | **Strong disagree → single cheap rung** |
-| Greed hedge | 冇 | **Profit lock → buy opposite 5 shares** |
+| Greed hedge | 冇 | **Profit lock → buy opposite 2 shares** |

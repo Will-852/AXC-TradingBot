@@ -42,6 +42,7 @@
 | File | 用途 |
 |------|------|
 | `market_data.py` | Multi-exchange parallel data fetcher（6 exchanges, 22+ sources, ~2s cycle）— MarketSnapshot + SnapshotHistory |
+| `ob_recorder.py` | Polymarket OB depth recorder（15M+1H, 5s interval）→ `logs/poly_ob_tape.jsonl` |
 
 ## exchange/
 | File | 用途 |
@@ -87,6 +88,9 @@
 | `axc_improvement_from_db.md` | distinct-baguette vs AXC v15 競品差距分析 + Python 實現方案 |
 | `distinct_baguette_analysis.md` | distinct-baguette bot 完整分析：策略模式、定價、宣稱表現 |
 | `wallet_analysis/` | 14 個盈利錢包逆向工程（$2.2M PnL）：分類框架 + 深度分析 + 外部驗證 + 報告 |
+| `sigma_poly_by_hour.py` | σ_poly ToD 分析（3.2x variation, 07:00 HKT best） |
+| `arb_spread_analysis.py` | Arb spread 分析（0.5% snapshots < $0.98, 96% last 1 tick） |
+| `fill_probability_model.py` | Fill probability model（P(fill) vs bid/σ/τ，first passage time） |
 
 ## backtest/
 | File | 用途 |

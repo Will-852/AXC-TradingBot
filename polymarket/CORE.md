@@ -13,7 +13,7 @@
 | 系統 | 市場 | 時間框架 | 狀態 |
 |------|------|---------|------|
 | MM 15M Bot | BTC live + ETH/SOL observe-only | 15 分鐘 window (24/7) | 🟢 LIVE (BTC) |
-| 1H Conviction Bot | BTC+ETH Up/Down | 1 小時 window (24/7) | 🟢 LIVE |
+| 1H Conviction Bot | BTC live + ETH observe-only | 1 小時 window (24/7) | 🟢 LIVE (BTC) |
 | ~~Weather~~ | ~~全球最高溫~~ | ~~24 小時~~ | ❌ 廢棄 + 代碼已清除（2026-03-22） |
 
 > **嚴禁**：
@@ -87,7 +87,7 @@
 |--|-----------|-------------------|
 | 入口 | `run_mm_live.py` | `run_1h_live.py` |
 | 時間框架 | 15 分鐘 | 1 小時 |
-| 幣種 | BTC + ETH | BTC + ETH |
+| 幣種 | BTC live + ETH observe-only | BTC live + ETH observe-only |
 | 定價模型 | Student-t(ν=5) Bridge + OB | Brownian Bridge + OB Conviction |
 | 落注方式 | Dual-Layer（hedge + directional） | Conviction-based directional |
 | 共用 | `market_maker.py`（MMMarketState, resolve_market） | 同左 |
@@ -95,7 +95,7 @@
 
 ### MM 15M Exit Rule（v15，3-Layer）
 ```
-Layer 1 — Profit Lock:  mid ≥ 95¢ → sell 90%, keep 10% + greed hedge
+Layer 1 — Profit Lock:  mid ≥ 95¢ → sell 95%, keep 5% + greed hedge
 Layer 2 — Cost Recovery: mid ≥ 64¢ → sell enough to recover entry cost, keep rest
 Layer 3 — Stop Loss:    pnl_pct < -25% → sell all @ mid × 0.97
 Scalp re-entry:         after SL, up to 3 rounds (R2×0.90, R3×0.80)
