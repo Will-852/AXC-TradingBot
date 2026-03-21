@@ -228,6 +228,13 @@ def _collect_analysis(cached_markets: list):
 
 # ═══════════════════════════════════════
 #  Holder Imbalance — smart money directional signal
+#
+#  Known limitations (bmd 2026-03-22):
+#  - Threshold 0.20 calibrated on n=1 case (BTC +$7 window). Need 50+ windows to validate.
+#  - Only top 10 holders (minBalance=10) — may miss crowd positioning. By design: track whales.
+#  - Dedup guard runs BEFORE holder gate: if pending order exists, FLIP cannot fire.
+#    One-order guard takes priority. Holder signal applies only to fresh entries.
+#  - h_imbal logged per order for post-hoc WR analysis: grep "holder_signal" in order log.
 # ═══════════════════════════════════════
 
 _HOLDER_STRONG_IMBAL = 0.20    # >0.20 against direction → FLIP (follow smart money)
@@ -1026,20 +1033,24 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 imbal_against = max(0, h_imbal)
 
             _size_mult = 1.0
+            _flip = False
             if imbal_with > _HOLDER_STRONG_IMBAL:
-                # Whale + bridge AGREE → strongest signal, full size
-                _size_mult = 1.0
-                logger.info("HOLDER AGREE %s %s: imbal=%.2f with direction — whale confirms bridge",
+                # Whale + bridge AGREE → strongest signal, boost size 30%
+                _size_mult = 1.3
+                logger.info("HOLDER AGREE %s %s: imbal=%.2f with direction — whale confirms, size ×130%%",
                             coin, sig.direction, h_imbal)
             elif imbal_against > _HOLDER_STRONG_IMBAL:
                 # Smart money strongly disagrees → FOLLOW them, flip direction
                 _holder_dir = "UP" if h_imbal > 0 else "DOWN"
                 logger.info("HOLDER FLIP %s: bridge=%s but holders=%.2f → follow smart money %s",
                             coin, sig.direction, h_imbal, _holder_dir)
+                _flip = True
                 sig.direction = _holder_dir
                 sig.fair_up = 1.0 - sig.fair_up
                 sig.p_win = max(sig.fair_up, 1.0 - sig.fair_up)
-                sig.entry_price = round(min(sig.p_win - 0.05, config.max_entry_price), 2)
+                # FIX(bmd): use base_spread not ceiling — avoid always-$0.39 entry
+                sig.entry_price = round(min(sig.p_win - config.base_spread, 0.35), 2)
+                sig.entry_price = max(config.min_entry_price, sig.entry_price)
                 _size_mult = 0.7  # slightly reduced for holder-driven flip
             elif imbal_against > _HOLDER_MILD_IMBAL:
                 _size_mult = 0.5
@@ -1073,6 +1084,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
             if result.get("submitted"):
                 _bump_fill(state, "submitted")
+                # Enrich order log with holder signal for post-hoc analysis
+                _log_order("holder_signal", result.get("order_id", ""), cid,
+                           h_imbal=round(h_imbal, 3), flip=_flip,
+                           imbal_with=round(imbal_with, 3),
+                           imbal_against=round(imbal_against, 3),
+                           size_mult=round(_size_mult, 2))
 
                 # Initialize or update market state
                 if cid not in state["markets"]:
@@ -1114,8 +1131,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     mkt["pending_orders"] = []  # clear pending on instant fill (dry-run)
                     _bump_fill(state, "filled")
 
-                logger.info("  %s %s %s | conv=%.2f fair=%.3f entry=$%.2f size=$%.2f | %s",
-                            sig.action, coin, sig.direction, sig.conviction,
+                _flip_tag = " [WHALE_FLIP]" if _flip else ""
+                logger.info("  %s %s %s%s | conv=%.2f fair=%.3f entry=$%.2f size=$%.2f | %s",
+                            sig.action, coin, sig.direction, _flip_tag, sig.conviction,
                             sig.fair_up, sig.entry_price, size_usd, sig.reason)
 
         elif sig.action == "EXIT" and not dry_run:
