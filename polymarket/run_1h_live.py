@@ -53,6 +53,8 @@ _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades_1h.jsonl")
 _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log_1h.jsonl")
 _GAMMA = "https://gamma-api.polymarket.com"
 _BINANCE = "https://api.binance.com/api/v3"
+_DATA_API = "https://data-api.polymarket.com"
+_ANALYSIS_TAPE = os.path.join(_LOG_DIR, "analysis_1h.jsonl")
 
 _CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
 _HEAVY_INTERVAL_S = 20  # heavy ops every 20s (3x from 60s, 12 req/min, 50% total budget)
@@ -107,6 +109,121 @@ def _get_json(url: str, timeout: int = 10):
     except Exception as e:
         logger.debug("HTTP fail %s: %s", url[:80], e)
         return None
+
+
+# ═══════════════════════════════════════
+#  Analysis Data Collection (read-only, zero trading impact)
+# ═══════════════════════════════════════
+
+_ANALYSIS_INTERVAL_S = 60      # normal: collect every 60s
+_ANALYSIS_BURST_S = 15         # burst: every 15s in last 4 min of window
+_ANALYSIS_BURST_MIN = 57       # burst starts at minute 57 (last 3 min)
+_last_analysis = 0.0
+
+
+def _collect_analysis(cached_markets: list):
+    """Collect Polymarket-native data for offline analysis. Zero impact on trading.
+    Writes to analysis_1h.jsonl. All errors silently caught.
+    Burst mode: 15s interval in last 4 min (whale exits cluster near resolution)."""
+    global _last_analysis
+    now = time.time()
+    now_ms = int(now * 1000)
+
+    # Adaptive interval: burst in last 3 min of any active window
+    interval = _ANALYSIS_INTERVAL_S
+    try:
+        for _m in cached_markets:
+            if _m.get("start_ms", 0) < now_ms < _m.get("end_ms", 0):
+                if (now_ms - _m["start_ms"]) / 60_000 >= _ANALYSIS_BURST_MIN:
+                    interval = _ANALYSIS_BURST_S
+                    break
+    except Exception:
+        pass
+
+    if now - _last_analysis < interval:
+        return
+    _last_analysis = now
+
+    for mkt in cached_markets:
+        cid = mkt["cid"]
+        start_ms = mkt["start_ms"]
+        end_ms = mkt["end_ms"]
+        if now_ms < start_ms or now_ms > end_ms:
+            continue
+        coin = mkt["coin"]
+        try:
+            record = {"ts": time.time(), "coin": coin, "cid": cid[:12]}
+
+            # #3: Token price history within this window (uses UP token_id, not condition_id)
+            _up_tok = mkt.get("up_tok", "")
+            ph = _get_json(
+                f"https://clob.polymarket.com/prices-history"
+                f"?market={_up_tok}&interval=1h&fidelity=1",
+                timeout=2)
+            if ph and isinstance(ph, dict) and "history" in ph:
+                hist = ph["history"]
+                record["price_hist_len"] = len(hist)
+                if hist:
+                    prices = [float(h.get("p", 0)) for h in hist if h.get("p")]
+                    if prices:
+                        record["price_first"] = prices[0]
+                        record["price_last"] = prices[-1]
+                        record["price_min"] = min(prices)
+                        record["price_max"] = max(prices)
+                        record["price_range"] = round(max(prices) - min(prices), 4)
+
+            # #1: Recent trades (last 50) — who's trading and which direction
+            trades = _get_json(
+                f"{_DATA_API}/trades?market={cid}&limit=50",
+                timeout=2)
+            if trades and isinstance(trades, list):
+                buys = sum(1 for t in trades if t.get("side", "").upper() == "BUY")
+                sells = len(trades) - buys
+                total_size = sum(float(t.get("size", 0)) for t in trades)
+                record["trades_count"] = len(trades)
+                record["trades_buys"] = buys
+                record["trades_sells"] = sells
+                record["trades_total_size"] = round(total_size, 2)
+                record["trades_buy_ratio"] = round(buys / len(trades), 3) if trades else 0
+
+            # #2: Top holders per side — smart money flow indicator
+            holders_raw = _get_json(
+                f"{_DATA_API}/holders?market={cid}&limit=10&minBalance=10",
+                timeout=2)
+            if holders_raw and isinstance(holders_raw, list):
+                for token_group in holders_raw:
+                    hs = token_group.get("holders", []) if isinstance(token_group, dict) else []
+                    if not hs:
+                        continue
+                    idx = hs[0].get("outcomeIndex", -1) if hs else -1
+                    side = "up" if idx == 0 else "down" if idx == 1 else "unk"
+                    amounts = [float(h.get("amount", 0)) for h in hs]
+                    record[f"holders_{side}_count"] = len(hs)
+                    record[f"holders_{side}_total"] = round(sum(amounts), 2)
+                    record[f"holders_{side}_top3"] = [
+                        {"wallet": h.get("proxyWallet", "")[:12],
+                         "name": h.get("name", "")[:20],
+                         "amt": round(float(h.get("amount", 0)), 1)}
+                        for h in hs[:3]
+                    ]
+
+            # #4: Open interest — total money in market
+            oi = _get_json(f"{_DATA_API}/oi?market={cid}", timeout=2)
+            if oi and isinstance(oi, dict):
+                record["oi"] = round(float(oi.get("value", 0)), 2)
+
+            # Metadata for delta analysis
+            t_el = (now_ms - start_ms) / 60_000
+            record["t_elapsed"] = round(t_el, 1)
+            record["burst"] = t_el >= _ANALYSIS_BURST_MIN
+
+            # Write
+            os.makedirs(os.path.dirname(_ANALYSIS_TAPE), exist_ok=True)
+            with open(_ANALYSIS_TAPE, "a") as f:
+                f.write(json.dumps(record, default=str) + "\n")
+
+        except Exception as e:
+            logger.debug("Analysis collect %s: %s", coin, e)
 
 
 # ═══════════════════════════════════════
@@ -253,7 +370,7 @@ def _try_sell_partial(client, state: dict, cid: str, mkt: dict,
 
 
 def _check_black_swan(client, state: dict, dry_run: bool):
-    """Check all open positions — sell if mid ≥ 94¢. Runs every cycle."""
+    """Check all open positions — sell if mid ≥ 95¢. Runs every cycle."""
     if dry_run or not client or not hasattr(client, "sell_shares"):
         return
     for cid, mkt in list(state["markets"].items()):
@@ -275,7 +392,7 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                                cid[:8], side, mid, _BLACK_SWAN_MID)
                 sold = _try_sell_partial(client, state, cid, mkt,
                               mkt.get("up_token_id", ""), mkt.get("down_token_id", ""),
-                              reason="profit_lock_93pct", known_mid=mid,
+                              reason="profit_lock_95pct", known_mid=mid,
                               sell_pct=_BLACK_SWAN_SELL_PCT)
                 # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
                 # Must execute instantly — market can reverse in seconds.
@@ -722,6 +839,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             state["bankroll"] = client.get_usdc_balance()
         except Exception:
             pass
+
+    # ── Analysis data collection (read-only, 60s interval) ──
+    _collect_analysis(cached_markets)
 
     # ── Evaluate each active market ──
     for mkt_info in cached_markets:

@@ -384,7 +384,7 @@ Every 10s
         └─ Action:
             ENTER → submit limit order (directional only)
             ADD   → submit additional order (same direction)
-            EXIT  → sell at mid × 0.98
+            EXIT  → sell at mid × 0.96
             HOLD  → do nothing
             WAIT  → re-evaluate next cycle
         │
