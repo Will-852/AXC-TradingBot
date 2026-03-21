@@ -143,7 +143,7 @@ def _parse_gamma_market(raw: dict, slug: str, ts: int, te: int, coin_slug: str) 
 
 
 # 1H slug helpers (same pattern as run_1h_live.py)
-_COIN_SLUGS_1H = {"btc": "bitcoin", "eth": "ethereum"}
+_COIN_SLUGS_1H = {"btc": "bitcoin", "eth": "ethereum", "sol": "solana"}
 
 
 def _discover_15m() -> list[dict]:
