@@ -875,7 +875,7 @@ def _check_resolutions(state: dict):
             if state["consecutive_losses"] >= 8:
                 cd = datetime.now(tz=_HKT) + timedelta(hours=24)
                 state["cooldown_until"] = cd.isoformat()
-                logger.warning("5 losses → COOLDOWN until %s", cd.strftime("%H:%M HKT"))
+                logger.warning("8 consecutive losses → COOLDOWN until %s", cd.strftime("%H:%M HKT"))
         else:
             state["consecutive_losses"] = 0
 
@@ -1240,6 +1240,19 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             cid[:8], _mid)
                 continue  # keep in watchlist, might recover
 
+        # Initialize whale_action before ladder uses it (whale block runs after ladder)
+        if not _observe_only:
+            _tte_s = (wl["end_ms"] - now_ms) / 1000
+            _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
+            _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
+        # Pre-compute whale action for checkpoint gate
+        _whale_action = "NORMAL"
+        _whale_favors_up = _h_imbalance > 0
+        if abs(_h_imbalance) > 0.30:
+            _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
+            if not _whale_agrees:
+                _whale_action = "FOLLOW_LOG"
+
         # ── Wide Ladder DCA: 2 auto rungs + 2 conditional (checkpoint) ──
         # Backtest: 0.43/0.37/0.31/0.26, tiered TP at x1.3/1.5/1.8 → Sharpe 0.43
         # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
@@ -1295,43 +1308,21 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
                         cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
-        # ── Holder imbalance: whale exit detection (live coins only) ──
-        _h_imbalance, _h_delta = 0.0, 0.0
-        if not _observe_only:
-            _tte_s = (wl["end_ms"] - now_ms) / 1000
-            _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
-            _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
-        # ── Whale signal: 3 modes ──
-        # 1. Whale + bridge AGREE → full size (high conviction)
-        # 2. Whale AGAINST bridge (|imbalance| > 0.30) → LOG ONLY + halve (validation pending)
-        # 3. Whale EXIT (delta > 0.15 against) → halve size
-        _whale_action = "NORMAL"  # NORMAL / AGREE / FOLLOW_LOG / EXIT
-        _whale_favors_up = _h_imbalance > 0  # positive = more UP holders
-
-        # Check absolute imbalance — whale consensus
-        # 0.30 = extreme (top holders 65%/35% split). Conservative until validated.
+        # ── Whale signal: AGREE / FOLLOW_LOG / EXIT (applied to orders) ──
+        # Holder data already fetched + _whale_action pre-computed above ladder block
         if abs(_h_imbalance) > 0.30:
             _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
             if _whale_agrees:
-                # Whale + bridge same direction → confidence boost (keep full size)
                 _whale_action = "AGREE"
                 logger.info("WHALE AGREE %s: imbalance %+.3f confirms %s",
                             cid[:8], _h_imbalance, "UP" if _fair_up else "DOWN")
-            else:
-                # Whale says opposite of bridge → LOG ONLY (not validated yet)
-                # BMD #1: n=0 FOLLOW trades, holder data = cumulative not flow.
-                # Log the signal for offline analysis. Enable execution after
-                # 50+ FOLLOW signals confirm hit rate > bridge-only.
-                _whale_action = "FOLLOW_LOG"
-                _whale_dir = "UP" if _whale_favors_up else "DOWN"
-                logger.warning("WHALE FOLLOW(log) %s: imbalance %+.3f says %s but bridge says %s — NOT acting (validation pending)",
-                               cid[:8], _h_imbalance, _whale_dir,
-                               "UP" if _fair_up else "DOWN")
-                # Don't modify orders — keep bridge direction, but halve size as caution
+            elif _whale_action == "FOLLOW_LOG":
+                # Already set above — apply size halving to orders
+                logger.warning("WHALE FOLLOW(log) %s: imbalance %+.3f — halving orders (validation pending)",
+                               cid[:8], _h_imbalance)
                 if orders:
                     for o in orders:
                         o.size = max(config.min_order_size, o.size * 0.5)
-                    logger.info("WHALE CAUTION %s: halved bridge orders (whale disagrees)", cid[:8])
 
         # Check delta — whale exit (rapid shift against us)
         if abs(_h_delta) > 0.15 and _whale_action == "NORMAL":

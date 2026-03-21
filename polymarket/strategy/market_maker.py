@@ -451,7 +451,8 @@ def apply_fill(state: MMMarketState, outcome: str, side: str,
 def resolve_market(state: MMMarketState, result: str) -> float:
     """Market resolved. Winning side = $1.00/share."""
     state.payout = state.up_shares if result == "UP" else state.down_shares
-    state.realized_pnl = state.payout - state.total_cost
+    # ADD resolution pnl to existing (TP/SL may have already captured partial profit)
+    state.realized_pnl += state.payout - state.total_cost
     state.phase = "RESOLVED"
 
     logger.info("resolved %s → %s | payout=$%.2f cost=$%.2f → PnL=$%.2f",
