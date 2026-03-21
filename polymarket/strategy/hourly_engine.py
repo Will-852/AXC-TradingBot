@@ -95,7 +95,7 @@ class HourlyConfig:
     # Late window cutoff
     late_cutoff_min: float = 56.0       # normal entries stop at minute 56
     late_entry_cutoff_min: float = 58.0 # high-conviction entries allowed until minute 58
-    late_entry_min_confidence: float = 0.40  # need ≥40% confidence for late entry (= fair ≥0.70 or ≤0.30)
+    late_entry_min_confidence: float = 0.79  # ≥79% confidence = BTC +0.2%+ at t=57. User-set threshold.
     # Skip near coin-flip
     min_fair_deviation: float = 0.05    # fair must deviate >=5c from 0.50
     # Fat-tail adjustment: BTC kurtosis > 9, normal CDF overestimates confidence
