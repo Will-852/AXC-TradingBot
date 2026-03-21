@@ -72,12 +72,16 @@ class HourlyConfig:
     min_conviction_decay: float = 0.005  # threshold drops by this per minute
     min_conviction_floor: float = 0.12   # never enter below this conviction (was 0.10)
     # Entry price: DYNAMIC cap = f(conviction), not fixed
-    price_cap_base: float = 0.30         # cap at zero conviction
-    price_cap_scale: float = 0.30        # cap grows by this x conviction -> max 0.60
+    # v2 tightened: max $0.37 at full conviction (was $0.60). Hard ceiling $0.39.
+    # Rationale: fill model optimal=$0.20, real fills cap at ~$0.47,
+    # $0.54-$0.57 had 0% fill rate. Structural edge = buying cheap.
+    price_cap_base: float = 0.25         # cap at zero conviction (was 0.30)
+    price_cap_scale: float = 0.12        # cap grows by this x conviction -> max 0.37 (was 0.30)
+    max_entry_price: float = 0.39        # hard ceiling regardless of conviction (NEW)
     min_entry_price: float = 0.20        # never pay less than this (too far = no fill)
     min_ev_per_share: float = 0.05       # minimum 5c EV per share
     # Spread scaling
-    base_spread: float = 0.12           # spread at zero conviction
+    base_spread: float = 0.15           # spread at zero conviction (was 0.12, more conservative)
     spread_compression: float = 0.7     # how much conviction compresses spread
     # Size scaling: conviction^2 (quadratic, not linear)
     max_size_fraction: float = 0.05     # max 5% of bankroll per window
@@ -237,9 +241,13 @@ def conviction_signal(
     entry_price = p_win - dynamic_spread
 
     # Dynamic cap: scales with conviction (low conviction → tighter cap)
-    # conviction 0.2 → cap $0.36 | 0.5 → $0.45 | 0.8 → $0.54 | 1.0 → $0.60
+    # v2: conviction 0.2 → $0.274 | 0.5 → $0.31 | 0.8 → $0.346 | 1.0 → $0.37
     price_cap = config.price_cap_base + conviction * config.price_cap_scale
     entry_price = min(entry_price, price_cap)
+
+    # Hard ceiling: structural edge protection (break-even WR = entry price)
+    if config.max_entry_price > 0:
+        entry_price = min(entry_price, config.max_entry_price)
 
     # EV floor: entry must leave at least min_ev per share
     ev_cap = p_win - config.min_ev_per_share

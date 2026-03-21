@@ -11,7 +11,7 @@
 ┌─ Fast Loop（每 10s）───────────────────────────────────┐
 │  Fill Confirmation（get_trades / get_orders）           │
 │  Resolution（window 結束 +2min 後）                     │
-│  Profit Lock（mid ≥ 95¢ → sell 90%，每 cycle 都 check） │
+│  Profit Lock（mid ≥ 95¢ → sell 95%，每 cycle 都 check） │
 └────────────────────────────────────────────────────────┘
 
 ┌─ Heavy Cycle（每 20s）─────────────────────────────────┐
@@ -119,20 +119,21 @@ threshold = max(0.12, 0.33 - t_elapsed × 0.005)
 ## Pricing — Dynamic Spread
 
 ```
-dynamic_spread = 0.12 × (1 - conviction × 0.7)
+dynamic_spread = 0.15 × (1 - conviction × 0.7)
 entry_price = p_win - dynamic_spread
 ```
 
 然後 cap:
 | Cap | Formula | Range |
 |-----|---------|-------|
-| Dynamic price cap | `0.30 + conviction × 0.30` | $0.30 – $0.60 |
+| Dynamic price cap | `0.25 + conviction × 0.12` | $0.25 – $0.37 |
+| Hard ceiling | `max_entry_price = 0.39` | 硬上限（absolute） |
 | EV cap | `p_win - 0.05` | min 5¢ EV per share |
 | Floor | $0.20 | 硬底 |
 | Sanity | `entry_price < p_win` | 否則 set `p_win - 0.02` |
 
 > **vs MM 15M**: MM 用 Zone 1/2/3（hedge + directional），2-rung ladder，cap by confidence（$0.24-$0.40）。
-> 1H 用 single directional order，cap by conviction（$0.30-$0.60）。
+> 1H 用 single directional order，cap by conviction（$0.25-$0.37），加 $0.39 硬上限。
 
 ---
 
@@ -202,9 +203,9 @@ Fill 後記錄 `time_to_fill` → `mm_order_log_1h.jsonl`。
 ### Layer 1 — Profit Lock（每 cycle check，唔止 heavy）
 ```
 mid ≥ 0.95 →
-  sell 90% shares at mid × 0.98（2% slippage）
-  keep 10% as free roll
-  + greed hedge: buy opposite side 5 shares at aggressive limit（cap $0.15）
+  sell 95% shares at mid × 0.96（4% slippage）
+  keep 5% as free roll
+  + greed hedge: buy opposite side 2 shares at aggressive limit（mid × 2.0）
 ```
 
 ### Layer 2 — Stop Loss（via engine EXIT signal）
@@ -330,11 +331,12 @@ Daily reset: `daily_pnl` 歸零 when date changes。
 | `min_conviction_start` | 0.33 | t=0 嘅 conviction threshold |
 | `min_conviction_decay` | 0.005 | threshold 每分鐘降幾多 |
 | `min_conviction_floor` | 0.12 | threshold floor |
-| `price_cap_base` | 0.30 | conviction=0 嘅 price cap |
-| `price_cap_scale` | 0.30 | conviction 加幾多 cap |
+| `price_cap_base` | 0.25 | conviction=0 嘅 price cap |
+| `price_cap_scale` | 0.12 | conviction 加幾多 cap |
+| `max_entry_price` | 0.39 | 硬上限（absolute ceiling） |
 | `min_entry_price` | 0.20 | 硬底 |
 | `min_ev_per_share` | 0.05 | 最低 5¢ EV |
-| `base_spread` | 0.12 | conviction=0 嘅 spread |
+| `base_spread` | 0.15 | conviction=0 嘅 spread |
 | `spread_compression` | 0.70 | conviction 壓縮 spread 嘅程度 |
 | `max_size_fraction` | 0.05 | bankroll 5% per window |
 | `min_size_fraction` | 0.01 | bankroll 1% minimum |
@@ -388,7 +390,7 @@ Every 10s
         │
         Position Management (10s loop):
           Fill confirm (get_trades) + per-order log
-          Profit Lock (mid≥95¢ → sell 90% + greed hedge)
+          Profit Lock (mid≥95¢ → sell 95% + greed hedge)
           │
           ▼
         Resolution (+2min after window end)
@@ -409,7 +411,7 @@ Every 10s
 | AI fallback | Removed in v15 | **Never had** |
 | Loop | 5s fast + 10s heavy | **10s fast + 20s heavy** |
 | Cancel defense | 3 triggers | **None** |
-| Pricing | Zone 1/2/3 + 2-rung ladder | **Single order, dynamic spread** |
+| Pricing | Zone 1/2/3 + 2-rung ladder | **Single order, dynamic spread (cap $0.25-$0.37, ceiling $0.39)** |
 | Hedge orders | Dual-Layer (UP+DOWN) | **Pure directional** |
 | Risk modes | 4 modes by WR | **None** |
 | Exit layers | 3 (profit lock + cost recovery + SL) | **2 (profit lock + SL)** |
