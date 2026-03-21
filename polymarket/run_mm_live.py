@@ -1559,12 +1559,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
             # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only
             # Fixed 5min was too short — v14 cancelled 6/6 orders (0% fill).
-            # Dynamic: min(10min, window_end - 3min - entry_ts)
-            # Early entry (min 1) → 10 min on book. Late entry (min 8) → ~4 min.
-            # Always respect window_end - 3min hard boundary.
+            # Dynamic TTL: window_end - 2min - entry_ts (no 600s cap)
+            # BMD finding: 600s cap killed 43pp of fill rate (27/27 cancels were TTL).
+            # Now: order lives until 2 min before window end (matches T1 cancel).
             if not to_cancel and entry_ts > 0 and end_ms > 0:
-                _hard_cancel_s = (end_ms - 180_000) / 1000  # 3 min before window end
-                _max_ttl_s = min(600, max(60, _hard_cancel_s - entry_ts))  # 60s..600s
+                _hard_cancel_s = (end_ms - 120_000) / 1000  # 2 min before window end (was 3)
+                _max_ttl_s = max(60, _hard_cancel_s - entry_ts)  # no cap — full window
                 _time_on_book = now_s - entry_ts
                 if _time_on_book > _max_ttl_s:
                     to_cancel = _find_directional_orders(pending)
