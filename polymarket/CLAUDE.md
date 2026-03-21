@@ -23,6 +23,7 @@
 ## 三個交易系統
 
 ### 1. MM 15M Bot（`run_mm_live.py`）★ 主力
+- **BTC live execution | ETH+SOL observe-only**（`_LIVE_TRADE_COINS = {"btc"}`）
 - Dual-Layer market maker：Zone 1/2/3 hedge + directional
 - 5s fast loop + **10s** heavy cycle + 300s discovery
 - Bridge: **Student-t(ν=5)** + OB adj（assess_edge 已移除，fair = bridge + OB）

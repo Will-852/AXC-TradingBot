@@ -12,7 +12,7 @@
 
 | 系統 | 市場 | 時間框架 | 狀態 |
 |------|------|---------|------|
-| MM 15M Bot | BTC+ETH Up/Down | 15 分鐘 window (24/7) | 🟢 LIVE |
+| MM 15M Bot | BTC live + ETH/SOL observe-only | 15 分鐘 window (24/7) | 🟢 LIVE (BTC) |
 | 1H Conviction Bot | BTC+ETH Up/Down | 1 小時 window (24/7) | 🟢 LIVE |
 | ~~Weather~~ | ~~全球最高溫~~ | ~~24 小時~~ | ❌ 廢棄 + 代碼已清除（2026-03-22） |
 
