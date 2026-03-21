@@ -48,6 +48,10 @@ app.add_static_files('/svg', os.path.join(AXC_HOME, 'canvas', 'svg'))
 from scripts.dashboard_ng.state import background_collector
 app.on_startup(background_collector)
 
+# Start bot scheduler (auto start/stop based on time schedules)
+from scripts.dashboard_ng.scheduler import bot_scheduler
+app.on_startup(bot_scheduler)
+
 # Import layout
 from scripts.dashboard_ng.layout import create_layout
 

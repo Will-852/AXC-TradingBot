@@ -457,16 +457,101 @@ def render_polymarket_page():
             with ui.expansion('Pipeline Status', icon='pending_actions').classes('w-full'):
                 cycle_container = ui.column().classes('w-full gap-1')
 
-            # Running Processes
-            with ui.expansion('Running Processes', icon='terminal', value=True).classes('w-full'):
-                proc_container = ui.column().classes('w-full gap-1')
-                ui.label('Terminal: ps aux | grep polymarket').classes('text-[13px] text-gray-600 font-mono mt-1')
-
             ui.separator().classes('bg-gray-700 my-2')
 
             # Strategy Config
             from scripts.dashboard_ng.components.poly_config import render_poly_config
             render_poly_config()
+
+    # ── Running Processes + Bot Control (always visible, outside tabs) ──
+    ui.separator().classes('bg-gray-700')
+    with ui.row().classes('items-center gap-2'):
+        ui.label('RUNNING PROCESSES').classes('text-xs text-gray-500 uppercase tracking-wide')
+        proc_count_badge = ui.badge('0', color='blue').classes('text-[11px] font-mono')
+
+    from scripts.dashboard_ng.utils.poly_bot_control import (
+        BOT_DEFS as _BOT_DEFS, start_bot as _start, stop_bot as _stop,
+        get_running_processes as _get_procs,
+    )
+    from scripts.dashboard_ng.scheduler import read_schedules, write_schedules
+
+    # Bot control: Start/Stop + Schedule per bot
+    bot_btns = {}
+    sched_inputs = {}
+    schedules = read_schedules()
+
+    for bot_name, script, args, key in _BOT_DEFS:
+        sched = schedules.get(key, {})
+        with ui.row().classes('items-center gap-2 w-full py-1 border-b border-gray-800'):
+            # Start / Stop
+            async def on_start(s=script, a=args, k=key, n=bot_name):
+                ok = await run.io_bound(_start, s, a, k)
+                ui.notify(f'{n} started' if ok else f'{n} already running', type='positive' if ok else 'info')
+                log_cmd(f'Started {n}' if ok else f'{n} already running')
+                await run.io_bound(lambda: __import__('time').sleep(2))
+                await refresh_procs()
+
+            async def on_stop(s=script, k=key, n=bot_name):
+                killed = await run.io_bound(_stop, s, k)
+                if killed:
+                    ui.notify(f'{n} stopped ({killed})', type='warning')
+                    log_cmd(f'Stopped {n}')
+                else:
+                    ui.notify(f'{n} not running', type='info')
+                await run.io_bound(lambda: __import__('time').sleep(1))
+                await refresh_procs()
+
+            start_b = ui.button(f'{bot_name}', icon='play_arrow', on_click=on_start) \
+                .props('dense size=sm color=green-8')
+            ui.button(icon='stop', on_click=on_stop) \
+                .props('dense size=sm color=red-8')
+
+            # Schedule inputs
+            ui.label('|').classes('text-gray-700')
+
+            async def on_sched_change(k=key):
+                s = read_schedules()
+                s.setdefault(k, {})
+                si = sched_inputs[k]
+                s[k]['start'] = si['start'].value or ''
+                s[k]['stop'] = si['stop'].value or ''
+                s[k]['enabled'] = si['toggle'].value
+                s[k]['name'] = si['name']
+                await run.io_bound(write_schedules, s)
+                ui.notify(f'Schedule saved', type='info')
+
+            start_input = ui.input(placeholder='Start HH:MM') \
+                .props('dense filled dark mask="##:##"') \
+                .classes('w-20') \
+                .on('blur', lambda e, k=key: on_sched_change(k))
+            start_input.value = sched.get('start', '')
+
+            ui.label('→').classes('text-gray-600')
+
+            stop_input = ui.input(placeholder='Stop HH:MM') \
+                .props('dense filled dark mask="##:##"') \
+                .classes('w-20') \
+                .on('blur', lambda e, k=key: on_sched_change(k))
+            stop_input.value = sched.get('stop', '')
+
+            sched_toggle = ui.switch('', value=sched.get('enabled', False),
+                                     on_change=lambda e, k=key: on_sched_change(k)) \
+                .props('dense color=indigo size=sm')
+
+            sched_inputs[key] = {
+                'start': start_input, 'stop': stop_input,
+                'toggle': sched_toggle, 'name': bot_name,
+            }
+
+            bot_btns[key] = (start_b,)
+
+    proc_container = ui.column().classes('w-full gap-1')
+
+    # ── Command Log (always visible, shows running status) ──
+    ui.separator().classes('bg-gray-700')
+    with ui.row().classes('items-center gap-2'):
+        ui.label('COMMAND LOG').classes('text-xs text-gray-500 uppercase tracking-wide')
+    cmd_log = ui.column().classes('w-full max-h-32 overflow-y-auto gap-0')
 
     # ── Async refresh functions (outside tabs — closures reference containers above) ──
 
@@ -525,26 +610,37 @@ def render_polymarket_page():
 
     async def refresh_procs():
         try:
-            procs = await run.io_bound(_get_running_processes)
+            procs = await run.io_bound(_get_procs)
         except Exception as e:
             proc_container.clear()
             with proc_container:
                 ui.label(f'Error: {e}').classes('text-red-400 text-sm')
             return
+        proc_count_badge.text = str(len(procs))
+        proc_count_badge._props['color'] = 'green' if procs else 'grey'
+        proc_count_badge.update()
+
+        # Update bot button states (green outline + uptime when running)
+        for key, (start_b,) in bot_btns.items():
+            matched = next((p for p in procs if key in p.get('cmd', '') or key in p.get('cmd_full', '')), None)
+            base_name = start_b.text.split(' ⏱')[0]
+            if matched:
+                start_b.props('color=green-8 outline')
+                start_b.text = f'{base_name} ⏱{matched["uptime"]}'
+            else:
+                start_b.props('color=green-8')
+                start_b.text = base_name
+
         proc_container.clear()
         with proc_container:
             if not procs:
                 ui.label('No polymarket processes running').classes('text-gray-600 text-sm')
             else:
                 for p in procs:
-                    with ui.column().classes('w-full py-1 border-b border-gray-800 gap-0'):
-                        with ui.row().classes('items-center gap-2 w-full'):
-                            ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[13px]')
-                            ui.label(f'⏱ {p["uptime"]}').classes('text-sm font-mono text-amber-400')
-                            ui.label(p['cmd']).classes('text-sm text-gray-400 font-mono')
-                        ui.label(f'Started: {p["start"]}').classes('text-[13px] text-gray-600 font-mono pl-1')
-                        ui.label(f'tail -f logs/ | grep {p["pid"]}').classes(
-                            'text-[12px] text-gray-700 font-mono pl-1')
+                    with ui.row().classes('items-center gap-2 w-full py-0.5'):
+                        ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[12px]')
+                        ui.label(f'⏱ {p["uptime"]}').classes('text-[12px] font-mono text-amber-400')
+                        ui.label(p['cmd']).classes('text-[12px] text-gray-400 font-mono truncate')
 
     ui.timer(5, refresh_live, once=True)
     ui.timer(30, refresh_live)
@@ -833,10 +929,6 @@ def render_polymarket_page():
                                 .props('flat dense size=xs color=red')
             else:
                 ui.label('No circuit breakers').classes('text-gray-600 text-sm')
-
-    # ── Command Log ──
-    with ui.expansion('Command Log', icon='history', value=False).classes('w-full'):
-        cmd_log = ui.column().classes('w-full max-h-48 overflow-y-auto gap-0')
 
     def log_cmd(msg: str):
         """Append a timestamped command to the log."""

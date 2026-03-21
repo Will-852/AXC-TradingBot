@@ -1,0 +1,14 @@
+{
+  "run_mm_live": {
+    "name": "MM 15M",
+    "start": "",
+    "stop": "",
+    "enabled": false
+  },
+  "run_1h_live": {
+    "name": "1H Conv",
+    "start": "",
+    "stop": "",
+    "enabled": false
+  }
+}

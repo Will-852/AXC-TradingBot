@@ -17,7 +17,7 @@ def render_market_view():
     )
 
     # State
-    view_state = {'selected_cid': None, 'prices_history': []}
+    view_state = {'selected_cid': None, 'prices_history': [], 'pos_history': []}
 
     # ── Market selector + countdown ──
     with ui.row().classes('items-center justify-between w-full'):
@@ -94,6 +94,57 @@ def render_market_view():
         ],
     }).classes('h-24 w-full')
 
+    # ── Positions Chart (shares over time) ──
+    with ui.row().classes('gap-2 w-full mt-2'):
+        with ui.column().classes('flex-1'):
+            with ui.row().classes('items-center gap-2'):
+                ui.label('POSITIONS').classes('text-xs text-gray-500 uppercase tracking-wide')
+                pos_info = ui.label('').classes('text-[11px] font-mono text-gray-500')
+            pos_chart = ui.echart({
+                'darkMode': True, 'backgroundColor': 'transparent',
+                'tooltip': {'trigger': 'axis'},
+                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
+                'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
+                'xAxis': {'type': 'category', 'data': [],
+                          'axisLabel': {'color': '#475569', 'fontSize': 10},
+                          'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
+                'yAxis': {'type': 'value',
+                          'axisLabel': {'color': '#475569', 'fontSize': 10},
+                          'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                'series': [
+                    {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'},
+                     'areaStyle': {'color': 'rgba(52,211,153,0.1)'}},
+                    {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'},
+                     'areaStyle': {'color': 'rgba(248,113,113,0.1)'}},
+                ],
+            }).classes('h-32 w-full')
+
+        with ui.column().classes('flex-1'):
+            with ui.row().classes('items-center gap-2'):
+                ui.label('AVG PRICES').classes('text-xs text-gray-500 uppercase tracking-wide')
+                avg_info = ui.label('').classes('text-[11px] font-mono text-gray-500')
+                sum_badge = ui.badge('SUM —', color='grey').classes('text-[11px] font-mono')
+            avg_chart = ui.echart({
+                'darkMode': True, 'backgroundColor': 'transparent',
+                'tooltip': {'trigger': 'axis'},
+                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
+                'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
+                'xAxis': {'type': 'category', 'data': [],
+                          'axisLabel': {'color': '#475569', 'fontSize': 10},
+                          'axisLine': {'lineStyle': {'color': '#1e2d45'}}},
+                'yAxis': {'type': 'value', 'min': 0, 'max': 1,
+                          'axisLabel': {'color': '#475569', 'fontSize': 10, 'formatter': '${value}'},
+                          'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                'series': [
+                    {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'}},
+                    {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'}},
+                ],
+            }).classes('h-32 w-full')
+
     # ── Update functions ──
     def update_market_list():
         markets = get_active_markets()
@@ -113,6 +164,7 @@ def render_market_view():
     def on_market_change(e):
         view_state['selected_cid'] = e.value
         view_state['prices_history'] = []  # reset chart history
+        view_state['pos_history'] = []
         update_kpis()
 
     market_select.on_value_change(on_market_change)
@@ -165,6 +217,39 @@ def render_market_view():
 
         capital_val.text = f"${m['capital']:.2f}" if has_position else '—'
         capital_sub.text = m.get('phase', '') if m.get('phase') else ''
+
+        # ── Accumulate position history (every 5s from local file, zero API) ──
+        from datetime import datetime as _dt
+        _ts = _dt.now().strftime('%H:%M:%S')
+        _ph = view_state['pos_history']
+        _ph.append({
+            'ts': _ts,
+            'up_s': m['up_shares'], 'dn_s': m['down_shares'],
+            'up_a': m['up_avg'], 'dn_a': m['down_avg'],
+        })
+        if len(_ph) > 180:  # 15 min at 5s
+            _ph.pop(0)
+
+        # Update positions chart
+        _times = [p['ts'] for p in _ph]
+        pos_chart.options['xAxis']['data'] = _times
+        pos_chart.options['series'][0]['data'] = [p['up_s'] for p in _ph]
+        pos_chart.options['series'][1]['data'] = [p['dn_s'] for p in _ph]
+        pos_chart.update()
+        pos_info.text = f'▲ {m["up_shares"]:.1f}  ▼ {m["down_shares"]:.1f}'
+
+        # Update avg prices chart
+        avg_chart.options['xAxis']['data'] = _times
+        avg_chart.options['series'][0]['data'] = [p['up_a'] for p in _ph]
+        avg_chart.options['series'][1]['data'] = [p['dn_a'] for p in _ph]
+        avg_chart.update()
+        avg_info.text = f'▲ ${m["up_avg"]:.3f}  ▼ ${m["down_avg"]:.3f}'
+        _sum = m['avg_sum']
+        if _sum:
+            _sum_color = 'green' if _sum < 1.0 else 'red' if _sum > 1.02 else 'grey'
+            sum_badge._props['color'] = _sum_color
+            sum_badge.text = f'SUM {_sum:.4f}'
+            sum_badge.update()
 
         # Decision Engine signals
         from scripts.dashboard_ng.utils.poly_market_data import get_latest_signals

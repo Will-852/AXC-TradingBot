@@ -14,6 +14,7 @@ log = logging.getLogger('axc.poly_market')
 
 AXC_HOME = os.environ.get('AXC_HOME', os.path.expanduser('~/projects/axc-trading'))
 MM_STATE_PATH = os.path.join(AXC_HOME, 'polymarket', 'logs', 'mm_state.json')
+MM_STATE_1H_PATH = os.path.join(AXC_HOME, 'polymarket', 'logs', 'mm_state_1h.json')
 MINIFORGE_PYTHON = '/opt/homebrew/Caskroom/miniforge/base/bin/python3'
 
 _cache = {'data': {}, 'ts': 0}
@@ -38,6 +39,22 @@ def get_active_markets() -> list[dict]:
     bankroll = state.get('bankroll', 0)
     total_pnl = state.get('total_pnl', 0)
     daily_pnl = state.get('daily_pnl', 0)
+
+    # Merge 1H bot markets (independent state file, same schema)
+    if os.path.exists(MM_STATE_1H_PATH):
+        try:
+            with open(MM_STATE_1H_PATH) as f:
+                state_1h = json.load(f)
+            for cid, m in state_1h.get('markets', {}).items():
+                if cid not in markets_raw and cid not in watchlist:
+                    m['_source'] = '1h'
+                    markets_raw[cid] = m
+            for cid, m in state_1h.get('watchlist', {}).items():
+                if cid not in markets_raw and cid not in watchlist:
+                    m['_source'] = '1h'
+                    watchlist[cid] = m
+        except (json.JSONDecodeError, IOError):
+            pass
 
     markets = []
     now_ms = int(time.time() * 1000)
