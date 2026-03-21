@@ -1012,33 +1012,39 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 logger.debug("DEDUP %s: ADD blocked, pending order exists", coin)
                 continue
 
-            # ── Holder imbalance gate — smart money directional signal ──
-            # Positive imbalance = UP dominant. If bot wants DOWN but holders heavy UP → conflict.
+            # ── Holder imbalance — smart money directional signal ──
+            # Positive = UP dominant, Negative = DOWN dominant.
+            # Three regimes: AGREE (boost) / MILD CONFLICT (reduce) / STRONG CONFLICT (follow whale)
             h_imbal = _holder_imbalance(cid)
-            # imbal_against: how much holders disagree with our direction (0 = agree, >0 = disagree)
+            # imbal_with: how much holders AGREE with our direction (>0 = agree)
+            # imbal_against: how much holders DISAGREE (>0 = disagree)
             if sig.direction == "UP":
-                imbal_against = max(0, -h_imbal)  # negative imbal = DOWN dominant = against UP
+                imbal_with = max(0, h_imbal)
+                imbal_against = max(0, -h_imbal)
             else:
-                imbal_against = max(0, h_imbal)   # positive imbal = UP dominant = against DOWN
+                imbal_with = max(0, -h_imbal)
+                imbal_against = max(0, h_imbal)
 
             _size_mult = 1.0
-            if imbal_against > _HOLDER_STRONG_IMBAL:
+            if imbal_with > _HOLDER_STRONG_IMBAL:
+                # Whale + bridge AGREE → strongest signal, full size
+                _size_mult = 1.0
+                logger.info("HOLDER AGREE %s %s: imbal=%.2f with direction — whale confirms bridge",
+                            coin, sig.direction, h_imbal)
+            elif imbal_against > _HOLDER_STRONG_IMBAL:
                 # Smart money strongly disagrees → FOLLOW them, flip direction
                 _holder_dir = "UP" if h_imbal > 0 else "DOWN"
                 logger.info("HOLDER FLIP %s: bridge=%s but holders=%.2f → follow smart money %s",
                             coin, sig.direction, h_imbal, _holder_dir)
-                sig = sig._replace(direction=_holder_dir) if hasattr(sig, '_replace') else sig
-                # ConvictionSignal is not a namedtuple — manually override
                 sig.direction = _holder_dir
-                sig.fair_up = 1.0 - sig.fair_up  # flip fair value
+                sig.fair_up = 1.0 - sig.fair_up
                 sig.p_win = max(sig.fair_up, 1.0 - sig.fair_up)
-                # Recalculate entry price for flipped direction (use same spread logic)
                 sig.entry_price = round(min(sig.p_win - 0.05, config.max_entry_price), 2)
-                _size_mult = 0.7  # slightly reduced size for holder-driven trades
+                _size_mult = 0.7  # slightly reduced for holder-driven flip
             elif imbal_against > _HOLDER_MILD_IMBAL:
                 _size_mult = 0.5
-                logger.info("HOLDER REDUCE %s %s: imbalance %.2f against %s — size ×50%%",
-                            coin, sig.direction, h_imbal, sig.direction)
+                logger.info("HOLDER REDUCE %s %s: imbal=%.2f mild conflict — size ×50%%",
+                            coin, sig.direction, h_imbal)
 
             # Mid sanity check: market must somewhat agree with our direction
             our_tok = up_tok if sig.direction == "UP" else dn_tok
