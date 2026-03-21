@@ -155,6 +155,30 @@ print(json.dumps(result))
         return {}
 
 
+def get_latest_signals() -> dict[str, dict]:
+    """Read latest signal per market from mm_signals.jsonl."""
+    signals_path = os.path.join(AXC_HOME, 'polymarket', 'logs', 'mm_signals.jsonl')
+    if not os.path.exists(signals_path):
+        return {}
+
+    latest = {}
+    try:
+        with open(signals_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    s = json.loads(line)
+                    cid = s.get('cid', '')
+                    latest[cid] = s  # last one wins
+                except json.JSONDecodeError:
+                    continue
+    except Exception:
+        pass
+    return latest
+
+
 def get_market_summary() -> dict:
     """Get aggregate summary from mm_state.json."""
     if not os.path.exists(MM_STATE_PATH):

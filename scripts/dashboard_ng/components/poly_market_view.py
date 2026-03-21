@@ -49,6 +49,10 @@ def render_market_view():
         capital_val, capital_sub = _kpi('TOTAL CAPITAL', 'capital')
         ev_val, ev_sub = _kpi('EXPECTED VALUE', 'ev')
 
+    # ── Decision Engine (signal data) ──
+    ui.label('DECISION ENGINE').classes('text-xs text-gray-500 uppercase tracking-wide')
+    signal_container = ui.row().classes('gap-2 flex-wrap w-full')
+
     ui.separator().classes('bg-gray-700')
 
     # ── Price Chart (ECharts dual-line) ──
@@ -147,8 +151,69 @@ def render_market_view():
 
         capital_val.text = f"${m['capital']:.2f}"
 
-        # EV calculation (needs live midpoint)
-        # Will be updated by price polling
+        # Decision Engine signals
+        from scripts.dashboard_ng.utils.poly_market_data import get_latest_signals
+        signals = get_latest_signals()
+        # Match signal by cid prefix (signals use truncated cid)
+        sig = None
+        for sig_cid, sig_data in signals.items():
+            if cid.startswith(sig_cid) or sig_cid.startswith(cid[:8]):
+                sig = sig_data
+                break
+
+        signal_container.clear()
+        with signal_container:
+            if sig:
+                bridge = sig.get('bridge', 0)
+                fair = sig.get('fair', 0)
+                cvd = sig.get('cvd', 0)
+                m1 = sig.get('m1', 0)
+                m1_sigma = sig.get('m1_sigma', 0)
+                ob_adj = sig.get('ob_adj', 0)
+                sym = sig.get('sym', '')
+                ts = sig.get('ts', '')
+                if isinstance(ts, str) and len(ts) > 16:
+                    ts = ts[11:19]  # HH:MM:SS
+
+                # Direction badge
+                direction = 'UP' if bridge > 0.5 else 'DOWN'
+                dir_score = abs(bridge - 0.5) * 200  # 0-100 scale
+                dir_color = 'green' if direction == 'UP' else 'red'
+                ui.badge(f'{direction} {dir_score:.0f}', color=dir_color).classes('text-[11px] font-mono')
+
+                # Signal strength (bridge distance from 0.5)
+                strength = min(10, dir_score / 5)  # 0-10 scale
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
+                    ui.label('SIGNAL').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label(f'{strength:.1f}/10').classes('text-sm font-mono font-bold')
+                    ui.linear_progress(value=strength / 10).props(f'color={dir_color} size=4px rounded')
+
+                # Key metrics as compact badges
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[90px]'):
+                    ui.label('BRIDGE').classes('text-[9px] text-gray-600 uppercase')
+                    b_color = 'text-green-400' if bridge > 0.5 else 'text-red-400'
+                    ui.label(f'{bridge:.3f}').classes(f'text-sm font-mono font-bold {b_color}')
+
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
+                    ui.label('CVD').classes('text-[9px] text-gray-600 uppercase')
+                    c_color = 'text-green-400' if cvd > 0.5 else 'text-red-400' if cvd < 0.3 else 'text-gray-300'
+                    ui.label(f'{cvd:.3f}').classes(f'text-sm font-mono font-bold {c_color}')
+
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
+                    ui.label('M1').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label(f'{m1_sigma:.1f}σ').classes('text-sm font-mono font-bold')
+
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[80px]'):
+                    ui.label('OB ADJ').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label(f'{ob_adj:+.4f}').classes('text-sm font-mono font-bold')
+
+                with ui.card().classes('p-2 bg-gray-800 border border-gray-700 min-w-[70px]'):
+                    ui.label('FAIR').classes('text-[9px] text-gray-600 uppercase')
+                    ui.label(f'${fair:.3f}').classes('text-sm font-mono font-bold')
+
+                ui.label(f'{sym} @ {ts}').classes('text-[9px] text-gray-600 font-mono self-end')
+            else:
+                ui.label('No signal data for this market').classes('text-gray-600 text-sm')
 
     async def poll_live_prices():
         """Poll live midpoint + spread for selected market."""
