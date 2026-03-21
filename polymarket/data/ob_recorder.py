@@ -55,8 +55,8 @@ _DEPTH_RANGE = 0.10   # 10¢ from best price for depth calculation
 _LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
 _TAPE_PATH = os.path.join(_LOG_DIR, "poly_ob_tape.jsonl")
 
-# Only BTC + ETH per redline rule
-_COINS = [("btc", "bitcoin"), ("eth", "ethereum")]
+# BTC + ETH + SOL (observe-only for SOL, but collect OB data for analysis)
+_COINS = [("btc", "bitcoin"), ("eth", "ethereum"), ("sol", "solana")]
 
 # ════════════════════════════════════════
 #  Logging
