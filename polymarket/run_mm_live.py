@@ -1387,7 +1387,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         mkt_dict["entry_ts"] = int(time.time())
         mkt_dict["tranches_done"] = 1
         mkt_dict["tranches_total"] = n_tranches
-        mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+        # When FOLLOW flips direction, use whale's direction (not bridge's)
+        if _whale_action == "FOLLOW":
+            mkt_dict["original_dir"] = _dir_side  # whale direction
+            mkt_dict["whale_follow"] = True
+        else:
+            mkt_dict["original_dir"] = "UP" if fair > 0.50 else "DOWN"
         mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
