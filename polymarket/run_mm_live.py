@@ -872,7 +872,7 @@ def _check_resolutions(state: dict):
 
         if pnl < 0:
             state["consecutive_losses"] = state.get("consecutive_losses", 0) + 1
-            if state["consecutive_losses"] >= 5:
+            if state["consecutive_losses"] >= 8:
                 cd = datetime.now(tz=_HKT) + timedelta(hours=24)
                 state["cooldown_until"] = cd.isoformat()
                 logger.warning("5 losses → COOLDOWN until %s", cd.strftime("%H:%M HKT"))
@@ -1065,15 +1065,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
             continue
 
-        # ── M1 Wait Gate: don't enter until 60s after window start ──
+        # Gate 1 removed — M1 ≥ 1σ (Gate 3) already guards against directionless entry
         _elapsed_ms = now_ms - wl["start_ms"]
-        if _elapsed_ms < 60_000:
-            continue  # stay in watchlist, check next cycle
 
-        # ── Late Gate: don't enter with < 4 min remaining ──
-        # Last 4 min: reversal risk high + can't sell after min 13
-        if now_ms > wl["end_ms"] - 240_000:
-            logger.info("SKIP %s: < 4 min remaining, too late", cid[:8])
+        # ── Late Gate: don't enter with < 1.5 min remaining ──
+        if now_ms > wl["end_ms"] - 90_000:
+            logger.info("SKIP %s: < 1.5 min remaining, too late", cid[:8])
             del state["watchlist"][cid]
             continue
 
@@ -1623,13 +1620,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _post_fill_checks.extend(_remaining)
 
     # ── Exit: Profit Lock + Cost Recovery + Stop Loss ──
-    # Layer 1: PROFIT LOCK (mid ≥ 95¢) → sell 95%, keep 5% free roll + 2-share hedge
+    # Layer 1: PROFIT LOCK (mid ≥ 95¢) → sell 97%, keep 3% free roll + 2-share hedge
     # Layer 2: COST RECOVERY (mid ≥ 64¢, early) → sell enough to recover cost → free roll
     # Layer 3: STOP LOSS (-25%, pre-recovery only) → cut losses
     # Layer 4: HOLD → default (free shares or waiting)
     _EXIT_STOP_PCT = 0.25       # -25% → stop loss (pre-recovery only)
-    _BLACK_SWAN_MID = 0.95      # sell 95% at 95¢+ → lock profit, keep 5% free roll
-    _BLACK_SWAN_SELL_PCT = 0.95 # sell 95%, keep 5% as free upside
+    _BLACK_SWAN_MID = 0.95      # sell 97% at 95¢+ → lock profit, keep 3% free roll
+    _BLACK_SWAN_SELL_PCT = 0.97 # sell 97%, keep 3% as free upside
     _COST_RECOVERY_MID = 0.64   # recover cost when mid ≥ 64¢ (keep 3 free shares vs 2 at 55¢)
     if client and hasattr(client, "sell_shares") and not dry_run:
         for cid, mkt in state["markets"].items():
@@ -1658,7 +1655,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
                 # ── Layer 1: PROFIT LOCK (93¢+) → sell 90%, keep 10% free roll + hedge ──
                 if mid >= _BLACK_SWAN_MID:
-                    # Sell 95% to lock profit, keep 5% as free roll ($0 risk)
+                    # Sell 97% to lock profit, keep 3% as free roll ($0 risk)
                     _sell_shares = max(1, int(shares * _BLACK_SWAN_SELL_PCT))
                     _keep = shares - _sell_shares
                     try:
@@ -1768,8 +1765,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             # Enough time left in window (>4 min)
             end_ms = mkt.get("window_end_ms", 0)
-            if end_ms > 0 and now_ms > end_ms - 240_000:
-                logger.info("REENTRY SKIP %s R%d: < 4 min remaining", cid[:8], _rd + 1)
+            if end_ms > 0 and now_ms > end_ms - 90_000:
+                logger.info("REENTRY SKIP %s R%d: < 1.5 min remaining", cid[:8], _rd + 1)
                 mkt["phase"] = "RESOLVED"
                 mkt["early_exit"] = f"window_end_r{_rd}"
                 continue
