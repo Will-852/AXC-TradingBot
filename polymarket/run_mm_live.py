@@ -1285,11 +1285,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
                         cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
-        # ── Holder imbalance: whale exit detection ──
-        # Burst mode: last 2 min → 5s refresh (normal = 30s)
-        _tte_s = (wl["end_ms"] - now_ms) / 1000
-        _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
-        _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
+        # ── Holder imbalance: whale exit detection (live coins only) ──
+        _h_imbalance, _h_delta = 0.0, 0.0
+        if not _observe_only:
+            _tte_s = (wl["end_ms"] - now_ms) / 1000
+            _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
+            _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
         # Whale exit signal: imbalance shifted AGAINST our direction
         # fair > 0.50 = we bet UP. If h_delta < -0.15 = whales LEFT UP side.
         _whale_exit = False
