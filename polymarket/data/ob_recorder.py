@@ -260,11 +260,76 @@ def calc_depth(book: dict, side: str, range_cents: float = _DEPTH_RANGE) -> tupl
 #  Snapshot — one complete OB reading per market
 # ════════════════════════════════════════
 
+def fetch_trades(condition_id: str, limit: int = 100) -> list[dict]:
+    """Fetch recent trades for a market from Polymarket Data API (public, no auth).
+
+    CLOB /trades requires auth; Data API is public and has same data.
+    Returns list of trade dicts or empty list on failure.
+    """
+    url = f"https://data-api.polymarket.com/trades?market={condition_id}&limit={limit}"
+    data = _http_get(url)
+    if data and isinstance(data, list):
+        return data
+    return []
+
+
+def calc_trade_flow(trades: list[dict], window_sec: float = 60) -> dict:
+    """Compute trade flow metrics from recent trades.
+
+    Returns: count, volume, buy_volume, sell_volume, largest_trade, taker_ratio
+    Only considers trades within window_sec of now.
+    """
+    now = time.time()
+    count = 0
+    total_vol = 0.0
+    buy_vol = 0.0
+    sell_vol = 0.0
+    largest = 0.0
+
+    for t in trades:
+        # Parse trade timestamp — Data API returns unix int
+        t_ts = t.get("timestamp", t.get("match_time", 0))
+        try:
+            trade_time = float(t_ts)
+            if trade_time < 1e9:
+                continue  # invalid
+        except (TypeError, ValueError):
+            continue
+
+        if now - trade_time > window_sec:
+            continue
+
+        size = _safe_float(t.get("size", 0))
+        if size <= 0:
+            continue
+
+        count += 1
+        total_vol += size
+        if size > largest:
+            largest = size
+
+        side = t.get("side", "").upper()
+        if side == "BUY":
+            buy_vol += size
+        else:
+            sell_vol += size
+
+    taker_ratio = buy_vol / (buy_vol + sell_vol) if (buy_vol + sell_vol) > 0 else 0.5
+
+    return {
+        "trade_count_5m": count,
+        "trade_vol_5m": round(total_vol, 2),
+        "trade_buy_vol": round(buy_vol, 2),
+        "trade_sell_vol": round(sell_vol, 2),
+        "trade_largest": round(largest, 2),
+        "trade_taker_ratio": round(taker_ratio, 4),
+    }
+
+
 def take_snapshot(market: dict) -> dict | None:
-    """Fetch UP + DOWN order books and compute depth metrics.
+    """Fetch UP + DOWN order books + trade flow and compute depth metrics.
 
     Returns a flat dict ready for JSONL, or None if both fetches failed.
-    Inter-request delay only between the two fetches (not after the last).
     """
     ts = time.time()
 
@@ -272,8 +337,12 @@ def take_snapshot(market: dict) -> dict | None:
     up_book = fetch_ob(market["up_token_id"])
     time.sleep(_INTER_REQ_DELAY)
 
-    # Fetch DOWN book (no delay after — caller handles pacing)
+    # Fetch DOWN book
     down_book = fetch_ob(market["down_token_id"])
+    time.sleep(_INTER_REQ_DELAY)
+
+    # Fetch recent trades (market-level, not per-token)
+    trades = fetch_trades(market["condition_id"])
 
     if up_book is None and down_book is None:
         logger.warning("Both OB fetches failed for %s", market["slug"])
@@ -308,6 +377,7 @@ def take_snapshot(market: dict) -> dict | None:
         "down_bid_depth_10": round(down_bid_depth, 2),
         "down_ask_depth_10": round(down_ask_depth, 2),
         "combined_best_ask": combined_best_ask,
+        **calc_trade_flow(trades, window_sec=300),  # 5-min window
     }
 
 
