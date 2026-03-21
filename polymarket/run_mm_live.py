@@ -1291,25 +1291,52 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _tte_s = (wl["end_ms"] - now_ms) / 1000
             _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
             _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
-        # Whale exit signal: imbalance shifted AGAINST our direction
-        # fair > 0.50 = we bet UP. If h_delta < -0.15 = whales LEFT UP side.
-        _whale_exit = False
-        if abs(_h_delta) > 0.15:
-            _whale_favors_up = _h_delta > 0
-            if _fair_up and not _whale_favors_up:
-                _whale_exit = True
-                logger.warning("WHALE EXIT %s: imbalance %.3f→%.3f (Δ%+.3f) AGAINST our UP — reduce size",
-                               cid[:8], _h_imbalance - _h_delta, _h_imbalance, _h_delta)
-            elif not _fair_up and _whale_favors_up:
-                _whale_exit = True
-                logger.warning("WHALE EXIT %s: imbalance %.3f→%.3f (Δ%+.3f) AGAINST our DOWN — reduce size",
-                               cid[:8], _h_imbalance - _h_delta, _h_imbalance, _h_delta)
+        # ── Whale signal: 3 modes ──
+        # 1. Whale + bridge AGREE → full size (high conviction)
+        # 2. Whale AGAINST bridge (|imbalance| > 0.20) → FOLLOW WHALE direction, reduce size
+        # 3. Whale EXIT (delta > 0.15 against) → halve size
+        _whale_action = "NORMAL"  # NORMAL / FOLLOW / EXIT / SKIP
+        _whale_favors_up = _h_imbalance > 0  # positive = more UP holders
 
-        # Whale exit → reduce all order sizes by 50%
-        if _whale_exit and orders:
-            for o in orders:
-                o.size = max(config.min_order_size, o.size * 0.5)
-            logger.info("WHALE GATE %s: all orders halved (%.0f shares each)", cid[:8], orders[0].size)
+        # Check absolute imbalance — whale consensus
+        if abs(_h_imbalance) > 0.20:
+            _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
+            if _whale_agrees:
+                # Whale + bridge same direction → confidence boost (keep full size)
+                _whale_action = "AGREE"
+                logger.info("WHALE AGREE %s: imbalance %+.3f confirms %s",
+                            cid[:8], _h_imbalance, "UP" if _fair_up else "DOWN")
+            else:
+                # Whale says opposite of bridge → FOLLOW WHALE, flip direction, reduce size
+                _whale_action = "FOLLOW"
+                logger.warning("WHALE FOLLOW %s: imbalance %+.3f says %s but bridge says %s — follow whale, reduce size",
+                               cid[:8], _h_imbalance, "UP" if _whale_favors_up else "DOWN",
+                               "UP" if _fair_up else "DOWN")
+                # Flip: swap token + direction
+                if _whale_favors_up and not _fair_up:
+                    _dir_tok = wl["up_tok"]
+                    _dir_side = "UP"
+                elif not _whale_favors_up and _fair_up:
+                    _dir_tok = wl["dn_tok"]
+                    _dir_side = "DOWN"
+                # Rebuild orders following whale at reduced size (single rung, min size)
+                _whale_price = round(max(0.25, min(0.40, (1 - fair) * 0.80)), 3)
+                orders = [PlannedOrder(
+                    token_id=_dir_tok, side="BUY",
+                    price=_whale_price, size=config.min_order_size, outcome=_dir_side)]
+                logger.info("WHALE OVERRIDE %s: %s @ $%.3f × %.0f (following whale, not bridge)",
+                            cid[:8], _dir_side, _whale_price, config.min_order_size)
+
+        # Check delta — whale exit (rapid shift against us)
+        if abs(_h_delta) > 0.15 and _whale_action == "NORMAL":
+            _delta_against = (_fair_up and _h_delta < 0) or (not _fair_up and _h_delta > 0)
+            if _delta_against:
+                _whale_action = "EXIT"
+                logger.warning("WHALE EXIT %s: imbalance Δ%+.3f AGAINST %s — halve size",
+                               cid[:8], _h_delta, "UP" if _fair_up else "DOWN")
+                if orders:
+                    for o in orders:
+                        o.size = max(config.min_order_size, o.size * 0.5)
 
         _sig_ctx = {"fair": round(fair, 4), "bridge": round(bridge_p_up, 4),
                     "cvd": round(_cvd, 3), "vol": round(_coin_vol, 6),
@@ -1323,7 +1350,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "ob_depth": _ob_depth,
                     "coin": _coin_slug, "observe_only": _observe_only,
                     "h_imb": _h_imbalance, "h_delta": _h_delta,
-                    "whale_exit": _whale_exit}
+                    "whale": _whale_action}
 
         # Observation gate: log everything but don't place orders for non-live coins
         if _observe_only:
