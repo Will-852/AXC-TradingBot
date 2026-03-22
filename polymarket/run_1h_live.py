@@ -55,6 +55,7 @@ _GAMMA = "https://gamma-api.polymarket.com"
 _BINANCE = "https://api.binance.com/api/v3"
 _DATA_API = "https://data-api.polymarket.com"
 _ANALYSIS_TAPE = os.path.join(_LOG_DIR, "analysis_1h.jsonl")
+_SIGNAL_TAPE_1H = os.path.join(_LOG_DIR, "signal_tape_1h.jsonl")
 
 _CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
 _HEAVY_INTERVAL_S = 20  # heavy ops every 20s (3x from 60s, 12 req/min, 50% total budget)
@@ -79,9 +80,9 @@ _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0
 _COIN_SLUGS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana"}
 _COIN_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
 
-# Coin scope: BTC live, ETH observe-only (log signals, no orders)
-# Rationale: BTC validated first, ETH/SOL data collected for analysis before expanding
-_LIVE_COINS = {"BTC"}
+# Coin scope: all 3 coins in dry-run for data collection
+# BTC/ETH/SOL all active — live mode gated by --live flag, not coin filter
+_LIVE_COINS = {"BTC", "ETH", "SOL"}
 _OBSERVE_LOG = os.path.join(os.path.dirname(__file__), "logs", "observe_1h.jsonl")
 
 _running = True
@@ -305,6 +306,99 @@ def _binance_open(coin: str, start_ms: int) -> float | None:
     return None
 
 
+# ═══════════════════════════════════════
+#  Volume Imbalance — multi-signal direction filter
+#  Backtest: Bridge+VolImbal at t=25 → SOL 82%, ETH 83%, BTC 77% WR
+# ═══════════════════════════════════════
+
+_vol_imbal_cache: dict = {}  # {coin: (ts, direction_or_none)}
+_VOL_IMBAL_CACHE_TTL = 15   # 15s cache
+
+
+def _vol_imbalance(coin: str, window_start_ms: int) -> str | None:
+    """Check Binance 1m kline buy/sell volume ratio since window start.
+    Returns 'UP' if buy-dominant, 'DOWN' if sell-dominant, None if neutral.
+    Cached 15s."""
+    now = time.time()
+    cache_key = f"{coin}_{window_start_ms}"
+    if cache_key in _vol_imbal_cache and now - _vol_imbal_cache[cache_key][0] < _VOL_IMBAL_CACHE_TTL:
+        return _vol_imbal_cache[cache_key][1]
+
+    sym = _COIN_SYMBOLS.get(coin, "BTCUSDT")
+    now_ms = int(now * 1000)
+    data = _get_json(f"{_BINANCE}/klines?symbol={sym}&interval=1m"
+                     f"&startTime={window_start_ms}&endTime={now_ms}&limit=60")
+    if not data or not isinstance(data, list) or len(data) < 5:
+        _vol_imbal_cache[cache_key] = (now, None)
+        return None
+
+    buy_vol, sell_vol = 0.0, 0.0
+    for k in data:
+        o, c, v = float(k[1]), float(k[4]), float(k[5])
+        if c >= o:
+            buy_vol += v
+        else:
+            sell_vol += v
+
+    total = buy_vol + sell_vol
+    if total < 1:
+        _vol_imbal_cache[cache_key] = (now, None)
+        return None
+
+    ratio = buy_vol / total
+    result = "UP" if ratio > 0.55 else ("DOWN" if ratio < 0.45 else None)
+    _vol_imbal_cache[cache_key] = (now, result)
+    return result
+
+
+# ═══════════════════════════════════════
+#  Time-of-Day Gate (HKT)
+#  Backtest: SOL 09h=52% WR, 19h=64% WR → skip these hours
+# ═══════════════════════════════════════
+
+_TOD_SKIP_HOURS_HKT = {9, 19}  # WR < 65% in backtest
+
+
+# ═══════════════════════════════════════
+#  Signal Tape — record REAL Poly mid every heavy cycle for future backtest
+#  Target: signal_tape_1h.jsonl (same format idea as 15M signal_tape.jsonl)
+# ═══════════════════════════════════════
+
+def _record_signal_tape(coin: str, cid: str, up_tok: str, dn_tok: str,
+                        start_ms: int, end_ms: int, t_elapsed: float,
+                        spot_price: float, btc_open: float, vol_1m: float,
+                        sig, vol_dir: str | None, h_imbal: float = 0):
+    """Append one snapshot to signal_tape_1h.jsonl. Called every heavy cycle per market."""
+    up_mid = _poly_midpoint(up_tok)
+    dn_mid = _poly_midpoint(dn_tok)
+    record = {
+        "ts": time.time(),
+        "coin": coin,
+        "cid": cid[:16],
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "t_elapsed": round(t_elapsed, 1),
+        "up_mid": round(up_mid, 4) if up_mid else None,
+        "dn_mid": round(dn_mid, 4) if dn_mid else None,
+        "spot": round(spot_price, 2),
+        "open": round(btc_open, 2),
+        "vol_1m": round(vol_1m, 6),
+        "fair_up": round(sig.fair_up, 4) if sig else None,
+        "conviction": round(sig.conviction, 3) if sig else None,
+        "confidence": round(sig.confidence, 3) if sig else None,
+        "direction": sig.direction if sig else None,
+        "action": sig.action if sig else None,
+        "entry_price": sig.entry_price if sig else None,
+        "vol_dir": vol_dir,
+        "h_imbal": round(h_imbal, 3),
+    }
+    try:
+        with open(_SIGNAL_TAPE_1H, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
+        pass
+
+
 def _vol_1m(coin: str = "BTC") -> float:
     """Per-minute volatility from Binance 1m klines (120 candles = 2h).
 
@@ -490,7 +584,7 @@ def _discover(gamma: GammaClient) -> list[dict]:
         ts, te = int(ws.timestamp()), int(we.timestamp())
         if now_s > te + 300:
             continue
-        for coin in ("BTC", "ETH"):
+        for coin in ("BTC", "ETH", "SOL"):
             slug = _build_slug(coin, ws)
             if not slug:
                 continue
@@ -880,7 +974,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         last_scan = now
 
     # ── Refresh vol (every heavy cycle) ──
-    cached_vol = _vol_1m("BTC")
+    # Per-coin vol cache (refreshed per heavy cycle)
+    _coin_vols = {}
+    for _vc in ("BTC", "ETH", "SOL"):
+        _coin_vols[_vc] = _vol_1m(_vc)
 
     # ── Refresh bankroll ──
     if client and hasattr(client, "get_usdc_balance") and not dry_run:
@@ -957,17 +1054,33 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "unrealized_pnl_pct": pnl_pct,
                 }
 
+        # ── Time-of-Day gate: skip low-WR hours (backtest: 09h=52%, 19h=64%) ──
+        _hkt_hour = now_hkt.hour
+        if _hkt_hour in _TOD_SKIP_HOURS_HKT and current_position is None:
+            logger.debug("TOD SKIP %s: hour %dh HKT in skip list", coin, _hkt_hour)
+            continue
+
         # ── THE CORE: conviction_signal() ──
         sig = conviction_signal(
             t_elapsed=t_elapsed,
             btc_current=current_price,
             btc_open=btc_open,
-            vol_1m=cached_vol,
+            vol_1m=_coin_vols.get(coin, cached_vol),
             ob=ob,
             config=config,
             bankroll=state["bankroll"],
             budget_remaining_frac=budget_remaining_frac,
             current_position=current_position,
+        )
+
+        # ── Signal tape: record EVERY market EVERY heavy cycle for future backtest ──
+        _record_signal_tape(
+            coin=coin, cid=cid, up_tok=up_tok, dn_tok=dn_tok,
+            start_ms=start_ms, end_ms=end_ms, t_elapsed=t_elapsed,
+            spot_price=current_price, btc_open=btc_open,
+            vol_1m=_coin_vols.get(coin, cached_vol), sig=sig,
+            vol_dir=_vol_imbalance(coin, start_ms) if sig.action in ("ENTER", "ADD") else None,
+            h_imbal=0,  # populated at entry time only
         )
 
         # ── Observe-only coins: log signal but don't trade ──
@@ -1001,6 +1114,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # ── Act on signal ──
         if sig.action == "ENTER" or sig.action == "ADD":
+            # ── Volume imbalance filter (multi-signal) ──
+            # Backtest: Bridge+VolImbal → +5-8pp WR vs bridge alone.
+            # If volume direction conflicts with conviction direction → skip.
+            _vol_dir = _vol_imbalance(coin, start_ms)
+            if _vol_dir is not None and _vol_dir != sig.direction:
+                logger.info("VOL CONFLICT %s: conviction=%s but vol=%s → skip",
+                            coin, sig.direction, _vol_dir)
+                continue
+
             # ── One-order-per-market guard ──
             # Prevents re-submission loop: CLOB cancels (no balance) → budget freed
             # → bot re-submits → cancelled again → 27 orders/28 min.
