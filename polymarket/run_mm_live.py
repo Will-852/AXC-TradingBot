@@ -54,6 +54,22 @@ from polymarket.config.settings import MM_DAILY_LOSS_LIMIT
 
 logger = logging.getLogger(__name__)
 
+# ─── Telegram alerts (critical events only) ───
+_tg_last_alert: dict = {}  # dedupe: key → timestamp
+
+def _tg_alert(msg: str, cooldown_min: int = 30):
+    """Send Telegram alert for critical events. Deduped by message prefix."""
+    key = msg[:20]
+    now = time.time()
+    if key in _tg_last_alert and now - _tg_last_alert[key] < cooldown_min * 60:
+        return  # already sent recently
+    _tg_last_alert[key] = now
+    try:
+        from shared_infra.telegram import send_telegram
+        send_telegram(f"<b>MM 15M</b>\n{msg}")
+    except Exception as e:
+        logger.debug("Telegram alert failed: %s", e)
+
 _HKT = ZoneInfo("Asia/Hong_Kong")
 _ET = ZoneInfo("America/New_York")
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
@@ -816,6 +832,7 @@ def _get_risk_mode(state: dict) -> str:
     # STOPPED at 28% = 4pp buffer above breakeven
     if wr < 0.28:
         logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 28%%", wr*100, count)
+        _tg_alert(f"🛑 MM STOPPED: WR {wr*100:.0f}% < 28% ({count} trades). Manual review needed.")
         return "STOPPED"
     elif wr < 0.30:
         logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 30%%",
@@ -952,6 +969,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if _total_pnl < -_hwm * 0.20:
         logger.critical("💀 HARD STOP: total PnL $%.2f = %.0f%% of HWM $%.0f. Manual restart required.",
                         _total_pnl, _total_pnl / _hwm * 100, _hwm)
+        _tg_alert(f"💀 HARD STOP: PnL ${_total_pnl:.2f} ({_total_pnl/_hwm*100:.0f}% of ${_hwm:.0f}). Manual restart needed.")
         state["hard_stopped"] = True
         # Cancel all open orders before halting
         if client and hasattr(client, "get_orders") and not dry_run:
@@ -978,6 +996,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     daily_loss_limit = _day_start_br * 0.20
     if state.get("daily_pnl", 0) < -daily_loss_limit:
         logger.warning("KILL: daily loss $%.2f > 20%% of day-start $%.0f", -state["daily_pnl"], _day_start_br)
+        _tg_alert(f"🔴 DAILY KILL: loss ${-state['daily_pnl']:.2f} > 20% of ${_day_start_br:.0f}. Halted until tomorrow.")
         return state
     cd = state.get("cooldown_until", "")
     if cd:
