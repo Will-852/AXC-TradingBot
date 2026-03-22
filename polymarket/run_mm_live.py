@@ -938,27 +938,46 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # Kill switches — FIX #11: use % of bankroll, not absolute $50
     br = state.get("bankroll", 100.0)
 
-    # HARD STOP: total PnL drops >20% → permanent halt, needs manual restart
-    # This survives daily resets — tracks ALL-TIME cumulative loss
+    # HARD STOP: total PnL drops >20% of HIGH WATER MARK → permanent halt
+    # Auto-updates on deposit detection (balance > previous high water mark)
     _total_pnl = state.get("total_pnl", 0.0)
-    if not state.get("initial_bankroll") and br > 10:
-        state["initial_bankroll"] = br  # record starting bankroll once (guard: >$10)
-    _initial_br = state.get("initial_bankroll", 0)
-    if _initial_br <= 0:
-        # initial_bankroll not set yet — skip loss checks this cycle
-        _initial_br = br if br > 10 else 100.0  # safe fallback
-    if _total_pnl < -_initial_br * 0.20:
-        logger.critical("💀 HARD STOP: total PnL $%.2f = %.0f%% of initial $%.0f. Manual restart required.",
-                        _total_pnl, _total_pnl / _initial_br * 100, _initial_br)
+    _hwm = state.get("high_water_mark", 0)
+    if br > _hwm and br > 10:
+        if _hwm > 0 and br > _hwm * 1.3:
+            logger.info("DEPOSIT DETECTED: balance $%.2f >> HWM $%.2f → updating", br, _hwm)
+        state["high_water_mark"] = br
+        _hwm = br
+    if _hwm <= 0:
+        _hwm = br if br > 10 else 100.0
+    if _total_pnl < -_hwm * 0.20:
+        logger.critical("💀 HARD STOP: total PnL $%.2f = %.0f%% of HWM $%.0f. Manual restart required.",
+                        _total_pnl, _total_pnl / _hwm * 100, _hwm)
         state["hard_stopped"] = True
+        # Cancel all open orders before halting
+        if client and hasattr(client, "get_orders") and not dry_run:
+            try:
+                _all_orders = client.get_orders()
+                for _o in (_all_orders or []):
+                    try:
+                        client.client.cancel(order_id=_o.get("id", ""))
+                    except Exception:
+                        pass
+                logger.info("HARD STOP: cancelled %d open orders", len(_all_orders or []))
+            except Exception:
+                pass
         return state
     if state.get("hard_stopped"):
         logger.warning("💀 HARD STOPPED. Clear 'hard_stopped' from state to resume.")
         return state
 
-    daily_loss_limit = br * 0.20  # 20% of CURRENT wallet balance (floating)
+    # Daily loss: 20% of DAY-START balance (fixed, not floating)
+    _day_start_key = "day_start_balance"
+    if state.get("daily_pnl_date") != today:
+        state[_day_start_key] = br  # capture balance at day start
+    _day_start_br = state.get(_day_start_key, br)
+    daily_loss_limit = _day_start_br * 0.20
     if state.get("daily_pnl", 0) < -daily_loss_limit:
-        logger.warning("KILL: daily loss $%.2f > 20%% of wallet $%.0f", -state["daily_pnl"], br)
+        logger.warning("KILL: daily loss $%.2f > 20%% of day-start $%.0f", -state["daily_pnl"], _day_start_br)
         return state
     cd = state.get("cooldown_until", "")
     if cd:
