@@ -1278,17 +1278,19 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 price=_rung_price, size=round(_shares, 1),
                 outcome=_dir_side))
 
-        # Conditional rungs: only place if whale agrees or neutral
-        # Checkpoint: if whale is AGAINST us (FOLLOW_LOG) → skip deep rungs
+        # Conditional rungs 3-4: NOT placed at entry.
+        # Placed live by phased_rung_check() every 5s when price approaches.
+        # Store rung config in market state for the monitor to use.
+        _cond_rungs_config = []
         if _whale_action not in ("FOLLOW_LOG", "EXIT"):
             for _rung_price in _LADDER_COND:
                 _shares = max(config.min_order_size, _rung_budget / _rung_price)
-                orders.append(PlannedOrder(
-                    token_id=_dir_tok, side="BUY",
-                    price=_rung_price, size=round(_shares, 1),
-                    outcome=_dir_side))
+                _cond_rungs_config.append({
+                    "price": _rung_price, "size": round(_shares, 1),
+                    "token_id": _dir_tok, "outcome": _dir_side, "placed": False,
+                })
         else:
-            logger.info("CHECKPOINT %s: skipping deep rungs (whale=%s) — 2 rungs only",
+            logger.info("CHECKPOINT %s: deep rungs disabled (whale=%s)",
                         cid[:8], _whale_action)
 
         if not orders:
@@ -1389,6 +1391,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         if _whale_action == "FOLLOW_LOG":
             mkt_dict["whale_disagree"] = True  # track for offline analysis
         mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
+        mkt_dict["phased_rungs"] = _cond_rungs_config  # rung 3-4 config for live placement
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
@@ -1516,6 +1519,94 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # Everything not in a hedge pair = directional
         return [p for p in pending_list
                 if id(p) not in hedge_up_ids and id(p) not in hedge_dn_ids]
+
+    # ── Phased rung placement: place rung 3-4 LIVE when price approaches + conditions pass ──
+    if client and not dry_run:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            _phased = mkt.get("phased_rungs", [])
+            if not _phased:
+                continue
+            # Only check if we have fills (rung 1-2 filled)
+            _has_fills = mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0
+            if not _has_fills:
+                continue
+            # Time gate: > 2 min remaining
+            _end_ms = mkt.get("window_end_ms", 0)
+            if _end_ms > 0 and now_ms > _end_ms - 120_000:
+                continue
+
+            _t = mkt.get("title", "").lower()
+            _sym_pr = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
+
+            for _pr in _phased:
+                if _pr.get("placed"):
+                    continue
+                _tok_id = _pr["token_id"]
+                # Check: is mid approaching this rung? (within 5¢)
+                _mid = _poly_midpoint(client, _tok_id) if hasattr(client, "get_midpoint") else 0
+                if _mid <= 0 or _mid > _pr["price"] + 0.05:
+                    continue  # mid not close enough yet
+
+                # ═══ LIVE CHECKPOINT ═══
+                _pass = True
+                _reasons = []
+
+                # Check 1: Whale not against us
+                _h_imb, _h_dlt = _holder_imbalance(cid, mkt.get("up_token_id", ""), ttl_override=10)
+                _our_dir = mkt.get("original_dir", "UP")
+                _whale_up = _h_imb > 0
+                _whale_against = (_our_dir == "UP" and not _whale_up and abs(_h_imb) > 0.20) or \
+                                 (_our_dir == "DOWN" and _whale_up and abs(_h_imb) > 0.20)
+                if _whale_against:
+                    _pass = False
+                    _reasons.append(f"whale against (imb={_h_imb:+.3f})")
+
+                # Check 2: BTC adverse move < 0.3% since entry
+                _entry_px = mkt.get("entry_price", 0)
+                _now_px = _price(_sym_pr)
+                if _entry_px > 0 and _now_px > 0:
+                    _move = (_now_px - _entry_px) / _entry_px
+                    _is_adverse = (_our_dir == "UP" and _move < -0.003) or \
+                                  (_our_dir == "DOWN" and _move > 0.003)
+                    if _is_adverse:
+                        _pass = False
+                        _reasons.append(f"adverse {_move:+.4f}")
+
+                # Check 3: OB imbalance — book supports our direction
+                if hasattr(client, "get_order_book"):
+                    try:
+                        _ob = client.get_order_book(_tok_id)
+                        _bids = _ob.get("bids", [])
+                        _asks = _ob.get("asks", [])
+                        _bv = sum(float(b.get("size", 0)) for b in _bids[:5])
+                        _av = sum(float(a.get("size", 0)) for a in _asks[:5])
+                        if _bv + _av > 0:
+                            _obi = (_bv - _av) / (_bv + _av)
+                            if _obi < -0.3:  # strong selling pressure
+                                _pass = False
+                                _reasons.append(f"OB selling (imb={_obi:.2f})")
+                    except Exception:
+                        pass
+
+                if _pass:
+                    try:
+                        _result = _execute(
+                            [PlannedOrder(token_id=_tok_id, side="BUY",
+                                          price=_pr["price"], size=_pr["size"],
+                                          outcome=_pr["outcome"])],
+                            client, cid=cid)
+                        _pr["placed"] = True
+                        logger.info("PHASED RUNG %s: placed $%.2f × %.1f (mid=%.3f, checks passed)",
+                                    cid[:8], _pr["price"], _pr["size"], _mid)
+                    except Exception as e:
+                        logger.warning("Phased rung placement failed %s: %s", cid[:8], e)
+                else:
+                    logger.info("PHASED RUNG BLOCKED %s $%.2f: %s — skipping",
+                                cid[:8], _pr["price"], ", ".join(_reasons))
+                    _pr["placed"] = True  # mark as done (won't retry)
+                break  # only try one rung per cycle (rate limit safety)
 
     # Cancel defense: 3 triggers for unfilled orders
     if client and hasattr(client, "client") and not dry_run:
