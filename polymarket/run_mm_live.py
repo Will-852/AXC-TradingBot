@@ -98,6 +98,7 @@ _BINANCE_SPOT = "https://api.binance.com"
 _api_calls: dict = {}  # {"binance": [(ts, count), ...]}
 _API_LIMIT_PER_MIN = 200  # conservative: 200/min out of 2400 limit
 _mkt_fetcher = None  # StaggeredFetcher instance (set in main, used in run_cycle for logging)
+_ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -190,9 +191,15 @@ def _price(symbol: str = "BTCUSDT") -> float:
     now = time.time()
     if key in _cache and now - _cache[key][1] < 1:
         return _cache[key][0]
+    # WebSocket path — sub-millisecond, no REST call needed
+    if _ws_binance:
+        ws_price = _ws_binance.get_price(symbol)
+        if ws_price:
+            _cache[key] = (ws_price, now)
+            return ws_price
     if not _rate_ok("binance"):
         return _cache.get(key, (0, 0))[0]
-    # Use book ticker for fastest price (best bid+ask, single call)
+    # REST fallback: book ticker for fastest price (best bid+ask, single call)
     url = f"{_BINANCE_SPOT}/api/v3/ticker/bookTicker?symbol={symbol}"
     try:
         with urllib.request.urlopen(
@@ -2261,6 +2268,16 @@ def main():
     except Exception as e:
         logger.warning("Market data fetcher failed to start: %s — continuing without", e)
 
+    # ─── Start Binance WebSocket price feed (replaces REST polling) ───
+    global _ws_binance
+    try:
+        from polymarket.data.ws_binance import BinancePriceFeed
+        _ws_binance = BinancePriceFeed()
+        _ws_binance.start()
+        print("  WS PRICE: Binance bookTicker feed started")
+    except Exception as e:
+        logger.warning("WS price feed failed to start: %s — using REST fallback", e)
+
     gamma = GammaClient()
     client = None
     if not dry_run:
@@ -2361,6 +2378,9 @@ def main():
             # Shutdown market data fetcher
             if _mkt_fetcher:
                 _mkt_fetcher.shutdown()
+            # Shutdown WS price feed
+            if _ws_binance:
+                _ws_binance.stop()
 
 
 if __name__ == "__main__":

@@ -87,6 +87,7 @@ _LIVE_COINS = {"BTC", "ETH", "SOL"}
 _OBSERVE_LOG = os.path.join(os.path.dirname(__file__), "logs", "observe_1h.jsonl")
 
 _running = True
+_ws_binance = None  # BinancePriceFeed instance (set in main, WS price source)
 
 
 def _shutdown(signum, _frame):
@@ -289,7 +290,14 @@ def _btc_price(coin: str = "BTC") -> float:
     now = time.time()
     if coin in _price_cache and now - _price_cache[coin][0] < 3:
         return _price_cache[coin][1]
+    # WebSocket path — sub-millisecond, no REST call needed
     sym = _COIN_SYMBOLS.get(coin, "BTCUSDT")
+    if _ws_binance:
+        ws_price = _ws_binance.get_price(sym)
+        if ws_price:
+            _price_cache[coin] = (now, ws_price)
+            return ws_price
+    # REST fallback
     data = _get_json(f"{_BINANCE}/ticker/price?symbol={sym}")
     if data:
         p = float(data["price"])
@@ -1454,6 +1462,16 @@ def main():
     if args.bet_pct > 0:
         config.max_size_fraction = args.bet_pct
 
+    # ─── Start Binance WebSocket price feed (replaces REST polling) ───
+    global _ws_binance
+    try:
+        from polymarket.data.ws_binance import BinancePriceFeed
+        _ws_binance = BinancePriceFeed()
+        _ws_binance.start()
+        print("  WS PRICE: Binance bookTicker feed started")
+    except Exception as e:
+        logger.warning("WS price feed failed to start: %s — using REST fallback", e)
+
     gamma = GammaClient()
     client = None
 
@@ -1554,6 +1572,9 @@ def main():
 
     _save(state)
     _status(state)
+    # Shutdown WS price feed
+    if _ws_binance:
+        _ws_binance.stop()
     logger.info("1H bot stopped.")
 
 
