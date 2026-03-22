@@ -1766,9 +1766,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 # Sell portions as mid rises: lock profit progressively
                 # Backtest: tiered 30/50/80 → Sharpe 0.43 (29x vs HOLD)
                 _PARTIAL_TP_TIERS = [
-                    (1.3, 0.20),   # mid ≥ entry×1.3 → sell 20% (keep upside)
-                    (1.5, 0.40),   # mid ≥ entry×1.5 → sell 40% (lock mid-range)
-                    (1.8, 0.35),   # mid ≥ entry×1.8 → sell 35% + free roll hedge
+                    (1.3, 0.14),   # mid ≥ entry×1.3 → sell 14% (keep max upside)
+                    (1.5, 0.48),   # mid ≥ entry×1.5 → sell 48% (lock biggest chunk)
+                    (1.8, 0.33),   # mid ≥ entry×1.8 → sell 33% + free roll hedge
                 ]
                 _tp_key = f"_tp_tier_{side}"
                 _tp_done = mkt.get(_tp_key, 0)  # how many tiers already executed
