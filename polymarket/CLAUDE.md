@@ -25,12 +25,14 @@
 ### 1. MM 15M Bot（`run_mm_live.py`）★ 主力
 - **BTC live execution | ETH+SOL observe-only**（`_LIVE_TRADE_COINS = {"btc"}`）
 - Dual-Layer market maker：Zone 1/2/3 hedge + directional
-- 5s fast loop + **10s** heavy cycle + 300s discovery
-- Bridge: **Student-t(ν=5)** + OB adj（assess_edge 已移除，fair = bridge + OB）
-- Cancel: window-2min / adverse BTC **0.5%** ETH **0.7%** / **dynamic TTL** 60s-600s
+- 5s fast loop + **5s** heavy cycle + 300s discovery
+- Bridge: **Student-t(ν=5)** + OB adj | M1 deadline **5min**（was 3min, +6pp WR verified 2688 windows）
+- Cancel: window-2min / adverse BTC **0.5%** ETH **0.7%** / **dynamic TTL**（skip endgame+hedge orders）
 - Exit: Profit Lock (mid≥96¢ sell 96%) + Cost Recovery (mid≥64¢) + Stop Loss (-25%)
-- Forced hold: **last 5 min**（唔係 2 min）
-- 詳細（含 2-rung ladder / scalp re-entry / CVD disagree / per-order log 等）→ `docs/mm_v15_pipeline.md`
+- Forced hold: **last 5 min**（market accepts until T+50s — self-imposed guard）
+- **Endgame**: T-120s→T-30s 1-share underdog bets（data collection, daily cap 10）
+- **Hedge**: T-120s→T-30s buy opposite if BTC $50+ adverse 30s（30% of position）
+- 詳細 → `docs/mm_v15_pipeline.md`
 
 ### 2. 1H Conviction Bot（`run_1h_live.py`）
 - **BTC+ETH+SOL dry-run**（`_LIVE_COINS = {"BTC", "ETH", "SOL"}`）— 收集數據中
@@ -97,8 +99,9 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab）
 ## 落注規則速查
 - Bankroll: **live balance** | Per bet: **3%** | Per market: **10%** | Max exposure: **30%**
 - Kelly: half Kelly × confidence × GTO × capped at 3%
-- Daily loss > 15% → CB（6h cooldown）
-- MM kill switch: -20% daily / -20% total / 5 consecutive / WR<48%
+- Daily loss > 15% → CB（6h cooldown）— pipeline only
+- MM daily cap（graduated）: >$10 sizing×0.67 / >$20 ×0.33 / >$30 2h cooldown / >$45 halt
+- MM kill switch: 8 consecutive / WR<28%（rolling 30 filled trades）
 
 ## 跑法
 ```bash
