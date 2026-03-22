@@ -1520,7 +1520,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         return [p for p in pending_list
                 if id(p) not in hedge_up_ids and id(p) not in hedge_dn_ids]
 
-    # ── Phased rung placement: place rung 3-4 LIVE when price approaches + conditions pass ──
+    # ── Phased rung placement: rungs 3-4 placed LIVE with 3-cycle cooldown ──
+    # When mid approaches rung price: wait 3 cycles (15s), observe market reaction,
+    # then run 3 checks. If ALL pass → place. If ANY fail → block permanently.
+    _PHASED_COOLDOWN_CYCLES = 3  # observe for 15s (3 × 5s) before deciding
     if client and not dry_run:
         for cid, mkt in state["markets"].items():
             if mkt["phase"] != "OPEN":
@@ -1528,11 +1531,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _phased = mkt.get("phased_rungs", [])
             if not _phased:
                 continue
-            # Only check if we have fills (rung 1-2 filled)
             _has_fills = mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0
             if not _has_fills:
                 continue
-            # Time gate: > 2 min remaining
             _end_ms = mkt.get("window_end_ms", 0)
             if _end_ms > 0 and now_ms > _end_ms - 120_000:
                 continue
@@ -1541,27 +1542,35 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _sym_pr = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
 
             for _pr in _phased:
-                if _pr.get("placed"):
+                if _pr.get("placed") or _pr.get("blocked"):
                     continue
                 _tok_id = _pr["token_id"]
-                # Check: is mid approaching this rung? (within 5¢)
                 _mid = _poly_midpoint(client, _tok_id) if hasattr(client, "get_midpoint") else 0
                 if _mid <= 0 or _mid > _pr["price"] + 0.05:
-                    continue  # mid not close enough yet
+                    _pr.pop("_approach_count", None)  # reset if mid moved away
+                    continue
 
-                # ═══ LIVE CHECKPOINT ═══
+                # ── Cooldown: count cycles since mid approached ──
+                _pr["_approach_count"] = _pr.get("_approach_count", 0) + 1
+                if _pr["_approach_count"] < _PHASED_COOLDOWN_CYCLES:
+                    if _pr["_approach_count"] == 1:
+                        logger.info("PHASED OBSERVE %s $%.2f: mid=%.3f approaching, waiting %d cycles...",
+                                    cid[:8], _pr["price"], _mid, _PHASED_COOLDOWN_CYCLES)
+                    continue  # keep observing
+
+                # ═══ LIVE CHECKPOINT (after cooldown) ═══
                 _pass = True
                 _reasons = []
+                _our_dir = mkt.get("original_dir", "UP")
 
                 # Check 1: Whale not against us
-                _h_imb, _h_dlt = _holder_imbalance(cid, mkt.get("up_token_id", ""), ttl_override=10)
-                _our_dir = mkt.get("original_dir", "UP")
+                _h_imb, _ = _holder_imbalance(cid, mkt.get("up_token_id", ""), ttl_override=10)
                 _whale_up = _h_imb > 0
                 _whale_against = (_our_dir == "UP" and not _whale_up and abs(_h_imb) > 0.20) or \
                                  (_our_dir == "DOWN" and _whale_up and abs(_h_imb) > 0.20)
                 if _whale_against:
                     _pass = False
-                    _reasons.append(f"whale against (imb={_h_imb:+.3f})")
+                    _reasons.append(f"whale({_h_imb:+.2f})")
 
                 # Check 2: BTC adverse move < 0.3% since entry
                 _entry_px = mkt.get("entry_price", 0)
@@ -1572,41 +1581,38 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                   (_our_dir == "DOWN" and _move > 0.003)
                     if _is_adverse:
                         _pass = False
-                        _reasons.append(f"adverse {_move:+.4f}")
+                        _reasons.append(f"adverse({_move:+.3%})")
 
-                # Check 3: OB imbalance — book supports our direction
-                if hasattr(client, "get_order_book"):
-                    try:
-                        _ob = client.get_order_book(_tok_id)
-                        _bids = _ob.get("bids", [])
-                        _asks = _ob.get("asks", [])
-                        _bv = sum(float(b.get("size", 0)) for b in _bids[:5])
-                        _av = sum(float(a.get("size", 0)) for a in _asks[:5])
-                        if _bv + _av > 0:
-                            _obi = (_bv - _av) / (_bv + _av)
-                            if _obi < -0.3:  # strong selling pressure
-                                _pass = False
-                                _reasons.append(f"OB selling (imb={_obi:.2f})")
-                    except Exception:
-                        pass
+                # Check 3: Mid recovering? (mid > rung price = market bouncing back)
+                if _mid <= _pr["price"]:
+                    _pass = False
+                    _reasons.append(f"mid({_mid:.3f})<rung({_pr['price']:.2f})")
 
                 if _pass:
                     try:
-                        _result = _execute(
+                        _results = _execute(
                             [PlannedOrder(token_id=_tok_id, side="BUY",
                                           price=_pr["price"], size=_pr["size"],
                                           outcome=_pr["outcome"])],
                             client, cid=cid)
                         _pr["placed"] = True
-                        logger.info("PHASED RUNG %s: placed $%.2f × %.1f (mid=%.3f, checks passed)",
-                                    cid[:8], _pr["price"], _pr["size"], _mid)
+                        # Add to pending_orders for cancel defense visibility
+                        for _r in (_results or []):
+                            if _r.get("submitted"):
+                                mkt.setdefault("pending_orders", []).append({
+                                    "order_id": _r.get("order_id", ""),
+                                    "outcome": _pr["outcome"],
+                                    "price": _pr["price"], "size": _pr["size"],
+                                })
+                        logger.info("PHASED RUNG %s: $%.2f × %.1f placed (mid=%.3f, 3 checks passed after %d cycles)",
+                                    cid[:8], _pr["price"], _pr["size"], _mid, _pr["_approach_count"])
                     except Exception as e:
-                        logger.warning("Phased rung placement failed %s: %s", cid[:8], e)
+                        logger.warning("Phased rung failed %s: %s", cid[:8], e)
                 else:
-                    logger.info("PHASED RUNG BLOCKED %s $%.2f: %s — skipping",
-                                cid[:8], _pr["price"], ", ".join(_reasons))
-                    _pr["placed"] = True  # mark as done (won't retry)
-                break  # only try one rung per cycle (rate limit safety)
+                    _pr["blocked"] = True
+                    logger.info("PHASED BLOCKED %s $%.2f: %s (after %d cycles observation)",
+                                cid[:8], _pr["price"], " + ".join(_reasons), _pr["_approach_count"])
+                break
 
     # Cancel defense: 3 triggers for unfilled orders
     if client and hasattr(client, "client") and not dry_run:
