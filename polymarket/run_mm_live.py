@@ -1245,6 +1245,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _tte_s = (wl["end_ms"] - now_ms) / 1000
             _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
             _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
+        else:
+            _h_imbalance, _h_delta = 0.0, 0.0
         # Pre-compute whale action for checkpoint gate
         _whale_action = "NORMAL"
         _whale_favors_up = _h_imbalance > 0
@@ -1254,7 +1256,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 _whale_action = "FOLLOW_LOG"
 
         # ── Wide Ladder DCA: 2 auto rungs + 2 conditional (checkpoint) ──
-        # Backtest: 0.43/0.37/0.31/0.26, tiered TP at x1.3/1.5/1.8 → Sharpe 0.43
+        # Backtest: 0.43/0.37/0.31/0.26, tiered TP at x1.3/1.5/1.8 → Sharpe 0.544
         # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
         _LADDER_AUTO = [0.43, 0.37]         # always place
         _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
@@ -1764,7 +1766,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
                 # ── Layer 0.5: TIERED PARTIAL TP (Sharpe-optimal) ──
                 # Sell portions as mid rises: lock profit progressively
-                # Backtest: tiered 30/50/80 → Sharpe 0.43 (29x vs HOLD)
+                # Backtest: tiered 30/50/80 → Sharpe 0.544 (29x vs HOLD)
                 _PARTIAL_TP_TIERS = [
                     (1.3, 0.14),   # mid ≥ entry×1.3 → sell 14% (keep max upside)
                     (1.5, 0.48),   # mid ≥ entry×1.5 → sell 48% (lock biggest chunk)
@@ -1811,7 +1813,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
                 # ── Layer 1: PROFIT LOCK (96¢+) → sell 96%, keep 4% free roll + hedge ──
                 if mid >= _BLACK_SWAN_MID:
-                    # Sell 97% to lock profit, keep 3% as free roll ($0 risk)
+                    # Sell 96% to lock profit, keep 4% as free roll ($0 risk)
                     _sell_shares = max(1, int(shares * _BLACK_SWAN_SELL_PCT))
                     _keep = shares - _sell_shares
                     try:
