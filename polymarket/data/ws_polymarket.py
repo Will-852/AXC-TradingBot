@@ -216,6 +216,12 @@ class PolymarketBookFeed:
                     logger.info("WS connected to Polymarket CLOB")
                     consecutive_failures = 0
 
+                    # 2check fix: clear stale book data before fresh subscribe
+                    # Prevents serving old prices during the gap before initial_dump arrives
+                    with self._lock:
+                        self._books.clear()
+                        self._data.clear()
+
                     # Send initial subscribe with all known tokens
                     await self._subscribe_all(ws)
 
@@ -438,18 +444,19 @@ class PolymarketBookFeed:
         bids = book["bids"]  # {price_str: size_float}
         asks = book["asks"]
 
-        # Best bid/ask
-        if bids:
-            bid_prices = [float(p) for p in bids]
-            best_bid = max(bid_prices)
-        else:
-            best_bid = 0.0
+        # 2check fix: empty book = no real midpoint. Skip update to avoid
+        # phantom mid=0.50 reaching trading logic. Staleness timer will
+        # expire and consumers fall back to REST.
+        if not bids and not asks:
+            return
+        # One-sided book: also skip — mid would be misleading
+        if not bids or not asks:
+            return
 
-        if asks:
-            ask_prices = [float(p) for p in asks]
-            best_ask = min(ask_prices)
-        else:
-            best_ask = 1.0
+        bid_prices = [float(p) for p in bids]
+        ask_prices = [float(p) for p in asks]
+        best_bid = max(bid_prices)
+        best_ask = min(ask_prices)
 
         mid = (best_bid + best_ask) / 2.0
 
