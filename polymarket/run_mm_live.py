@@ -99,6 +99,7 @@ _api_calls: dict = {}  # {"binance": [(ts, count), ...]}
 _API_LIMIT_PER_MIN = 200  # conservative: 200/min out of 2400 limit
 _mkt_fetcher = None  # StaggeredFetcher instance (set in main, used in run_cycle for logging)
 _ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
+_ws_poly = None      # PolymarketBookFeed instance (set in main, WS OB source)
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -414,7 +415,13 @@ def _m1_return(symbol: str = "BTCUSDT") -> float:
 
 
 def _poly_midpoint(client, token_id: str) -> float:
-    """Polymarket midpoint for a token. Cached 5s."""
+    """Polymarket midpoint for a token. WS first, REST fallback. Cached 5s."""
+    # WebSocket path — sub-second, no REST call needed
+    if _ws_poly:
+        ws_mid = _ws_poly.get_midpoint(token_id)
+        if ws_mid is not None:
+            return ws_mid
+    # REST fallback (cached 5s)
     key = f"mid_{token_id[:16]}"
     now = time.time()
     if key in _cache and now - _cache[key][1] < 5:
@@ -432,7 +439,13 @@ def _poly_midpoint(client, token_id: str) -> float:
 
 
 def _poly_ob_imbalance(client, up_token: str) -> float:
-    """Order book imbalance for UP token. Cached 5s. Returns -1 to +1."""
+    """Order book imbalance for UP token. WS first, REST fallback. Cached 5s. Returns -1 to +1."""
+    # WebSocket path — sub-second, no REST call needed
+    if _ws_poly:
+        ws_imbal = _ws_poly.get_ob_imbalance(up_token)
+        if ws_imbal is not None:
+            return ws_imbal
+    # REST fallback (cached 5s)
     key = f"obi_{up_token[:16]}"
     now = time.time()
     if key in _cache and now - _cache[key][1] < 5:
@@ -1074,6 +1087,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "up_tok": mkt.yes_token_id, "dn_tok": mkt.no_token_id,
                     "start_ms": winfo["start_ms"], "end_ms": winfo["end_ms"],
                     "end_time": winfo["end_time"]}
+                # Subscribe to WS order book feed for these tokens
+                if _ws_poly:
+                    _ws_poly.subscribe(
+                        [mkt.yes_token_id, mkt.no_token_id],
+                        condition_id=cid)
                 lead = (winfo["start_ms"] - now_ms) / 60_000
                 logger.info("watchlist + %s (%.0fm): %s", cid[:8], lead, mkt.title[:45])
         state["last_scan"] = now.isoformat()
@@ -2278,6 +2296,16 @@ def main():
     except Exception as e:
         logger.warning("WS price feed failed to start: %s — using REST fallback", e)
 
+    # ─── Start Polymarket WebSocket order book feed (replaces REST OB polling) ───
+    global _ws_poly
+    try:
+        from polymarket.data.ws_polymarket import PolymarketBookFeed
+        _ws_poly = PolymarketBookFeed()
+        _ws_poly.start()
+        print("  WS OB: Polymarket book feed started")
+    except Exception as e:
+        logger.warning("WS OB feed failed to start: %s — using REST fallback", e)
+
     gamma = GammaClient()
     client = None
     if not dry_run:
@@ -2381,6 +2409,9 @@ def main():
             # Shutdown WS price feed
             if _ws_binance:
                 _ws_binance.stop()
+            # Shutdown Polymarket WS OB feed
+            if _ws_poly:
+                _ws_poly.stop()
 
 
 if __name__ == "__main__":
