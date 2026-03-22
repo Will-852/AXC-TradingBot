@@ -114,7 +114,7 @@ def _discover_15m(gamma: GammaClient) -> list[dict]:
         ts, te = int(ws.timestamp()), int(we.timestamp())
         if now_s > te + 120:
             continue
-        for coin in ("btc", "eth"):
+        for coin in ("btc", "eth", "sol"):
             data = _get_json(f"{_GAMMA}/markets?slug={coin}-updown-15m-{ts}")
             if not data or not isinstance(data, list) or not data[0]:
                 continue
@@ -152,7 +152,7 @@ def _discover_1h(gamma: GammaClient) -> list[dict]:
         ts, te = int(ws.timestamp()), int(we.timestamp())
         if now_s > te + 300:
             continue
-        for coin in ("BTC", "ETH"):
+        for coin in ("BTC", "ETH", "SOL"):
             slug = _build_1h_slug(coin, ws)
             if not slug:
                 continue

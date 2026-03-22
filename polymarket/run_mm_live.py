@@ -1206,6 +1206,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         try:
             _sig_record = {
                 "ts": datetime.now(tz=_HKT).isoformat(), "cid": cid[:8],
+                "coin": _coin_slug, "observe": _observe_only,
                 "sym": _sym, "m1": round(_m1, 6),
                 "m1_sigma": round(abs(_m1) / _m1_thresh, 2),
                 "bridge": round(bridge_p_up, 4),
