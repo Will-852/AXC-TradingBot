@@ -1065,8 +1065,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
             continue
 
-        # Gate 1 removed — M1 ≥ 1σ (Gate 3) already guards against directionless entry
         _elapsed_ms = now_ms - wl["start_ms"]
+
+        # ── Dead Hours Gate: skip low-σ hours (σ_poly analysis: 04-06 HKT worst) ──
+        _hkt_hour = datetime.now(tz=_HKT).hour
+        if _hkt_hour in {4, 5}:
+            continue  # stay in watchlist, check next cycle (hour changes)
 
         # ── Late Gate: don't enter with < 1.5 min remaining ──
         if now_ms > wl["end_ms"] - 90_000:
@@ -1260,7 +1264,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
         _LADDER_AUTO = [0.43, 0.37]         # always place
         _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
-        _LADDER_BUDGET_PCT = 0.10           # 10% of bankroll per window
+        _LADDER_BUDGET_PCT = 0.03           # 3% of bankroll per window (conservative: hard stop recovery ~5 days)
 
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
