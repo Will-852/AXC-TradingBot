@@ -15,8 +15,8 @@
 | General Pipeline | 🟡 DORMANT | `pipeline.py`（last run 2026-03-20） |
 | Weather | ❌ 廢棄 + 代碼已清除（2026-03-22） | — |
 
-## 業務範圍（紅線 — 2026-03-19 事故後確立，2026-03-21 擴大）
-- **自動化只限：BTC+ETH 15M（MM bot）+ BTC+ETH 1H（Conviction bot）**
+## 業務範圍（紅線 — 2026-03-19 事故後確立，2026-03-22 擴大）
+- **自動化只限：BTC+ETH 15M（MM bot）+ BTC+ETH+SOL 1H（Conviction bot）**
 - 其他市場唔准自動操作。用戶手動落嘅注 = 只讀監控，唔准 exit/sell
 - 詳細 → `CORE.md` §2 + `memory/rules/polymarket_redline.md`
 
@@ -28,17 +28,19 @@
 - 5s fast loop + **10s** heavy cycle + 300s discovery
 - Bridge: **Student-t(ν=5)** + OB adj（assess_edge 已移除，fair = bridge + OB）
 - Cancel: window-2min / adverse BTC **0.5%** ETH **0.7%** / **dynamic TTL** 60s-600s
-- Exit: Profit Lock (mid≥95¢) + Cost Recovery (mid≥64¢) + Stop Loss (-25%)
+- Exit: Profit Lock (mid≥96¢ sell 96%) + Cost Recovery (mid≥64¢) + Stop Loss (-25%)
 - Forced hold: **last 5 min**（唔係 2 min）
 - 詳細（含 2-rung ladder / scalp re-entry / CVD disagree / per-order log 等）→ `docs/mm_v15_pipeline.md`
 
 ### 2. 1H Conviction Bot（`run_1h_live.py`）
-- **BTC live execution | ETH observe-only**（`_LIVE_COINS = {"BTC"}`）
-- Brownian Bridge fair-value + OB conviction model
-- BTC + ETH 1H candles，slug-based discovery
+- **BTC+ETH+SOL dry-run**（`_LIVE_COINS = {"BTC", "ETH", "SOL"}`）— 收集數據中
+- Brownian Bridge fair-value + OB conviction + **volume imbalance filter** + **ToD gate**
+- BTC + ETH + SOL 1H candles，slug-based discovery
 - 共用 `market_maker.py`（MMMarketState + resolve_market）
 - 獨立 state：`mm_state_1h.json`, `mm_trades_1h.jsonl`
 - One-order-per-market guard（唔會重複入同一 market）
+- Paper PnL tracker：`logs/paper_pnl_1h.jsonl`（engine price + market price 雙軌）
+- Signal tape：`logs/signal_tape_1h.jsonl`（real Poly mid snapshots every 20s）
 
 ### 3. General Pipeline（`pipeline.py`）— DORMANT
 - 14-step pipeline，覆蓋 crypto / logical arb（天氣已清除）

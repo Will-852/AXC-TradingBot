@@ -29,6 +29,7 @@
 |------|------|
 | `market_maker.py` | Dual-Layer MM 核心（Zone 1/2/3, Student-t, pricing） |
 | `hourly_engine.py` | 1H Conviction engine（Brownian Bridge + OB conviction） |
+| `signal_engine.py` | Event-driven signal engine（100ms poll, ARB/DIRECTION/EXIT signals, for 5M arb） |
 | `market_scanner.py` | Gamma API scan + quality filter + 15M slug direct discovery |
 | `edge_finder.py` | AI 概率估算 engine（Claude/GPT proxy fallback，general crypto） |
 | `crypto_15m.py` | BTC+ETH 15M triple signal（8-weight indicator + CVD + microstructure）+ AI fallback |
@@ -43,6 +44,9 @@
 |------|------|
 | `market_data.py` | Multi-exchange parallel data fetcher（6 exchanges, 22+ sources, ~2s cycle）— MarketSnapshot + SnapshotHistory |
 | `ob_recorder.py` | Polymarket OB depth recorder（15M+1H, 5s interval）→ `logs/poly_ob_tape.jsonl` |
+| `ws_binance.py` | Binance WebSocket bookTicker feed（BTC/ETH/SOL, <200ms price, daemon thread） |
+| `ws_polymarket.py` | Polymarket CLOB WebSocket（OB streaming, mid/depth/imbalance, per-token subscribe） |
+| `ws_user.py` | Polymarket User WebSocket（auth'd, order status + fill events, instant detection） |
 
 ## exchange/
 | File | 用途 |
@@ -91,6 +95,7 @@
 | `sigma_poly_by_hour.py` | σ_poly ToD 分析（3.2x variation, 07:00 HKT best） |
 | `arb_spread_analysis.py` | Arb spread 分析（0.5% snapshots < $0.98, 96% last 1 tick） |
 | `fill_probability_model.py` | Fill probability model（P(fill) vs bid/σ/τ，first passage time） |
+| `ladder_backtest_1h.py` | 1H ladder DCA backtest（Binance 1H+1M klines, conviction-gated, tiered TP） |
 
 ## backtest/
 | File | 用途 |

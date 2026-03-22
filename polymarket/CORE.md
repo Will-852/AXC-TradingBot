@@ -13,7 +13,7 @@
 | 系統 | 市場 | 時間框架 | 狀態 |
 |------|------|---------|------|
 | MM 15M Bot | BTC live + ETH/SOL observe-only | 15 分鐘 window (24/7) | 🟢 LIVE (BTC) |
-| 1H Conviction Bot | BTC live + ETH observe-only | 1 小時 window (24/7) | 🟢 LIVE (BTC) |
+| 1H Conviction Bot | BTC+ETH+SOL (dry-run) | 1 小時 window (24/7) | 🟡 DRY-RUN (data collection) |
 | ~~Weather~~ | ~~全球最高溫~~ | ~~24 小時~~ | ❌ 廢棄 + 代碼已清除（2026-03-22） |
 
 > **嚴禁**：
@@ -87,7 +87,7 @@
 |--|-----------|-------------------|
 | 入口 | `run_mm_live.py` | `run_1h_live.py` |
 | 時間框架 | 15 分鐘 | 1 小時 |
-| 幣種 | BTC live + ETH observe-only | BTC live + ETH observe-only |
+| 幣種 | BTC live + ETH/SOL observe-only | BTC+ETH+SOL dry-run (data collection) |
 | 定價模型 | Student-t(ν=5) Bridge + OB | Brownian Bridge + OB Conviction |
 | 落注方式 | Dual-Layer（hedge + directional） | Conviction-based directional |
 | 共用 | `market_maker.py`（MMMarketState, resolve_market） | 同左 |
