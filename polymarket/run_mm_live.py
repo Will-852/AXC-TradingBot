@@ -811,14 +811,14 @@ def _get_risk_mode(state: dict) -> str:
     if count < 10:
         return "NORMAL"  # not enough data
 
-    # Thresholds — calibrated to stress test break-even
-    # Break-even: WR-14% (54%) at fill=60% + adv=10%
-    # HEDGE_ONLY at 54% = cut directional EXACTLY at break-even → prevent further loss
-    if wr < 0.48:
-        logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 48%%", wr*100, count)
+    # Thresholds — calibrated to W/L ratio 3.2x system
+    # Breakeven WR = 1 / (1 + W/L_ratio) = 1 / 4.2 = 24%
+    # STOPPED at 28% = 4pp buffer above breakeven
+    if wr < 0.28:
+        logger.warning("RISK MODE: STOPPED — rolling WR %.1f%% (%d trades) < 28%%", wr*100, count)
         return "STOPPED"
-    elif wr < 0.54:
-        logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 54%% (break-even)",
+    elif wr < 0.30:
+        logger.warning("RISK MODE: HEDGE_ONLY — rolling WR %.1f%% (%d trades) < 30%%",
                         wr*100, count)
         return "HEDGE_ONLY"
     elif wr < 0.58:
