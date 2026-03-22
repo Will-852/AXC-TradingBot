@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from copy import copy as _copy
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -1176,6 +1177,39 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if not is_heavy:
         active = config.max_concurrent_markets  # skip entry on fast cycles
 
+    # ── Phase 4: parallel pre-fetch slow REST data (read-only, cache warming) ──
+    # Holder imbalance (Data API, 200-500ms per call) + cross-exchange price +
+    # vol_1m + CVD — all cached, so the sequential loop below hits cache.
+    _pf_t0 = time.time()
+    _pf_wl = [(cid, wl) for cid, wl in state.get("watchlist", {}).items()
+              if cid not in state["markets"]]
+    _pf_syms = set()
+    for _, _wl in _pf_wl:
+        _t = _wl.get("title", "").lower()
+        _pf_syms.add("ETHUSDT" if "ethereum" in _t else ("SOLUSDT" if "solana" in _t else "BTCUSDT"))
+    # Also pre-fetch for open markets (phased rung checkpoint + re-entry use holder/xprice)
+    _pf_open = [(cid, m) for cid, m in state["markets"].items() if m["phase"] == "OPEN"]
+    for _, _m in _pf_open:
+        _t = _m.get("title", "").lower()
+        _pf_syms.add("ETHUSDT" if "ethereum" in _t else "BTCUSDT")
+    with ThreadPoolExecutor(max_workers=6) as _pool:
+        _futs = []
+        for _cid, _wl in _pf_wl:
+            _futs.append(_pool.submit(_holder_imbalance, _cid, _wl["up_tok"]))
+        for _cid, _m in _pf_open:
+            _futs.append(_pool.submit(_holder_imbalance, _cid, _m.get("up_token_id", "")))
+        for _s in _pf_syms:
+            _futs.append(_pool.submit(_cross_exchange_price, _s))
+            _futs.append(_pool.submit(_vol_1m, _s))
+            _futs.append(_pool.submit(_cvd_buy_ratio, _s, 3))
+        for _f in _futs:
+            try:
+                _f.result(timeout=8)
+            except Exception:
+                pass  # cache miss is fine — loop's own call will handle it
+    logger.debug("Pre-fetch: %d holder + %d sym in %.1fs",
+                 len(_pf_wl) + len(_pf_open), len(_pf_syms), time.time() - _pf_t0)
+
     # FIX #1: Dedup — get all open orders on CLOB to avoid duplicate submissions
     _existing_markets = set()
     if client and hasattr(client, "get_orders") and not dry_run:
@@ -1185,6 +1219,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         except Exception:
             pass
 
+    _heavy_loop_t0 = time.time()
+    _heavy_loop_n = len(state.get("watchlist", {}))
     for cid, wl in list(state.get("watchlist", {}).items()):
         if cid in state["markets"]:
             del state["watchlist"][cid]
@@ -2231,6 +2267,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         _rd + 1, cid[:8], _new_dir, fair,
                         mkt.get("_prev_dir", mkt.get("original_dir", "?")))
             mkt["_prev_dir"] = _new_dir
+
+    logger.info("Heavy loop: %d markets in %.1fs", _heavy_loop_n, time.time() - _heavy_loop_t0)
 
     # Resolutions
     _check_resolutions(state)

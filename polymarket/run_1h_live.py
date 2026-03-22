@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 _AXC = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
@@ -1128,7 +1129,27 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # ── Analysis data collection (read-only, 60s interval) ──
     _collect_analysis(cached_markets)
 
+    # ── Phase 4: parallel pre-fetch slow REST data (read-only, cache warming) ──
+    # Holder imbalance (Data API, 200-500ms) + vol imbalance — both cached 15-30s.
+    _pf_t0 = time.time()
+    _pf_now_ms = int(time.time() * 1000)
+    _pf_active = [m for m in cached_markets
+                  if m["start_ms"] <= _pf_now_ms <= m["end_ms"]]
+    with ThreadPoolExecutor(max_workers=6) as _pool:
+        _futs = []
+        for _m in _pf_active:
+            _futs.append(_pool.submit(_holder_imbalance, _m["cid"]))
+            _futs.append(_pool.submit(_vol_imbalance, _m["coin"], _m["start_ms"]))
+        for _f in _futs:
+            try:
+                _f.result(timeout=8)
+            except Exception:
+                pass
+    logger.debug("Pre-fetch: %d markets in %.1fs", len(_pf_active), time.time() - _pf_t0)
+
     # ── Evaluate each active market ──
+    _heavy_loop_t0 = time.time()
+    _heavy_loop_n = len(cached_markets)
     for mkt_info in cached_markets:
         cid = mkt_info["cid"]
         coin = mkt_info["coin"]
@@ -1408,6 +1429,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         elif sig.action == "WAIT":
             logger.debug("WAIT %s t=%.0fm: %s", coin, t_elapsed, sig.reason)
+
+    logger.info("Heavy loop: %d markets in %.1fs", _heavy_loop_n, time.time() - _heavy_loop_t0)
 
     return state, last_scan, last_heavy, cached_markets, cached_vol
 
