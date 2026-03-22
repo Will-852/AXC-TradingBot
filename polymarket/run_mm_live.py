@@ -1465,8 +1465,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         cost_str = f"${ms.entry_cost:.2f}" if ms.entry_cost > 0 else "$0"
         print(f"  OPEN {cid[:8]} | {filled_str} | pend: {pending_str or '-'} | {cost_str}{t_str}")
 
-    # ── Phased entry: add tranches to existing markets ──
-    if is_heavy:
+    # ── Phased entry: DISABLED (replaced by phased rung system) ──
+    # Old tranche code used plan_opening() which bypasses ladder pricing.
+    # Phased rungs 3-4 with checkpoint are the replacement.
+    if False and is_heavy:  # DISABLED
         for cid, mkt_d in list(state["markets"].items()):
             if mkt_d["phase"] != "OPEN":
                 continue
