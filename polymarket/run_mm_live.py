@@ -1246,7 +1246,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 "ts": datetime.now(tz=_HKT).isoformat(), "cid": cid[:8],
                 "coin": _coin_slug, "observe": _observe_only,
                 "sym": _sym, "m1": round(_m1, 6),
-                "m1_sigma": round(abs(_m1) / _m1_thresh, 2),
+                "m1_sigma": round(abs(_m1) / _m1_thresh, 2) if locals().get("_m1_thresh", 0) > 0 else 0,
                 "bridge": round(bridge_p_up, 4),
                 "fair": round(fair, 4), "xdiv": round(_xdiv, 5),
                 "ob_adj": round(ob_adjustment, 4), "cvd": round(_cvd, 3),
@@ -1944,7 +1944,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         _sold_cost = _shares_to_sell * avg
                         mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
                         mkt["cost_recovered"] = True
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _original_cost)
+                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _sold_cost)
                     except Exception as e:
                         logger.warning("Cost recovery sell failed %s: %s", cid[:8], e)
                     continue
@@ -2111,6 +2111,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             mkt["entry_cost"] = 0
             mkt["fills_confirmed"] = True
             mkt["original_dir"] = "UP" if fair > 0.50 else "DOWN"
+            # Reset TP + cost recovery state for new round (prevent stale flags)
+            mkt["_tp_tier_UP"] = 0
+            mkt["_tp_tier_DOWN"] = 0
+            mkt["cost_recovered"] = False
             mkt["tranches_done"] = 1
             mkt["tranches_total"] = n_tranches
             pending = []
