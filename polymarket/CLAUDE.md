@@ -128,6 +128,25 @@ PYTHONPATH=.:scripts python3 polymarket/position_watcher.py --live
 - State file 喺 `shared/POLYMARKET_STATE.json`，唔係 polymarket/ 內
 - MM bot 同 1H bot 用獨立 state files，唔共用
 
+## 💀 Real Money Safety Checklist（MANDATORY）
+> $106 loss from duplicate entry bug (2026-03-22). 呢啲 step 唔可以 skip。
+
+**改 entry/order logic 後：**
+```bash
+# ORDER PATH AUDIT — 列出所有落單路徑，逐個解釋
+grep -n "_execute\|buy_shares\|plan_opening\|PlannedOrder" polymarket/run_mm_live.py
+```
+每個 call site 要回答：「呢個 path 應唔應該存在？有冇舊 code 未 disable？」
+
+**改完任何 code 後：**
+- Save lesson to `gotchas.md` or `lesson_for_me.md`（涉及蝕錢 = MUST save）
+
+**Restart 前：**
+- Worst case trace：「如果所有嘢都出錯，最多蝕幾多？」
+- 確認 answer < bankroll × 2%
+
+**唔准 skip 嘅情況：** 涉及 `_execute`, `buy_shares`, `PlannedOrder`, pricing, sizing
+
 ## Proxy
 - AI model: `claude-sonnet-4-6` via `PROXY_BASE_URL`（同 AXC 共用 proxy）
 - Temperature: 0.3（低 = 穩定概率估計）
