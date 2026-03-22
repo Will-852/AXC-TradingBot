@@ -1589,7 +1589,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 _our_dir = mkt.get("original_dir", "UP")
 
                 # Check 1: Whale not against us
-                _h_imb, _ = _holder_imbalance(cid, mkt.get("up_token_id", ""), ttl_override=10)
+                _h_imb, _ = _holder_imbalance(cid, mkt.get("up_token_id", ""), ttl_override=5)
                 _whale_up = _h_imb > 0
                 _whale_against = (_our_dir == "UP" and not _whale_up and abs(_h_imb) > 0.20) or \
                                  (_our_dir == "DOWN" and _whale_up and abs(_h_imb) > 0.20)
