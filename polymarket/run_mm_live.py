@@ -100,6 +100,7 @@ _API_LIMIT_PER_MIN = 200  # conservative: 200/min out of 2400 limit
 _mkt_fetcher = None  # StaggeredFetcher instance (set in main, used in run_cycle for logging)
 _ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
 _ws_poly = None      # PolymarketBookFeed instance (set in main, WS OB source)
+_ws_user = None      # PolymarketUserFeed instance (set in main, WS fill/cancel detection)
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -603,6 +604,61 @@ def _check_fills(state: dict, client) -> None:
             mkt["pending_orders"] = []
             mkt["fills_confirmed"] = True
             continue
+
+        # ── WS fast path: check fills via user WebSocket (instant, no REST call) ──
+        if _ws_user and _ws_user.connected:
+            ws_resolved = []
+            ws_remaining = []
+            for po in pending:
+                oid = po.get("order_id", "")
+                if not oid:
+                    ws_remaining.append(po)
+                    continue
+                ws_status = _ws_user.get_order_status(oid)
+                if ws_status == "MATCHED":
+                    # WS confirmed fill — apply immediately
+                    outcome = po["outcome"]
+                    price = po["price"]
+                    size = po["size"]
+                    if outcome == "UP":
+                        old = mkt["up_shares"] * mkt["up_avg_price"]
+                        mkt["up_shares"] += size
+                        mkt["up_avg_price"] = (old + size * price) / mkt["up_shares"]
+                    elif outcome == "DOWN":
+                        old = mkt["down_shares"] * mkt["down_avg_price"]
+                        mkt["down_shares"] += size
+                        mkt["down_avg_price"] = (old + size * price) / mkt["down_shares"]
+                    mkt["entry_cost"] += size * price
+                    _bump_fill(state, "filled")
+                    _log_order("fill_ws", oid, cid, outcome=outcome,
+                               price=price, size=size)
+                    logger.info("FILL (WS) %s %s: %.1f @ $%.3f",
+                                cid[:8], outcome, size, price)
+                    ws_resolved.append(po)
+                elif ws_status in ("CANCELED", "CANCELLED"):
+                    # WS confirmed cancel — remove from pending
+                    _bump_fill(state, "cancelled")
+                    _log_order("cancelled_ws", oid, cid,
+                               outcome=po.get("outcome", ""))
+                    logger.info("CANCEL (WS) %s %s", cid[:8], po.get("outcome", ""))
+                    ws_resolved.append(po)
+                else:
+                    # WS hasn't seen this order yet → fall through to REST
+                    ws_remaining.append(po)
+
+            if ws_resolved:
+                pending = ws_remaining
+                mkt["pending_orders"] = pending
+                if not pending:
+                    mkt["fills_confirmed"] = True
+                    logger.info("ALL FILLS CONFIRMED (WS) %s: UP=%.1f DN=%.1f cost=$%.2f",
+                                cid[:8], mkt["up_shares"], mkt["down_shares"],
+                                mkt["entry_cost"])
+                    continue  # all resolved via WS, skip REST
+
+            # If nothing remaining, skip REST entirely
+            if not pending:
+                continue
 
         try:
             # FIX #1: Use get_trades() for reliable fill confirmation
@@ -2336,6 +2392,30 @@ def main():
             print(f"  CLOB failed: {e} → dry-run")
             dry_run = True
 
+    # ─── Start Polymarket User WebSocket feed (instant fill/cancel detection) ───
+    global _ws_user
+    if client and not dry_run:
+        try:
+            from polymarket.data.ws_user import PolymarketUserFeed
+            from polymarket.config.settings import POLY_CREDS_CACHE_PATH
+            import json as _json_ws
+            # Load API creds from the same cache file as polymarket_client.py
+            if os.path.exists(POLY_CREDS_CACHE_PATH):
+                with open(POLY_CREDS_CACHE_PATH, "r") as _f:
+                    _creds = _json_ws.load(_f)
+                _ws_user = PolymarketUserFeed()
+                _ws_user.start(
+                    _creds.get("api_key", ""),
+                    _creds.get("api_secret", ""),
+                    _creds.get("api_passphrase", ""),
+                )
+                print("  WS USER: Polymarket user feed started (fill/cancel detection)")
+            else:
+                logger.warning("WS USER: creds cache not found at %s — skipping",
+                               POLY_CREDS_CACHE_PATH)
+        except Exception as e:
+            logger.warning("WS USER feed failed to start: %s — using REST fallback", e)
+
     if dry_run and client is None:
         class _Mock:
             def buy_shares(self, tid, amt, price=0):
@@ -2412,6 +2492,9 @@ def main():
             # Shutdown Polymarket WS OB feed
             if _ws_poly:
                 _ws_poly.stop()
+            # Shutdown Polymarket User WS feed
+            if _ws_user:
+                _ws_user.stop()
 
 
 if __name__ == "__main__":
