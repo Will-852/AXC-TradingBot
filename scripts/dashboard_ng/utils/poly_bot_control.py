@@ -36,6 +36,9 @@ def get_running_processes() -> list[dict]:
                 continue
             if 'grep' in line or 'ps -eo' in line:
                 continue
+            # Skip transient subprocesses (python3 -c "..." from poly_live/poly_market_data)
+            if 'python3 -c' in line or 'python -c' in line:
+                continue
             parts = line.strip().split(None, 2)  # split into 3: pid, etime, command
             if len(parts) < 3:
                 continue
@@ -78,8 +81,15 @@ def start_bot(script: str, args: str, process_key: str) -> bool:
            f'-u {script} {args} > {LOG_DIR}/{process_key}_stdout.log 2>&1 &')
     try:
         subprocess.run(['bash', '-c', cmd], capture_output=True, text=True, timeout=5)
-        log.info('Started bot: %s (%s %s)', process_key, script, args)
-        return True
+        # Verify process actually started (brief delay + check)
+        import time
+        time.sleep(1.5)
+        if is_bot_running(process_key):
+            log.info('Started bot: %s (%s %s)', process_key, script, args)
+            return True
+        else:
+            log.error('Bot %s launched but not found in ps — likely crashed on init', process_key)
+            return False
     except Exception as e:
         log.error('Failed to start %s: %s', process_key, e)
         return False

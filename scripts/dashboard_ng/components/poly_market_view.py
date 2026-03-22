@@ -249,19 +249,32 @@ def render_market_view():
         if len(_ph) > 180:
             _ph.pop(0)
 
-        # Update positions chart — [x, y] pairs
+        # Update positions chart — [x, y] pairs (auto-scale Y)
         pos_chart.options['xAxis']['max'] = int(_win)
         pos_chart.options['series'][0]['data'] = [[p['x'], p['up_s']] for p in _ph]
         pos_chart.options['series'][1]['data'] = [[p['x'], p['dn_s']] for p in _ph]
+        max_shares = max(m['up_shares'], m['down_shares'])
+        if max_shares > 0:
+            pos_chart.options['yAxis']['max'] = None  # auto
+            pos_chart.options['yAxis']['min'] = 0
         pos_chart.update()
-        pos_info.text = f'▲ {m["up_shares"]:.1f}  ▼ {m["down_shares"]:.1f}'
+        if has_position:
+            pos_info.text = f'▲ {m["up_shares"]:.1f}  ▼ {m["down_shares"]:.1f}'
+        else:
+            pos_info.text = 'no position'
 
-        # Update avg prices chart — [x, y] pairs
+        # Update avg prices chart — [x, y] pairs (auto-scale Y if no data)
         avg_chart.options['xAxis']['max'] = int(_win)
         avg_chart.options['series'][0]['data'] = [[p['x'], p['up_a']] for p in _ph]
         avg_chart.options['series'][1]['data'] = [[p['x'], p['dn_a']] for p in _ph]
+        if m['up_avg'] > 0 or m['down_avg'] > 0:
+            avg_chart.options['yAxis']['min'] = None  # auto
+            avg_chart.options['yAxis']['max'] = None
         avg_chart.update()
-        avg_info.text = f'▲ ${m["up_avg"]:.3f}  ▼ ${m["down_avg"]:.3f}'
+        if has_position:
+            avg_info.text = f'▲ ${m["up_avg"]:.3f}  ▼ ${m["down_avg"]:.3f}'
+        else:
+            avg_info.text = 'no position'
         _sum = m['avg_sum']
         if _sum:
             _sum_color = 'green' if _sum < 1.0 else 'red' if _sum > 1.02 else 'grey'
@@ -410,10 +423,14 @@ def render_market_view():
         # Update price info (right side values like distinct-baguette)
         price_info.text = f'▲ ${up_mid:.3f}  ▼ ${dn_mid:.3f}'
 
-        # Update spread chart + info
+        # Update spread chart + info (auto-scale Y axis)
         spreads = [[p['x'], p['spread']] for p in history]
         spread_chart.options['xAxis']['max'] = int(win_min)
         spread_chart.options['series'][0]['data'] = spreads
+        spread_vals = [p['spread'] for p in history if p['spread'] > 0]
+        if spread_vals:
+            spread_chart.options['yAxis']['max'] = round(max(spread_vals) * 1.5, 4)
+            spread_chart.options['yAxis']['min'] = 0
         spread_chart.update()
         spread_info.text = f'${up_spread:.4f}'
 

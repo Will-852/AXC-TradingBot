@@ -101,6 +101,7 @@ _ENDGAME_SHARES = 1          # 1 share per bet (data collection mode)
 _ENDGAME_MID_RANGE = (0.17, 0.83)   # only undecided markets
 _ENDGAME_FLIP_RANGE = (0.38, 0.62)  # case 1: coin flip zone
 _ENDGAME_REVERSAL = 0.20     # case 2: ≥20pt mid move in 30s toward center
+_ENDGAME_DAILY_CAP = 10      # max 10 bets/day → worst case $2.50 (< 2% of $300 bankroll)
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -112,6 +113,11 @@ _ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
 _ws_poly = None      # PolymarketBookFeed instance (set in main, WS OB source)
 _ws_user = None      # PolymarketUserFeed instance (set in main, WS fill/cancel detection)
 _endgame_mid_buf: dict[str, deque] = {}  # cid → deque of (ts, mid) for case 2 reversal detection
+_endgame_daily_count = 0
+_endgame_daily_date = ""
+_btc_price_buf: deque = deque(maxlen=120)  # (ts, price) for 30s BTC momentum (hedge trigger)
+_HEDGE_BTC_THRESHOLD = 50   # $50 BTC move in 30s = hedge trigger
+_HEDGE_PCT = 0.30           # hedge 30% of position
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -1083,25 +1089,45 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         logger.warning("💀 HARD STOPPED. Clear 'hard_stopped' from state to resume.")
         return state
 
-    # Daily loss: 20% of DAY-START balance (fixed, not floating)
-    _day_start_key = "day_start_balance"
-    if state.get("daily_pnl_date") != today:
-        state[_day_start_key] = br  # capture balance at day start
-    _day_start_br = state.get(_day_start_key, br)
-    daily_loss_limit = _day_start_br * 0.20
-    if state.get("daily_pnl", 0) < -daily_loss_limit:
-        logger.warning("KILL: daily loss $%.2f > 20%% of day-start $%.0f", -state["daily_pnl"], _day_start_br)
-        _tg_alert(f"🔴 DAILY KILL: loss ${-state['daily_pnl']:.2f} > 20% of ${_day_start_br:.0f}. Halted until tomorrow.")
-        return state
+    # Daily loss: graduated response (Option B)
+    # Tier 1: >$10 loss → sizing 3%→2% (DEFENSIVE)
+    # Tier 2: >$20 loss → sizing 2%→1% (HEDGE_ONLY)
+    # Tier 3: >$30 loss → STOP 2 hours (cooldown)
+    # Tier 4: >$45 loss → STOP until tomorrow (hard kill)
+    # Cooldown check (must be ABOVE daily loss tiers — otherwise Tier 3 return blocks expiry)
     cd = state.get("cooldown_until", "")
     if cd:
         try:
             if now < datetime.fromisoformat(cd):
-                return state
+                return state  # still in cooldown
         except ValueError:
             pass
         state["consecutive_losses"] = 0
         state["cooldown_until"] = ""
+        logger.info("COOLDOWN EXPIRED — resuming trading")
+
+    # Daily loss graduated response (Option B)
+    _daily_loss = -state.get("daily_pnl", 0)  # positive = loss amount
+    _daily_budget_mult = 1.0  # sizing multiplier (1.0 = normal)
+    if _daily_loss > 45:
+        logger.warning("DAILY KILL: loss $%.2f > $45. Halted until tomorrow.", _daily_loss)
+        _tg_alert(f"🔴 DAILY KILL: loss ${_daily_loss:.2f} > $45. Halted until tomorrow.")
+        return state
+    elif _daily_loss > 30:
+        _cd_end = (now + timedelta(hours=2)).isoformat()
+        if not state.get("cooldown_until"):
+            state["cooldown_until"] = _cd_end
+            logger.warning("DAILY COOLDOWN: loss $%.2f > $30. Pausing 2 hours.", _daily_loss)
+            _tg_alert(f"🟡 DAILY COOLDOWN: loss ${_daily_loss:.2f} > $30. 2h pause.")
+        return state
+    elif _daily_loss > 20:
+        _daily_budget_mult = 0.33  # 3% → 1%
+        if is_heavy:
+            logger.info("DAILY DEFENSIVE-2: loss $%.2f > $20, sizing ×0.33", _daily_loss)
+    elif _daily_loss > 10:
+        _daily_budget_mult = 0.67  # 3% → 2%
+        if is_heavy:
+            logger.info("DAILY DEFENSIVE-1: loss $%.2f > $10, sizing ×0.67", _daily_loss)
 
     # ── FAST OPS (every 5s): price, cancel defense, fill check, resolution ──
 
@@ -1296,9 +1322,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _m1_confirmed = abs(_cm_ret) >= _cm_thresh
             _m1 = _cm_ret  # use continuous return for direction
             if not _m1_confirmed:
-                if _elapsed_ms < 180_000:
-                    continue
-                logger.info("SKIP %s: CM weak |%.4f| < %.4f after 3min", cid[:8], _cm_ret, _cm_thresh)
+                if _elapsed_ms < 300_000:
+                    continue  # wait up to 5min for momentum (was 3min — +6pp WR per 2688-window study)
+                logger.info("SKIP %s: CM weak |%.4f| < %.4f after 5min", cid[:8], _cm_ret, _cm_thresh)
                 del state["watchlist"][cid]
                 continue
             logger.info("CM confirmed %s: %+.4f (%.2f%%, %.1fσ) [%dmin elapsed]",
@@ -1310,9 +1336,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _m1_thresh = max(0.0005, _m1_vol * 1.0)
             _m1_confirmed = abs(_m1) >= _m1_thresh
             if not _m1_confirmed:
-                if _elapsed_ms < 180_000:
-                    continue
-                logger.info("SKIP %s: M1 weak |%.4f| < %.4f after 3min", cid[:8], _m1, _m1_thresh)
+                if _elapsed_ms < 300_000:
+                    continue  # wait up to 5min (was 3min — +6pp WR per 2688-window study)
+                logger.info("SKIP %s: M1 weak |%.4f| < %.4f after 5min", cid[:8], _m1, _m1_thresh)
                 del state["watchlist"][cid]
                 continue
             logger.info("M1 confirmed %s: %+.4f (%.2f%%, %.1fσ)",
@@ -1464,7 +1490,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
         _all_rungs = _LADDER_AUTO + _LADDER_COND
-        _window_budget = bankroll * _LADDER_BUDGET_PCT / max(1, n_tranches)
+        _window_budget = bankroll * _LADDER_BUDGET_PCT * _daily_budget_mult / max(1, n_tranches)
         _rung_budget = _window_budget / len(_all_rungs)
 
         _dir_tok = wl["up_tok"] if _fair_up else wl["dn_tok"]
@@ -1838,9 +1864,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             to_cancel = []
             reason = ""
 
-            # Trigger 1: 2 min before window end → cancel ALL pending (except endgame)
+            # Trigger 1: 2 min before window end → cancel ALL pending (except endgame/hedge)
             if end_ms > 0 and now_ms > end_ms - 120_000:
-                to_cancel = [p for p in pending if not p.get("endgame")]
+                to_cancel = [p for p in pending if not p.get("endgame") and not p.get("hedge")]
                 reason = "window_end"
 
             # Trigger 2: spot moved ADVERSELY >0.5% since entry → cancel DIRECTIONAL
@@ -1857,26 +1883,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     # Adverse = price went opposite to our bet direction
                     is_adverse = (signed_move < 0 and _dir == "UP") or (signed_move > 0 and _dir == "DOWN")
                     if is_adverse and abs(signed_move) > _spot_thresh:
-                        to_cancel = _find_directional_orders(pending)
+                        to_cancel = [o for o in _find_directional_orders(pending)
+                                     if not o.get("endgame") and not o.get("hedge")]
                         if to_cancel:
                             reason = f"adverse_move_{signed_move:+.4f}"
 
-            # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only
-            # Fixed 5min was too short — v14 cancelled 6/6 orders (0% fill).
-            # Dynamic TTL: window_end - 2min - entry_ts (no 600s cap)
-            # BMD finding: 600s cap killed 43pp of fill rate (27/27 cancels were TTL).
-            # Now: order lives until 2 min before window end (matches T1 cancel).
+            # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only (skip endgame/hedge)
             if not to_cancel and entry_ts > 0 and end_ms > 0:
-                _hard_cancel_s = (end_ms - 120_000) / 1000  # 2 min before window end (was 3)
-                _max_ttl_s = max(60, _hard_cancel_s - entry_ts)  # no cap — full window
+                _hard_cancel_s = (end_ms - 120_000) / 1000
+                _max_ttl_s = max(60, _hard_cancel_s - entry_ts)
                 _time_on_book = now_s - entry_ts
-                # Log when order exceeds old 600s cap (diagnostic — n=35 not enough to validate removal)
                 if _time_on_book > 600 and not mkt.get("_ttl_extended_logged"):
                     logger.info("TTL_EXTENDED %s: on book %ds (old cap would cancel at 600s, now max=%ds)",
                                 cid[:8], int(_time_on_book), int(_max_ttl_s))
                     mkt["_ttl_extended_logged"] = True
                 if _time_on_book > _max_ttl_s:
-                    to_cancel = _find_directional_orders(pending)
+                    to_cancel = [o for o in _find_directional_orders(pending)
+                                 if not o.get("endgame") and not o.get("hedge")]
                     if to_cancel:
                         reason = f"ttl_{int(_time_on_book)}s_max{int(_max_ttl_s)}s"
 
@@ -1935,7 +1958,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     #   3: Decided / outside range → skip
     # Guard: one order per market (endgame_placed flag)
     if _ENDGAME_ENABLED and client and not dry_run:
+        # Persist daily count in state (survives restart, unlike module global)
+        _eg_today = datetime.now(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d")
+        if state.get("_eg_daily_date") != _eg_today:
+            state["_eg_daily_count"] = 0
+            state["_eg_daily_date"] = _eg_today
+        _eg_count = state.get("_eg_daily_count", 0)
         for cid, mkt in state["markets"].items():
+            if _eg_count >= _ENDGAME_DAILY_CAP:
+                break
             if mkt["phase"] != "OPEN":
                 continue
             if mkt.get("endgame_placed"):
@@ -1968,14 +1999,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
             # ── Classify case ──
             _eg_case = 0
-            _eg_dir = mkt.get("original_dir", "UP")  # default: follow existing direction
+            _eg_dir = "DOWN" if _eg_mid > 0.50 else "UP"  # default: buy cheap side (underdog)
             _mid_30s_ago = 0.0
             _delta_30s = 0.0
 
             if _ENDGAME_MID_RANGE[0] <= _eg_mid <= _ENDGAME_MID_RANGE[1]:
-                # Case 1: Coin flip zone
+                # Case 1: Coin flip zone — buy the underdog (cheap side)
                 if _ENDGAME_FLIP_RANGE[0] <= _eg_mid <= _ENDGAME_FLIP_RANGE[1]:
                     _eg_case = 1
+                    # _eg_dir already set to cheap side above
 
                 # Case 2: Reversal detection — 20pt move in ~30s toward 0.50
                 _old_entries = [(t, m) for t, m in _buf if time.time() - t >= 25]
@@ -1985,7 +2017,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     _moved_toward_center = abs(_eg_mid - 0.5) < abs(_mid_30s_ago - 0.5)
                     if abs(_delta_30s) >= _ENDGAME_REVERSAL and _moved_toward_center:
                         _eg_case = 2
-                        # Follow the reversal: if mid dropped (UP→DOWN), bet DOWN
+                        # Follow the reversal: if mid dropped (UP losing steam), bet DOWN
                         _eg_dir = "DOWN" if _delta_30s < 0 else "UP"
 
             if _eg_case == 0:
@@ -2038,8 +2070,105 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     r["endgame"] = True
                     mkt.setdefault("pending_orders", []).append(r)
 
-            logger.info("ENDGAME C%d %s %s mid=%.2f price=$%.2f tte=%ds",
-                        _eg_case, _eg_dir, cid[:8], _eg_mid, _eg_price, int(tte_s))
+            _eg_count += 1
+            state["_eg_daily_count"] = _eg_count
+            logger.info("ENDGAME C%d %s %s mid=%.2f price=$%.2f tte=%ds [%d/%d today]",
+                        _eg_case, _eg_dir, cid[:8], _eg_mid, _eg_price, int(tte_s),
+                        _eg_count, _ENDGAME_DAILY_CAP)
+
+    # ── LAST-MINUTE HEDGE: buy opposite if BTC 30s momentum against position ──
+    # Structural fix: "signal wrong 34% → bot does nothing → full loss"
+    # Now: if BTC moves $50+ against us in 30s near window end → buy opposite token as insurance
+    # Guard: hedge_placed flag (one per market), BTC-only execution gate
+    _btc_for_buf = _btc_price()
+    if _btc_for_buf > 0:
+        _btc_price_buf.append((time.time(), _btc_for_buf))
+
+    if client and not dry_run:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            if mkt.get("hedge_placed"):
+                continue
+            end_ms = mkt.get("window_end_ms", 0)
+            if end_ms <= 0:
+                continue
+            tte_s = (end_ms - now_ms) / 1000
+            if not (30 < tte_s < 120):
+                continue
+
+            # Only for positions with filled shares
+            _our_dir = mkt.get("original_dir", "")
+            if not _our_dir:
+                continue
+            _our_shares = mkt.get("up_shares", 0) if _our_dir == "UP" else mkt.get("down_shares", 0)
+            if _our_shares < 1:
+                continue
+
+            # Execution gate: BTC only
+            _t = mkt.get("title", "").lower()
+            if "bitcoin" not in _t:
+                continue
+
+            # Check BTC 30s momentum
+            _old_btc = [(t, p) for t, p in _btc_price_buf if time.time() - t >= 25]
+            if not _old_btc:
+                continue
+            _btc_30s_ago = _old_btc[-1][1]
+            _btc_now = _btc_price_buf[-1][1] if _btc_price_buf else 0
+            if _btc_now <= 0:
+                continue
+            _btc_30s_move = _btc_now - _btc_30s_ago
+
+            # Adverse = BTC moved against our direction
+            _is_adverse = (_btc_30s_move < 0 and _our_dir == "UP") or (_btc_30s_move > 0 and _our_dir == "DOWN")
+            if not (_is_adverse and abs(_btc_30s_move) >= _HEDGE_BTC_THRESHOLD):
+                continue
+
+            # Hedge: buy opposite token, 30% of position
+            _opp_dir = "DOWN" if _our_dir == "UP" else "UP"
+            _opp_tok = mkt.get("down_token_id", "") if _our_dir == "UP" else mkt.get("up_token_id", "")
+            if not _opp_tok:
+                continue
+            _hedge_shares = max(1, int(_our_shares * _HEDGE_PCT))
+            _opp_mid = _poly_midpoint(client, _opp_tok)
+            if _opp_mid <= 0:
+                # Fallback: use 1 - UP mid
+                _up_mid = _poly_midpoint(client, mkt.get("up_token_id", ""))
+                _opp_mid = 1.0 - _up_mid if _up_mid > 0 else 0.5
+            _hedge_price = round(min(_opp_mid + 0.02, 0.95), 2)
+
+            _hedge_ctx = {
+                "hedge": True, "our_dir": _our_dir, "our_shares": _our_shares,
+                "btc_30s_move": round(_btc_30s_move, 2), "tte_s": int(tte_s),
+            }
+
+            # Guard BEFORE execute (crash safety — same pattern as endgame)
+            mkt["hedge_placed"] = True
+
+            orders = [PlannedOrder(token_id=_opp_tok, side="BUY",
+                                   price=_hedge_price, size=_hedge_shares,
+                                   outcome=_opp_dir)]
+            results = _execute(orders, client, cid=cid, signal_ctx=_hedge_ctx)
+
+            for r in results:
+                if not r.get("submitted"):
+                    continue
+                if r.get("status") == "matched":
+                    _sk = "up_shares" if _opp_dir == "UP" else "down_shares"
+                    _ak = "up_avg_price" if _opp_dir == "UP" else "down_avg_price"
+                    _old_s = mkt.get(_sk, 0)
+                    _new_s = _old_s + r["size"]
+                    mkt[_sk] = _new_s
+                    mkt[_ak] = (mkt.get(_ak, 0) * _old_s + r["price"] * r["size"]) / _new_s if _new_s > 0 else r["price"]
+                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + r["size"] * r["price"]
+                else:
+                    r["hedge"] = True
+                    mkt.setdefault("pending_orders", []).append(r)
+
+            logger.info("HEDGE %s: %d shares %s @$%.2f (BTC moved $%.0f against %s, tte=%ds)",
+                        cid[:8], _hedge_shares, _opp_dir, _hedge_price,
+                        abs(_btc_30s_move), _our_dir, int(tte_s))
 
     # ── Exit: Profit Lock + Cost Recovery + Stop Loss ──
     # Layer 1: PROFIT LOCK (mid ≥ 96¢) → sell 96%, keep 4% free roll + 2-share hedge

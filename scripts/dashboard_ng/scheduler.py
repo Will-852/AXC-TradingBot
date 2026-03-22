@@ -24,6 +24,17 @@ CHECK_INTERVAL = 30  # seconds
 _last_action: dict[str, str] = {}
 
 
+def _within_minute(now: datetime, target_hhmm: str) -> bool:
+    """Check if now is within 60s of target HH:MM (same day)."""
+    try:
+        h, m = int(target_hhmm[:2]), int(target_hhmm[3:5])
+        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        diff = abs((now - target).total_seconds())
+        return diff < 60
+    except (ValueError, IndexError):
+        return False
+
+
 def read_schedules() -> dict:
     """Read schedules from JSON file."""
     if not os.path.exists(SCHEDULES_PATH):
@@ -78,9 +89,9 @@ async def bot_scheduler():
                 start_time = sched.get('start', '')
                 stop_time = sched.get('stop', '')
 
-                # Auto-start
-                if start_time and now_hhmm == start_time:
-                    action_key = f'{key}_start_{now_hhmm}'
+                # Auto-start (within 60s window to avoid missed minutes)
+                if start_time and _within_minute(now, start_time):
+                    action_key = f'{key}_start_{start_time}'
                     if action_key not in _last_action:
                         running = is_bot_running(key)
                         if not running:
@@ -89,9 +100,9 @@ async def bot_scheduler():
                                 log.info('Scheduler: auto-started %s at %s', name, now_hhmm)
                             _last_action[action_key] = now.isoformat()
 
-                # Auto-stop
-                if stop_time and now_hhmm == stop_time:
-                    action_key = f'{key}_stop_{now_hhmm}'
+                # Auto-stop (within 60s window)
+                if stop_time and _within_minute(now, stop_time):
+                    action_key = f'{key}_stop_{stop_time}'
                     if action_key not in _last_action:
                         killed = stop_bot(script, key)
                         if killed:

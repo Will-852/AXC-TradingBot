@@ -6,7 +6,6 @@ check merge, strategy breakdown, calibration.
 """
 
 import logging
-import subprocess
 
 from nicegui import ui, run
 
@@ -38,14 +37,64 @@ def render_polymarket_page():
     # ── Aggregate view (existing) ──
     poly_data = {'data': {}}
 
+    def _fetch_data_api() -> dict:
+        """Fetch portfolio data from Polymarket Data API (public, no auth).
+        Uses curl (urllib gets 403 from Polymarket User-Agent block).
+        """
+        import os, json, subprocess as _sp
+        wallet = os.getenv('POLY_WALLET_ADDRESS', '')
+        if not wallet:
+            return {}
+        result = {}
+        try:
+            r = _sp.run(['curl', '-s', f'https://data-api.polymarket.com/value?user={wallet}'],
+                        capture_output=True, text=True, timeout=10)
+            resp = json.loads(r.stdout)
+            if resp and isinstance(resp, list):
+                result['positions_value'] = resp[0].get('value', 0)
+        except Exception:
+            pass
+        try:
+            r = _sp.run(['curl', '-s', f'https://data-api.polymarket.com/positions?user={wallet}'],
+                        capture_output=True, text=True, timeout=10)
+            positions = json.loads(r.stdout)
+            open_pos = [p for p in positions if p.get('currentValue', 0) > 0.01]
+            closed = [p for p in positions if p.get('currentValue', 0) <= 0.01]
+            result['open_count'] = len(open_pos)
+            result['closed_wins'] = len([p for p in closed if p.get('cashPnl', 0) > 0])
+            result['closed_losses'] = len([p for p in closed if p.get('cashPnl', 0) < 0])
+        except Exception:
+            pass
+        return result
+
     async def refresh():
         poly_data['data'] = await run.io_bound(_get_poly_data)
-        # Also fetch live balance to override stale state file
+        # Live CLOB balance
         try:
             from scripts.dashboard_ng.utils.poly_live import query_live
             live = await run.io_bound(query_live)
             if live and live.get('balance'):
                 poly_data['live'] = live
+        except Exception:
+            pass
+        # Data API: true portfolio value + positions
+        try:
+            api_data = await run.io_bound(_fetch_data_api)
+            if api_data:
+                poly_data['_positions_value'] = api_data.get('positions_value', 0)
+                poly_data['_open_count'] = api_data.get('open_count', 0)
+                poly_data['_closed_wins'] = api_data.get('closed_wins', 0)
+                poly_data['_closed_losses'] = api_data.get('closed_losses', 0)
+                # Initial deposit from mm_state.json (first deposit amount)
+                import os, json
+                mm_path = os.path.join(
+                    os.environ.get('AXC_HOME', os.path.expanduser('~/projects/axc-trading')),
+                    'polymarket', 'logs', 'mm_state.json'
+                )
+                if os.path.exists(mm_path):
+                    with open(mm_path) as f:
+                        mm = json.load(f)
+                    poly_data['_initial_deposit'] = mm.get('initial_bankroll', 0)
         except Exception:
             pass
         update_all()
@@ -627,49 +676,32 @@ def render_polymarket_page():
 
         last_updated = state.get('last_updated', '—')
 
-        # Calculate total PnL + win rate from mm_trades.jsonl (local file, not API)
-        total_pnl = 0
-        wins = 0
-        resolved = 0
-        try:
-            import os as _os
-            trades_file = _os.path.join(
-                _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading')),
-                'polymarket', 'logs', 'mm_trades.jsonl'
-            )
-            if _os.path.exists(trades_file):
-                import json as _json
-                with open(trades_file) as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            t = _json.loads(line)
-                            pnl = t.get('pnl', t.get('realized_pnl', 0))
-                            if isinstance(pnl, (int, float)) and pnl != 0:
-                                total_pnl += pnl
-                                resolved += 1
-                                if pnl > 0:
-                                    wins += 1
-                        except _json.JSONDecodeError:
-                            continue
-        except Exception:
-            pass
-        win_rate = (wins / resolved * 100) if resolved > 0 else 0
-
-        # Override ALL KPIs with live CLOB data when available
+        # PnL from Polymarket Data API (true on-chain source)
+        import os as _os
+        import json as _json
         live = poly_data.get('live', {})
         live_bal = live.get('balance')
         if live_bal and isinstance(live_bal, (int, float)):
             bal = live_bal
+
+        # Fetch positions value from Data API (cached in poly_data)
+        positions_value = poly_data.get('_positions_value', 0)
+        initial_deposit = poly_data.get('_initial_deposit', 0)
+        total_account = (bal if isinstance(bal, (int, float)) else 0) + positions_value
+        total_pnl = total_account - initial_deposit if initial_deposit else 0
 
         from datetime import datetime
         kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
         pnl_color = 'text-green-400' if total_pnl >= 0 else 'text-red-400'
         kpi_labels['total_pnl'].text = f'${total_pnl:+.2f}'
         kpi_labels['total_pnl'].classes(replace=f'text-lg font-bold font-mono {pnl_color}')
-        kpi_labels['win_rate'].text = f'{win_rate:.0f}% ({wins}/{resolved})'
+        # Win rate from Data API positions
+        n_closed = poly_data.get('_closed_wins', 0) + poly_data.get('_closed_losses', 0)
+        if n_closed > 0:
+            wr = poly_data.get('_closed_wins', 0) / n_closed * 100
+            kpi_labels['win_rate'].text = f'{wr:.0f}% ({poly_data.get("_closed_wins",0)}/{n_closed})'
+        else:
+            kpi_labels['win_rate'].text = f'{poly_data.get("_open_count", 0)} open'
 
         # Positions = live open orders if available
         n_orders = live.get('open_orders', 0)
