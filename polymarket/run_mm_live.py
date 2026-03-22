@@ -1531,9 +1531,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _phased = mkt.get("phased_rungs", [])
             if not _phased:
                 continue
-            _has_fills = mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0
-            if not _has_fills:
-                continue
+            # No _has_fills gate: allow rung 3-4 even if 1-2 missed
+            # (price may skip through 0.43/0.37 on flash drop → 0.31 is still valid entry)
+            # 3-cycle cooldown + checkpoint provides sufficient safety
             _end_ms = mkt.get("window_end_ms", 0)
             if _end_ms > 0 and now_ms > _end_ms - 120_000:
                 continue
