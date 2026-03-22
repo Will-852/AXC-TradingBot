@@ -879,6 +879,24 @@ def _check_resolutions(state: dict):
         else:
             state["consecutive_losses"] = 0
 
+        # ── W/L Ratio Monitor (every 10 resolved, log warning if < 2.0x) ──
+        _wins_list = [m.get("realized_pnl", 0) for m in state["markets"].values()
+                      if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) > 0]
+        _losses_list = [abs(m.get("realized_pnl", 0)) for m in state["markets"].values()
+                        if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) < 0]
+        _n_filled = len(_wins_list) + len(_losses_list)
+        if _n_filled >= 5 and _n_filled % 5 == 0:  # every 5 filled trades
+            _avg_win = sum(_wins_list) / len(_wins_list) if _wins_list else 0
+            _avg_loss = sum(_losses_list) / len(_losses_list) if _losses_list else 1
+            _wl_ratio = _avg_win / _avg_loss if _avg_loss > 0 else 999
+            _wr = len(_wins_list) / _n_filled
+            if _wl_ratio < 2.0:
+                logger.warning("⚠️ W/L RATIO %.1fx < 2.0x THRESHOLD (WR=%.0f%%, avg_win=$%.2f, avg_loss=$%.2f, n=%d)",
+                               _wl_ratio, _wr * 100, _avg_win, _avg_loss, _n_filled)
+            else:
+                logger.info("W/L RATIO %.1fx (WR=%.0f%%, avg_win=$%.2f, avg_loss=$%.2f, n=%d)",
+                            _wl_ratio, _wr * 100, _avg_win, _avg_loss, _n_filled)
+
         fr_pct, _, _ = _fill_rate(state)
         _total_rounds = md.get("rounds", 0) + 1  # +1 for the final hold-to-resolution round
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
