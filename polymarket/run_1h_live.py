@@ -426,56 +426,94 @@ _PAPER_BUDGET = 8.40  # simulated $8.40 per window (same as 15M backtest)
 
 def _paper_enter(cid: str, coin: str, direction: str, entry_price: float,
                  up_mid: float, conviction: float):
-    """Record a simulated entry at current market conditions."""
+    """Record a simulated entry. Uses REAL Poly mid for our side (not engine price).
+    BMD fix: engine price ($0.59) never fills. Real mid ($0.70+) is what we'd actually pay.
+    Also tracks fill_feasible: whether engine price <= our side's mid (could fill)."""
     if cid in _paper_state["positions"]:
         return  # already in
-    shares = _PAPER_BUDGET / entry_price if entry_price > 0 else 0
+    # Our side's real Poly mid (what we'd actually pay as taker)
+    our_mid = up_mid if direction == "UP" else (1.0 - up_mid) if up_mid else 0
+    # Fill feasibility: engine price must be >= ask (~mid+2c) to fill as limit order
+    fill_feasible = entry_price >= (our_mid - 0.02) if our_mid > 0 else False
+    # Paper PnL uses TWO prices: engine_price (limit order) and market_price (taker)
+    # Report both so we can compare
+    market_price = round(our_mid + 0.02, 4) if our_mid > 0 else entry_price
+    shares_engine = _PAPER_BUDGET / entry_price if entry_price > 0 else 0
+    shares_market = _PAPER_BUDGET / market_price if market_price > 0 else 0
     _paper_state["positions"][cid] = {
         "coin": coin, "direction": direction,
-        "shares": round(shares, 1), "entry_price": round(entry_price, 4),
+        "shares_engine": round(shares_engine, 1),
+        "shares_market": round(shares_market, 1),
+        "entry_engine": round(entry_price, 4),
+        "entry_market": round(market_price, 4),
         "entry_mid": round(up_mid, 4) if up_mid else 0,
-        "cost": round(shares * entry_price, 2),
+        "our_mid": round(our_mid, 4),
+        "cost_engine": round(shares_engine * entry_price, 2),
+        "cost_market": round(shares_market * market_price, 2),
+        "fill_feasible": fill_feasible,
         "conviction": round(conviction, 3),
         "ts": time.time(),
     }
-    logger.info("PAPER ENTER %s %s %s: %.0f shares @ $%.3f (mid=$%.3f conv=%.2f)",
-                coin, direction, cid[:8], shares, entry_price, up_mid or 0, conviction)
+    _fill_tag = "✅FILL" if fill_feasible else "❌MISS"
+    logger.info("PAPER ENTER %s %s %s: engine=$%.3f market=$%.3f mid=$%.3f %s conv=%.2f",
+                coin, direction, cid[:8], entry_price, market_price, our_mid, _fill_tag, conviction)
 
 
 def _paper_resolve(cid: str, result: str):
-    """Resolve a paper position. Logs PnL."""
+    """Resolve a paper position. Logs BOTH engine PnL and market PnL.
+    BMD fix: engine PnL is fictional (0% fill rate). Market PnL is reality."""
     pos = _paper_state["positions"].pop(cid, None)
     if not pos:
         return
     coin = pos["coin"]
     won = (pos["direction"] == result)
-    if won:
-        pnl = pos["shares"] * (1.0 - pos["entry_price"])
-    else:
-        pnl = -pos["cost"]
+
+    # Engine PnL (limit order at conviction price — likely unfillable)
+    s_eng = pos.get("shares_engine", pos.get("shares", 0))
+    ep_eng = pos.get("entry_engine", pos.get("entry_price", 0))
+    c_eng = pos.get("cost_engine", pos.get("cost", 0))
+    pnl_engine = s_eng * (1.0 - ep_eng) if won else -c_eng
+
+    # Market PnL (taker at real Poly mid + 2c — what would actually happen)
+    s_mkt = pos.get("shares_market", s_eng)
+    ep_mkt = pos.get("entry_market", ep_eng)
+    c_mkt = pos.get("cost_market", c_eng)
+    pnl_market = s_mkt * (1.0 - ep_mkt) if won else -c_mkt
 
     record = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "coin": coin, "cid": cid[:16],
         "direction": pos["direction"], "result": result,
-        "won": won, "shares": pos["shares"],
-        "entry_price": pos["entry_price"], "entry_mid": pos["entry_mid"],
-        "conviction": pos["conviction"],
-        "pnl": round(pnl, 2), "cost": pos["cost"],
+        "won": won,
+        "entry_engine": round(ep_eng, 4), "entry_market": round(ep_mkt, 4),
+        "our_mid": pos.get("our_mid", 0),
+        "fill_feasible": pos.get("fill_feasible", False),
+        "pnl_engine": round(pnl_engine, 2),
+        "pnl_market": round(pnl_market, 2),
+        "conviction": pos.get("conviction", 0),
+        # Backward compat fields
+        "entry_price": round(ep_eng, 4), "pnl": round(pnl_engine, 2),
+        "shares": s_eng, "cost": c_eng, "entry_mid": pos.get("entry_mid", 0),
     }
     _paper_state["resolved"].append(record)
-    _paper_state["total_pnl"] += pnl
+    _paper_state["total_pnl"] += pnl_engine
+    # Track market PnL separately
+    _paper_state.setdefault("total_pnl_market", 0.0)
+    _paper_state["total_pnl_market"] += pnl_market
 
     # Per-coin stats
     if coin not in _paper_state["by_coin"]:
-        _paper_state["by_coin"][coin] = {"trades": 0, "wins": 0, "pnl": 0.0}
+        _paper_state["by_coin"][coin] = {"trades": 0, "wins": 0, "pnl": 0.0, "pnl_market": 0.0}
     cs = _paper_state["by_coin"][coin]
     cs["trades"] += 1
     cs["wins"] += int(won)
-    cs["pnl"] += pnl
+    cs["pnl"] += pnl_engine
+    cs.setdefault("pnl_market", 0.0)
+    cs["pnl_market"] += pnl_market
 
     # Log to file
     record["total_pnl"] = round(_paper_state["total_pnl"], 2)
+    record["total_pnl_market"] = round(_paper_state["total_pnl_market"], 2)
     try:
         with open(_PAPER_PNL_LOG, "a") as f:
             f.write(json.dumps(record) + "\n")
@@ -484,10 +522,11 @@ def _paper_resolve(cid: str, result: str):
 
     wr = cs["wins"] / cs["trades"] * 100 if cs["trades"] else 0
     tag = "✅" if won else "❌"
-    logger.info("PAPER %s %s %s %s: pnl=$%+.2f | %s WR=%.0f%% (%d/%d) cum=$%+.2f | TOTAL=$%+.2f",
-                tag, coin, pos["direction"], result, pnl,
+    _fill_tag = "FILL" if pos.get("fill_feasible") else "MISS"
+    logger.info("PAPER %s %s %s %s: eng=$%+.2f mkt=$%+.2f [%s] | %s WR=%.0f%% (%d/%d) | ENG=$%+.2f MKT=$%+.2f",
+                tag, coin, pos.get("direction",""), result, pnl_engine, pnl_market, _fill_tag,
                 coin, wr, cs["wins"], cs["trades"], cs["pnl"],
-                _paper_state["total_pnl"])
+                _paper_state.get("total_pnl_market", 0))
 
 
 def _paper_status():

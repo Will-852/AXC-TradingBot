@@ -35,6 +35,7 @@ import tempfile
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 from copy import copy as _copy
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -92,6 +93,14 @@ _REENTRY_COOLDOWN_S = 30 # seconds after sell before re-entry
 # Live execution gate: only these coins place real orders.
 # ETH + SOL = discover + log signals but NEVER execute (observation only).
 _LIVE_TRADE_COINS = {"btc"}  # lowercase slug prefix
+# ── Endgame: 1-share data collection in undecided markets (last 2 min) ──
+_ENDGAME_ENABLED = True
+_ENDGAME_TTE_START = 120     # activate at T-120s (after normal cancel-all)
+_ENDGAME_TTE_STOP = 30       # stop placing at T-30s
+_ENDGAME_SHARES = 1          # 1 share per bet (data collection mode)
+_ENDGAME_MID_RANGE = (0.17, 0.83)   # only undecided markets
+_ENDGAME_FLIP_RANGE = (0.38, 0.62)  # case 1: coin flip zone
+_ENDGAME_REVERSAL = 0.20     # case 2: ≥20pt mid move in 30s toward center
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -102,6 +111,7 @@ _mkt_fetcher = None  # StaggeredFetcher instance (set in main, used in run_cycle
 _ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
 _ws_poly = None      # PolymarketBookFeed instance (set in main, WS OB source)
 _ws_user = None      # PolymarketUserFeed instance (set in main, WS fill/cancel detection)
+_endgame_mid_buf: dict[str, deque] = {}  # cid → deque of (ts, mid) for case 2 reversal detection
 
 
 def _rate_ok(source: str = "binance") -> bool:
@@ -1828,9 +1838,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             to_cancel = []
             reason = ""
 
-            # Trigger 1: 2 min before window end → cancel ALL pending
+            # Trigger 1: 2 min before window end → cancel ALL pending (except endgame)
             if end_ms > 0 and now_ms > end_ms - 120_000:
-                to_cancel = list(pending)
+                to_cancel = [p for p in pending if not p.get("endgame")]
                 reason = "window_end"
 
             # Trigger 2: spot moved ADVERSELY >0.5% since entry → cancel DIRECTIONAL
@@ -1918,6 +1928,119 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _post_fill_checks.clear()
         _post_fill_checks.extend(_remaining)
 
+    # ── ENDGAME: 1-share bets in undecided markets (T-120s to T-30s) ──
+    # Three cases:
+    #   1: Coin flip (mid 0.38-0.62) → bet bridge direction
+    #   2: Reversal (20pt move in 30s toward center) → follow the move
+    #   3: Decided / outside range → skip
+    # Guard: one order per market (endgame_placed flag)
+    if _ENDGAME_ENABLED and client and not dry_run:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            if mkt.get("endgame_placed"):
+                continue
+            end_ms = mkt.get("window_end_ms", 0)
+            if end_ms <= 0:
+                continue
+            tte_s = (end_ms - now_ms) / 1000
+            if not (_ENDGAME_TTE_STOP < tte_s < _ENDGAME_TTE_START):
+                continue
+
+            # Execution gate: BTC only
+            _t = mkt.get("title", "").lower()
+            _eg_coin = "btc" if "bitcoin" in _t else ("eth" if "ethereum" in _t else "sol")
+            if _eg_coin not in _LIVE_TRADE_COINS:
+                continue
+
+            # Get current mid (prefer WebSocket, fallback REST)
+            up_tok = mkt.get("up_token_id", "")
+            dn_tok = mkt.get("down_token_id", "")
+            if not up_tok or not dn_tok:
+                continue
+            _eg_mid = _poly_midpoint(client, up_tok)
+            if _eg_mid <= 0:
+                continue
+
+            # Track mid history for case 2 detection
+            _buf = _endgame_mid_buf.setdefault(cid, deque(maxlen=60))
+            _buf.append((time.time(), _eg_mid))
+
+            # ── Classify case ──
+            _eg_case = 0
+            _eg_dir = mkt.get("original_dir", "UP")  # default: follow existing direction
+            _mid_30s_ago = 0.0
+            _delta_30s = 0.0
+
+            if _ENDGAME_MID_RANGE[0] <= _eg_mid <= _ENDGAME_MID_RANGE[1]:
+                # Case 1: Coin flip zone
+                if _ENDGAME_FLIP_RANGE[0] <= _eg_mid <= _ENDGAME_FLIP_RANGE[1]:
+                    _eg_case = 1
+
+                # Case 2: Reversal detection — 20pt move in ~30s toward 0.50
+                _old_entries = [(t, m) for t, m in _buf if time.time() - t >= 25]
+                if _old_entries:
+                    _mid_30s_ago = _old_entries[-1][1]
+                    _delta_30s = _eg_mid - _mid_30s_ago
+                    _moved_toward_center = abs(_eg_mid - 0.5) < abs(_mid_30s_ago - 0.5)
+                    if abs(_delta_30s) >= _ENDGAME_REVERSAL and _moved_toward_center:
+                        _eg_case = 2
+                        # Follow the reversal: if mid dropped (UP→DOWN), bet DOWN
+                        _eg_dir = "DOWN" if _delta_30s < 0 else "UP"
+
+            if _eg_case == 0:
+                continue  # Case 3 or outside range → skip
+
+            # Token + aggressive taker price (mid + 2¢ to ensure fill)
+            _eg_tok = up_tok if _eg_dir == "UP" else dn_tok
+            _eg_our_mid = _eg_mid if _eg_dir == "UP" else (1.0 - _eg_mid)
+            _eg_price = round(min(_eg_our_mid + 0.02, 0.95), 2)
+
+            # Signal context for offline analysis
+            _eg_ctx = {
+                "endgame": True, "case": _eg_case,
+                "mid": round(_eg_mid, 4), "mid_30s_ago": round(_mid_30s_ago, 4),
+                "delta_30s": round(_delta_30s, 4), "direction": _eg_dir,
+                "fair": round(_eg_mid if mkt.get("original_dir") == "UP" else 1.0 - _eg_mid, 4),
+                "original_dir": mkt.get("original_dir", ""),
+                "tte_s": int(tte_s), "coin": _eg_coin,
+            }
+
+            orders = [PlannedOrder(token_id=_eg_tok, side="BUY",
+                                   price=_eg_price, size=_ENDGAME_SHARES,
+                                   outcome=_eg_dir)]
+
+            # Set guard BEFORE execute — crash between submit and save won't double-bet
+            # (worst case: market skipped, not double-submitted — safe side of gotchas)
+            mkt["endgame_placed"] = True
+            mkt["endgame_dir"] = _eg_dir
+            mkt["endgame_case"] = _eg_case
+
+            results = _execute(orders, client, cid=cid, signal_ctx=_eg_ctx)
+
+            for r in results:
+                if not r.get("submitted"):
+                    continue
+                if r.get("status") == "matched":
+                    # Instant fill — update shares + entry_cost
+                    _sk = "up_shares" if _eg_dir == "UP" else "down_shares"
+                    _ak = "up_avg_price" if _eg_dir == "UP" else "down_avg_price"
+                    _old_s = mkt.get(_sk, 0)
+                    _old_a = mkt.get(_ak, 0)
+                    _new_s = _old_s + r["size"]
+                    mkt[_sk] = _new_s
+                    mkt[_ak] = (_old_a * _old_s + r["price"] * r["size"]) / _new_s if _new_s > 0 else r["price"]
+                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + r["size"] * r["price"]
+                    logger.info("ENDGAME FILL C%d %s %s mid=%.2f @$%.2f tte=%ds",
+                                _eg_case, _eg_dir, cid[:8], _eg_mid, r["price"], int(tte_s))
+                else:
+                    # Pending — add to pending_orders with endgame tag
+                    r["endgame"] = True
+                    mkt.setdefault("pending_orders", []).append(r)
+
+            logger.info("ENDGAME C%d %s %s mid=%.2f price=$%.2f tte=%ds",
+                        _eg_case, _eg_dir, cid[:8], _eg_mid, _eg_price, int(tte_s))
+
     # ── Exit: Profit Lock + Cost Recovery + Stop Loss ──
     # Layer 1: PROFIT LOCK (mid ≥ 96¢) → sell 96%, keep 4% free roll + 2-share hedge
     # Layer 2: COST RECOVERY (mid ≥ 64¢, early) → sell enough to recover cost → free roll
@@ -1938,7 +2061,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             end_ms = mkt.get("window_end_ms", 0)
             if end_ms > 0 and now_ms > end_ms - 300_000:
-                continue  # last 5 min, can't sell (market rejects at ~4 min)
+                continue  # last 5 min — self-imposed guard (market accepts orders until T+50s)
 
             _cost_recovered = mkt.get("cost_recovered", False)
 
@@ -2281,6 +2404,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
     logger.info("Heavy loop: %d markets in %.1fs", _heavy_loop_n, time.time() - _heavy_loop_t0)
 
+    # BMD fix: WS data freshness monitor (detect partial disconnects)
+    _ws_status = []
+    if _ws_binance:
+        _bp = _ws_binance.get_price("BTCUSDT")
+        _ws_status.append(f"BinWS={'OK' if _bp else 'STALE'}")
+    if _ws_poly:
+        # Check if any subscribed token has fresh data
+        _poly_ok = any(_ws_poly.get_midpoint(t) is not None
+                       for cid, m in state.get("markets", {}).items()
+                       for t in [m.get("up_token_id", "")]
+                       if m.get("phase") == "OPEN" and t)
+        _ws_status.append(f"PolyWS={'OK' if _poly_ok else 'STALE'}")
+    if _ws_user:
+        _ws_status.append(f"UserWS={'OK' if _ws_user.connected else 'DOWN'}")
+    if _ws_status:
+        logger.debug("WS feeds: %s", " | ".join(_ws_status))
+
     # Resolutions
     _check_resolutions(state)
 
@@ -2297,6 +2437,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if len(resolved) > 50:
         for c in resolved[:-50]:
             del state["markets"][c]
+            _endgame_mid_buf.pop(c, None)
 
     return state
 

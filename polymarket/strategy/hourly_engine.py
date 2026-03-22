@@ -71,16 +71,17 @@ class HourlyConfig:
     min_conviction_start: float = 0.33   # scout early (0.3x size dampen) + ADD later at full size
     min_conviction_decay: float = 0.005  # threshold drops by this per minute
     min_conviction_floor: float = 0.12   # never enter below this conviction (was 0.10)
-    # Entry price: v3 aggressive — 1H has no taker fee, market price entry is optimal.
-    # Backtest (30d, 719 hours): 0c spread → Sharpe +0.28 (SOL), +0.24 (ETH), +0.14 (BTC).
-    # Old $0.39 cap killed fill rate (11%). New: entry near fair, capped at $0.75.
-    price_cap_base: float = 0.55         # cap at zero conviction (was 0.25)
-    price_cap_scale: float = 0.20        # cap grows by this x conviction → max 0.75 (was 0.12)
-    max_entry_price: float = 0.75        # hard ceiling (was 0.39). 1H no taker fee = buy closer to fair.
+    # Entry price: REVERTED to v2 (BMD 2026-03-23).
+    # v3 ($0.75 cap, 3c spread) proved WRONG: 0% real fill rate, $0.08/trade at market.
+    # Wallet RE: 12/14 profitable wallets use set-and-forget at LOW prices ($0.20-$0.39).
+    # Edge = buying cheap, not direction accuracy. Cap $0.39 = structural protection.
+    price_cap_base: float = 0.25         # cap at zero conviction
+    price_cap_scale: float = 0.12        # cap grows by this x conviction → max 0.37
+    max_entry_price: float = 0.39        # hard ceiling — structural edge protection
     min_entry_price: float = 0.20        # never pay less than this (too far = no fill)
-    min_ev_per_share: float = 0.03       # minimum 3c EV per share (was 5c, tighter with higher entry)
-    # Spread scaling — v3: tiny spread (3c base). Edge is direction accuracy, not cheap entry.
-    base_spread: float = 0.03           # spread at zero conviction (was 0.15)
+    min_ev_per_share: float = 0.05       # minimum 5c EV per share
+    # Spread scaling
+    base_spread: float = 0.15           # spread at zero conviction
     spread_compression: float = 0.7     # how much conviction compresses spread
     # Size scaling: conviction^2 (quadratic, not linear)
     max_size_fraction: float = 0.05     # max 5% of bankroll per window
@@ -99,8 +100,8 @@ class HourlyConfig:
     min_fair_deviation: float = 0.05    # fair must deviate >=5c from 0.50
     # Fat-tail adjustment: BTC kurtosis > 9, normal CDF overestimates confidence
     fat_tail_haircut: float = 0.10      # 10% haircut toward 0.50
-    # Stop loss: tighter with v3 higher entries (more to lose per share)
-    stop_loss_pct: float = -0.25         # -25% unrealized → EXIT (was -49%, aligned with 15M now)
+    # Stop loss: wider than 15M because 1H has more short-term noise
+    stop_loss_pct: float = -0.49         # -49% unrealized → EXIT (REVERTED from v3's -25%)
     # Mid sanity: Polymarket market mid must agree with our direction
     min_market_mid: float = 0.28         # mid for our side must be ≥28¢ (below = market strongly disagrees)
     # Min order size for Polymarket (5 shares x $0.50 = $2.50)
