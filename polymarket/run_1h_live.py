@@ -56,6 +56,7 @@ _BINANCE = "https://api.binance.com/api/v3"
 _DATA_API = "https://data-api.polymarket.com"
 _ANALYSIS_TAPE = os.path.join(_LOG_DIR, "analysis_1h.jsonl")
 _SIGNAL_TAPE_1H = os.path.join(_LOG_DIR, "signal_tape_1h.jsonl")
+_PAPER_PNL_LOG = os.path.join(_LOG_DIR, "paper_pnl_1h.jsonl")
 
 _CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
 _HEAVY_INTERVAL_S = 20  # heavy ops every 20s (3x from 60s, 12 req/min, 50% total budget)
@@ -397,6 +398,101 @@ def _record_signal_tape(coin: str, cid: str, up_tok: str, dn_tok: str,
             f.write(json.dumps(record) + "\n")
     except Exception:
         pass
+
+
+# ═══════════════════════════════════════
+#  Paper PnL — simulate buy/sell with real Poly mid, track cumulative PnL
+#  Not precise (ignores slippage, partial fills) but good enough to decide go/no-go
+# ═══════════════════════════════════════
+
+_paper_state = {
+    "positions": {},      # {cid: {coin, direction, shares, entry_price, entry_mid, cost}}
+    "resolved": [],       # [{coin, direction, entry_price, result, pnl, ...}]
+    "total_pnl": 0.0,
+    "by_coin": {},        # {coin: {trades, wins, pnl}}
+}
+_PAPER_BUDGET = 8.40  # simulated $8.40 per window (same as 15M backtest)
+
+
+def _paper_enter(cid: str, coin: str, direction: str, entry_price: float,
+                 up_mid: float, conviction: float):
+    """Record a simulated entry at current market conditions."""
+    if cid in _paper_state["positions"]:
+        return  # already in
+    shares = _PAPER_BUDGET / entry_price if entry_price > 0 else 0
+    _paper_state["positions"][cid] = {
+        "coin": coin, "direction": direction,
+        "shares": round(shares, 1), "entry_price": round(entry_price, 4),
+        "entry_mid": round(up_mid, 4) if up_mid else 0,
+        "cost": round(shares * entry_price, 2),
+        "conviction": round(conviction, 3),
+        "ts": time.time(),
+    }
+    logger.info("PAPER ENTER %s %s %s: %.0f shares @ $%.3f (mid=$%.3f conv=%.2f)",
+                coin, direction, cid[:8], shares, entry_price, up_mid or 0, conviction)
+
+
+def _paper_resolve(cid: str, result: str):
+    """Resolve a paper position. Logs PnL."""
+    pos = _paper_state["positions"].pop(cid, None)
+    if not pos:
+        return
+    coin = pos["coin"]
+    won = (pos["direction"] == result)
+    if won:
+        pnl = pos["shares"] * (1.0 - pos["entry_price"])
+    else:
+        pnl = -pos["cost"]
+
+    record = {
+        "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
+        "coin": coin, "cid": cid[:16],
+        "direction": pos["direction"], "result": result,
+        "won": won, "shares": pos["shares"],
+        "entry_price": pos["entry_price"], "entry_mid": pos["entry_mid"],
+        "conviction": pos["conviction"],
+        "pnl": round(pnl, 2), "cost": pos["cost"],
+    }
+    _paper_state["resolved"].append(record)
+    _paper_state["total_pnl"] += pnl
+
+    # Per-coin stats
+    if coin not in _paper_state["by_coin"]:
+        _paper_state["by_coin"][coin] = {"trades": 0, "wins": 0, "pnl": 0.0}
+    cs = _paper_state["by_coin"][coin]
+    cs["trades"] += 1
+    cs["wins"] += int(won)
+    cs["pnl"] += pnl
+
+    # Log to file
+    record["total_pnl"] = round(_paper_state["total_pnl"], 2)
+    try:
+        with open(_PAPER_PNL_LOG, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
+        pass
+
+    wr = cs["wins"] / cs["trades"] * 100 if cs["trades"] else 0
+    tag = "✅" if won else "❌"
+    logger.info("PAPER %s %s %s %s: pnl=$%+.2f | %s WR=%.0f%% (%d/%d) cum=$%+.2f | TOTAL=$%+.2f",
+                tag, coin, pos["direction"], result, pnl,
+                coin, wr, cs["wins"], cs["trades"], cs["pnl"],
+                _paper_state["total_pnl"])
+
+
+def _paper_status():
+    """Print paper trading summary."""
+    ps = _paper_state
+    n = len(ps["resolved"])
+    if n == 0:
+        return
+    wins = sum(1 for r in ps["resolved"] if r["won"])
+    logger.info("PAPER SUMMARY: %d trades | WR=%.0f%% | PnL=$%+.2f | Open=%d",
+                n, wins / n * 100, ps["total_pnl"], len(ps["positions"]))
+    for coin, cs in sorted(ps["by_coin"].items()):
+        wr = cs["wins"] / cs["trades"] * 100 if cs["trades"] else 0
+        logger.info("  %s: %d trades WR=%.0f%% PnL=$%+.2f",
+                    coin, cs["trades"], wr, cs["pnl"])
 
 
 def _vol_1m(coin: str = "BTC") -> float:
@@ -779,7 +875,12 @@ def _check_resolutions(state: dict):
             continue
 
         title = md.get("title", "").lower()
-        sym = "ETHUSDT" if "ethereum" in title else "BTCUSDT"
+        if "solana" in title:
+            sym = "SOLUSDT"
+        elif "ethereum" in title:
+            sym = "ETHUSDT"
+        else:
+            sym = "BTCUSDT"
         data = _get_json(f"{_BINANCE}/klines?symbol={sym}&interval=1h&startTime={start_ms}&limit=1")
         if not data:
             continue
@@ -809,6 +910,9 @@ def _check_resolutions(state: dict):
 
         d = "↑" if result == "UP" else "↓"
         print(f"  RESOLVED {cid[:8]} {d} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
+
+        # Paper trade resolution
+        _paper_resolve(cid, result)
 
     # Update consecutive losses per hour-window (not per market)
     for _start_ms, net_pnl in sorted(hour_pnl.items()):
@@ -1258,6 +1362,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             sig.action, coin, sig.direction, _flip_tag, sig.conviction,
                             sig.fair_up, sig.entry_price, size_usd, sig.reason)
 
+                # Paper trade: record simulated entry at real Poly mid
+                _paper_enter(cid, coin, sig.direction, sig.entry_price,
+                             _poly_midpoint(up_tok), sig.conviction)
+
         elif sig.action == "EXIT" and not dry_run:
             logger.warning("EXIT signal for %s: %s", cid[:8], sig.reason)
             _try_sell_partial(client, state, cid, existing, up_tok, dn_tok,
@@ -1300,6 +1408,19 @@ def _status(state: dict):
         wins = sum(1 for m in resolved if m.get("realized_pnl", 0) > 0)
         wr = wins / len(resolved) * 100 if resolved else 0
         print(f"\n  RESOLVED: {len(resolved)} markets | WR: {wr:.0f}%")
+
+    # Paper trading summary
+    ps = _paper_state
+    if ps["resolved"]:
+        n = len(ps["resolved"])
+        pw = sum(1 for r in ps["resolved"] if r["won"])
+        print(f"\n  📊 PAPER TRADING (simulated $8.40/window):")
+        print(f"    Total: {n} trades | WR: {pw/n*100:.0f}% | PnL: ${ps['total_pnl']:+.2f}")
+        for coin, cs in sorted(ps["by_coin"].items()):
+            cwr = cs["wins"] / cs["trades"] * 100 if cs["trades"] else 0
+            print(f"    {coin}: {cs['trades']} trades | WR: {cwr:.0f}% | PnL: ${cs['pnl']:+.2f}")
+    if ps["positions"]:
+        print(f"    Open: {len(ps['positions'])} paper positions")
 
     print()
 
