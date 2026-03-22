@@ -113,8 +113,7 @@ _ws_binance = None   # BinancePriceFeed instance (set in main, WS price source)
 _ws_poly = None      # PolymarketBookFeed instance (set in main, WS OB source)
 _ws_user = None      # PolymarketUserFeed instance (set in main, WS fill/cancel detection)
 _endgame_mid_buf: dict[str, deque] = {}  # cid → deque of (ts, mid) for case 2 reversal detection
-_endgame_daily_count = 0
-_endgame_daily_date = ""
+# endgame daily count persisted in state["_eg_daily_count"] (survives restart)
 _btc_price_buf: deque = deque(maxlen=120)  # (ts, price) for 30s BTC momentum (hedge trigger)
 _HEDGE_BTC_THRESHOLD = 50   # $50 BTC move in 30s = hedge trigger
 _HEDGE_PCT = 0.30           # hedge 30% of position
@@ -868,9 +867,10 @@ def _from_dict(d: dict) -> MMMarketState:
     return s
 
 
-def _log_trade(record: dict):
+def _log_trade(record: dict, log_path: str = ""):
     os.makedirs(_LOG_DIR, exist_ok=True)
-    with open(_TRADE_LOG, "a") as f:
+    _path = log_path or _TRADE_LOG
+    with open(_path, "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
 
 
@@ -905,8 +905,8 @@ def _get_rolling_wr(state: dict, window: int = 30) -> tuple[float, int]:
     Unfilled markets (entry_cost=0, PnL=0) are excluded — no fill = no play.
     Returns (wr, count). If count < 5, returns (0.68, count) = assume baseline.
     """
-    resolved = [m for m in state["markets"].values() if m["phase"] == "RESOLVED"]
-    # Only count markets that had fills (entry_cost > 0)
+    resolved = [m for m in state["markets"].values() if m["phase"] == "RESOLVED" and not m.get("paper")]
+    # Only count real markets that had fills (entry_cost > 0), exclude paper
     filled = [m for m in resolved if m.get("entry_cost", 0) > 0 or m.get("realized_pnl", 0) != 0]
     recent = filled[-window:] if len(filled) > window else filled
     if len(recent) < 5:
@@ -982,8 +982,25 @@ def _check_resolutions(state: dict):
         result = "UP" if btc_c >= btc_o else "DOWN"
 
         ms = _from_dict(md)
+        _is_paper = md.get("paper", False)
         pnl = resolve_market(ms, result)
         state["markets"][cid] = _to_dict(ms)
+
+        # Paper trades: log separately, don't affect real bankroll/risk
+        if _is_paper:
+            state["paper_pnl"] = state.get("paper_pnl", 0) + pnl
+            state["paper_markets"] = state.get("paper_markets", 0) + 1
+            _coin_label = "ETH" if "ethereum" in md.get("title", "").lower() else ("SOL" if "solana" in md.get("title", "").lower() else "???")
+            _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
+                         "result": result, "pnl": round(pnl, 4),
+                         "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
+                         "paper_total_pnl": round(state.get("paper_pnl", 0), 2),
+                         "coin": _coin_label, "paper": True},
+                        log_path=os.path.join(_LOG_DIR, "mm_paper_trades.jsonl"))
+            d = "↑" if result == "UP" else "↓"
+            print(f"  📝 PAPER {_coin_label} {cid[:8]} {d} | PnL ${pnl:+.2f} | Paper Total ${state.get('paper_pnl', 0):.2f}")
+            continue  # skip real PnL/risk updates
+
         state["daily_pnl"] += pnl
         state["total_pnl"] += pnl
         state["total_markets"] += 1
@@ -997,26 +1014,26 @@ def _check_resolutions(state: dict):
         else:
             state["consecutive_losses"] = 0
 
-        # ── W/L Ratio Monitor (every 10 resolved, log warning if < 2.0x) ──
+        # ── W/L Ratio Monitor (every 5 resolved, warn if < 2.0x) — real trades only ──
         _wins_list = [m.get("realized_pnl", 0) for m in state["markets"].values()
-                      if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) > 0]
+                      if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) > 0 and not m.get("paper")]
         _losses_list = [abs(m.get("realized_pnl", 0)) for m in state["markets"].values()
-                        if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) < 0]
+                        if m.get("phase") == "RESOLVED" and m.get("realized_pnl", 0) < 0 and not m.get("paper")]
         _n_filled = len(_wins_list) + len(_losses_list)
-        if _n_filled >= 5 and _n_filled % 5 == 0:  # every 5 filled trades
+        if _n_filled >= 5 and _n_filled % 5 == 0:
             _avg_win = sum(_wins_list) / len(_wins_list) if _wins_list else 0
             _avg_loss = sum(_losses_list) / len(_losses_list) if _losses_list else 1
             _wl_ratio = _avg_win / _avg_loss if _avg_loss > 0 else 999
             _wr = len(_wins_list) / _n_filled
             if _wl_ratio < 2.0:
-                logger.warning("⚠️ W/L RATIO %.1fx < 2.0x THRESHOLD (WR=%.0f%%, avg_win=$%.2f, avg_loss=$%.2f, n=%d)",
-                               _wl_ratio, _wr * 100, _avg_win, _avg_loss, _n_filled)
+                logger.warning("⚠️ W/L RATIO %.1fx < 2.0x (WR=%.0f%%, n=%d)",
+                               _wl_ratio, _wr * 100, _n_filled)
             else:
-                logger.info("W/L RATIO %.1fx (WR=%.0f%%, avg_win=$%.2f, avg_loss=$%.2f, n=%d)",
-                            _wl_ratio, _wr * 100, _avg_win, _avg_loss, _n_filled)
+                logger.info("W/L RATIO %.1fx (WR=%.0f%%, n=%d)",
+                            _wl_ratio, _wr * 100, _n_filled)
 
         fr_pct, _, _ = _fill_rate(state)
-        _total_rounds = md.get("rounds", 0) + 1  # +1 for the final hold-to-resolution round
+        _total_rounds = md.get("rounds", 0) + 1
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                      "result": result, "pnl": round(pnl, 4),
                      "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
@@ -1112,6 +1129,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if _daily_loss > 45:
         logger.warning("DAILY KILL: loss $%.2f > $45. Halted until tomorrow.", _daily_loss)
         _tg_alert(f"🔴 DAILY KILL: loss ${_daily_loss:.2f} > $45. Halted until tomorrow.")
+        # Cancel all open orders before halting (prevent orphans on CLOB)
+        if client and hasattr(client, "client") and not dry_run:
+            try:
+                _all = client.get_orders()
+                for _o in (_all or []):
+                    client.client.cancel(order_id=_o.get("id", ""))
+                logger.info("DAILY KILL: cancelled %d orphan orders", len(_all or []))
+            except Exception as e:
+                logger.warning("DAILY KILL cancel failed: %s", e)
         return state
     elif _daily_loss > 30:
         _cd_end = (now + timedelta(hours=2)).isoformat()
@@ -1119,6 +1145,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             state["cooldown_until"] = _cd_end
             logger.warning("DAILY COOLDOWN: loss $%.2f > $30. Pausing 2 hours.", _daily_loss)
             _tg_alert(f"🟡 DAILY COOLDOWN: loss ${_daily_loss:.2f} > $30. 2h pause.")
+            # Cancel all open orders before cooldown
+            if client and hasattr(client, "client") and not dry_run:
+                try:
+                    _all = client.get_orders()
+                    for _o in (_all or []):
+                        client.client.cancel(order_id=_o.get("id", ""))
+                    logger.info("COOLDOWN: cancelled %d orphan orders", len(_all or []))
+                except Exception as e:
+                    logger.warning("COOLDOWN cancel failed: %s", e)
         return state
     elif _daily_loss > 20:
         _daily_budget_mult = 0.33  # 3% → 1%
@@ -1485,7 +1520,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
         _LADDER_AUTO = [0.43, 0.37]         # always place
         _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
-        _LADDER_BUDGET_PCT = 0.03           # 3% of bankroll per window (conservative: hard stop recovery ~5 days)
+        _LADDER_BUDGET_PCT = config.bet_pct   # controlled by --bet-pct (default 3%, now 5%)
 
         bankroll = state.get("bankroll", 100.0)
         n_tranches = calc_tranches(bankroll, config)
@@ -1578,14 +1613,23 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "h_imb": _h_imbalance, "h_delta": _h_delta,
                     "whale": _whale_action}
 
-        # Observation gate: log everything but don't place orders for non-live coins
+        # Observation gate: paper trade for non-live coins (same strategy, mock client, no real money)
         if _observe_only:
-            logger.info("OBSERVE %s %s: fair=%.3f bridge=%.3f cvd=%.3f (no execution — %s not in _LIVE_TRADE_COINS)",
-                        cid[:8], _coin_slug.upper(), fair, bridge_p_up, _cvd, _coin_slug)
-            del state["watchlist"][cid]
-            continue
-
-        results = _execute(orders, client, cid=cid, signal_ctx=_sig_ctx)
+            _sig_ctx["paper"] = True
+            class _PaperClient:
+                """Mock client that simulates instant fills for paper trading."""
+                def buy_shares(self, tid, amt, price=0):
+                    return {"orderID": f"paper_{tid[:8]}_{int(time.time())}",
+                            "status": "matched", "dry_run": True}
+                def sell_shares(self, tid, amt, price=0):
+                    return {"orderID": f"paper_s_{tid[:8]}_{int(time.time())}",
+                            "status": "matched", "dry_run": True}
+            _paper_client = _PaperClient()
+            results = _execute(orders, _paper_client, cid=cid, signal_ctx=_sig_ctx)
+            logger.info("PAPER %s %s: fair=%.3f bridge=%.3f %d orders simulated",
+                        cid[:8], _coin_slug.upper(), fair, bridge_p_up, len(orders))
+        else:
+            results = _execute(orders, client, cid=cid, signal_ctx=_sig_ctx)
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
                            window_start_ms=wl["start_ms"], window_end_ms=wl["end_ms"],
@@ -1619,6 +1663,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             mkt_dict["whale_disagree"] = True  # track for offline analysis
         mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
         mkt_dict["phased_rungs"] = _cond_rungs_config  # rung 3-4 config for live placement
+        if _observe_only:
+            mkt_dict["paper"] = True  # paper trade — no real money, don't affect bankroll/risk
         state["markets"][cid] = mkt_dict
         del state["watchlist"][cid]
         active += 1
@@ -2183,8 +2229,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         for cid, mkt in state["markets"].items():
             if mkt["phase"] != "OPEN":
                 continue
-            # Stop loss can fire even with pending rungs (wide ladder defense)
-            # Other exits (profit lock, cost recovery) still need fills_confirmed
+            if mkt.get("paper"):
+                continue  # paper trades: hold to resolution, no real sells
             _has_any_fill = (mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0)
             if not mkt.get("fills_confirmed") and not _has_any_fill:
                 continue
@@ -2207,13 +2253,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if mid <= 0:
                     continue
 
-                # ── Layer 0.5: TIERED PARTIAL TP (Sharpe-optimal) ──
-                # Sell portions as mid rises: lock profit progressively
-                # Backtest: tiered 30/50/80 → Sharpe 0.544 (29x vs HOLD)
+                # ── Layer 0.5: TIERED PARTIAL TP ──
+                # Only TP on our directional side — never sell hedge shares
+                if side != mkt.get("original_dir", side):
+                    continue  # skip opposite side (hedge/endgame shares)
+                # mm_trades.jsonl shows 76.5% WR → HOLD better
+                # But on-chain data may differ — keeping TP active until verified
                 _PARTIAL_TP_TIERS = [
-                    (1.3, 0.14),   # mid ≥ entry×1.3 → sell 14% (keep max upside)
-                    (1.5, 0.48),   # mid ≥ entry×1.5 → sell 48% (lock biggest chunk)
-                    (1.8, 0.33),   # mid ≥ entry×1.8 → sell 33% + free roll hedge
+                    (1.3, 0.14),   # mid ≥ entry×1.3 → sell 14%
+                    (1.5, 0.48),   # mid ≥ entry×1.5 → sell 48%
+                    (1.8, 0.33),   # mid ≥ entry×1.8 → sell 33%
                 ]
                 _tp_key = f"_tp_tier_{side}"
                 _tp_done = mkt.get(_tp_key, 0)  # how many tiers already executed
