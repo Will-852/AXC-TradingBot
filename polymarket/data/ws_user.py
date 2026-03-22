@@ -127,6 +127,12 @@ class PolymarketUserFeed:
         status = self.get_order_status(order_id)
         return status == "MATCHED"
 
+    def get_order_detail(self, order_id: str) -> dict | None:
+        """Return full order dict including size_matched, or None if unknown.
+        2check fix: callers need size_matched to detect partial fills."""
+        with self._lock:
+            return self._orders.get(order_id)
+
     def is_cancelled(self, order_id: str) -> bool:
         """Shorthand: is order cancelled?"""
         status = self.get_order_status(order_id)
@@ -143,8 +149,8 @@ class PolymarketUserFeed:
 
     @property
     def connected(self) -> bool:
-        """Whether the WS is currently connected."""
-        return self._connected
+        """Whether the WS is currently connected. Checks thread liveness too."""
+        return self._connected and self._thread is not None and self._thread.is_alive()
 
     # ── Internal ─────────────────────────────────
 
@@ -160,6 +166,7 @@ class PolymarketUserFeed:
             if not self._stop_event.is_set():
                 logger.error("PolymarketUserFeed loop crashed: %s", exc)
         finally:
+            self._connected = False  # 2check fix: ensure connected=False on any exit
             # Cancel remaining tasks to suppress "Task was destroyed" warnings
             pending = asyncio.all_tasks(self._loop)
             for task in pending:

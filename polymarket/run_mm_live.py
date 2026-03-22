@@ -621,6 +621,14 @@ def _check_fills(state: dict, client) -> None:
                     outcome = po["outcome"]
                     price = po["price"]
                     size = po["size"]
+                    # 2check fix: use actual size_matched if available (detect partial fills)
+                    ws_detail = _ws_user.get_order_detail(oid)
+                    if ws_detail and ws_detail.get("size_matched", 0) > 0:
+                        actual = ws_detail["size_matched"]
+                        if abs(actual - size) > 0.1:
+                            logger.warning("PARTIAL FILL %s: submitted=%.1f matched=%.1f",
+                                           oid[:12], size, actual)
+                            size = actual
                     if outcome == "UP":
                         old = mkt["up_shares"] * mkt["up_avg_price"]
                         mkt["up_shares"] += size
@@ -1123,6 +1131,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # ── HEAVY OPS (every 30s): discovery, signal pipeline, new entries ──
     if is_heavy:
         _last_heavy_ts = now_s
+        # 2check fix: periodic cleanup of ws_user order cache (prevent unbounded growth)
+        if _ws_user:
+            _ws_user.cleanup_old_orders(max_age_s=3600)
     else:
         # Fast cycle: skip discovery + entry, go to cancel/fill/resolve
         pass
