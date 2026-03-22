@@ -1912,6 +1912,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                             cid[:8], len(_open_orders))
                         except Exception as _ce:
                             logger.warning("SL cancel remaining failed %s: %s", cid[:8], _ce)
+                        # Clear phased rungs to prevent DCA into stopped-out position
+                        mkt["phased_rungs"] = []
+                        mkt["pending_orders"] = []
                         if _rd >= _MAX_ROUNDS:
                             mkt["phase"] = "RESOLVED"
                             mkt["early_exit"] = "stop_loss"
@@ -2037,6 +2040,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                signal_ctx={"fair": round(fair, 4), "round": _rd + 1,
                                            "bridge": round(bridge_p_up, 4)})
             # Reset entry fields for new round
+            mkt["phased_rungs"] = []  # clear stale rungs from previous round
             mkt["entry_price"] = _coin_price
             mkt["entry_ts"] = int(time.time())
             mkt["up_avg_price"] = 0
