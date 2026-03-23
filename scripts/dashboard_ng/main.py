@@ -71,7 +71,7 @@ def main_page():
 
     from scripts.dashboard_ng.components.stats_cards import render_stats_row
     from scripts.dashboard_ng.components.risk_boxes import render_risk_boxes
-    from scripts.dashboard_ng.components.controls import render_controls
+    from scripts.dashboard_ng.components.controls import render_controls, render_service_panel
     from scripts.dashboard_ng.components.positions import render_positions
     from scripts.dashboard_ng.components.action_plan import render_action_plan
     from scripts.dashboard_ng.components.pnl_chart import render_pnl_chart
@@ -85,8 +85,12 @@ def main_page():
     from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
     with ui.column().classes('w-full p-3 gap-2'):
-        # ── Row 1: Controls ──
-        render_controls()
+        # ── Row 1: Controls + Service Panel ──
+        with ui.row().classes('gap-2 w-full items-start'):
+            with ui.column().classes('flex-1'):
+                render_controls()
+            with ui.column().classes('min-w-[320px]'):
+                render_service_panel()
 
         # ── Row 2: KPI Stats ──
         render_stats_row()

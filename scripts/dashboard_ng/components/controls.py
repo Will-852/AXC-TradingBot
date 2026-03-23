@@ -1,6 +1,7 @@
-"""Trading controls — Profile selector, Regime selector, Trading toggle.
+"""Trading controls — Zone selector, Regime selector, Trading toggle, Service control.
 
 These directly modify config/params.py (same as current dashboard).
+Service control uses launchctl via axc_service_control.py.
 """
 
 import re
@@ -10,6 +11,7 @@ import logging
 from nicegui import ui, run
 
 from scripts.dashboard_ng.state import get_data
+from scripts.dashboard_ng.utils import axc_service_control as svc_ctl
 
 log = logging.getLogger('axc.controls')
 
@@ -126,3 +128,124 @@ def render_controls():
         # Sync once on load (delayed to let data arrive), then every 10s
         ui.timer(2, sync_controls, once=True)
         ui.timer(10, sync_controls)
+
+
+def render_service_panel():
+    """Render AXC service control panel — start/stop/status + run once."""
+
+    # State holders for UI elements
+    status_labels = {}
+    run_output = {'ref': None}
+
+    with ui.card().classes('w-full'):
+        ui.label('Services').classes('text-sm font-bold uppercase tracking-wide text-gray-400')
+
+        # Service rows
+        with ui.column().classes('gap-2 w-full'):
+            for key, svc in svc_ctl.SERVICE_DEFS.items():
+                with ui.row().classes('items-center gap-2 w-full'):
+                    # Status indicator
+                    status_badge = ui.badge('...', color='grey').props('outline')
+                    status_labels[key] = status_badge
+
+                    # Name
+                    ui.label(svc['display']).classes('text-sm min-w-[120px]')
+
+                    # Start button
+                    async def on_start(k=key):
+                        ui.notify(f'Starting {svc_ctl.SERVICE_DEFS[k]["display"]}...', type='info')
+                        ok = await run.io_bound(svc_ctl.start_service, k)
+                        if ok:
+                            ui.notify(f'{svc_ctl.SERVICE_DEFS[k]["display"]} started', type='positive')
+                        else:
+                            ui.notify(f'Failed to start {svc_ctl.SERVICE_DEFS[k]["display"]}', type='negative')
+                        await refresh_status()
+
+                    ui.button(icon='play_arrow', on_click=on_start).props(
+                        'flat dense round color=green size=sm'
+                    ).tooltip('Start')
+
+                    # Stop button
+                    async def on_stop(k=key):
+                        ok = await run.io_bound(svc_ctl.stop_service, k)
+                        if ok:
+                            ui.notify(f'{svc_ctl.SERVICE_DEFS[k]["display"]} stopped', type='warning')
+                        await refresh_status()
+
+                    ui.button(icon='stop', on_click=on_stop).props(
+                        'flat dense round color=red size=sm'
+                    ).tooltip('Stop')
+
+                    # Restart button
+                    async def on_restart(k=key):
+                        ui.notify(f'Restarting {svc_ctl.SERVICE_DEFS[k]["display"]}...', type='info')
+                        ok = await run.io_bound(svc_ctl.restart_service, k)
+                        if ok:
+                            ui.notify(f'{svc_ctl.SERVICE_DEFS[k]["display"]} restarted', type='positive')
+                        await refresh_status()
+
+                    ui.button(icon='refresh', on_click=on_restart).props(
+                        'flat dense round color=blue size=sm'
+                    ).tooltip('Restart')
+
+        ui.separator()
+
+        # Run Once button
+        with ui.row().classes('items-center gap-2'):
+            ui.label('Run Cycle').classes('text-sm font-bold')
+
+            async def on_run_dry():
+                ui.notify('Running dry cycle...', type='info')
+                output = await run.io_bound(svc_ctl.run_trader_cycle_once, True)
+                if run_output['ref']:
+                    run_output['ref'].set_content(f'```\n{output}\n```')
+
+            async def on_run_live():
+                # Confirmation dialog — live run places real orders
+                with ui.dialog() as dlg, ui.card():
+                    ui.label('Confirm LIVE Run').classes('text-lg font-bold')
+                    ui.label('This will execute a real trading cycle with actual orders.').classes('text-sm')
+                    with ui.row().classes('gap-2 justify-end'):
+                        ui.button('Cancel', on_click=dlg.close).props('flat')
+
+                        async def confirm_live():
+                            dlg.close()
+                            ui.notify('Running LIVE cycle...', type='warning')
+                            output = await run.io_bound(svc_ctl.run_trader_cycle_once, False)
+                            if run_output['ref']:
+                                run_output['ref'].set_content(f'```\n{output}\n```')
+
+                        ui.button('Confirm', on_click=confirm_live).props('color=deep-orange')
+                dlg.open()
+
+            ui.button('Dry Run', icon='science', on_click=on_run_dry).props(
+                'dense no-caps color=blue-grey'
+            )
+            ui.button('Live Run', icon='bolt', on_click=on_run_live).props(
+                'dense no-caps color=deep-orange'
+            )
+
+        # Output area
+        run_output['ref'] = ui.markdown('').classes('text-xs max-h-[300px] overflow-auto w-full')
+
+    # Status refresh function
+    async def refresh_status():
+        statuses = await run.io_bound(svc_ctl.get_all_status)
+        for key, st in statuses.items():
+            badge = status_labels.get(key)
+            if not badge:
+                continue
+            if st['running']:
+                badge.set_text(f'PID {st["pid"]}')
+                badge._props['color'] = 'green'
+            elif st.get('loaded'):
+                badge.set_text(f'exit {st["exit_code"] or 0}')
+                badge._props['color'] = 'orange'
+            else:
+                badge.set_text('unloaded')
+                badge._props['color'] = 'grey'
+            badge.update()
+
+    # Refresh on load and every 15s
+    ui.timer(1, refresh_status, once=True)
+    ui.timer(15, refresh_status)
