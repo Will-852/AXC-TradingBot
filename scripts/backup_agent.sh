@@ -52,7 +52,7 @@ zip -rq "backups/backup-${TIMESTAMP}.zip" \
   2>/dev/null
 echo "✅ Zip: backups/backup-${TIMESTAMP}.zip"
 
-# Clean old zips (keep last 10)
+# Clean old zips (keep last 10, any naming pattern)
 cd backups
-ls -t backup-*.zip 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null
+ls -t *.zip 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null
 echo "✅ Backup complete"

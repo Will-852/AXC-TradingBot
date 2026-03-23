@@ -95,7 +95,7 @@
 
 ### MM 15M Exit Rule（v15，3-Layer）
 ```
-Layer 1 — Profit Lock:  mid ≥ 95¢ → sell 95%, keep 5% + greed hedge
+Layer 1 — Profit Lock:  mid ≥ 96¢ → sell 96%, keep 4% + greed hedge
 Layer 2 — Cost Recovery: mid ≥ 64¢ → sell enough to recover entry cost, keep rest
 Layer 3 — Stop Loss:    pnl_pct < -25% → sell all @ mid × 0.97
 Scalp re-entry:         after SL, up to 3 rounds (R2×0.90, R3×0.80)

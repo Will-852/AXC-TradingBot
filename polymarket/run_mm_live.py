@@ -79,6 +79,7 @@ _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
 _TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
 _SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # OB + cross-exchange data for taker research
 _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle: submit/fill/cancel/post_fill
+_BOTHSIDES_LOG = os.path.join(_LOG_DIR, "mm_bothsides.jsonl")  # both-sides experiment log
 _POS_LOG = os.path.join(_LOG_DIR, "mm_positions.jsonl")  # position snapshots for post-session analysis
 _CYCLE_S = 5           # 5s main loop — fast reaction
 _SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
@@ -401,6 +402,35 @@ def _cvd_buy_ratio(symbol: str = "BTCUSDT", minutes: int = 3) -> float:
         return ratio
     except Exception:
         return _cache.get(key, (0.5, 0))[0]
+
+
+# ── W4 Signal: momentum from window open (5bps threshold at T+300s for 15M) ──
+_W4_DELAY_S = 300       # 5 min after window open (15M sweet spot)
+_W4_THRESHOLD_BPS = 5   # 5 basis points minimum
+_W4_LEAN_RATIO = 1.5    # 1.5:1 lean (Agent D: 1.5:1 Sharpe > 2:1)
+
+
+def _w4_signal(window_start_ms: int, symbol: str = "BTCUSDT") -> tuple:
+    """W4 momentum signal: log return from window open to now.
+    Returns (direction, magnitude_bps, log_return).
+    direction: 'UP', 'DOWN', 'WAIT' (too early), 'SKIP' (below threshold).
+    """
+    now_ms = int(time.time() * 1000)
+    elapsed_s = (now_ms - window_start_ms) / 1000
+    if elapsed_s < _W4_DELAY_S:
+        return "WAIT", 0.0, 0.0
+    p0 = _open_at(window_start_ms, symbol)
+    if p0 <= 0:
+        return "SKIP", 0.0, 0.0
+    p_now = _price(symbol)
+    if p_now <= 0:
+        return "SKIP", 0.0, 0.0
+    log_ret = math.log(p_now / p0)
+    mag_bps = abs(log_ret) * 10000
+    if mag_bps < _W4_THRESHOLD_BPS:
+        return "SKIP", mag_bps, log_ret
+    direction = "UP" if log_ret > 0 else "DOWN"
+    return direction, mag_bps, log_ret
 
 
 def _m1_return(symbol: str = "BTCUSDT") -> float:
@@ -990,15 +1020,34 @@ def _check_resolutions(state: dict):
         if _is_paper:
             state["paper_pnl"] = state.get("paper_pnl", 0) + pnl
             state["paper_markets"] = state.get("paper_markets", 0) + 1
-            _coin_label = "ETH" if "ethereum" in md.get("title", "").lower() else ("SOL" if "solana" in md.get("title", "").lower() else "???")
+            _coin_label = "ETH" if "ethereum" in md.get("title", "").lower() else ("SOL" if "solana" in md.get("title", "").lower() else "BTC")
             _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                          "result": result, "pnl": round(pnl, 4),
                          "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
                          "paper_total_pnl": round(state.get("paper_pnl", 0), 2),
                          "coin": _coin_label, "paper": True},
                         log_path=os.path.join(_LOG_DIR, "mm_paper_trades.jsonl"))
+            # Both-sides experiment: extra resolution log
+            if md.get("both_sides"):
+                _bs_res = {
+                    "ts": datetime.now(tz=_HKT).isoformat(), "event": "resolution",
+                    "cid": cid[:8], "coin": _coin_label, "result": result,
+                    "pnl": round(pnl, 4),
+                    "up_shares": md.get("up_shares", 0),
+                    "down_shares": md.get("down_shares", 0),
+                    "combined": md.get("bs_combined", 0),
+                    "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
+                    "both_filled": md.get("up_shares", 0) > 0 and md.get("down_shares", 0) > 0,
+                    "single_fill": (md.get("up_shares", 0) > 0) != (md.get("down_shares", 0) > 0),
+                }
+                try:
+                    with open(_BOTHSIDES_LOG, "a") as _bsf:
+                        _bsf.write(json.dumps(_bs_res) + "\n")
+                except Exception:
+                    pass
             d = "↑" if result == "UP" else "↓"
-            print(f"  📝 PAPER {_coin_label} {cid[:8]} {d} | PnL ${pnl:+.2f} | Paper Total ${state.get('paper_pnl', 0):.2f}")
+            _bs_tag = " [BS]" if md.get("both_sides") else ""
+            print(f"  PAPER {_coin_label} {cid[:8]} {d}{_bs_tag} | PnL ${pnl:+.2f} | Paper Total ${state.get('paper_pnl', 0):.2f}")
             continue  # skip real PnL/risk updates
 
         state["daily_pnl"] += pnl
@@ -1055,7 +1104,8 @@ _last_heavy_ts: float = 0  # module-level for heavy operation throttle
 
 def run_cycle(state: dict, gamma: GammaClient, client,
               config: MMConfig, dry_run: bool,
-              continuous_momentum: bool = False) -> dict:
+              continuous_momentum: bool = False,
+              both_sides: bool = False) -> dict:
     global _last_heavy_ts
     now = datetime.now(tz=_HKT)
     now_ms = int(time.time() * 1000)
@@ -1476,128 +1526,235 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         # M1 vs fair direction conflict
         _fair_up = fair > 0.50
         _m1_up = _m1 > 0
-        if abs(_m1) >= 0.001 and _fair_up != _m1_up:
-            logger.info("SKIP %s: M1/fair CONFLICT (M1=%+.4f %s, fair=%.3f %s)",
-                        cid[:8], _m1, "UP" if _m1_up else "DN",
-                        fair, "UP" if _fair_up else "DN")
-            continue  # keep in watchlist
 
-        # CVD sizing: 3/3 agree → full, 2/3 agree → reduced
-        # CVD no longer has veto power (weak signal shouldn't cancel strong bridge)
-        _cvd_agrees = (_fair_up and _cvd > 0.50) or (not _fair_up and _cvd < 0.50)
-        _cvd_strong_disagree = (_fair_up and _cvd < 0.45) or (not _fair_up and _cvd > 0.55)
-        if _cvd_strong_disagree:
-            logger.info("CVD DISAGREE %s: fair %s but CVD %.0f%% → reduced size",
-                        cid[:8], "UP" if _fair_up else "DN", _cvd * 100)
+        # ── W4 Both-Sides: buy UP + DOWN with momentum lean ──
+        if both_sides:
+            # W4 signal: log return from window open at T+300s
+            _w4_dir, _w4_mag, _w4_ret = _w4_signal(wl["start_ms"], _sym)
+            if _w4_dir == "WAIT":
+                continue  # not yet T+300s, keep in watchlist
+            if _w4_dir == "SKIP":
+                if _elapsed_ms > 600_000:  # 10 min → give up
+                    logger.info("W4 SKIP %s: mag=%.1f bps < %d bps after 10min",
+                                cid[:8], _w4_mag, _W4_THRESHOLD_BPS)
+                    del state["watchlist"][cid]
+                continue  # wait longer
+            _m1 = _w4_ret  # reuse for downstream logging
+            logger.info("W4 SIGNAL %s: %s %+.1f bps", cid[:8], _w4_dir, _w4_mag)
 
-        # Market midpoint sanity: if Polymarket mid for our side < $0.35,
-        # market strongly disagrees with our direction → skip
-        if client and hasattr(client, "get_midpoint") and not dry_run:
-            _dir_tok = wl["up_tok"] if fair > 0.50 else wl["dn_tok"]
-            _mid = _poly_midpoint(client, _dir_tok)
-            if 0 < _mid < 0.38:
-                logger.info("SKIP %s: market mid=%.3f < 0.38 → market disagrees with our direction",
-                            cid[:8], _mid)
-                continue  # keep in watchlist, might recover
+            # 🔴 2CHECK: Poly OB mid pricing — wrong mid = wrong entry price
+            _up_mid = 0.0
+            _dn_mid = 0.0
+            if client and hasattr(client, "get_order_book") and not dry_run:
+                try:
+                    _up_book = client.get_order_book(wl["up_tok"])
+                    _up_bids = _up_book.get("bids", [])
+                    _up_asks = _up_book.get("asks", [])
+                    if _up_bids and _up_asks:
+                        _up_mid = (max(b["price"] for b in _up_bids) + min(a["price"] for a in _up_asks)) / 2
+                    _dn_book = client.get_order_book(wl["dn_tok"])
+                    _dn_bids = _dn_book.get("bids", [])
+                    _dn_asks = _dn_book.get("asks", [])
+                    if _dn_bids and _dn_asks:
+                        _dn_mid = (max(b["price"] for b in _dn_bids) + min(a["price"] for a in _dn_asks)) / 2
+                except Exception as e:
+                    logger.debug("W4 OB fetch failed: %s", e)
 
-        # Initialize whale_action before ladder uses it (whale block runs after ladder)
-        if not _observe_only:
-            _tte_s = (wl["end_ms"] - now_ms) / 1000
-            _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
-            _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
-        else:
+            # Fallback: use bridge fair if OB unavailable (dry-run / API fail)
+            if _up_mid <= 0.01 or _up_mid >= 0.99:
+                _up_mid = max(0.05, min(0.95, fair))
+            if _dn_mid <= 0.01 or _dn_mid >= 0.99:
+                _dn_mid = max(0.05, min(0.95, 1.0 - fair))
+
+            # 🔴 2CHECK: Bid below mid (maker) — 1¢ tick below to ensure maker status
+            _TICK = 0.01
+            _up_bid = round(max(0.02, _up_mid - _TICK), 2)
+            _dn_bid = round(max(0.02, _dn_mid - _TICK), 2)
+            _bs_combined = round(_up_bid + _dn_bid, 4)
+
+            # Safety cap — W4 combined avg = $0.9974, 48% > $1.00
+            # Edge = directional lean accuracy, NOT structural arb
+            # Cap at $1.05 to allow W4-style entries (BMD fix #1)
+            if _bs_combined >= 1.05:
+                logger.warning("W4 ABORT %s: combined $%.4f >= $1.05", cid[:8], _bs_combined)
+                del state["watchlist"][cid]
+                continue
+
+            # 🔴 2CHECK: Sizing — must meet Poly 5-share minimum on BOTH sides
+            bankroll = state.get("bankroll", 100.0)
+            _budget = bankroll * config.bet_pct * _daily_budget_mult
+            _lean_dir = _w4_dir  # "UP" or "DOWN"
+            _lean_frac = _W4_LEAN_RATIO / (_W4_LEAN_RATIO + 1)  # 0.60 at 1.5:1
+            _hedge_frac = 1.0 / (_W4_LEAN_RATIO + 1)             # 0.40 at 1.5:1
+
+            if _lean_dir == "UP":
+                _up_budget, _dn_budget = _budget * _lean_frac, _budget * _hedge_frac
+            else:
+                _up_budget, _dn_budget = _budget * _hedge_frac, _budget * _lean_frac
+
+            _up_shares = max(config.min_order_size, round(_up_budget / _up_bid, 1))
+            _dn_shares = max(config.min_order_size, round(_dn_budget / _dn_bid, 1))
+
+            # 🔴 2CHECK: Double order prevention — only enter if NOT already in state["markets"]
+            if cid in state.get("markets", {}):
+                logger.warning("W4 DUP %s: already in markets, skip", cid[:8])
+                del state["watchlist"][cid]
+                continue
+
+            orders = [
+                PlannedOrder(token_id=wl["up_tok"], side="BUY",
+                             price=_up_bid, size=_up_shares, outcome="UP"),
+                PlannedOrder(token_id=wl["dn_tok"], side="BUY",
+                             price=_dn_bid, size=_dn_shares, outcome="DOWN"),
+            ]
+            _cond_rungs_config = []
+            n_tranches = 1
             _h_imbalance, _h_delta = 0.0, 0.0
-        # Pre-compute whale action for checkpoint gate
-        _whale_action = "NORMAL"
-        _whale_favors_up = _h_imbalance > 0
-        if abs(_h_imbalance) > 0.30:
-            _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
-            if not _whale_agrees:
-                _whale_action = "FOLLOW_LOG"
+            _whale_action = "NORMAL"
+            _cvd_strong_disagree = False
+            # 🔴 2CHECK: Live gate — only paper unless --w4-live flag
+            if not state.get("_w4_live"):
+                _observe_only = True
+
+            # Log W4 entry
+            try:
+                _bs_entry = {
+                    "ts": datetime.now(tz=_HKT).isoformat(), "event": "w4_entry",
+                    "cid": cid[:8], "coin": _coin_slug,
+                    "lean_dir": _lean_dir, "lean_ratio": _W4_LEAN_RATIO,
+                    "w4_mag_bps": round(_w4_mag, 1),
+                    "up_mid": round(_up_mid, 4), "dn_mid": round(_dn_mid, 4),
+                    "up_bid": _up_bid, "dn_bid": _dn_bid,
+                    "combined": _bs_combined,
+                    "up_shares": _up_shares, "dn_shares": _dn_shares,
+                    "budget": round(_budget, 2), "bankroll": round(bankroll, 2),
+                    "bridge": round(bridge_p_up, 4), "live": not _observe_only,
+                }
+                with open(_BOTHSIDES_LOG, "a") as _bsf:
+                    _bsf.write(json.dumps(_bs_entry) + "\n")
+            except Exception:
+                pass
+
+            logger.info("W4 %s %s: lean=%s %+.1fbps | UP@$%.2f×%.0f + DN@$%.2f×%.0f = $%.3f %s",
+                        "LIVE" if not _observe_only else "PAPER",
+                        cid[:8], _lean_dir, _w4_mag,
+                        _up_bid, _up_shares, _dn_bid, _dn_shares,
+                        _bs_combined, "(PAPER)" if _observe_only else "")
+        else:
+            # ── Original directional logic ──
+            if abs(_m1) >= 0.001 and _fair_up != _m1_up:
+                logger.info("SKIP %s: M1/fair CONFLICT (M1=%+.4f %s, fair=%.3f %s)",
+                            cid[:8], _m1, "UP" if _m1_up else "DN",
+                            fair, "UP" if _fair_up else "DN")
+                continue  # keep in watchlist
+
+            # CVD sizing: 3/3 agree → full, 2/3 agree → reduced
+            _cvd_agrees = (_fair_up and _cvd > 0.50) or (not _fair_up and _cvd < 0.50)
+            _cvd_strong_disagree = (_fair_up and _cvd < 0.45) or (not _fair_up and _cvd > 0.55)
+            if _cvd_strong_disagree:
+                logger.info("CVD DISAGREE %s: fair %s but CVD %.0f%% → reduced size",
+                            cid[:8], "UP" if _fair_up else "DN", _cvd * 100)
+
+            # Market midpoint sanity
+            if client and hasattr(client, "get_midpoint") and not dry_run:
+                _dir_tok = wl["up_tok"] if fair > 0.50 else wl["dn_tok"]
+                _mid = _poly_midpoint(client, _dir_tok)
+                if 0 < _mid < 0.38:
+                    logger.info("SKIP %s: market mid=%.3f < 0.38 → market disagrees",
+                                cid[:8], _mid)
+                    continue
+
+            # Whale
+            if not _observe_only:
+                _tte_s = (wl["end_ms"] - now_ms) / 1000
+                _holder_ttl = 5 if _tte_s < 120 else _HOLDER_CACHE_TTL
+                _h_imbalance, _h_delta = _holder_imbalance(cid, wl["up_tok"], ttl_override=_holder_ttl)
+            else:
+                _h_imbalance, _h_delta = 0.0, 0.0
+            _whale_action = "NORMAL"
+            _whale_favors_up = _h_imbalance > 0
+            if abs(_h_imbalance) > 0.30:
+                _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
+                if not _whale_agrees:
+                    _whale_action = "FOLLOW_LOG"
 
         # ── Wide Ladder DCA: 2 auto rungs + 2 conditional (checkpoint) ──
         # Backtest: 0.43/0.37/0.31/0.26, tiered TP at x1.3/1.5/1.8 → Sharpe 0.544
         # Rungs 1-2: auto-place. Rungs 3-4: only if checkpoint passes.
-        _LADDER_AUTO = [0.43, 0.37]         # always place
-        _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
-        _LADDER_BUDGET_PCT = config.bet_pct   # controlled by --bet-pct (default 3%, now 5%)
+        if not both_sides:  # both-sides already created orders above
+            _LADDER_AUTO = [0.43, 0.37]         # always place
+            _LADDER_COND = [0.31, 0.26]         # place ONLY if checkpoint passes
+            _LADDER_BUDGET_PCT = config.bet_pct
 
-        bankroll = state.get("bankroll", 100.0)
-        n_tranches = calc_tranches(bankroll, config)
-        _all_rungs = _LADDER_AUTO + _LADDER_COND
-        _window_budget = bankroll * _LADDER_BUDGET_PCT * _daily_budget_mult / max(1, n_tranches)
-        _rung_budget = _window_budget / len(_all_rungs)
+            bankroll = state.get("bankroll", 100.0)
+            n_tranches = calc_tranches(bankroll, config)
+            _all_rungs = _LADDER_AUTO + _LADDER_COND
+            _window_budget = bankroll * _LADDER_BUDGET_PCT * _daily_budget_mult / max(1, n_tranches)
+            _rung_budget = _window_budget / len(_all_rungs)
 
-        _dir_tok = wl["up_tok"] if _fair_up else wl["dn_tok"]
-        _dir_side = "UP" if _fair_up else "DOWN"
+            _dir_tok = wl["up_tok"] if _fair_up else wl["dn_tok"]
+            _dir_side = "UP" if _fair_up else "DOWN"
 
-        orders = []
-        # Auto rungs (always place)
-        for _rung_price in _LADDER_AUTO:
-            _shares = max(config.min_order_size, _rung_budget / _rung_price)
-            orders.append(PlannedOrder(
-                token_id=_dir_tok, side="BUY",
-                price=_rung_price, size=round(_shares, 1),
-                outcome=_dir_side))
-
-        # Conditional rungs 3-4: NOT placed at entry.
-        # Placed live by phased_rung_check() every 5s when price approaches.
-        # Store rung config in market state for the monitor to use.
-        _cond_rungs_config = []
-        if _whale_action not in ("FOLLOW_LOG", "EXIT"):
-            for _rung_price in _LADDER_COND:
+            orders = []
+            for _rung_price in _LADDER_AUTO:
                 _shares = max(config.min_order_size, _rung_budget / _rung_price)
-                _cond_rungs_config.append({
-                    "price": _rung_price, "size": round(_shares, 1),
-                    "token_id": _dir_tok, "outcome": _dir_side, "placed": False,
-                })
-        else:
-            logger.info("CHECKPOINT %s: deep rungs disabled (whale=%s)",
-                        cid[:8], _whale_action)
+                orders.append(PlannedOrder(
+                    token_id=_dir_tok, side="BUY",
+                    price=_rung_price, size=round(_shares, 1),
+                    outcome=_dir_side))
 
-        if not orders:
-            del state["watchlist"][cid]
-            continue
+            _cond_rungs_config = []
+            if _whale_action not in ("FOLLOW_LOG", "EXIT"):
+                for _rung_price in _LADDER_COND:
+                    _shares = max(config.min_order_size, _rung_budget / _rung_price)
+                    _cond_rungs_config.append({
+                        "price": _rung_price, "size": round(_shares, 1),
+                        "token_id": _dir_tok, "outcome": _dir_side, "placed": False,
+                    })
+            else:
+                logger.info("CHECKPOINT %s: deep rungs disabled (whale=%s)",
+                            cid[:8], _whale_action)
+
+            if not orders:
+                del state["watchlist"][cid]
+                continue
 
         # CVD disagree → override to single cheap rung (dynamic price)
         # 3/3 agree: keep full ladder. 2/3: reduce to 1 rung at discounted price.
-        if _cvd_strong_disagree and orders:
-            _our_fair = fair if _fair_up else (1.0 - fair)
-            _disagree_bid = round(max(0.25, min(0.35, _our_fair * 0.60)), 3)
-            _dir_tok = orders[0].token_id
-            _dir_side = orders[0].outcome
-            orders = [PlannedOrder(
-                token_id=_dir_tok, side="BUY",
-                price=_disagree_bid, size=config.min_order_size, outcome=_dir_side)]
-            logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
-                        cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
+        if not both_sides:  # directional-only post-processing
+            if _cvd_strong_disagree and orders:
+                _our_fair = fair if _fair_up else (1.0 - fair)
+                _disagree_bid = round(max(0.25, min(0.35, _our_fair * 0.60)), 3)
+                _dir_tok = orders[0].token_id
+                _dir_side = orders[0].outcome
+                orders = [PlannedOrder(
+                    token_id=_dir_tok, side="BUY",
+                    price=_disagree_bid, size=config.min_order_size, outcome=_dir_side)]
+                logger.info("CVD REDUCED %s: 1 rung @ $%.3f × %.0f (was %d orders)",
+                            cid[:8], _disagree_bid, config.min_order_size, len(orders) + 1)
 
-        # ── Whale signal: AGREE / FOLLOW_LOG / EXIT (applied to orders) ──
-        # Holder data already fetched + _whale_action pre-computed above ladder block
-        if abs(_h_imbalance) > 0.30:
-            _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
-            if _whale_agrees:
-                _whale_action = "AGREE"
-                logger.info("WHALE AGREE %s: imbalance %+.3f confirms %s",
-                            cid[:8], _h_imbalance, "UP" if _fair_up else "DOWN")
-            elif _whale_action == "FOLLOW_LOG":
-                # Already set above — apply size halving to orders
-                logger.warning("WHALE FOLLOW(log) %s: imbalance %+.3f — halving orders (validation pending)",
-                               cid[:8], _h_imbalance)
-                if orders:
-                    for o in orders:
-                        o.size = max(config.min_order_size, o.size * 0.5)
+            if abs(_h_imbalance) > 0.30:
+                _whale_agrees = (_fair_up and _whale_favors_up) or (not _fair_up and not _whale_favors_up)
+                if _whale_agrees:
+                    _whale_action = "AGREE"
+                    logger.info("WHALE AGREE %s: imbalance %+.3f confirms %s",
+                                cid[:8], _h_imbalance, "UP" if _fair_up else "DOWN")
+                elif _whale_action == "FOLLOW_LOG":
+                    logger.warning("WHALE FOLLOW(log) %s: imbalance %+.3f — halving orders",
+                                   cid[:8], _h_imbalance)
+                    if orders:
+                        for o in orders:
+                            o.size = max(config.min_order_size, o.size * 0.5)
 
-        # Check delta — whale exit (rapid shift against us)
-        if abs(_h_delta) > 0.15 and _whale_action == "NORMAL":
-            _delta_against = (_fair_up and _h_delta < 0) or (not _fair_up and _h_delta > 0)
-            if _delta_against:
-                _whale_action = "EXIT"
-                logger.warning("WHALE EXIT %s: imbalance Δ%+.3f AGAINST %s — halve size",
-                               cid[:8], _h_delta, "UP" if _fair_up else "DOWN")
-                if orders:
-                    for o in orders:
-                        o.size = max(config.min_order_size, o.size * 0.5)
+            if abs(_h_delta) > 0.15 and _whale_action == "NORMAL":
+                _delta_against = (_fair_up and _h_delta < 0) or (not _fair_up and _h_delta > 0)
+                if _delta_against:
+                    _whale_action = "EXIT"
+                    logger.warning("WHALE EXIT %s: imbalance Δ%+.3f AGAINST %s — halve size",
+                                   cid[:8], _h_delta, "UP" if _fair_up else "DOWN")
+                    if orders:
+                        for o in orders:
+                            o.size = max(config.min_order_size, o.size * 0.5)
 
         _sig_ctx = {"fair": round(fair, 4), "bridge": round(bridge_p_up, 4),
                     "cvd": round(_cvd, 3), "vol": round(_coin_vol, 6),
@@ -1663,6 +1820,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             mkt_dict["whale_disagree"] = True  # track for offline analysis
         mkt_dict["rounds"] = 0  # scalp round counter (0 = first entry, no sells yet)
         mkt_dict["phased_rungs"] = _cond_rungs_config  # rung 3-4 config for live placement
+        if both_sides:
+            mkt_dict["both_sides"] = True
+            mkt_dict["bs_combined"] = _bs_combined
         if _observe_only:
             mkt_dict["paper"] = True  # paper trade — no real money, don't affect bankroll/risk
         state["markets"][cid] = mkt_dict
@@ -1894,6 +2054,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         for cid, mkt in state["markets"].items():
             if mkt["phase"] != "OPEN":
                 continue
+            # 🔴 2CHECK FIX #3: Both-sides markets — only cancel at window-end, skip adverse/TTL
+            # W4 wants BOTH sides to fill; cancelling on adverse move defeats the hedge
+            _is_bs = mkt.get("both_sides", False)
             pending = mkt.get("pending_orders", [])
             if not pending:
                 continue
@@ -1916,12 +2079,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 reason = "window_end"
 
             # Trigger 2: spot moved ADVERSELY >0.5% since entry → cancel DIRECTIONAL
-            # 0.05% was too tight — BTC moves $42 in seconds, cancelled 10/11 orders
-            # 0.3% also too tight — cancelled 6/6 orders in v14 live
-            # 0.5% BTC (~$350), 0.7% ETH (~$14) — generous to let orders sit
-            # Only cancel on ADVERSE move (against our direction), not favorable
+            # Skip for both-sides (2check fix #3: adverse cancel kills hedge purpose)
             _spot_thresh = 0.007 if _s == "ETHUSDT" else 0.005
-            if not to_cancel and entry_price > 0:
+            if not to_cancel and entry_price > 0 and not _is_bs:
                 current = _btc_price() if _s == "BTCUSDT" else _price(_s)
                 if current > 0:
                     signed_move = (current - entry_price) / entry_price
@@ -1934,8 +2094,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         if to_cancel:
                             reason = f"adverse_move_{signed_move:+.4f}"
 
-            # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only (skip endgame/hedge)
-            if not to_cancel and entry_ts > 0 and end_ms > 0:
+            # Trigger 3: Dynamic TTL → cancel DIRECTIONAL only (skip both-sides + endgame/hedge)
+            if not to_cancel and entry_ts > 0 and end_ms > 0 and not _is_bs:
                 _hard_cancel_s = (end_ms - 120_000) / 1000
                 _max_ttl_s = max(60, _hard_cancel_s - entry_ts)
                 _time_on_book = now_s - entry_ts
@@ -2017,6 +2177,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             if mkt.get("endgame_placed"):
                 continue
+            if mkt.get("both_sides"):
+                continue  # W4: already holds both sides, skip endgame
             end_ms = mkt.get("window_end_ms", 0)
             if end_ms <= 0:
                 continue
@@ -2136,6 +2298,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             if mkt.get("hedge_placed"):
                 continue
+            if mkt.get("both_sides"):
+                continue  # W4: already holds both sides, skip hedge
             end_ms = mkt.get("window_end_ms", 0)
             if end_ms <= 0:
                 continue
@@ -2231,6 +2395,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             if mkt.get("paper"):
                 continue  # paper trades: hold to resolution, no real sells
+            if mkt.get("both_sides"):
+                continue  # W4: ZERO management, hold to resolution (BMD fix #5)
             _has_any_fill = (mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0)
             if not mkt.get("fills_confirmed") and not _has_any_fill:
                 continue
@@ -2684,6 +2850,10 @@ def main():
                     help="Override bet_pct (e.g. 0.23 for 23%%)")
     ap.add_argument("--continuous-momentum", action="store_true",
                     help="Use current_price vs open instead of M1-only")
+    ap.add_argument("--both-sides", action="store_true",
+                    help="Both-sides W4 strategy: buy UP+DOWN with momentum lean, hold to resolution")
+    ap.add_argument("--w4-live", action="store_true",
+                    help="Enable LIVE execution for both-sides (without this, both-sides = paper only)")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -2698,7 +2868,20 @@ def main():
     if args.bet_pct > 0:
         config.bet_pct = args.bet_pct
 
-    print(f"  MODE: {'DRY-RUN' if dry_run else 'LIVE'}")
+    both_sides = getattr(args, 'both_sides', False)
+    w4_live = getattr(args, 'w4_live', False)
+    if both_sides:
+        config.half_spread = 0.020
+        if w4_live:
+            # 🔴 2CHECK: Live gate — only allow live with explicit --w4-live flag
+            print(f"  MODE: W4 BOTH-SIDES LIVE (half_spread={config.half_spread})")
+        else:
+            if not dry_run:
+                print("  ⛔ --both-sides without --w4-live → forcing dry-run.")
+                dry_run = True
+            print(f"  MODE: W4 BOTH-SIDES PAPER (half_spread={config.half_spread})")
+    else:
+        print(f"  MODE: {'DRY-RUN' if dry_run else 'LIVE'}")
 
     # ─── Start market data fetcher (background, log-only for now) ───
     global _mkt_fetcher
@@ -2792,6 +2975,8 @@ def main():
         client = _Mock()
 
     state = _load()
+    # W4 live flag: ephemeral, always reset from CLI args (2check fix #2)
+    state["_w4_live"] = bool(both_sides and w4_live)
     if args.bankroll > 0:
         state["bankroll"] = args.bankroll
     elif client and hasattr(client, "get_usdc_balance"):
@@ -2815,7 +3000,8 @@ def main():
 
     if args.cycle:
         state = run_cycle(state, gamma, client, config, dry_run,
-                                  continuous_momentum=getattr(args, 'continuous_momentum', False))
+                                  continuous_momentum=getattr(args, 'continuous_momentum', False),
+                                  both_sides=both_sides)
         _save(state)
         _status(state)
     else:
@@ -2824,7 +3010,8 @@ def main():
             while True:
                 try:
                     state = run_cycle(state, gamma, client, config, dry_run,
-                                  continuous_momentum=getattr(args, 'continuous_momentum', False))
+                                  continuous_momentum=getattr(args, 'continuous_momentum', False),
+                                  both_sides=both_sides)
                     _save(state)
                     _log_positions(state)
                 except Exception as e:
