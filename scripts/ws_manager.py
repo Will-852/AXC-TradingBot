@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-ws_manager.py — Binance BTC WebSocket → Redis Streams
+ws_manager.py — Binance Multi-Coin WebSocket → Redis Streams
 
 永續進程（KeepAlive via LaunchAgent）。
 接收 Binance Futures WebSocket 實時數據，normalize 後 XADD 入 Redis Streams。
 
 Streams:
-  market:klines  — kline close/update events (3m/15m/1h/4h)
+  market:klines  — kline close/update events (3m/15m/1h/4h) for all coins
   market:ticker  — miniTicker (~2s, live price for dashboard)
 
 設計決策：
-  - Combined stream = 1 connection, 5 subscriptions
-  - 只 subscribe BTC — 減少 bandwidth + complexity
+  - Combined stream = 1 connection, multi-coin subscriptions
+  - Coins from config/coins/ (Binance exchange only) — 4 coins × 5 = 20 streams
+  - Binance limit: 1024 streams/connection — 20 = 2% usage
   - Auto-reconnect: exponential backoff (2^n, max 60s, jitter)
   - Binance 24h forced disconnect → graceful reconnect
   - Redis down → log warning, skip XADD, 唔 crash
@@ -49,13 +50,24 @@ from scripts.shared_infra.redis_bus import (
 from scripts.shared_infra.telegram import send_telegram
 
 # ── Config ───────────────────────────────────────
-SYMBOL = "btcusdt"
 KLINE_INTERVALS = ["3m", "15m", "1h", "4h"]
 WS_BASE = "wss://fstream.binance.com/stream?streams="
 
-# Build combined stream URL
-_streams = [f"{SYMBOL}@kline_{i}" for i in KLINE_INTERVALS]
-_streams.append(f"{SYMBOL}@miniTicker")
+# Coins to stream — from config/coins/ (Binance exchange)
+try:
+    from config.coins.loader import get_exchange_symbols
+    _ws_symbols = [s.lower() for s in get_exchange_symbols("binance")]
+except ImportError:
+    _ws_symbols = ["btcusdt", "ethusdt", "solusdt", "xrpusdt", "polusdt"]  # fallback
+    logger.warning("Could not load coin configs, using hardcoded symbols")
+
+# Build combined stream URL: each coin × (4 kline TFs + miniTicker)
+_streams = []
+for _sym in _ws_symbols:
+    for _interval in KLINE_INTERVALS:
+        _streams.append(f"{_sym}@kline_{_interval}")
+    _streams.append(f"{_sym}@miniTicker")
+
 WS_URL = WS_BASE + "/".join(_streams)
 
 # Reconnect
@@ -302,8 +314,12 @@ async def _ws_loop() -> None:
 
 async def main():
     """Entry point — run WS loop + heartbeat + stats logger."""
-    logger.info("ws_manager starting — symbol=%s intervals=%s", SYMBOL, KLINE_INTERVALS)
-    logger.info("URL: %s", WS_URL)
+    logger.info(
+        "ws_manager starting — %d coins × %d TFs + ticker = %d streams",
+        len(_ws_symbols), len(KLINE_INTERVALS), len(_streams),
+    )
+    logger.info("Coins: %s", ", ".join(s.upper() for s in _ws_symbols))
+    logger.info("URL: %s", WS_URL[:120] + "...")
 
     tasks = [
         asyncio.create_task(_ws_loop()),

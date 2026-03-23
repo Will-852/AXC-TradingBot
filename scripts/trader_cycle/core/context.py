@@ -132,15 +132,21 @@ class CycleContext:
     liq_state: dict = field(default_factory=dict)    # raw liq_state.json
     liq_events: list = field(default_factory=list)   # active LiqEvent dicts
 
-    # ─── Mode Detection ───
-    market_mode: str = "UNKNOWN"     # "RANGE", "TREND", "UNKNOWN"
+    # ─── Mode Detection (global = BTC regime anchor) ───
+    market_mode: str = "UNKNOWN"     # "RANGE", "TREND", "UNKNOWN" — BTC anchor
     mode_votes: dict[str, str] = field(default_factory=dict)
     # mode_votes = {"RSI": "RANGE", "MACD": "TREND", ...}
     mode_confirmed: bool = False
     prev_mode: str = "UNKNOWN"
     prev_mode_cycles: int = 0
 
-    # ─── Volatility Regime (Phase 1 refactor) ───
+    # ─── Per-Coin Mode Detection (2026-03-23) ───
+    # coin_market_mode = {"BTCUSDT": "TREND", "ETHUSDT": "RANGE", ...}
+    # coin_mode_votes = {"BTCUSDT": {"RSI": "RANGE", ...}, ...}
+    coin_market_mode: dict[str, str] = field(default_factory=dict)
+    coin_mode_votes: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    # ─── Volatility Regime (global = BTC regime anchor) ───
     volatility_regime: str = "NORMAL"       # "LOW" / "NORMAL" / "HIGH"
     regime_confidence: float = 0.0          # HMM/BOCPD posterior confidence
     active_risk_profile: str = "zone_a"    # "zone_a" (1-10x) / "zone_b" (11-20x)

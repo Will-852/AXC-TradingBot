@@ -24,12 +24,12 @@ from datetime import datetime, timezone
 
 from config.params import (
     SIGNAL_CONF_GATE,
-    SIGNAL_CONF_GATE_PER_SYMBOL,
     SIGNAL_MODE_AFFINITY,
     SIGNAL_MODE_DEFAULT_PENALTY,
     SIGNAL_PERSISTENCE,
     SIGNAL_COOLDOWN_HOURS,
 )
+from config.coins.loader import get_conf_gate as _coin_conf_gate
 from ..core.context import CycleContext
 
 log = logging.getLogger(__name__)
@@ -107,15 +107,11 @@ class SignalFilterStep:
                 blocked_count += 1
                 continue
 
-            # Determine conf_gate: regime rule → per-symbol → global default
+            # Determine conf_gate: regime rule → per-coin config → global default
             if isinstance(rule, dict) and "conf_gate" in rule:
                 gate = rule["conf_gate"]
-            elif signal.pair in SIGNAL_CONF_GATE_PER_SYMBOL:
-                gate = SIGNAL_CONF_GATE_PER_SYMBOL[signal.pair].get(
-                    signal.strategy, 0.50
-                )
             else:
-                gate = SIGNAL_CONF_GATE.get(signal.strategy, 0.50)
+                gate = _coin_conf_gate(signal.pair, signal.strategy)
 
             # ── 1. Cooldown check ──
             last_close_iso = cooldown_state.get(signal.pair)
@@ -134,9 +130,10 @@ class SignalFilterStep:
                 except (ValueError, TypeError):
                     pass
 
-            # ── 2. Mode penalty ──
+            # ── 2. Mode penalty (per-coin mode if available, else global) ──
+            coin_mode = ctx.coin_market_mode.get(signal.pair, ctx.market_mode)
             mode_penalties = SIGNAL_MODE_AFFINITY.get(
-                ctx.market_mode, SIGNAL_MODE_DEFAULT_PENALTY
+                coin_mode, SIGNAL_MODE_DEFAULT_PENALTY
             )
             penalty = mode_penalties.get(signal.strategy, 0.0)
             adj_conf = signal.confidence + penalty
@@ -148,7 +145,7 @@ class SignalFilterStep:
                         "GATED %s %s %s: conf=%.2f + pen=%.2f = %.2f < gate=%.2f [%s×%s]",
                         signal.pair, signal.direction, signal.strategy,
                         signal.confidence, penalty, adj_conf, gate,
-                        vol_regime, ctx.market_mode,
+                        vol_regime, coin_mode,
                     )
                 continue
 

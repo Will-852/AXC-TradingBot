@@ -34,7 +34,8 @@ _scripts_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from indicator_calc import TIMEFRAME_PARAMS, PRODUCT_OVERRIDES
+from indicator_calc import TIMEFRAME_PARAMS
+from config.coins.loader import get_coin as _get_coin
 
 # ─── Confidence weights ───
 W_BB_TOUCH = 0.25
@@ -200,23 +201,17 @@ class RangeStrategy(StrategyBase):
             return None
 
         # ─── Get pair-level RSI thresholds ───
-        rsi_long, rsi_short, bb_touch_tol = 35.0, 65.0, 0.01
+        # Priority: coin indicator_params > TIMEFRAME_PARAMS > hardcoded defaults
         tf_params = TIMEFRAME_PARAMS.get(SECONDARY_TIMEFRAME, {}).copy()
-        if pair in PRODUCT_OVERRIDES:
-            tf_params.update(PRODUCT_OVERRIDES[pair])
         try:
-            pair_cfg = get_pair(pair)
-            if pair_cfg.rsi_long is not None:
-                rsi_long = pair_cfg.rsi_long
-            if pair_cfg.rsi_short is not None:
-                rsi_short = pair_cfg.rsi_short
-            if pair_cfg.bb_touch_tol is not None:
-                bb_touch_tol = pair_cfg.bb_touch_tol
+            coin_cfg = _get_coin(pair)
+            coin_overrides = coin_cfg.get("indicator_params", {})
+            tf_params.update(coin_overrides)
         except KeyError:
             pass
-        rsi_long = tf_params.get("rsi_long", rsi_long)
-        rsi_short = tf_params.get("rsi_short", rsi_short)
-        bb_touch_tol = tf_params.get("bb_touch_tol", bb_touch_tol)
+        rsi_long = tf_params.get("rsi_long", 40.0)       # 1h default
+        rsi_short = tf_params.get("rsi_short", 60.0)    # 1h default
+        bb_touch_tol = tf_params.get("bb_touch_tol", 0.006)  # 1h default
 
         # ─── Sub-scores ───
         bb_score, direction = _score_bb_touch(price, bb_upper, bb_lower, bb_touch_tol)

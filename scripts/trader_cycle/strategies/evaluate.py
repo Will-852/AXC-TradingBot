@@ -25,8 +25,9 @@ try:
 except ImportError:
     BEARISH_BLOCK_LONG_CONF = 0.70
 
-# Cross-pair correlation boost
-_CRYPTO_PAIRS = {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+# Cross-pair correlation boost — set derived from config/coins/ (correlation_tracked=True)
+from config.coins.loader import get_correlation_set as _get_corr_set
+_CRYPTO_PAIRS = _get_corr_set()
 _CORRELATION_BOOST = 0.15
 _CORRELATION_STD_THRESHOLD = 2.0  # 偏差 > 2σ
 
@@ -208,11 +209,9 @@ class SelectSignalStep:
     """
     name = "select_signal"
 
-    PAIR_PRIORITY = {
-        "BTCUSDT": 4, "ETHUSDT": 3, "SOLUSDT": 3,
-        "XRPUSDT": 2, "POLUSDT": 2,
-        "XAGUSDT": 1, "XAUUSDT": 1,
-    }
+    # Derived from config/coins/ pair_priority field
+    from config.coins.loader import get_all_coins as _get_all
+    PAIR_PRIORITY = {s: c["pair_priority"] for s, c in _get_all().items()}
 
     def run(self, ctx: CycleContext) -> CycleContext:
         if not ctx.signals:

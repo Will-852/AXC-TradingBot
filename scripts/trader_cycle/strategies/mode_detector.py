@@ -260,7 +260,8 @@ class DetectModeStep:
 
     def run(self, ctx: CycleContext) -> CycleContext:
         # ─── Find primary pair's 4H indicators ───
-        primary = "BTCUSDT"
+        from config.coins.loader import get_regime_anchor
+        primary = get_regime_anchor()
         if primary not in ctx.indicators or PRIMARY_TIMEFRAME not in ctx.indicators[primary]:
             for sym in ctx.indicators:
                 if PRIMARY_TIMEFRAME in ctx.indicators[sym]:
@@ -382,7 +383,51 @@ class DetectModeStep:
                 f"| mode={ctx.market_mode} [{vote_str}]"
             )
 
+        # ─── 6. Per-coin voter-based mode detection ───
+        self._detect_per_coin_modes(ctx, primary, hmm_regime, hmm_confidence, hmm_crash_confirmed)
+
         return ctx
+
+    def _detect_per_coin_modes(
+        self, ctx: CycleContext, anchor: str,
+        hmm_regime: str | None, hmm_confidence: float, hmm_crash_confirmed: bool,
+    ) -> None:
+        """Run 5-voter mode detection for EACH coin with available 4H indicators.
+
+        Results written to ctx.coin_market_mode and ctx.coin_mode_votes.
+        Anchor coin gets the same result as the global ctx.market_mode.
+        Other coins get their own independent voter result.
+        """
+        for symbol in ctx.indicators:
+            if PRIMARY_TIMEFRAME not in ctx.indicators[symbol]:
+                continue
+
+            if symbol == anchor:
+                # Anchor already processed — reuse global result
+                ctx.coin_market_mode[symbol] = ctx.market_mode
+                ctx.coin_mode_votes[symbol] = dict(ctx.mode_votes)
+                continue
+
+            # Get this coin's 4H indicators
+            coin_4h = ctx.indicators[symbol][PRIMARY_TIMEFRAME]
+            coin_funding = ctx.market_data.get(symbol, None)
+            coin_funding_rate = coin_funding.funding_rate if coin_funding else 0.0
+
+            # Run pure 5-voter mode (no HMM — HMM is BTC-primary only)
+            # Non-anchor coins get independent voter result without BTC's regime as 6th vote
+            mode, coin_votes = detect_mode_for_pair(
+                coin_4h, coin_funding_rate,
+                hmm_regime=None,
+                hmm_confidence=0.0,
+                hmm_crash_confirmed=False,
+            )
+
+            ctx.coin_market_mode[symbol] = mode
+            ctx.coin_mode_votes[symbol] = coin_votes
+
+            if ctx.verbose:
+                cv_str = " | ".join(f"{k}:{v}" for k, v in coin_votes.items())
+                print(f"    {symbol} mode: {mode} [{cv_str}]")
 
     def _update_cp(self, ind_4h: dict, regime: str, ctx: CycleContext):
         """Update Conformal Prediction calibration every 4H candle."""

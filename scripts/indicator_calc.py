@@ -56,11 +56,37 @@ HKT = timezone(timedelta(hours=8))
 # ─── 時間框參數表（從 config/params.py 載入）───
 # TIMEFRAME_PARAMS 已從 params.py import，見上方
 
-# ─── 產品參數覆蓋 ───
-PRODUCT_OVERRIDES = {
-    "ETHUSDT": {"rsi_long": 32, "rsi_short": 68},
-    "XRPUSDT": {"bb_touch_tol": BB_TOUCH_TOL_XRP, "stop_loss_mult": 1.0},
-}
+# ─── 產品參數覆蓋（source of truth 已遷移到 config/coins/）───
+# Backward compat: PRODUCT_OVERRIDES dict 仍然 export 畀 backtest/engine 等 consumer。
+# 新 code 應該用 config.coins.loader.get_coin(symbol)["indicator_params"]。
+def _get_product_overrides(symbol: str) -> dict:
+    """Get per-coin indicator param overrides from coin config."""
+    try:
+        from config.coins.loader import get_coin
+        coin = get_coin(symbol)
+        return coin.get("indicator_params", {})
+    except (KeyError, ImportError):
+        return {}
+
+def _build_product_overrides() -> dict:
+    """Build backward-compat PRODUCT_OVERRIDES dict from coin configs."""
+    try:
+        from config.coins.loader import get_all_coins
+        result = {}
+        for symbol, cfg in get_all_coins().items():
+            params = cfg.get("indicator_params", {})
+            # Also include sl_mult_override as "stop_loss_mult" for legacy compat
+            sl_mult = cfg.get("sl_mult_override")
+            if params or sl_mult is not None:
+                entry = dict(params)
+                if sl_mult is not None:
+                    entry["stop_loss_mult"] = sl_mult
+                result[symbol] = entry
+        return result
+    except ImportError:
+        return {}
+
+PRODUCT_OVERRIDES = _build_product_overrides()
 
 
 def fetch_klines(symbol: str, interval: str, limit: int = 200, platform: str = "aster") -> pd.DataFrame:
@@ -414,10 +440,11 @@ def main():
 
     params = TIMEFRAME_PARAMS[interval].copy()
 
-    # 產品覆蓋
+    # 產品覆蓋（from config/coins/）
     symbol = args.symbol.upper()
-    if symbol in PRODUCT_OVERRIDES:
-        params.update(PRODUCT_OVERRIDES[symbol])
+    coin_overrides = _get_product_overrides(symbol)
+    if coin_overrides:
+        params.update(coin_overrides)
 
     try:
         # 抓取數據

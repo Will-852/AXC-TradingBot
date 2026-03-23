@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-indicator_engine.py — Real-time indicator consumer
+indicator_engine.py — Real-time multi-coin indicator consumer
 
 永續進程（KeepAlive via LaunchAgent）。
 訂閱 Redis market:klines → on kline close → calc_indicators → write cache。
 
+2026-03-23: 擴展到多幣 (config/coins/ Binance exchange coins)。
+BTC only → BTC + ETH + XRP + SOL + POL。
+
 生命週期:
-  1. Cold start: REST backfill 200 klines × 4 TF → initial indicator state
+  1. Cold start: REST backfill 200 klines × N coins × 4 TF → initial indicator state
   2. Subscribe Redis consumer group → incremental mode
   3. Each kline close → append to rolling DataFrame → recalc → write cache
   4. Fallback: Redis/WS down → REST fetch every 180s
@@ -14,7 +17,7 @@ indicator_engine.py — Real-time indicator consumer
 角色: Data processor ONLY。唔做 decision，唔落單，唔 send Telegram（除 health alert）。
 
 Output: shared/indicator_cache.json
-  Schema = EXACT match calc_indicators() 34 fields + volume_ratio + _meta + _macro
+  Schema = {SYMBOL: {TF: indicators_dict}, ..., _meta: {...}, _macro: {...}}
 """
 
 import asyncio
@@ -26,7 +29,7 @@ import signal
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -57,12 +60,24 @@ from scripts.shared_infra.redis_bus import (
 from scripts.shared_infra.telegram import send_telegram
 
 # ── Config ───────────────────────────────────────
-SYMBOL = "BTCUSDT"
 TIMEFRAMES = ["3m", "15m", "1h", "4h"]
 KLINE_LIMIT = 200       # backfill candles per TF
 MAX_ROWS = 300           # rolling DataFrame max rows (trim oldest)
 CACHE_PATH = SHARED_DIR / "indicator_cache.json"
 HEARTBEAT_PATH = LOGS_DIR / "indicator_engine_heartbeat.txt"
+
+# Coins to process — Binance exchange coins from config/coins/
+try:
+    from config.coins.loader import get_exchange_symbols, get_regime_anchor
+    SYMBOLS = get_exchange_symbols("binance")
+    REGIME_ANCHOR = get_regime_anchor()
+except ImportError:
+    SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "POLUSDT"]
+    REGIME_ANCHOR = "BTCUSDT"
+
+# Lowercase symbol set for fast lookup from Redis messages
+_SYMBOLS_LOWER = {s.lower() for s in SYMBOLS}
+_SYMBOL_MAP = {s.lower(): s for s in SYMBOLS}  # btcusdt → BTCUSDT
 
 # Consumer group
 GROUP = "indicators"
@@ -92,11 +107,11 @@ _stderr = logging.StreamHandler(sys.stderr)
 _stderr.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
 logger.addHandler(_stderr)
 
-# ── State ────────────────────────────────────────
+# ── State (per-symbol) ──────────────────────────
 _shutdown = False
-_dataframes: dict[str, pd.DataFrame] = {}  # {timeframe: DataFrame}
-_indicators: dict[str, dict] = {}           # {timeframe: {34 fields + volume_ratio}}
-_macro: dict = {}                           # Fib/MACD divergence/MA trend
+_dataframes: dict[str, dict[str, pd.DataFrame]] = {}   # {symbol: {tf: DataFrame}}
+_indicators: dict[str, dict[str, dict]] = {}            # {symbol: {tf: {34 fields}}}
+_macro: dict = {}                                        # BTC-primary Fib/MACD/MA
 _started_at = time.monotonic()
 _stats = {
     "backfill_done": False,
@@ -119,16 +134,17 @@ signal.signal(signal.SIGINT, _handle_signal)
 
 # ── Helpers ──────────────────────────────────────
 
-def _get_params(timeframe: str) -> dict:
-    """Get indicator params for timeframe, with product overrides."""
+def _get_params(symbol: str, timeframe: str) -> dict:
+    """Get indicator params for (symbol, timeframe), with per-coin overrides."""
     params = TIMEFRAME_PARAMS[timeframe].copy()
-    if SYMBOL in PRODUCT_OVERRIDES:
-        params.update(PRODUCT_OVERRIDES[SYMBOL])
+    # Per-coin overrides from config/coins/ via PRODUCT_OVERRIDES backward compat
+    if symbol in PRODUCT_OVERRIDES:
+        params.update(PRODUCT_OVERRIDES[symbol])
     return params
 
 
 def _calc_volume_ratio(df: pd.DataFrame) -> float:
-    """volume_ratio = last candle volume / 30-candle avg. Matches market_data.py:160-167."""
+    """volume_ratio = last candle volume / 30-candle avg."""
     if len(df) >= 30:
         avg_vol = df["volume"].tail(30).mean()
         current_vol = df["volume"].iloc[-1]
@@ -136,30 +152,28 @@ def _calc_volume_ratio(df: pd.DataFrame) -> float:
     return 1.0
 
 
-def _calc_indicators_for_tf(timeframe: str) -> dict | None:
-    """Calculate all 34 indicators + volume_ratio for one timeframe."""
-    df = _dataframes.get(timeframe)
+def _calc_indicators_for(symbol: str, timeframe: str) -> dict | None:
+    """Calculate all indicators for one (symbol, timeframe)."""
+    sym_dfs = _dataframes.get(symbol, {})
+    df = sym_dfs.get(timeframe)
     if df is None or len(df) < 20:
-        logger.warning("Insufficient data for %s: %d rows", timeframe, len(df) if df is not None else 0)
         return None
     try:
-        params = _get_params(timeframe)
+        params = _get_params(symbol, timeframe)
         result = calc_indicators(df, params)
         result["volume_ratio"] = _calc_volume_ratio(df)
         return result
     except Exception as exc:
-        logger.error("calc_indicators failed for %s: %s", timeframe, exc)
+        logger.error("calc_indicators failed for %s %s: %s", symbol, timeframe, exc)
         _stats["errors"] += 1
         return None
 
 
 def _calc_macro() -> dict:
-    """
-    Macro S/R: Fibonacci + MACD divergence + MA trend.
-    Runs on 4H data. Updates _macro.
-    """
-    df = _dataframes.get("4h")
-    ind = _indicators.get("4h")
+    """Macro S/R: Fibonacci + MACD divergence + MA trend (BTC-primary)."""
+    sym = REGIME_ANCHOR
+    df = _dataframes.get(sym, {}).get("4h")
+    ind = _indicators.get(sym, {}).get("4h")
     if df is None or ind is None or len(df) < 30:
         return _macro
 
@@ -184,19 +198,14 @@ def _calc_macro() -> dict:
     # MACD divergence (4-bar comparison)
     try:
         prices = df["close"].tail(5).values
-        macd_hist = []
-        # Get last 5 MACD histograms from DataFrame recalc
-        close = df["close"]
         from scripts.indicator_calc import MACD_FAST, MACD_SLOW, MACD_SIGNAL
         import tradingview_indicators as tv
-        macd_obj = tv.MACD(close, MACD_FAST, MACD_SLOW, MACD_SIGNAL)
+        macd_obj = tv.MACD(df["close"], MACD_FAST, MACD_SLOW, MACD_SIGNAL)
         hist_series = macd_obj.macd_histogram
         if hist_series is not None and len(hist_series) >= 5:
             macd_hist = hist_series.tail(5).values
-
             price_rising = prices[-1] > prices[0]
             macd_rising = macd_hist[-1] > macd_hist[0]
-
             if price_rising and not macd_rising:
                 result["macd_divergence"] = "bearish"
             elif not price_rising and macd_rising:
@@ -233,17 +242,22 @@ def _calc_macro() -> dict:
 
 
 def _write_cache() -> None:
-    """Atomic write indicator_cache.json. Same pattern as existing AXC code."""
-    cache = {
-        SYMBOL: _indicators.copy(),
-        "_meta": {
-            "last_update": datetime.now(timezone.utc).isoformat(),
-            "source": "ws" if _stats["backfill_done"] and redis_available() else "rest_fallback",
-            "ws_connected": redis_available(),
-            "engine_uptime_s": round(time.monotonic() - _started_at),
-        },
-        "_macro": _macro,
+    """Atomic write indicator_cache.json — all symbols."""
+    cache = {}
+    for sym in SYMBOLS:
+        sym_ind = _indicators.get(sym, {})
+        if sym_ind:
+            cache[sym] = sym_ind.copy()
+
+    cache["_meta"] = {
+        "last_update": datetime.now(timezone.utc).isoformat(),
+        "source": "ws" if _stats["backfill_done"] and redis_available() else "rest_fallback",
+        "ws_connected": redis_available(),
+        "engine_uptime_s": round(time.monotonic() - _started_at),
+        "symbols": list(cache.keys()),
     }
+    cache["_macro"] = _macro
+
     try:
         fd, tmp = tempfile.mkstemp(dir=str(SHARED_DIR), suffix=".tmp")
         with os.fdopen(fd, "w") as f:
@@ -259,9 +273,11 @@ def _write_heartbeat() -> None:
     """Write heartbeat file."""
     try:
         uptime = time.monotonic() - _started_at
+        n_symbols = sum(1 for s in SYMBOLS if _indicators.get(s))
         line = (
             f"{datetime.now(timezone.utc).isoformat()} "
             f"up={uptime:.0f}s "
+            f"coins={n_symbols}/{len(SYMBOLS)} "
             f"backfill={'Y' if _stats['backfill_done'] else 'N'} "
             f"klines={_stats['klines_processed']} "
             f"cache_writes={_stats['cache_writes']} "
@@ -276,49 +292,71 @@ def _write_heartbeat() -> None:
 # ── Cold start: REST backfill ────────────────────
 
 def _backfill() -> bool:
-    """
-    REST fetch 200 klines × 4 TF → build initial indicator state.
-    Returns True on success (at least primary TFs loaded).
-    """
-    logger.info("Cold start: backfilling %d klines × %d timeframes", KLINE_LIMIT, len(TIMEFRAMES))
-    success = 0
+    """REST fetch 200 klines × N coins × 4 TF → build initial indicator state."""
+    logger.info(
+        "Cold start: backfilling %d klines × %d symbols × %d timeframes",
+        KLINE_LIMIT, len(SYMBOLS), len(TIMEFRAMES),
+    )
+    success_symbols = 0
 
-    for tf in TIMEFRAMES:
-        try:
-            df = fetch_klines(SYMBOL, tf, KLINE_LIMIT, platform="binance")
-            if df is None or len(df) < 20:
-                logger.warning("Backfill %s: insufficient data (%d rows)", tf, len(df) if df is not None else 0)
-                continue
+    for symbol in SYMBOLS:
+        _dataframes.setdefault(symbol, {})
+        _indicators.setdefault(symbol, {})
+        sym_success = 0
 
-            _dataframes[tf] = df
-            ind = _calc_indicators_for_tf(tf)
-            if ind:
-                _indicators[tf] = ind
-                success += 1
-                logger.info("Backfill %s: %d rows, price=%s", tf, len(df), ind.get("price"))
-            else:
-                logger.warning("Backfill %s: calc_indicators returned None", tf)
-        except Exception as exc:
-            logger.error("Backfill %s failed: %s", tf, exc)
-            _stats["errors"] += 1
+        # Determine platform for this symbol
+        platform = "binance"  # All WS symbols are Binance
 
-    if "4h" in _indicators and "1h" in _indicators:  # primary TFs required
-        # Compute macro on initial data
+        for tf in TIMEFRAMES:
+            try:
+                # Throttle: 50ms between REST calls (20 calls × 50ms = 1s total)
+                # Protects against burst weight spike if SYMBOLS grows
+                time.sleep(0.05)
+                df = fetch_klines(symbol, tf, KLINE_LIMIT, platform=platform)
+                if df is None or len(df) < 20:
+                    logger.warning("Backfill %s %s: insufficient data", symbol, tf)
+                    continue
+
+                _dataframes[symbol][tf] = df
+                ind = _calc_indicators_for(symbol, tf)
+                if ind:
+                    _indicators[symbol][tf] = ind
+                    sym_success += 1
+            except Exception as exc:
+                logger.error("Backfill %s %s failed: %s", symbol, tf, exc)
+                _stats["errors"] += 1
+
+        if sym_success >= 2:  # At least 4h + 1h
+            success_symbols += 1
+            price = _indicators.get(symbol, {}).get("4h", {}).get("price", "?")
+            logger.info("Backfill %s: %d/%d TFs, price=%s", symbol, sym_success, len(TIMEFRAMES), price)
+        else:
+            logger.warning("Backfill %s: only %d/%d TFs", symbol, sym_success, len(TIMEFRAMES))
+
+    # Require at least regime anchor (BTC) to have primary TFs
+    anchor_ok = (
+        "4h" in _indicators.get(REGIME_ANCHOR, {})
+        and "1h" in _indicators.get(REGIME_ANCHOR, {})
+    )
+
+    if anchor_ok:
         global _macro
         _macro = _calc_macro()
         _write_cache()
-        logger.info("Backfill complete: %d/%d timeframes, macro=%s",
-                     success, len(TIMEFRAMES), _macro.get("ma_trend", "?"))
+        logger.info(
+            "Backfill complete: %d/%d symbols ready, macro=%s",
+            success_symbols, len(SYMBOLS), _macro.get("ma_trend", "?"),
+        )
         return True
     else:
-        logger.error("Backfill failed: only %d/%d timeframes loaded", success, len(TIMEFRAMES))
+        logger.error("Backfill failed: regime anchor %s missing primary TFs", REGIME_ANCHOR)
         return False
 
 
 # ── Kline event processing ───────────────────────
 
-def _append_kline_to_df(tf: str, kline: dict) -> None:
-    """Append a closed kline to the rolling DataFrame for this timeframe."""
+def _append_kline_to_df(symbol: str, tf: str, kline: dict) -> None:
+    """Append a closed kline to the rolling DataFrame."""
     new_row = {
         "open_time": int(kline["open_time"]),
         "open": float(kline["o"]),
@@ -335,40 +373,38 @@ def _append_kline_to_df(tf: str, kline: dict) -> None:
         "timestamp": pd.to_datetime(int(kline["open_time"]), unit="ms"),
     }
 
-    df = _dataframes.get(tf)
+    sym_dfs = _dataframes.setdefault(symbol, {})
+    df = sym_dfs.get(tf)
+
     if df is None:
-        # No backfill for this TF — create from scratch (will be short)
-        _dataframes[tf] = pd.DataFrame([new_row])
+        sym_dfs[tf] = pd.DataFrame([new_row])
         return
 
     new_df = pd.DataFrame([new_row])
-    _dataframes[tf] = pd.concat([df, new_df], ignore_index=True)
+    sym_dfs[tf] = pd.concat([df, new_df], ignore_index=True)
 
     # Trim to MAX_ROWS
-    if len(_dataframes[tf]) > MAX_ROWS:
-        _dataframes[tf] = _dataframes[tf].tail(MAX_ROWS).reset_index(drop=True)
+    if len(sym_dfs[tf]) > MAX_ROWS:
+        sym_dfs[tf] = sym_dfs[tf].tail(MAX_ROWS).reset_index(drop=True)
 
 
-def _process_kline_close(tf: str, kline: dict) -> None:
+def _process_kline_close(symbol: str, tf: str, kline: dict) -> None:
     """Process a closed kline: append, recalc, update cache."""
-    _append_kline_to_df(tf, kline)
+    _append_kline_to_df(symbol, tf, kline)
+    _indicators.setdefault(symbol, {})
 
     # Determine what to recalc based on timeframe hierarchy
     recalc_tfs = [tf]
-    if tf == "15m":
-        recalc_tfs = TIMEFRAMES  # 15m close → recalc all
-    elif tf == "1h":
-        recalc_tfs = TIMEFRAMES  # 1h close → recalc all + S/R check
-    elif tf == "4h":
-        recalc_tfs = TIMEFRAMES  # 4h close → recalc all + macro
+    if tf in ("15m", "1h", "4h"):
+        recalc_tfs = TIMEFRAMES  # Higher TF close → recalc all
 
     for rtf in recalc_tfs:
-        ind = _calc_indicators_for_tf(rtf)
+        ind = _calc_indicators_for(symbol, rtf)
         if ind:
-            _indicators[rtf] = ind
+            _indicators[symbol][rtf] = ind
 
-    # Macro update on 4H or 1H close
-    if tf in ("4h", "1h"):
+    # Macro update on 4H or 1H close (regime anchor only)
+    if symbol == REGIME_ANCHOR and tf in ("4h", "1h"):
         global _macro
         _macro = _calc_macro()
 
@@ -376,23 +412,22 @@ def _process_kline_close(tf: str, kline: dict) -> None:
     _write_cache()
 
     logger.info(
-        "Processed %s %s close: price=%s rsi=%s recalc=%s",
-        kline.get("symbol", SYMBOL), tf,
-        _indicators.get(tf, {}).get("price"),
-        _indicators.get(tf, {}).get("rsi"),
-        recalc_tfs,
+        "Processed %s %s close: price=%s rsi=%s",
+        symbol, tf,
+        _indicators.get(symbol, {}).get(tf, {}).get("price"),
+        _indicators.get(symbol, {}).get(tf, {}).get("rsi"),
     )
 
 
 # ── Main loops ───────────────────────────────────
 
 async def _redis_consumer_loop() -> None:
-    """Subscribe to market:klines consumer group. Process closed klines."""
+    """Subscribe to market:klines consumer group. Process closed klines for all symbols."""
     if not ensure_group(STREAM_KLINES, GROUP):
         logger.error("Cannot create consumer group — entering fallback mode")
         return
 
-    logger.info("Redis consumer started: group=%s consumer=%s", GROUP, CONSUMER)
+    logger.info("Redis consumer started: group=%s consumer=%s symbols=%d", GROUP, CONSUMER, len(SYMBOLS))
     consecutive_empty = 0
 
     while not _shutdown:
@@ -403,13 +438,12 @@ async def _redis_consumer_loop() -> None:
 
         if not entries:
             consecutive_empty += 1
-            # If Redis seems dead for >30s, break to fallback
-            if consecutive_empty > 10:  # 10 × 3s block = 30s
+            if consecutive_empty > 10:
                 logger.warning("No data from Redis for 30s — checking availability")
                 if not redis_available():
                     logger.warning("Redis unavailable — switching to REST fallback")
                     return
-                consecutive_empty = 0  # Redis alive, just no data (WS might be down)
+                consecutive_empty = 0
             continue
 
         consecutive_empty = 0
@@ -417,43 +451,45 @@ async def _redis_consumer_loop() -> None:
         for entry_id, fields in entries:
             is_closed = fields.get("is_closed", "0") == "1"
             interval = fields.get("interval", "")
+            raw_symbol = fields.get("symbol", "").lower()
 
-            if is_closed and interval in TIMEFRAMES:
-                _process_kline_close(interval, fields)
+            # Only process coins we're tracking
+            if is_closed and interval in TIMEFRAMES and raw_symbol in _SYMBOLS_LOWER:
+                symbol = _SYMBOL_MAP[raw_symbol]
+                _process_kline_close(symbol, interval, fields)
 
-            # ACK regardless (we don't want to re-process open klines)
             xack(STREAM_KLINES, GROUP, entry_id)
 
 
 async def _fallback_loop() -> None:
     """REST fallback: fetch klines every 180s when Redis/WS unavailable."""
-    logger.info("Fallback mode: REST fetch every %ds", FALLBACK_INTERVAL)
+    logger.info("Fallback mode: REST fetch every %ds for %d symbols", FALLBACK_INTERVAL, len(SYMBOLS))
 
     while not _shutdown:
-        # Check if Redis came back
         if redis_available():
             logger.info("Redis recovered — switching back to consumer mode")
             return
 
-        for tf in TIMEFRAMES:
-            try:
-                df = fetch_klines(SYMBOL, tf, KLINE_LIMIT, platform="binance")
-                if df is not None and len(df) >= 20:
-                    _dataframes[tf] = df
-                    ind = _calc_indicators_for_tf(tf)
-                    if ind:
-                        _indicators[tf] = ind
-            except Exception as exc:
-                logger.error("Fallback fetch %s failed: %s", tf, exc)
-                _stats["errors"] += 1
+        for symbol in SYMBOLS:
+            for tf in TIMEFRAMES:
+                try:
+                    df = fetch_klines(symbol, tf, KLINE_LIMIT, platform="binance")
+                    if df is not None and len(df) >= 20:
+                        _dataframes.setdefault(symbol, {})[tf] = df
+                        ind = _calc_indicators_for(symbol, tf)
+                        if ind:
+                            _indicators.setdefault(symbol, {})[tf] = ind
+                except Exception as exc:
+                    logger.error("Fallback fetch %s %s failed: %s", symbol, tf, exc)
+                    _stats["errors"] += 1
 
         global _macro
         _macro = _calc_macro()
         _write_cache()
         _stats["fallback_fetches"] += 1
-        logger.info("Fallback cycle done: price=%s", _indicators.get("4h", {}).get("price"))
+        anchor_price = _indicators.get(REGIME_ANCHOR, {}).get("4h", {}).get("price")
+        logger.info("Fallback cycle done: %s price=%s", REGIME_ANCHOR, anchor_price)
 
-        # Wait FALLBACK_INTERVAL, checking for Redis recovery every 30s
         for _ in range(FALLBACK_INTERVAL // 30):
             if _shutdown:
                 return
@@ -475,8 +511,10 @@ async def _stats_loop() -> None:
     """Log stats every 5 min."""
     while not _shutdown:
         await asyncio.sleep(300)
+        n_ready = sum(1 for s in SYMBOLS if _indicators.get(s))
         logger.info(
-            "stats: klines=%d cache=%d fallbacks=%d errors=%d up=%ds",
+            "stats: coins=%d/%d klines=%d cache=%d fallbacks=%d errors=%d up=%ds",
+            n_ready, len(SYMBOLS),
             _stats["klines_processed"],
             _stats["cache_writes"],
             _stats["fallback_fetches"],
@@ -487,9 +525,12 @@ async def _stats_loop() -> None:
 
 async def main():
     """Entry point."""
-    logger.info("indicator_engine starting — symbol=%s timeframes=%s", SYMBOL, TIMEFRAMES)
+    logger.info(
+        "indicator_engine starting — %d symbols: %s",
+        len(SYMBOLS), ", ".join(SYMBOLS),
+    )
 
-    # Step 1: Cold start backfill (always, regardless of Redis)
+    # Step 1: Cold start backfill
     backfill_ok = await asyncio.get_running_loop().run_in_executor(None, _backfill)
     _stats["backfill_done"] = backfill_ok
 
@@ -517,9 +558,8 @@ async def main():
             await _fallback_loop()
 
         if not _shutdown:
-            await asyncio.sleep(5)  # brief pause before mode switch
+            await asyncio.sleep(5)
 
-    # Cleanup
     for t in bg_tasks:
         t.cancel()
     logger.info("indicator_engine stopped")

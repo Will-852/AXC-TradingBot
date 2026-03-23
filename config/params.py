@@ -287,8 +287,9 @@ CP_INFLATION_FACTOR = 1.5          # cold start inflation
 # ── Defaults: D_xrp_wf (shootout 2026-03-18, best 3/4 symbols) ──
 SIGNAL_CONF_GATE = {"range": 0.40, "trend": 0.48, "crash": 0.33}
 
-# Per-symbol override: ETH best with A_default (higher gates)
-# Lookup: SIGNAL_CONF_GATE_PER_SYMBOL[pair] → per-strategy gate, else SIGNAL_CONF_GATE
+# DEPRECATED (2026-03-23): 已遷移到 config/coins/eth/config.py strategies.conf_gate。
+# signal_filter.py 已改用 config.coins.loader.get_conf_gate()。
+# 保留畀 backtest code 引用。下次 backtest refactor 時刪除。
 SIGNAL_CONF_GATE_PER_SYMBOL = {
     "ETHUSDT": {"range": 0.50, "trend": 0.50, "crash": 0.50},
 }
