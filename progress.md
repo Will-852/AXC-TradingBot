@@ -60,7 +60,35 @@
   - Q6: cache format fully backward compat (strict superset) ✅
   - Q7: range_strategy RSI fallback correct (40/60/0.006 = 1h default) ✅
 - All 65 tests green after fixes
-### Phase 4: 24-Combo Parameter Tuning — `pending`
+### Phase 4: Squeeze-Explosion Strategy — `complete`
+- BMD 分析：42.5% BTC vol in 16.1% candles。SQUEEZE(13-16%) + QUIET_THEN_BOOM(5-8%) 前兆
+- Re-enabled `bb_width_pctl` (squeeze detection core)
+- Added `session_tag` to CycleContext (US session bonus +0.10)
+- Created `squeeze_strategy.py`:
+  - Gates: BB pctl < 20%, ADX < 20, volume_ratio < 0.7
+  - Trigger: BB band breakout (LONG above / SHORT below)
+  - Weights: bb_pctl 0.30 + adx_low 0.25 + vol_quiet 0.25 + bb_break 0.20
+  - Bonuses: US session +0.10, OBV divergence +0.05, 4H squeeze +0.05
+  - R:R = 3.0 minimum (ATR × 3.0 TP, ATR × 1.0 SL)
+- Registered in main.py, configured in params.py (affinity, persistence, conf_gate)
+- BTC config: range/trend DISABLED (BMD negative EV), squeeze + crash only
+- ETH/XRP/SOL: squeeze added alongside existing strategies
+- POL/XAG: squeeze disabled (all strategies disabled)
+- EvaluateSignalsStep: added `is_strategy_enabled()` check per coin × strategy
+- 66/66 tests passed
+- Backtest 360d (adjusted params):
+  | | BTC | ETH | SOL |
+  |---|---|---|---|
+  | Trades | 120 | 127 | 109 |
+  | WR | 35.0% | 37.0% | 37.6% |
+  | PF | 1.14 | 1.19 | 1.08 |
+  | Best session | Non-US (PF 1.65) | Non-US (PF 1.67) | US (PF 1.28) |
+- Post-backtest fixes:
+  - position_sizer.py: added squeeze TP branch (ATR × 3.0) + leverage branch (range_leverage)
+  - Thresholds adjusted: BB pctl 20→30, ADX 20→25, vol 0.7→0.8
+  - SL 1.0→1.5 ATR, min_rr 3.0→2.0 (BE=33%, WR 35-37% clears)
+  - Session logic REVERSED: BTC/ETH non_us bonus, SOL us bonus (per-coin config)
+  - Per-coin session_preference field added to _defaults.py + sol config
 ### Phase 5: Validation — `deferred`
 
 ## Reboot Check

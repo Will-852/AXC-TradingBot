@@ -26,7 +26,7 @@ except ImportError:
     BEARISH_BLOCK_LONG_CONF = 0.70
 
 # Cross-pair correlation boost — set derived from config/coins/ (correlation_tracked=True)
-from config.coins.loader import get_correlation_set as _get_corr_set
+from config.coins.loader import get_correlation_set as _get_corr_set, is_strategy_enabled as _is_strat_enabled
 _CRYPTO_PAIRS = _get_corr_set()
 _CORRELATION_BOOST = 0.15
 _CORRELATION_STD_THRESHOLD = 2.0  # 偏差 > 2σ
@@ -59,8 +59,13 @@ class EvaluateSignalsStep:
 
         # ─── Run ALL strategies on all pairs ───
         for mode_name, strategy in all_strategies.items():
+            strat_name = strategy.name  # "range", "trend", "crash", "squeeze"
             for symbol in ctx.indicators:
                 if symbol in no_trade_pairs:
+                    continue
+
+                # Per-coin strategy enabled check
+                if not _is_strat_enabled(symbol, strat_name):
                     continue
 
                 pair_indicators = ctx.indicators[symbol]

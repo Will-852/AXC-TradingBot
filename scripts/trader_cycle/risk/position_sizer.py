@@ -201,11 +201,14 @@ class SizePositionStep:
         margin_pct = zone_profile.get("margin_pct", 0.03)  # 3% of account as margin
 
         # Leverage: from zone profile (not settings.py which is frozen at import time)
-        strategy_type = signal.strategy  # "range" / "trend" / "crash"
+        strategy_type = signal.strategy  # "range" / "trend" / "crash" / "squeeze"
         if strategy_type == "range":
             leverage = zone_profile.get("range_leverage", params.leverage)
         elif strategy_type == "trend":
             leverage = zone_profile.get("trend_leverage", params.leverage)
+        elif strategy_type == "squeeze":
+            # Squeeze uses range leverage (breakout from compression = range-like entry)
+            leverage = zone_profile.get("range_leverage", params.leverage)
         else:
             leverage = params.leverage  # crash uses strategy default
         # Cap by per-coin max leverage
@@ -301,14 +304,17 @@ class SizePositionStep:
             tp1, tp2 = self._calc_trend_tp(signal, ind_4h, entry_price, sl_distance, ctx)
         elif signal.strategy == "crash":
             tp1, tp2 = self._calc_crash_tp(signal, ind_4h, entry_price, sl_distance, ctx)
-        elif signal.strategy == "scalp":
-            # Scalp: fixed ATR multiple
-            atr = ind_4h.get("atr", 0)
-            tp_mult = params.tp_atr_mult or 2.5
-            if signal.direction == "LONG":
-                tp1, tp2 = entry_price + atr * tp_mult, None
+        elif signal.strategy in ("scalp", "squeeze"):
+            # Scalp / Squeeze: fixed ATR multiple for TP
+            atr = ind_1h.get("atr") or ind_4h.get("atr", 0)
+            tp_mult = params.tp_atr_mult or 3.0
+            if atr and atr > 0:
+                if signal.direction == "LONG":
+                    tp1, tp2 = entry_price + atr * tp_mult, None
+                else:
+                    tp1, tp2 = entry_price - atr * tp_mult, None
             else:
-                tp1, tp2 = entry_price - atr * tp_mult, None
+                tp1, tp2 = None, None
         else:
             return None, None
 

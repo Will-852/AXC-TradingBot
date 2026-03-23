@@ -19,6 +19,7 @@ COIN = {
         "range": {"enabled": False, "conf_gate": 0.40},
         "trend": {"enabled": False, "conf_gate": 0.48},
         "crash": {"enabled": False, "conf_gate": 0.33},
+        "squeeze": {"enabled": False, "conf_gate": 0.40},
     },
 
     "notes": "DISABLED: Backtest 180d WR 18.2%, PF 0.43, -14.83%. 只有 11 trades",

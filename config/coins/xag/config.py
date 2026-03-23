@@ -20,6 +20,7 @@ COIN = {
         "range": {"enabled": False, "conf_gate": 0.40},
         "trend": {"enabled": False, "conf_gate": 0.48},
         "crash": {"enabled": False, "conf_gate": 0.33},
+        "squeeze": {"enabled": False, "conf_gate": 0.40},
     },
 
     "notes": "DISABLED: Backtest 180d WR 25%, PF 0.65, -6.65%. Sharpe -1.90",

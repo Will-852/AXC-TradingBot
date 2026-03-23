@@ -47,7 +47,11 @@ COIN = {
             "enabled": True,
             "conf_gate": 0.50,
         },
+        "squeeze": {
+            "enabled": True,
+            "conf_gate": 0.45,     # ETH 82% BTC contagion → squeeze signals highly reliable
+        },
     },
 
-    "notes": "Best Sharpe (1.83)。RSI 32/68 proven by backtest",
+    "notes": "Best Sharpe (1.83)。RSI 32/68 proven by backtest。82% BTC contagion rate",
 }

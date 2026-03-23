@@ -46,8 +46,12 @@ COIN = {
             "enabled": True,
             "conf_gate": 0.33,
         },
+        "squeeze": {
+            "enabled": True,
+            "conf_gate": 0.45,     # XRP 46% BTC contagion — more independent, need higher conf
+        },
     },
 
     "sl_mult_override": 1.0,  # ATR fallback SL multiplier override
-    "notes": "2x vol, independent。BB tol wider for noise",
+    "notes": "2x vol, independent。46% BTC contagion, max range 56.7%(!)",
 }

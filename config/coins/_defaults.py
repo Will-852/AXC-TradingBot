@@ -53,7 +53,7 @@ COIN_DEFAULTS = {
         "vwap": False,           # VWAP + bands (零引用)
         "vol_spike": False,      # Volume spike flag (liq_monitor 自己算)
         "z_robust": False,       # Robust z-score (零引用)
-        "bb_width_pctl": False,  # BB width percentile (零引用)
+        "bb_width_pctl": True,   # BB width percentile — squeeze detection core
     },
 
     # ─── Strategies ───
@@ -70,7 +70,16 @@ COIN_DEFAULTS = {
             "enabled": True,
             "conf_gate": 0.33,
         },
+        "squeeze": {
+            "enabled": True,
+            "conf_gate": 0.40,
+        },
     },
+
+    # ─── Session preference (squeeze strategy) ───
+    # "non_us" = bonus for ASIA/EU sessions (BTC/ETH backtest-proven)
+    # "us" = bonus for US_PRE/US_OPEN sessions
+    "session_preference": "non_us",
 
     # ─── Legacy (backward compat) ───
     "sl_mult_override": None,  # Override ATR SL multiplier

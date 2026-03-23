@@ -285,7 +285,7 @@ CP_INFLATION_FACTOR = 1.5          # cold start inflation
 # Philosophy: 唔好每個 regime 都 trade。只做有 edge 嘅 deal。
 
 # ── Defaults: D_xrp_wf (shootout 2026-03-18, best 3/4 symbols) ──
-SIGNAL_CONF_GATE = {"range": 0.40, "trend": 0.48, "crash": 0.33}
+SIGNAL_CONF_GATE = {"range": 0.40, "trend": 0.48, "crash": 0.33, "squeeze": 0.40}
 
 # DEPRECATED (2026-03-23): 已遷移到 config/coins/eth/config.py strategies.conf_gate。
 # signal_filter.py 已改用 config.coins.loader.get_conf_gate()。
@@ -295,13 +295,14 @@ SIGNAL_CONF_GATE_PER_SYMBOL = {
 }
 
 SIGNAL_MODE_AFFINITY = {
-    "TREND": {"trend": 0.0, "range": -0.23, "crash": 0.0},
-    "RANGE": {"range": 0.0, "trend": -0.42, "crash": 0.0},
-    "CRASH": {"crash": 0.0, "trend": -0.08, "range": -0.30},
+    "TREND": {"trend": 0.0, "range": -0.23, "crash": 0.0, "squeeze": 0.0},
+    "RANGE": {"range": 0.0, "trend": -0.42, "crash": 0.0, "squeeze": 0.0},
+    "CRASH": {"crash": 0.0, "trend": -0.08, "range": -0.30, "squeeze": -0.10},
 }
-SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.18, "range": -0.20, "crash": 0.0}
+# Squeeze: 0 penalty in TREND/RANGE (squeeze can happen in either), slight penalty in CRASH
+SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.18, "range": -0.20, "crash": 0.0, "squeeze": -0.05}
 
-SIGNAL_PERSISTENCE = {"range": 3, "trend": 1, "crash": 2}
+SIGNAL_PERSISTENCE = {"range": 3, "trend": 1, "crash": 2, "squeeze": 1}  # squeeze = immediate (breakout is time-sensitive)
 
 SIGNAL_COOLDOWN_HOURS = 12
 

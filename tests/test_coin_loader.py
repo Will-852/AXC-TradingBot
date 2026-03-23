@@ -68,8 +68,13 @@ class TestIndicatorToggles:
 
     def test_unused_indicators_off(self):
         btc = get_coin("BTCUSDT")
-        for ind in ["di", "ema_legacy", "stoch", "macd_line_signal", "vwap", "vol_spike", "z_robust", "bb_width_pctl"]:
+        for ind in ["di", "ema_legacy", "stoch", "macd_line_signal", "vwap", "vol_spike", "z_robust"]:
             assert btc["indicators"][ind] is False, f"{ind} should be disabled"
+
+    def test_bb_width_pctl_enabled(self):
+        """bb_width_pctl re-enabled for squeeze detection."""
+        btc = get_coin("BTCUSDT")
+        assert btc["indicators"]["bb_width_pctl"] is True
 
 
 class TestStrategyConfig:
@@ -83,9 +88,12 @@ class TestStrategyConfig:
         for strat in ["range", "trend", "crash"]:
             assert not is_strategy_enabled("XAGUSDT", strat)
 
-    def test_btc_all_enabled(self):
-        for strat in ["range", "trend", "crash"]:
-            assert is_strategy_enabled("BTCUSDT", strat)
+    def test_btc_squeeze_only(self):
+        """BTC: range/trend disabled (BMD negative EV), squeeze+crash enabled."""
+        assert not is_strategy_enabled("BTCUSDT", "range")
+        assert not is_strategy_enabled("BTCUSDT", "trend")
+        assert is_strategy_enabled("BTCUSDT", "crash")
+        assert is_strategy_enabled("BTCUSDT", "squeeze")
 
     def test_xau_still_enabled(self):
         """XAU is profitable — strategies should be ON."""
@@ -101,12 +109,13 @@ class TestStrategyConfig:
         assert get_conf_gate("BTCUSDT", "range") == 0.40
         assert get_conf_gate("BTCUSDT", "trend") == 0.48
 
-    def test_active_symbols_excludes_disabled(self):
+    def test_active_symbols_excludes_fully_disabled(self):
+        """POL/XAG have all strategies disabled. Others have at least one enabled."""
         active = get_active_symbols()
-        assert "POLUSDT" not in active
-        assert "XAGUSDT" not in active
-        assert "BTCUSDT" in active
-        assert "XAUUSDT" in active
+        assert "POLUSDT" not in active  # All disabled
+        assert "XAGUSDT" not in active  # All disabled
+        assert "BTCUSDT" in active      # squeeze + crash enabled
+        assert "XAUUSDT" in active      # range/trend/crash enabled
 
 
 class TestDerivedData:

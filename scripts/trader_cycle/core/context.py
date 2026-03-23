@@ -122,6 +122,9 @@ class CycleContext:
     scan_config: dict = field(default_factory=dict)
     trade_state: dict = field(default_factory=dict)
 
+    # ─── Session ───
+    session_tag: str = ""  # "ASIA"/"EU_OPEN"/"US_PRE"/"US_OPEN"/"WEEKEND"
+
     # ─── Market Data ───
     market_data: dict[str, MarketSnapshot] = field(default_factory=dict)
     indicators: dict[str, dict] = field(default_factory=dict)

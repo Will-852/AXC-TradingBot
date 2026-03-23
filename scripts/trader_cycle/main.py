@@ -51,6 +51,7 @@ from trader_cycle.strategies.mode_detector import DetectModeStep
 from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
+from trader_cycle.strategies.squeeze_strategy import SqueezeStrategy
 from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalStep
 from trader_cycle.strategies.signal_filter import SignalFilterStep
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
@@ -435,6 +436,7 @@ def register_strategies() -> None:
     StrategyRegistry.register(RangeStrategy())
     StrategyRegistry.register(TrendStrategy())
     StrategyRegistry.register(CrashStrategy())
+    StrategyRegistry.register(SqueezeStrategy())
 
 
 def build_pipeline() -> Pipeline:
@@ -546,9 +548,14 @@ def main():
         sys.exit(2)
 
     # ─── Build context ───
+    # Session tag for time-of-day strategy filtering
+    from indicator_calc import get_session_tag
+    session = get_session_tag(now)
+
     ctx = CycleContext(
         timestamp=now,
         timestamp_str=ts_str,
+        session_tag=session,
         dry_run=not args.live,
         verbose=args.verbose,
     )

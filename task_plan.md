@@ -160,15 +160,33 @@ Steps:
   - Q2 FIX: non-anchor coins → hmm_regime=None (pure 5-voter, no BTC HMM leak)
   - Q5 FIX: backfill 50ms inter-call delay (rate limit protection)
 
-### Phase 4: 24-Combo Parameter Tuning — `pending`
-4 coins × 3 strategies × 2 zones = 24 sets of weights/gates/SL/TP。
+### Phase 4: Squeeze-Explosion Strategy — `in_progress`
+BMD 分析：42.5% 嘅 BTC 波動集中在 16.1% 嘅 candles（explosive >2%）。
+SQUEEZE pattern (13-16%) + QUIET_THEN_BOOM (5-8%) = 最可操作嘅前兆。
+
+**Architecture**:
+```
+SqueezeStrategy.evaluate(pair, indicators, ctx):
+  1. BB width percentile < 20%      ← squeeze detected
+  2. Volume ratio < 0.7 (≥2 candles) ← quiet accumulation
+  3. ADX < 20                       ← no directional energy
+  4. Trigger: price breaks BB upper → LONG / BB lower → SHORT
+  5. Confidence bonus: US session (12-20 UTC) +0.10
+
+  SL: ATR × 1.0 (tight — squeeze breakout should be decisive)
+  TP: ATR × 3.0 (ride the explosion)
+  R:R = 3.0 minimum → BE = 25%
+```
 
 Steps:
-- [ ] 4.1 Initial values: 用現有 global defaults 填滿 24 combos
-- [ ] 4.2 每個 combo 用 180d backtest 評估
-- [ ] 4.3 識別邊啲 combos 有 edge（WR > break-even, PF > 1.0）
-- [ ] 4.4 無 edge 嘅 combo → disable（strategy.enabled = False for that coin×zone）
-- [ ] 4.5 Dashboard: per-coin status card 顯示 active strategies
+- [ ] 4.1 Re-enable `bb_width_pctl` in _defaults.py indicators
+- [ ] 4.2 Add `session_tag` to CycleContext (use existing get_session_tag)
+- [ ] 4.3 Create `squeeze_strategy.py` — StrategyBase subclass
+- [ ] 4.4 Register in main.py + add SQUEEZE to SIGNAL_MODE_AFFINITY
+- [ ] 4.5 Per-coin config: BTC squeeze-only, ETH/XRP/SOL squeeze + existing
+- [ ] 4.6 Add squeeze conf_gate to coin configs
+- [ ] 4.7 Tests
+- [ ] 4.8 ⚠️ 2CHECK: squeeze strategy + signal filter interaction
 
 ### Phase 5: Validation — `deferred`
 - [ ] 5.1 Paper trade 每個 active combo ≥50 trades

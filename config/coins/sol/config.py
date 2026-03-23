@@ -25,8 +25,10 @@ COIN = {
     "liq_enabled": True,
     "regime_anchor": False,
 
+    # === Session ===
+    "session_preference": "us",  # 360d backtest: SOL squeeze US PF 1.28 vs Non-US 0.91
+
     # === Indicator Overrides ===
-    # SOL uses all defaults — no special overrides needed
     "indicator_params": {},
 
     # === Strategies ===
@@ -43,7 +45,11 @@ COIN = {
             "enabled": True,
             "conf_gate": 0.33,
         },
+        "squeeze": {
+            "enabled": True,
+            "conf_gate": 0.45,     # SOL 63% BTC contagion, downside bias (46.6% up)
+        },
     },
 
-    "notes": "Highest WR (42.6%)。Binance only",
+    "notes": "Highest WR (42.6%)。63% BTC contagion, slight downside bias in explosions",
 }
