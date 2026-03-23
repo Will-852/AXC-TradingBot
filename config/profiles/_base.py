@@ -1,40 +1,59 @@
 """
-_base.py — Profile 預設值。所有 profile 繼承呢度。
+_base.py — Profile 預設值。所有 profile (zone) 繼承呢度。
 
-新增參數：加喺 DEFAULT_PROFILE + 寫 docstring 解釋點解需要呢個值。
-Profile 只需 override 同 base 唔同嘅 key，其餘自動繼承。
+2-Zone system (2026-03-23):
+  Zone A (1-10x):  confidence < 0.7, SL 1.0% BTC baseline
+  Zone B (11-20x): confidence >= 0.7, SL 0.6% BTC baseline
+  Margin: 3% of account per trade (fixed)
+  Per-coin SL scaling via pairs.py vol_mult
 """
 
-# Balanced profile 嘅值作為 base（中位數風險）
+# Zone A (低槓桿) 作為 safe fallback base
 DEFAULT_PROFILE = {
-    # ─── Tier 1: 原有 TRADING_PROFILES keys ───
+    # ─── Zone Identity ───
     "description":            "",
-    "trigger_pct":            0.025,   # 信號觸發閾值（2.5%）
-    "risk_per_trade_pct":     0.02,    # 每筆風險 2%
-    "sl_atr_mult_range":      1.0,     # Range SL = 1.0 × ATR（180d grid: flat plateau, 1.0 中位）
-    "sl_atr_mult_trend":      1.5,     # Trend SL = 1.5 × ATR（180d grid: <1.3 斷崖, ≥1.4 plateau）
-    "tp_atr_mult":            2.0,     # TP = N × ATR（reserved）
-    "range_min_rr":           2.3,     # Range 最低 reward:risk
-    "range_tp_mid_fraction":  0.50,    # Range TP1 = entry + 50%×(BB_mid − entry)。180d backtest: 100%→0%WR, 50%→59%WR
-    "trend_min_rr":           3.0,     # Trend 最低 reward:risk
-    "max_open_positions":     2,       # 最多倉位
-    "allow_trend":            True,    # 允許 trend 策略
-    "allow_range":            True,    # 允許 range 策略
-    "trend_min_change_pct":   5.0,     # Trend 最低變動%
+    "zone":                   "A",      # "A" (1-10x) or "B" (11-20x)
 
-    # ─── Tier 2: 從 settings.py 升級為 per-profile ───
-    "range_leverage":                8,      # Range 槓桿
-    "trend_leverage":                7,      # Trend 槓桿
-    "confidence_risk_high":          1.25,   # 高信心 → risk × 1.25
-    "confidence_risk_normal":        1.0,    # 普通信心 → risk × 1.0
-    "confidence_risk_low":           0.6,    # 低信心 → risk × 0.6
-    "confidence_risk_cap":           0.03,   # 風險絕對上限 3%
-    "entry_volume_min":              0.40,   # opt: 0.4022 (was 0.8)
-    "trailing_sl_breakeven_atr":     1.0,    # profit > 1×ATR → SL 移到 entry
-    "trailing_sl_lock_profit_atr":   2.0,    # profit > 2×ATR → 鎖利
-    "early_exit_rsi_overbought":     70,     # LONG 提早離場 RSI
-    "early_exit_rsi_oversold":       30,     # SHORT 提早離場 RSI
-    "reentry_size_reduction":        0.30,   # 再入場縮倉 30%
-    "reentry_cooldown_cycles":       3,      # 再入場冷卻 3 cycles
-    "bias_threshold":                3.5,    # 星期偏向閾值
+    # ─── Entry ───
+    "trigger_pct":            0.025,    # 信號觸發閾值
+
+    # ─── Sizing（2-Zone: 固定 margin，唔用 risk_per_trade_pct） ───
+    "margin_pct":             0.03,     # 3% of account as margin per trade
+    "sl_pct_base":            0.010,    # 1.0% SL (BTC baseline, pairs.py vol_mult scales)
+    "tp_pct_base":            0.015,    # 1.5% TP (BTC baseline, pairs.py vol_mult scales — 保持 R:R constant)
+
+    # ─── Legacy sizing（保留 backward compat，新邏輯用 margin_pct） ───
+    "risk_per_trade_pct":     0.02,     # fallback if margin_pct missing
+    "sl_atr_mult_range":      1.0,      # ATR-based SL fallback
+    "sl_atr_mult_trend":      1.5,
+    "tp_atr_mult":            2.0,
+    "range_min_rr":           1.5,      # min R:R (Zone A: TP 1.5% / SL 1.0% = 1.5:1)
+    "range_tp_mid_fraction":  0.50,
+    "trend_min_rr":           1.5,
+
+    # ─── Position ───
+    "max_open_positions":     2,
+    "allow_trend":            True,
+    "allow_range":            True,
+    "trend_min_change_pct":   5.0,
+
+    # ─── Leverage ───
+    "range_leverage":                8,
+    "trend_leverage":                7,
+
+    # ─── Confidence（保留 legacy，zone 選擇已取代 confidence_risk_*） ───
+    "confidence_risk_high":          1.25,
+    "confidence_risk_normal":        1.0,
+    "confidence_risk_low":           0.6,
+    "confidence_risk_cap":           0.03,
+
+    # ─── Filters + Trailing ───
+    "entry_volume_min":              0.40,
+    "trailing_sl_breakeven_atr":     1.0,
+    "trailing_sl_lock_profit_atr":   2.0,
+    "early_exit_rsi_overbought":     70,
+    "early_exit_rsi_oversold":       30,
+    "reentry_size_reduction":        0.30,
+    "reentry_cooldown_cycles":       3,
+    "bias_threshold":                3.5,
 }

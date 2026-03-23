@@ -512,14 +512,14 @@ def get_trading_params():
         # Resolve active profile via loader (cached 30s)
         try:
             from config.profiles.loader import load_profile, get_all_profiles
-            active = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+            active = getattr(mod, "ACTIVE_PROFILE", "ZONE_A")
             profile = load_profile(active)
             now_t = time.time()
             if now_t - _profiles_cache["ts"] > 30 or _profiles_cache["active"] != active:
                 _profiles_cache.update(ts=now_t, data=get_all_profiles(), active=active)
             params["TRADING_PROFILES"] = _profiles_cache["data"]
         except Exception:
-            active = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+            active = getattr(mod, "ACTIVE_PROFILE", "ZONE_A")
             profile = {}
 
         if profile:

@@ -144,7 +144,7 @@ DEMO_DATA = {
     ],
     "params": {
         "RISK_PER_TRADE_PCT": 1.5, "MAX_OPEN_POSITIONS": 3,
-        "ACTIVE_PROFILE": "BALANCED",
+        "ACTIVE_PROFILE": "ZONE_A",
     },
     "params_display": [
         {"key": "RISK_PER_TRADE_PCT", "label": "風險/單", "value": "1.5", "unit": "%"},
@@ -217,7 +217,7 @@ DEMO_DATA = {
         "realized": "32.00", "funding": "-0.45",
         "commission": "1.29", "net": "30.26",
     },
-    "active_profile": "BALANCED",
+    "active_profile": "ZONE_A",
     "activity_log": [
         {"time": "", "msg": "BTCUSDT LONG opened @ $67,234", "type": "trade_entry"},
         {"time": "", "msg": "DEEP scan triggered BTCUSDT (score 78)", "type": "signal"},

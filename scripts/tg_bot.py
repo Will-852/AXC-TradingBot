@@ -475,7 +475,7 @@ def _read_context_via_api() -> str:
 
     # Key params
     param_lines = [
-        f'ACTIVE_PROFILE = "{state.get("active_profile", "CONSERVATIVE")}"',
+        f'ACTIVE_PROFILE = "{state.get("active_profile", "ZONE_A")}"',
         f'TRADING_ENABLED = {state.get("trading_enabled", True)}',
     ]
     config = _oc_client.get_config()
@@ -1161,7 +1161,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Enhanced /mode with inline keyboard ──
 
-VALID_MODES = ("CONSERVATIVE", "BALANCED", "AGGRESSIVE")
+VALID_MODES = ("ZONE_A", "ZONE_B")
 
 async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
@@ -1172,7 +1172,7 @@ async def cmd_mode_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # Show current + selection buttons
         current = _get_current_mode()
 
-        mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
+        mode_labels = {"ZONE_A": "🔵 Zone A", "ZONE_B": "🟠 Zone B"}
         btns = [[InlineKeyboardButton(mode_labels.get(m, m), callback_data=f"mode_{m}")]
                 for m in VALID_MODES]
         await update.message.reply_text(
@@ -1877,7 +1877,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if mode in VALID_MODES:
             old_mode = _get_current_mode()
             if _apply_mode(mode):
-                mode_labels = {"CONSERVATIVE": "🛡 保守", "BALANCED": "⚖️ 平衡", "AGGRESSIVE": "🔥 進取"}
+                mode_labels = {"ZONE_A": "🔵 Zone A", "ZONE_B": "🟠 Zone B"}
                 await query.edit_message_text(
                     f"✅ 已切換至 <b>{mode_labels.get(mode, mode)}</b>",
                     parse_mode="HTML",

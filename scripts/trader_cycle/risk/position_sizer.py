@@ -1,13 +1,13 @@
 """
 position_sizer.py — Position sizing, SL/TP calculation, funding cost adjustment
 
-Phase 1 重構：
-  - Gate + size_tier（唔再乘法堆疊）
-  - base_risk = profile.risk_per_trade_pct（由 volatility regime 決定）
-  - size_tier: confidence >= 0.7 → 1.0×, >= 0.5 → 0.7×, >= 0.3 → 0.5×
-  - MIN_RISK_FLOOR = 0.5%（保證最低可執行倉位）
-  - Kelly: 有數據時做上限，唔做 base
-  - SL/TP 計算保持不變
+2-Zone refactor (2026-03-23):
+  - Zone A (1-10x) / Zone B (11-20x) — 由 regime_risk.py 決定
+  - Margin per trade: 3% of account (from profile.margin_pct)
+  - SL: profile.sl_pct_base × pair.vol_mult（per-coin adaptive SL）
+  - TP: profile.tp_pct（1.5% target）
+  - Leverage: from profile (range_leverage / trend_leverage), capped by pair.max_leverage
+  - Legacy ATR-based SL path 保留為 fallback（profile 冇 sl_pct_base 時用）
 """
 
 from __future__ import annotations
@@ -55,18 +55,18 @@ def _get_size_tier(confidence: float) -> float:
         return 0.5
 
 
-def _load_profile_risk(profile_name: str) -> float:
-    """Load risk_per_trade_pct from named profile.
+def _load_zone_profile(profile_name: str) -> dict:
+    """Load full zone profile dict.
 
-    Fallback to 0.02 (2%) if profile load fails.
+    Fallback to DEFAULT_PROFILE if load fails.
     """
     try:
         from config.profiles.loader import load_profile
-        profile = load_profile(profile_name)
-        return profile.get("risk_per_trade_pct", 0.02)
+        return load_profile(profile_name)
     except Exception as e:
-        log.warning("Failed to load profile '%s': %s, using 2%%", profile_name, e)
-        return 0.02
+        log.warning("Failed to load profile '%s': %s, using defaults", profile_name, e)
+        from config.profiles._base import DEFAULT_PROFILE
+        return dict(DEFAULT_PROFILE)
 
 
 class SizePositionStep:
@@ -102,7 +102,34 @@ class SizePositionStep:
         ind_1h = pair_ind.get(SECONDARY_TIMEFRAME, {})
 
         atr = ind_4h.get("atr")
-        if not atr or atr <= 0:
+        # ATR only required for legacy path; percentage SL path works without it
+        zone_profile = _load_zone_profile(ctx.active_risk_profile)
+
+        # ─── Signal-level zone override (Step 11) ───
+        # Signal confidence can upgrade A→B or downgrade B→A independent of
+        # regime_confidence (HMM posterior). Thresholds mirror ZONE_B_THRESHOLD
+        # in regime_risk.py (0.70). ctx.active_risk_profile is updated so that
+        # all downstream logging reflects the actual zone used.
+        _SIGNAL_UPGRADE_THRESHOLD = 0.70
+        _SIGNAL_DOWNGRADE_THRESHOLD = 0.50
+        _sig_conf = signal.confidence
+        if _sig_conf >= _SIGNAL_UPGRADE_THRESHOLD and ctx.active_risk_profile == "zone_a":
+            log.info(
+                "Signal zone override: A→B (signal.confidence=%.2f >= %.2f)",
+                _sig_conf, _SIGNAL_UPGRADE_THRESHOLD,
+            )
+            ctx.active_risk_profile = "zone_b"
+            zone_profile = _load_zone_profile("zone_b")
+        elif _sig_conf < _SIGNAL_DOWNGRADE_THRESHOLD and ctx.active_risk_profile == "zone_b":
+            log.info(
+                "Signal zone override: B→A (signal.confidence=%.2f < %.2f)",
+                _sig_conf, _SIGNAL_DOWNGRADE_THRESHOLD,
+            )
+            ctx.active_risk_profile = "zone_a"
+            zone_profile = _load_zone_profile("zone_a")
+
+        has_pct_sl = zone_profile.get("sl_pct_base") and zone_profile["sl_pct_base"] > 0
+        if (not atr or atr <= 0) and not has_pct_sl:
             ctx.warnings.append(f"No ATR for {signal.pair}, cannot size position")
             ctx.selected_signal = None
             return ctx
@@ -113,29 +140,36 @@ class SizePositionStep:
             ctx.selected_signal = None
             return ctx
 
-        # ─── SL Calculation ───
-        sl_atr_mult = params.sl_atr_mult
+        # ─── SL Calculation (2-Zone: percentage-based, per-coin scaled) ───
         try:
             pair_cfg = get_pair(signal.pair)
-            if pair_cfg.sl_mult_override is not None:
-                sl_atr_mult = pair_cfg.sl_mult_override
         except KeyError:
             pair_cfg = None
 
-        # Conformal Prediction: widen SL with uncertainty estimate
-        atr_for_sl = atr
-        if CP_ENABLED:
-            try:
-                from ..strategies.mode_detector import _get_cp
-                cp = _get_cp()
-                atr_for_sl = cp.get_atr_high(atr)
-                if ctx.verbose:
-                    q_hat = atr_for_sl - atr
-                    print(f"      CP: atr={atr:.2f} + q_hat={q_hat:.2f} = atr_high={atr_for_sl:.2f}")
-            except Exception as e:
-                log.warning("CP get_atr_high failed, using raw ATR: %s", e)
+        # zone_profile already loaded above (ATR guard)
+        sl_pct_base = zone_profile.get("sl_pct_base")
 
-        sl_distance = atr_for_sl * sl_atr_mult
+        if sl_pct_base and sl_pct_base > 0:
+            # 2-Zone path: SL = sl_pct_base × vol_mult
+            vol_mult = pair_cfg.vol_mult if pair_cfg else 1.0
+            sl_pct = sl_pct_base * vol_mult
+            sl_distance = entry_price * sl_pct
+        else:
+            # Legacy ATR-based fallback
+            sl_atr_mult = params.sl_atr_mult
+            if pair_cfg and pair_cfg.sl_mult_override is not None:
+                sl_atr_mult = pair_cfg.sl_mult_override
+
+            atr_for_sl = atr
+            if CP_ENABLED:
+                try:
+                    from ..strategies.mode_detector import _get_cp
+                    cp = _get_cp()
+                    atr_for_sl = cp.get_atr_high(atr)
+                except Exception as e:
+                    log.warning("CP get_atr_high failed, using raw ATR: %s", e)
+
+            sl_distance = atr_for_sl * sl_atr_mult
 
         if signal.direction == "LONG":
             sl_price = entry_price - sl_distance
@@ -145,7 +179,7 @@ class SizePositionStep:
         # ─── TP Calculation ───
         tp1_price, tp2_price = self._calc_tp(
             signal, params, ind_4h, ind_1h,
-            entry_price, sl_distance, ctx
+            entry_price, sl_distance, ctx, zone_profile
         )
 
         # ─── R:R Validation ───
@@ -161,46 +195,55 @@ class SizePositionStep:
                 ctx.selected_signal = None
                 return ctx
 
-        # ─── Position Size: Gate + Size Tier (Phase 1 refactor) ───
+        # ─── Position Size: 2-Zone Margin-Based (2026-03-23) ───
         balance = ctx.account_balance if ctx.account_balance > 0 else 100.0
 
-        # 1. Base risk from active profile
-        base_risk = _load_profile_risk(ctx.active_risk_profile)
+        margin_pct = zone_profile.get("margin_pct", 0.03)  # 3% of account as margin
 
-        # 2. Size tier from signal confidence
-        size_tier = _get_size_tier(signal.confidence)
+        # Leverage: from zone profile (not settings.py which is frozen at import time)
+        strategy_type = signal.strategy  # "range" / "trend" / "crash"
+        if strategy_type == "range":
+            leverage = zone_profile.get("range_leverage", params.leverage)
+        elif strategy_type == "trend":
+            leverage = zone_profile.get("trend_leverage", params.leverage)
+        else:
+            leverage = params.leverage  # crash uses strategy default
+        # Cap by per-coin max leverage
+        if pair_cfg and pair_cfg.max_leverage:
+            leverage = min(leverage, pair_cfg.max_leverage)
 
-        # 3. Loss reduction (re-entry after consecutive losses)
+        # Loss reduction (re-entry after consecutive losses — retained from Phase 1)
         consecutive_losses = _parse_int(ctx.trade_state.get("CONSECUTIVE_LOSSES", 0))
         loss_mult = (1 - REENTRY_SIZE_REDUCTION) ** consecutive_losses if consecutive_losses > 0 else 1.0
 
-        # 4. Final risk = base × size_tier × loss_reduction
-        final_risk = base_risk * size_tier * loss_mult
+        # Margin = balance × margin_pct × loss_mult
+        margin_required = balance * margin_pct * loss_mult
 
-        # 5. MIN_RISK_FLOOR: guarantee minimum executable position
-        final_risk = max(final_risk, MIN_RISK_FLOOR)
+        # Position notional = margin × leverage
+        position_notional = margin_required * leverage
+        position_size = position_notional / entry_price if entry_price > 0 else 0
 
-        # 6. Kelly cap: if Kelly has data, use as upper limit (not base)
+        # Account risk per trade = SL% × leverage × margin_pct
+        # (for logging / circuit breaker reference)
+        sl_pct_actual = sl_distance / entry_price if entry_price > 0 else 0
+        account_risk_pct = sl_pct_actual * leverage * margin_pct
+
+        # Kelly cap: if Kelly has data, scale down margin if over-betting
         kelly_risk = compute_kelly_base_risk(ctx.market_mode)
         kelly_capped = False
         if kelly_risk == KELLY_NO_EDGE:
-            # No statistical edge → block signal
             ctx.warnings.append(
                 f"Kelly: no statistical edge in {ctx.market_mode} regime → signal blocked"
             )
             ctx.selected_signal = None
             return ctx
-        if kelly_risk is not None and final_risk > kelly_risk:
-            final_risk = kelly_risk
+        if kelly_risk is not None and account_risk_pct > kelly_risk:
+            # Scale down margin to respect Kelly
+            scale = kelly_risk / account_risk_pct
+            margin_required *= scale
+            position_notional = margin_required * leverage
+            position_size = position_notional / entry_price if entry_price > 0 else 0
             kelly_capped = True
-
-        risk_amount = balance * final_risk
-
-        # Position size = risk_amount / (sl_distance / entry_price)
-        sl_pct = sl_distance / entry_price
-        position_notional = risk_amount / sl_pct if sl_pct > 0 else 0
-        position_size = position_notional / entry_price if entry_price > 0 else 0
-        margin_required = position_notional / params.leverage if params.leverage > 0 else 0
 
         # ─── Update signal with calculated values ───
         prec = pair_cfg.price_precision if pair_cfg else 2
@@ -215,20 +258,21 @@ class SizePositionStep:
         signal.position_size_qty = round(position_size, qty_prec)
         signal.position_notional = round(position_notional, 2)
         signal.margin_required = round(margin_required, 2)
-        signal.leverage = params.leverage
+        signal.leverage = leverage
 
         if ctx.verbose:
+            vol_mult = pair_cfg.vol_mult if pair_cfg else 1.0
             print(f"    Position Sizing: {signal.pair} {signal.direction}")
-            print(f"      Profile: {ctx.active_risk_profile} → base_risk={base_risk:.2%}")
-            print(f"      Confidence: {signal.confidence:.2f} → size_tier={size_tier:.1f}×")
-            print(f"      Final risk: {final_risk:.2%} (floor={MIN_RISK_FLOOR:.2%})")
+            print(f"      Zone: {ctx.active_risk_profile.upper()} | Margin: {margin_pct:.0%} of ${balance:.0f}")
+            print(f"      SL: {sl_pct_actual:.3%} (base {zone_profile.get('sl_pct_base', 'ATR')} × vol_mult {vol_mult})")
+            print(f"      Account risk: {account_risk_pct:.3%} per trade")
             if kelly_capped:
-                print(f"      Kelly cap: {kelly_risk:.2%}")
+                print(f"      Kelly cap applied: {kelly_risk:.2%}")
             print(f"      Entry: {entry_price} | SL: {signal.sl_price} | TP1: {signal.tp1_price}")
             if signal.tp2_price:
                 print(f"      TP2: {signal.tp2_price}")
             print(f"      Size: {position_size:.4f} | Notional: ${position_notional:.2f}")
-            print(f"      Margin: ${margin_required:.2f} | Leverage: {params.leverage}x")
+            print(f"      Margin: ${margin_required:.2f} | Leverage: {leverage}x (max {pair_cfg.max_leverage if pair_cfg else 'N/A'}x)")
             if tp1_price:
                 rr = abs(tp1_price - entry_price) / sl_distance if sl_distance > 0 else 0
                 print(f"      R:R = 1:{rr:.1f} (min 1:{params.min_rr})")
@@ -241,24 +285,60 @@ class SizePositionStep:
         self, signal: Signal, params: PositionParams,
         ind_4h: dict, ind_1h: dict, entry_price: float,
         sl_distance: float, ctx: CycleContext,
+        zone_profile: dict | None = None,
     ) -> tuple[float | None, float | None]:
-        """Route to strategy-specific TP calculation."""
+        """Route to strategy-specific TP calculation.
+
+        After computing strategy-specific TP, applies a TP floor derived from
+        zone_profile["tp_pct_base"] × pair.vol_mult. If the strategy TP is
+        worse than the floor (too close to entry), the floor is used instead.
+        Skipped when zone_profile is absent or has no tp_pct_base (legacy fallback).
+        """
+        # Strategy-specific TP first
         if signal.strategy == "range":
-            return self._calc_range_tp(signal, ind_1h, entry_price, sl_distance, ctx)
+            tp1, tp2 = self._calc_range_tp(signal, ind_1h, entry_price, sl_distance, ctx)
         elif signal.strategy == "trend":
-            return self._calc_trend_tp(signal, ind_4h, entry_price, sl_distance, ctx)
+            tp1, tp2 = self._calc_trend_tp(signal, ind_4h, entry_price, sl_distance, ctx)
         elif signal.strategy == "crash":
-            return self._calc_crash_tp(signal, ind_4h, entry_price, sl_distance, ctx)
+            tp1, tp2 = self._calc_crash_tp(signal, ind_4h, entry_price, sl_distance, ctx)
         elif signal.strategy == "scalp":
             # Scalp: fixed ATR multiple
             atr = ind_4h.get("atr", 0)
             tp_mult = params.tp_atr_mult or 2.5
             if signal.direction == "LONG":
-                return entry_price + atr * tp_mult, None
+                tp1, tp2 = entry_price + atr * tp_mult, None
             else:
-                return entry_price - atr * tp_mult, None
+                tp1, tp2 = entry_price - atr * tp_mult, None
+        else:
+            return None, None
 
-        return None, None
+        # ─── TP floor from zone profile (tp_pct_base × vol_mult) ───
+        tp_pct_base = (zone_profile or {}).get("tp_pct_base") if zone_profile else None
+        if tp_pct_base and tp_pct_base > 0 and tp1 is not None:
+            try:
+                pair_cfg = get_pair(signal.pair)
+                vol_mult = pair_cfg.vol_mult if pair_cfg else 1.0
+            except KeyError:
+                vol_mult = 1.0
+
+            if signal.direction == "LONG":
+                tp_floor = entry_price * (1 + tp_pct_base * vol_mult)
+                if tp_floor > tp1:
+                    log.debug(
+                        "TP floor applied: %s LONG strategy_tp=%.4f < floor=%.4f",
+                        signal.pair, tp1, tp_floor,
+                    )
+                    tp1 = tp_floor
+            else:  # SHORT
+                tp_floor = entry_price * (1 - tp_pct_base * vol_mult)
+                if tp_floor < tp1:
+                    log.debug(
+                        "TP floor applied: %s SHORT strategy_tp=%.4f > floor=%.4f",
+                        signal.pair, tp1, tp_floor,
+                    )
+                    tp1 = tp_floor
+
+        return tp1, tp2
 
     def _calc_range_tp(
         self, signal: Signal, ind_1h: dict,

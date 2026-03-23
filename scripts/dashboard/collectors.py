@@ -197,7 +197,7 @@ def collect_data():
         "unrealized_pct": unrealized_pct,
         "fee_breakdown": fee_breakdown,
         "cumulative_fees": baseline.get("cumulative_fees", {}),
-        "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
+        "active_profile": params.get("ACTIVE_PROFILE", "ZONE_A"),
         "active_regime_preset": params.get("ACTIVE_REGIME_PRESET", "classic"),
         "regime_engine": params.get("REGIME_ENGINE", "votes_hmm"),
         "cp_enabled": params.get("CP_ENABLED", False),

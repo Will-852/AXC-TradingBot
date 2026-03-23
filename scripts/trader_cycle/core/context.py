@@ -143,7 +143,7 @@ class CycleContext:
     # ─── Volatility Regime (Phase 1 refactor) ───
     volatility_regime: str = "NORMAL"       # "LOW" / "NORMAL" / "HIGH"
     regime_confidence: float = 0.0          # HMM/BOCPD posterior confidence
-    active_risk_profile: str = "balanced"   # "aggressive" / "balanced" / "conservative"
+    active_risk_profile: str = "zone_a"    # "zone_a" (1-10x) / "zone_b" (11-20x)
 
     # ─── Risk ───
     risk_blocked: bool = False

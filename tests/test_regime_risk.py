@@ -1,13 +1,11 @@
 """
-test_regime_risk.py — Unit tests for volatility regime → risk profile mapping and sizing.
+test_regime_risk.py — Unit tests for 2-Zone system (2026-03-23 refactor).
 
 Tests:
-  1. VOL_PROFILE_MAP correctness
-  2. SelectRiskProfileStep maps regime → profile
-  3. Size tier calculation
-  4. MIN_RISK_FLOOR guarantee
-  5. Profile risk values match config files
-  6. End-to-end sizing: profile × size_tier × floor
+  1. SelectRiskProfileStep: confidence → zone_a / zone_b
+  2. Hysteresis: Zone B needs consecutive confirmations
+  3. Zone profile loading and key values
+  4. Signal-level zone override thresholds
 """
 
 import os
@@ -19,142 +17,126 @@ AXC_HOME = os.path.expanduser("~/projects/axc-trading")
 _scripts = os.path.join(AXC_HOME, "scripts")
 if _scripts not in sys.path:
     sys.path.insert(0, _scripts)
+if AXC_HOME not in sys.path:
+    sys.path.insert(0, AXC_HOME)
 
-from trader_cycle.risk.regime_risk import SelectRiskProfileStep, VOL_PROFILE_MAP
-from trader_cycle.risk.position_sizer import _get_size_tier, MIN_RISK_FLOOR
+from trader_cycle.risk.regime_risk import (
+    SelectRiskProfileStep,
+    ZONE_B_THRESHOLD,
+    ZONE_B_CONFIRM_CYCLES,
+    _zone_b_consecutive,
+)
 from trader_cycle.core.context import CycleContext
 
 
-class TestVOLProfileMap:
-    """VOL_PROFILE_MAP maps volatility regime to risk profile."""
-
-    def test_low_to_balanced(self):
-        assert VOL_PROFILE_MAP["LOW"] == "balanced"
-
-    def test_normal_to_balanced(self):
-        assert VOL_PROFILE_MAP["NORMAL"] == "balanced"
-
-    def test_high_to_conservative(self):
-        assert VOL_PROFILE_MAP["HIGH"] == "conservative"
-
-    def test_all_three_regimes(self):
-        """All 3 regimes are mapped."""
-        assert set(VOL_PROFILE_MAP.keys()) == {"LOW", "NORMAL", "HIGH"}
-
-
 class TestSelectRiskProfileStep:
-    """SelectRiskProfileStep pipeline step."""
+    """Zone selection based on regime confidence + hysteresis."""
 
-    def test_low_regime(self):
-        ctx = CycleContext(volatility_regime="LOW")
+    def setup_method(self):
+        """Reset module-level counter before each test."""
+        import trader_cycle.risk.regime_risk as rr
+        rr._zone_b_consecutive = 0
+
+    def test_low_confidence_zone_a(self):
+        ctx = CycleContext(regime_confidence=0.3)
         step = SelectRiskProfileStep()
         result = step.run(ctx)
-        assert result.active_risk_profile == "balanced"
+        assert result.active_risk_profile == "zone_a"
 
-    def test_normal_regime(self):
-        ctx = CycleContext(volatility_regime="NORMAL")
+    def test_high_confidence_single_cycle_still_zone_a(self):
+        """Single high-confidence cycle should NOT upgrade to Zone B (hysteresis)."""
+        ctx = CycleContext(regime_confidence=0.85)
         step = SelectRiskProfileStep()
         result = step.run(ctx)
-        assert result.active_risk_profile == "balanced"
+        # First cycle: consecutive=1, needs 2 → still zone_a
+        assert result.active_risk_profile == "zone_a"
 
-    def test_high_regime(self):
-        ctx = CycleContext(volatility_regime="HIGH")
+    def test_high_confidence_two_cycles_zone_b(self):
+        """Two consecutive high-confidence cycles → Zone B."""
+        step = SelectRiskProfileStep()
+        # Cycle 1
+        ctx1 = CycleContext(regime_confidence=0.85)
+        step.run(ctx1)
+        # Cycle 2
+        ctx2 = CycleContext(regime_confidence=0.80)
+        result = step.run(ctx2)
+        assert result.active_risk_profile == "zone_b"
+
+    def test_interruption_resets_counter(self):
+        """A low-confidence cycle resets the counter."""
+        step = SelectRiskProfileStep()
+        # Cycle 1: high
+        step.run(CycleContext(regime_confidence=0.85))
+        # Cycle 2: low → resets
+        step.run(CycleContext(regime_confidence=0.40))
+        # Cycle 3: high again → consecutive=1, not enough
+        ctx3 = CycleContext(regime_confidence=0.90)
+        result = step.run(ctx3)
+        assert result.active_risk_profile == "zone_a"
+
+    def test_downgrade_immediate(self):
+        """Drop below threshold → immediate downgrade to Zone A."""
+        step = SelectRiskProfileStep()
+        # Build up to Zone B
+        step.run(CycleContext(regime_confidence=0.85))
+        step.run(CycleContext(regime_confidence=0.80))  # now zone_b
+        # Drop
+        ctx = CycleContext(regime_confidence=0.50)
+        result = step.run(ctx)
+        assert result.active_risk_profile == "zone_a"
+
+    def test_cold_start_zone_a(self):
+        """Cold start (confidence=0) → Zone A."""
+        ctx = CycleContext(regime_confidence=0.0)
         step = SelectRiskProfileStep()
         result = step.run(ctx)
-        assert result.active_risk_profile == "conservative"
-
-    def test_unknown_regime_fallback(self):
-        """Unknown regime → fallback to balanced."""
-        ctx = CycleContext(volatility_regime="UNKNOWN")
-        step = SelectRiskProfileStep()
-        result = step.run(ctx)
-        assert result.active_risk_profile == "balanced"
+        assert result.active_risk_profile == "zone_a"
 
     def test_step_name(self):
         step = SelectRiskProfileStep()
         assert step.name == "select_risk_profile"
 
 
-class TestSizeTier:
-    """Size tier mapping from confidence."""
+class TestZoneConstants:
+    """Zone thresholds and config."""
 
-    def test_high_confidence(self):
-        """confidence >= 0.7 → full size 1.0."""
-        assert _get_size_tier(0.7) == 1.0
-        assert _get_size_tier(0.85) == 1.0
-        assert _get_size_tier(1.0) == 1.0
+    def test_zone_b_threshold(self):
+        assert ZONE_B_THRESHOLD == 0.70
 
-    def test_medium_confidence(self):
-        """0.5 <= confidence < 0.7 → 70% size."""
-        assert _get_size_tier(0.5) == 0.7
-        assert _get_size_tier(0.6) == 0.7
-        assert _get_size_tier(0.69) == 0.7
-
-    def test_low_confidence(self):
-        """confidence < 0.5 → 50% size."""
-        assert _get_size_tier(0.3) == 0.5
-        assert _get_size_tier(0.4) == 0.5
-        assert _get_size_tier(0.49) == 0.5
-
-    def test_boundary_values(self):
-        """Exact boundary values."""
-        assert _get_size_tier(0.7) == 1.0
-        assert _get_size_tier(0.5) == 0.7
-        assert _get_size_tier(0.3) == 0.5
+    def test_zone_b_confirm_cycles(self):
+        assert ZONE_B_CONFIRM_CYCLES == 2
 
 
-class TestMinRiskFloor:
-    """MIN_RISK_FLOOR ensures minimum executable position."""
+class TestZoneProfileValues:
+    """Verify zone profile configs load correctly."""
 
-    def test_floor_value(self):
-        assert MIN_RISK_FLOOR == 0.005  # 0.5%
-
-    def test_floor_prevents_tiny_risk(self):
-        """Even conservative profile × low confidence stays above floor."""
-        conservative_risk = 0.01  # 1%
-        low_tier = 0.5
-        raw_risk = conservative_risk * low_tier  # 0.005
-        final_risk = max(raw_risk, MIN_RISK_FLOOR)
-        assert final_risk >= MIN_RISK_FLOOR
-
-
-class TestProfileRiskValues:
-    """Verify profile risk_per_trade_pct values match config files."""
-
-    def test_aggressive_risk(self):
+    def test_zone_a_loads(self):
         from config.profiles.loader import load_profile
-        profile = load_profile("AGGRESSIVE")
-        assert profile["risk_per_trade_pct"] == 0.03
+        za = load_profile("ZONE_A")
+        assert za["zone"] == "A"
+        assert za["margin_pct"] == 0.03
+        assert za["sl_pct_base"] == 0.010
+        assert za["range_leverage"] == 8
+        assert za["max_open_positions"] == 2
 
-    def test_balanced_risk(self):
+    def test_zone_b_loads(self):
         from config.profiles.loader import load_profile
-        profile = load_profile("BALANCED")
-        assert profile["risk_per_trade_pct"] == 0.02
+        zb = load_profile("ZONE_B")
+        assert zb["zone"] == "B"
+        assert zb["margin_pct"] == 0.03
+        assert zb["sl_pct_base"] == 0.006
+        assert zb["range_leverage"] == 18
+        assert zb["max_open_positions"] == 1
 
-    def test_conservative_risk(self):
-        from config.profiles.loader import load_profile
-        profile = load_profile("CONSERVATIVE")
-        assert profile["risk_per_trade_pct"] == 0.01
+    def test_only_zones_discovered(self):
+        from config.profiles.loader import list_profiles
+        profiles = list_profiles()
+        assert "ZONE_A" in profiles
+        assert "ZONE_B" in profiles
+        assert "AGGRESSIVE" not in profiles
+        assert "BALANCED" not in profiles
+        assert "CONSERVATIVE" not in profiles
 
-
-class TestEndToEndSizing:
-    """End-to-end: regime → profile → risk × size_tier → final risk."""
-
-    @pytest.mark.parametrize("regime,expected_profile,base_risk", [
-        ("LOW", "balanced", 0.02),
-        ("NORMAL", "balanced", 0.02),
-        ("HIGH", "conservative", 0.01),
-    ])
-    def test_regime_to_risk(self, regime, expected_profile, base_risk):
-        """Verify full chain: regime → profile → base_risk."""
-        profile_name = VOL_PROFILE_MAP[regime]
-        assert profile_name == expected_profile
-
-    @pytest.mark.parametrize("confidence,tier", [
-        (0.8, 1.0), (0.6, 0.7), (0.35, 0.5),
-    ])
-    def test_sizing_chain(self, confidence, tier):
-        """Full sizing: balanced profile × tier → reasonable risk."""
-        base_risk = 0.02  # balanced
-        final = max(base_risk * tier, MIN_RISK_FLOOR)
-        assert 0.005 <= final <= 0.05  # within sane bounds
+    def test_context_default_is_zone_a(self):
+        ctx = CycleContext()
+        assert ctx.active_risk_profile == "zone_a"

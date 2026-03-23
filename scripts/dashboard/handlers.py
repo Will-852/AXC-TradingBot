@@ -87,7 +87,7 @@ def handle_set_mode(body):
     except Exception:
         return 400, {"error": "Invalid JSON"}
     mode = data.get("mode", "").upper()
-    valid = ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"]
+    valid = ["ZONE_A", "ZONE_B"]
     if mode not in valid:
         return 400, {"error": f"Invalid mode. Use: {valid}"}
     params_path = os.path.join(HOME, "config/params.py")
@@ -150,7 +150,7 @@ def handle_api_state():
             "trigger_count": signal.get("TRIGGER_COUNT", "0"),
             "scan_status": signal.get("SCAN_STATUS", "—"),
         },
-        "active_profile": params.get("ACTIVE_PROFILE", "CONSERVATIVE"),
+        "active_profile": params.get("ACTIVE_PROFILE", "ZONE_A"),
         "trading_enabled": params.get("TRADING_ENABLED", True),
     }
 
@@ -738,13 +738,10 @@ def handle_suggest_mode():
         change = abs(float(cache.get("BTCUSDT", {}).get("change", 0)))
     except Exception:
         pass
-    if change > 5.0:
-        suggested = "AGGRESSIVE"
-        reason = f"BTC 24H 變化 {change:.1f}% > 5%，市場波動大"
-    elif change > 2.0:
-        suggested = "BALANCED"
-        reason = f"BTC 24H 變化 {change:.1f}%，中等波動"
+    if change > 2.0:
+        suggested = "ZONE_B"
+        reason = f"BTC 24H 變化 {change:.1f}% > 2%，市場波動大"
     else:
-        suggested = "CONSERVATIVE"
+        suggested = "ZONE_A"
         reason = f"BTC 24H 變化 {change:.1f}%，市場平靜"
     return {"suggested": suggested, "reason": reason, "btc_change_24h": round(change, 2)}

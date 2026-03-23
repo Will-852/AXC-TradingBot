@@ -27,7 +27,7 @@ def get_action_plan(scan_config, trade_state):
         all_symbols = sorted(set(
             getattr(mod, "ASTER_SYMBOLS", []) + getattr(mod, "BINANCE_SYMBOLS", [])
         ))
-        active_profile = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+        active_profile = getattr(mod, "ACTIVE_PROFILE", "ZONE_A")
         try:
             from config.profiles.loader import load_profile as _lp
             profiles = {active_profile: _lp(active_profile)}

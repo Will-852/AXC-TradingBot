@@ -78,9 +78,8 @@ def render_suggest_mode():
                 btc_change = data.get('btc_change_24h', data.get('btc_24h_change', 0))
 
                 colors = {
-                    'CONSERVATIVE': 'text-blue-400',
-                    'BALANCED': 'text-yellow-400',
-                    'AGGRESSIVE': 'text-green-400',
+                    'ZONE_A': 'text-blue-400',
+                    'ZONE_B': 'text-orange-400',
                 }
                 with ui.row().classes('items-center gap-2'):
                     ui.label('Suggested:').classes('text-xs text-gray-500')

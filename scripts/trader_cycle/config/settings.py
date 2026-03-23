@@ -304,10 +304,10 @@ try:
     CRASH_MIN_RR = getattr(_mod, "CRASH_MIN_RR", CRASH_MIN_RR)
     CRASH_RSI_ENTRY = getattr(_mod, "CRASH_RSI_ENTRY", CRASH_RSI_ENTRY)
     CRASH_VOLUME_MIN = getattr(_mod, "CRASH_VOLUME_MIN", CRASH_VOLUME_MIN)
-    _active_name = getattr(_mod, "ACTIVE_PROFILE", "BALANCED")
+    _active_name = getattr(_mod, "ACTIVE_PROFILE", "ZONE_A")
     del _ilu, _spec, _mod
 except Exception:
-    _active_name = "BALANCED"  # fallback
+    _active_name = "ZONE_A"  # fallback
 
 import sys as _sys
 if AXC_HOME not in _sys.path:

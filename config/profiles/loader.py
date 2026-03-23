@@ -14,7 +14,12 @@ from config.profiles._base import DEFAULT_PROFILE
 log = logging.getLogger(__name__)
 
 _PROFILE_DIR = os.path.dirname(os.path.abspath(__file__))
-_SKIP_FILES = {"__init__", "_base", "loader"}
+_SKIP_FILES = {
+    "__init__", "_base", "loader",
+    # Deprecated 3-profile system (AGGRESSIVE/BALANCED/CONSERVATIVE).
+    # Files kept for backward compat; excluded from discovery since migration to ZONE_A/ZONE_B.
+    "aggressive", "balanced", "conservative",
+}
 
 # 最近一次 load_profile 嘅結果狀態。
 # Dashboard / 其他模組可讀呢個 dict 嚟知道有冇 fallback。
@@ -49,11 +54,11 @@ def load_profile(name: str | None = None) -> dict:
             spec = importlib.util.spec_from_file_location("_params_loader", params_path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            name = getattr(mod, "ACTIVE_PROFILE", "BALANCED")
+            name = getattr(mod, "ACTIVE_PROFILE", "ZONE_A")
         except Exception as e:
             reason = f"Failed to read ACTIVE_PROFILE from params.py: {e}"
             log.warning(reason)
-            _set_status("BALANCED", fallback=True, reason=reason)
+            _set_status("ZONE_A", fallback=True, reason=reason)
             return dict(DEFAULT_PROFILE)
 
     name_lower = name.lower()

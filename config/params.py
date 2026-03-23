@@ -159,7 +159,7 @@ DASHBOARD_PORT = 5566          # 唯一定義點。改 port → 只改呢度
 # user_params.py 唔再支援 TRADING_PROFILES override
 
 # 當前啟用模式（可手動改 或 由 /api/set_mode 自動寫入）
-ACTIVE_PROFILE = "AGGRESSIVE"
+ACTIVE_PROFILE = "ZONE_A"  # 2026-03-23: 2-Zone system. Zone A = safe fallback (1-10x). Zone B = high confidence (11-20x).
 
 # 是否啟用自動切換
 AUTO_PROFILE_SWITCH = False
@@ -256,7 +256,7 @@ REGIME_PRESETS = {
     "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
     "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
 }
-ACTIVE_REGIME_PRESET = "full"  # 2026-03-19: BOCPD hurts BTC (+14.45pp). HMM = +3.29% vs BOCPD = -11.16%.
+ACTIVE_REGIME_PRESET = "classic"  # 2026-03-23: was "full". BOCPD hurts BTC (-11.16% vs HMM +3.29%). Revert to HMM-only.
 # Derived from preset（settings.py getattr 繼續正常運作）
 REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
 CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]

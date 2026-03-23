@@ -59,8 +59,8 @@ def render_controls():
         with ui.column().classes('gap-1'):
             ui.label('Profile').classes('text-xs text-gray-500 uppercase tracking-wide')
             profile_select = ui.toggle(
-                ['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE'],
-                value='AGGRESSIVE',
+                ['ZONE_A', 'ZONE_B'],
+                value='ZONE_A',
             ).props('dense no-caps color=indigo')
 
             async def on_profile(e):
@@ -111,7 +111,7 @@ def render_controls():
             if not d:
                 return
             syncing['active'] = True
-            profile = d.get('active_profile', 'AGGRESSIVE')
+            profile = d.get('active_profile', 'ZONE_A')
             regime = d.get('active_regime_preset', 'full')
             trading = d.get('params', {}).get('TRADING_ENABLED', d.get('trading_enabled', True))
 
