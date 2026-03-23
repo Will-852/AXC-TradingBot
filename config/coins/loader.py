@@ -220,6 +220,7 @@ def is_strategy_enabled(symbol: str, strategy: str) -> bool:
     _load_all()
     coin = _cache.get(symbol)
     if not coin:
+        log.warning("is_strategy_enabled: unknown symbol %s — defaulting to disabled", symbol)
         return False
     strategies = coin.get("strategies", {})
     strat_cfg = strategies.get(strategy, {})

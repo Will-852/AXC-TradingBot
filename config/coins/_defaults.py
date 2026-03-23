@@ -71,7 +71,7 @@ COIN_DEFAULTS = {
             "conf_gate": 0.33,
         },
         "squeeze": {
-            "enabled": True,
+            "enabled": False,     # Opt-in: new/untested strategy, explicitly enable per coin
             "conf_gate": 0.40,
         },
     },

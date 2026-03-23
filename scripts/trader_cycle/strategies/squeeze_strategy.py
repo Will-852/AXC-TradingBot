@@ -104,12 +104,12 @@ def _score_bb_break(
 
     if price > bb_upper:
         # Breakout above — LONG
-        overshoot = (price - bb_upper) / (bb_width * price) if price > 0 else 0
-        return min(overshoot * 5.0, 1.0), "LONG"  # Normalize: 0.2% overshoot → 1.0
+        overshoot = (price - bb_upper) / price if price > 0 else 0
+        return min(overshoot * 500.0, 1.0), "LONG"  # 0.2% overshoot → 1.0
     elif price < bb_lower:
         # Breakout below — SHORT
-        overshoot = (bb_lower - price) / (bb_width * price) if price > 0 else 0
-        return min(overshoot * 5.0, 1.0), "SHORT"
+        overshoot = (bb_lower - price) / price if price > 0 else 0
+        return min(overshoot * 500.0, 1.0), "SHORT"
     else:
         return 0.0, None
 
@@ -141,7 +141,7 @@ class SqueezeStrategy(StrategyBase):
         if price is None or bb_upper is None or bb_lower is None:
             return None
 
-        # ─── Gate: must be in squeeze (BB percentile < 20%) ───
+        # ─── Gate: must be in squeeze (BB percentile < 30%) ───
         if bb_width_pctl is not None and bb_width_pctl >= BB_PCTL_SQUEEZE:
             return None  # Not in squeeze — skip
 
@@ -184,7 +184,7 @@ class SqueezeStrategy(StrategyBase):
             reasons.append(f"US_SESSION +{SESSION_BONUS}")
 
         # OBV divergence: OBV already moving while price is flat
-        if obv and obv_ema:
+        if obv is not None and obv_ema is not None:
             if direction == "LONG" and obv > obv_ema:
                 confidence += OBV_DIVERGENCE_BONUS
                 reasons.append(f"OBV_DIV +{OBV_DIVERGENCE_BONUS}")
@@ -208,7 +208,7 @@ class SqueezeStrategy(StrategyBase):
         score = bb_pctl_score + adx_score + vol_score + break_score
 
         reasons.insert(0,
-            f"SQZ: pctl={bb_width_pctl:.0f}% adx={adx:.1f} vol={volume_ratio:.2f}"
+            f"SQZ: pctl={bb_width_pctl or 0:.0f}% adx={adx or 0:.1f} vol={volume_ratio or 0:.2f}"
         )
 
         return Signal(

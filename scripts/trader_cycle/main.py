@@ -548,9 +548,10 @@ def main():
         sys.exit(2)
 
     # ─── Build context ───
-    # Session tag for time-of-day strategy filtering
+    # Session tag for time-of-day strategy filtering (must be UTC)
     from indicator_calc import get_session_tag
-    session = get_session_tag(now)
+    from datetime import timezone as _tz
+    session = get_session_tag(now.astimezone(_tz.utc))
 
     ctx = CycleContext(
         timestamp=now,
