@@ -50,6 +50,10 @@ COIN = {
             "enabled": True,
             "conf_gate": 0.45,     # XRP 46% BTC contagion — more independent, need higher conf
         },
+        "burst": {
+            "enabled": True,       # Paper testing: XRP originally designed for burst (volume spike)
+            "conf_gate": 0.30,
+        },
     },
 
     "sl_mult_override": 1.0,  # ATR fallback SL multiplier override

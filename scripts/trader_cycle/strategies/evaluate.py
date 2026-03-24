@@ -96,6 +96,20 @@ class EvaluateSignalsStep:
                         signal.score += liq_boost
                         signal.reasons.append(f"LIQ_BOOST +{liq_boost}")
 
+                    # Volume trigger boost: indicator_engine detected
+                    # projected volume spike while squeeze_ready
+                    if ctx.vol_triggers:
+                        for vt in ctx.vol_triggers:
+                            if (vt.get("symbol") == symbol
+                                    and vt.get("direction") == signal.direction
+                                    and signal.strategy in ("burst", "squeeze")):
+                                signal.score += 1.0
+                                signal.confidence = min(signal.confidence + 0.15, 1.0)
+                                signal.reasons.append(
+                                    f"VOL_TRIGGER +1.0 (projected={vt.get('projected_ratio')}x)"
+                                )
+                                break
+
                     ctx.signals.append(signal)
                     if ctx.verbose:
                         print(

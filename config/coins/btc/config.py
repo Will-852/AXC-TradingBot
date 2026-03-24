@@ -53,7 +53,11 @@ COIN = {
             "enabled": True,       # NEW: squeeze-explosion strategy
             "conf_gate": 0.40,
         },
+        "burst": {
+            "enabled": True,       # Paper testing: volume spike + momentum
+            "conf_gate": 0.30,
+        },
     },
 
-    "notes": "Squeeze-only: range/trend disabled (BMD: negative EV). Crash kept for regime safety",
+    "notes": "Squeeze+burst: range/trend disabled (BMD: negative EV). Crash kept for regime safety",
 }
