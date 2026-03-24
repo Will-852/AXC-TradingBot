@@ -1,53 +1,33 @@
-# Progress Log
+# Progress Log — Session 3
+> Started: 2026-03-24 HKT
 
-## Session: 2026-03-20
+## Session 2 Summary (5 commits)
+- 2-Zone leverage, dashboard service control, per-coin config+WS+mode, squeeze strategy+BMD, 2check fixes
 
-### Phase 1: 偵察 + swisstony 對比
-- **Status:** in_progress
-- **Started:** 18:10 HKT
-- Actions:
-  - ✅ blue-walnut 3500 trades fetched + analyzed (whale_1h_timing.py)
-  - ✅ 15M boundary clustering confirmed (1.58x)
-  - ✅ swisstony 1000 trades analyzed — 主力做 5M (唔係 1H)，0.04% margin 靠量
-  - ✅ 1H market structure: Binance OHLC resolution (唔係 Chainlink!)，同 15M 同 liquidity
-  - ✅ 結論：跟 blue-walnut pattern (高 margin)，唔跟 swisstony (高 volume)
-- Files touched:
-  - new: polymarket/analysis/whale_1h_timing.py
-  - new: polymarket/logs/whale_1h_analysis.json
+---
 
-### Phase 2: 設計 + BMD
-- **Status:** complete
-- Actions:
-  - ✅ 4-phase bot architecture designed
-  - ✅ BMD 攻擊 → 發現 15M boundary data confounded
-  - ✅ 用戶確認：先驗證再寫 bot
+## Session 3
 
-### Phase 3: 驗證性實作
-- **Status:** in_progress
-- **Started:** 18:30 HKT
-- Actions:
-  - ✅ 3A: whale_1h_timing.py 加 proper t-test → **price dislocation 唔顯著**
-  - ✅ 3B: Gamma API 1H slug 實測確認 → 全小寫人類可讀格式
-  - ✅ 3C: signal_recorder.py 加 1H support:
-    - 1H market discovery (slug-based + tag fallback)
-    - Detailed OB depth (spread, top-3, imbalance)
-    - Binance OHLC open price
-    - 15M boundary burst mode (5s tick at ±2min)
-    - Separate tape: signal_tape_1h.jsonl
-  - ⚠️ 初次發現 1H book 空心 → 再測發現係到期窗口問題
-  - ✅ Fresh window spread=$0.01，dense mid-market liquidity
-  - 🐛 Fix: _parse_ob_depth best_bid/ask 取 max/min 唔靠 sort order
-  - ✅ Recorder PID 54255 running, writing to signal_tape_1h.jsonl
-- Files touched:
-  - modified: polymarket/analysis/whale_1h_timing.py
-  - modified: polymarket/tools/signal_recorder.py
-  - new: polymarket/logs/signal_tape_1h.jsonl (recorder output)
+### Recon + Planning — `complete`
+- [x] Read handoff.md — Session 2 state
+- [x] User decision: **Option B** — two independent strategies, shared signal detection module
+- [x] Explored all key files, inventoried 276 scripts, 7 duplicate groups
+- [x] Created full 5-phase plan in task_plan.md
 
-## Reboot Check
-| Question | Answer |
-|----------|--------|
-| 做緊咩？ | Phase 3C: signal recorder with 1H support |
-| 目標？ | 收集 7 日 1H OB data 驗證 boundary dislocation |
-| 學到咩？ | 15M price dislocation 唔顯著; 1H book 空心; slug 確認 |
-| 做咗咩？ | whale t-test + slug test + recorder extension |
-| 下一步？ | 跑 recorder, 等 7 日 data |
+### Phase 0: Signal Detection Module — `complete`
+- [x] 0.1 Created `scripts/signals/volume.py` — quiet/spike/projection scoring
+- [x] 0.2 Created `scripts/signals/squeeze.py` — BB squeeze detection + SqueezeState dataclass
+- [x] 0.3 Created `scripts/signals/obv.py` — OBV confirmation scoring
+- [x] 0.4 Refactored squeeze_strategy.py → import signals/, removed 3 inline helpers
+- [x] 0.5 Refactored bt_burst_strategy.py → import signals/, removed 2 inline helpers
+- [x] BMD pass: fixed bb_pctl=None gate behaviour, removed double computation, added negative guards
+
+### Phase 1: Burst → Production — `complete`
+- [x] 1.1 Added `prev_close` to indicator_calc.py result dict (line 354)
+- [x] 1.2 Created `scripts/trader_cycle/strategies/burst_strategy.py` — production version
+  - Time-based cooldown (4h) instead of candle-count (production 唔係 candle-by-candle)
+  - Per-symbol cooldown dict (BTC cooldown 唔影響 ETH)
+- [x] 1.3 Registered BurstStrategy in main.py, added to _defaults.py (enabled: False)
+- [x] 1.4 Numerical parity verified: all signal functions match original logic (12/12 tests ✅)
+
+### Phase 2: Event-Driven Volume Trigger — `pending`

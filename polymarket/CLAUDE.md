@@ -134,7 +134,8 @@ PYTHONPATH=.:scripts python3 polymarket/position_watcher.py --live
 - MM bot 同 1H bot 用獨立 state files，唔共用
 
 ## 💀 Real Money Safety Checklist（MANDATORY）
-> $106 loss from duplicate entry bug (2026-03-22). 呢啲 step 唔可以 skip。
+> $106 loss (2026-03-22 duplicate entry) + $35 loss (2026-03-24 phantom fill). 呢啲 step 唔可以 skip。
+> **危險代碼位置登記冊 → `docs/DANGER_ZONES.md`**（9 個已知高危位，改前必讀）
 
 **改 entry/order logic 後：**
 ```bash

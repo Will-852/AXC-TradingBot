@@ -1,0 +1,690 @@
+{
+  "Female-Billing": {
+    "name": "Female-Billing",
+    "total_trades": 3462,
+    "total_unique_windows": 98,
+    "total_volume": 91443.97,
+    "total_shares": 193000.7,
+    "time_span_hours": 1.94,
+    "ts_range": [
+      1774368195,
+      1774375171
+    ],
+    "coin_breakdown": {
+      "ETH": {
+        "windows": 25,
+        "shares": 49417.49999999999,
+        "volume": 23975.460000000003
+      },
+      "BTC": {
+        "windows": 25,
+        "shares": 123485.3,
+        "volume": 57659.47
+      },
+      "XRP": {
+        "windows": 24,
+        "shares": 7296.8,
+        "volume": 3634.2
+      },
+      "SOL": {
+        "windows": 24,
+        "shares": 12801.7,
+        "volume": 6174.779999999999
+      }
+    },
+    "tf_breakdown": {
+      "5M": {
+        "windows": 66,
+        "shares": 96177.1
+      },
+      "15M": {
+        "windows": 32,
+        "shares": 96824.19999999998
+      }
+    },
+    "both_side_rate": 94.9,
+    "both_count": 93,
+    "single_count": 5,
+    "combined_prices": {
+      "count": 93,
+      "mean": 0.9492,
+      "median": 0.9508,
+      "min": 0.3767,
+      "max": 1.2989,
+      "stdev": 0.1569,
+      "pct_below_1": 67.7
+    },
+    "entry_timing": {
+      "count": 98,
+      "mean_s": 60.9,
+      "median_s": 17.0,
+      "min_s": 11,
+      "max_s": 611,
+      "p25_s": 13,
+      "p75_s": 65
+    },
+    "lean": {
+      "up_lean_pct": 42.9,
+      "down_lean_pct": 57.1,
+      "mean_ratio": 1.88,
+      "median_ratio": 1.34,
+      "max_ratio": 13.72
+    },
+    "sizing": {
+      "mean_shares": 55.7,
+      "median_shares": 38.0,
+      "min_shares": 0.0,
+      "max_shares": 1300.0,
+      "p25": 18.6,
+      "p75": 66.0
+    },
+    "price_distribution": {
+      "0.0-0.1": 271,
+      "0.1-0.2": 278,
+      "0.2-0.3": 362,
+      "0.3-0.4": 424,
+      "0.4-0.5": 446,
+      "0.5-0.6": 476,
+      "0.6-0.7": 482,
+      "0.7-0.8": 347,
+      "0.8-0.9": 254,
+      "0.9-1.0": 122
+    },
+    "hourly_distribution": {
+      "16": 1521,
+      "17": 1941
+    },
+    "daily_activity": {
+      "2026-03-24": {
+        "trades": 3462,
+        "volume": 91443.91,
+        "windows": 98
+      }
+    },
+    "best_arb_windows": [
+      {
+        "slug": "sol-updown-5m-1774371600",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 0.3767,
+        "up_price": 0.1473,
+        "dn_price": 0.2294,
+        "up_shares": 177.0,
+        "dn_shares": 195.6,
+        "lean": "DOWN",
+        "entry_offset": 41
+      },
+      {
+        "slug": "xrp-updown-5m-1774370700",
+        "coin": "XRP",
+        "tf": "5M",
+        "combined": 0.6253,
+        "up_price": 0.1319,
+        "dn_price": 0.4934,
+        "up_shares": 42.4,
+        "dn_shares": 118.7,
+        "lean": "DOWN",
+        "entry_offset": 15
+      },
+      {
+        "slug": "sol-updown-15m-1774370700",
+        "coin": "SOL",
+        "tf": "15M",
+        "combined": 0.6324,
+        "up_price": 0.1745,
+        "dn_price": 0.4578,
+        "up_shares": 292.2,
+        "dn_shares": 306.0,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "xrp-updown-15m-1774368900",
+        "coin": "XRP",
+        "tf": "15M",
+        "combined": 0.6656,
+        "up_price": 0.1756,
+        "dn_price": 0.49,
+        "up_shares": 190.4,
+        "dn_shares": 20.0,
+        "lean": "UP",
+        "entry_offset": 169
+      },
+      {
+        "slug": "xrp-updown-5m-1774372200",
+        "coin": "XRP",
+        "tf": "5M",
+        "combined": 0.6771,
+        "up_price": 0.6064,
+        "dn_price": 0.0708,
+        "up_shares": 170.2,
+        "dn_shares": 71.6,
+        "lean": "UP",
+        "entry_offset": 29
+      },
+      {
+        "slug": "sol-updown-5m-1774370700",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 0.7349,
+        "up_price": 0.1814,
+        "dn_price": 0.5536,
+        "up_shares": 200.3,
+        "dn_shares": 303.3,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "sol-updown-5m-1774373100",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 0.7378,
+        "up_price": 0.04,
+        "dn_price": 0.6978,
+        "up_shares": 44.0,
+        "dn_shares": 238.6,
+        "lean": "DOWN",
+        "entry_offset": 19
+      },
+      {
+        "slug": "sol-updown-15m-1774371600",
+        "coin": "SOL",
+        "tf": "15M",
+        "combined": 0.7392,
+        "up_price": 0.0952,
+        "dn_price": 0.644,
+        "up_shares": 390.8,
+        "dn_shares": 389.9,
+        "lean": "UP",
+        "entry_offset": 13
+      },
+      {
+        "slug": "eth-updown-5m-1774370700",
+        "coin": "ETH",
+        "tf": "5M",
+        "combined": 0.7441,
+        "up_price": 0.2131,
+        "dn_price": 0.531,
+        "up_shares": 591.0,
+        "dn_shares": 453.8,
+        "lean": "UP",
+        "entry_offset": 11
+      },
+      {
+        "slug": "sol-updown-5m-1774369800",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 0.7461,
+        "up_price": 0.1061,
+        "dn_price": 0.64,
+        "up_shares": 178.2,
+        "dn_shares": 42.0,
+        "lean": "UP",
+        "entry_offset": 65
+      }
+    ],
+    "worst_arb_windows": [
+      {
+        "slug": "sol-updown-5m-1774371000",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 1.2989,
+        "up_price": 0.96,
+        "dn_price": 0.3389,
+        "up_shares": 51.0,
+        "dn_shares": 273.3,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "xrp-updown-15m-1774369800",
+        "coin": "XRP",
+        "tf": "15M",
+        "combined": 1.2759,
+        "up_price": 0.31,
+        "dn_price": 0.9659,
+        "up_shares": 18.0,
+        "dn_shares": 3.7,
+        "lean": "UP",
+        "entry_offset": 249
+      },
+      {
+        "slug": "sol-updown-5m-1774369500",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 1.2438,
+        "up_price": 0.4062,
+        "dn_price": 0.8376,
+        "up_shares": 194.0,
+        "dn_shares": 278.8,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "xrp-updown-5m-1774369500",
+        "coin": "XRP",
+        "tf": "5M",
+        "combined": 1.2262,
+        "up_price": 0.3575,
+        "dn_price": 0.8686,
+        "up_shares": 55.3,
+        "dn_shares": 220.9,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "xrp-updown-5m-1774372800",
+        "coin": "XRP",
+        "tf": "5M",
+        "combined": 1.2109,
+        "up_price": 0.6095,
+        "dn_price": 0.6014,
+        "up_shares": 152.6,
+        "dn_shares": 308.5,
+        "lean": "DOWN",
+        "entry_offset": 117
+      },
+      {
+        "slug": "sol-updown-5m-1774373400",
+        "coin": "SOL",
+        "tf": "5M",
+        "combined": 1.1881,
+        "up_price": 0.6059,
+        "dn_price": 0.5822,
+        "up_shares": 88.6,
+        "dn_shares": 153.3,
+        "lean": "DOWN",
+        "entry_offset": 21
+      },
+      {
+        "slug": "xrp-updown-5m-1774371900",
+        "coin": "XRP",
+        "tf": "5M",
+        "combined": 1.1778,
+        "up_price": 0.4334,
+        "dn_price": 0.7444,
+        "up_shares": 443.2,
+        "dn_shares": 465.7,
+        "lean": "DOWN",
+        "entry_offset": 17
+      },
+      {
+        "slug": "eth-updown-5m-1774371000",
+        "coin": "ETH",
+        "tf": "5M",
+        "combined": 1.1523,
+        "up_price": 0.9364,
+        "dn_price": 0.2159,
+        "up_shares": 116.0,
+        "dn_shares": 311.8,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "eth-updown-5m-1774374900",
+        "coin": "ETH",
+        "tf": "5M",
+        "combined": 1.1514,
+        "up_price": 0.5634,
+        "dn_price": 0.588,
+        "up_shares": 1888.0,
+        "dn_shares": 1790.9,
+        "lean": "UP",
+        "entry_offset": 11
+      },
+      {
+        "slug": "eth-updown-15m-1774374300",
+        "coin": "ETH",
+        "tf": "15M",
+        "combined": 1.1501,
+        "up_price": 0.8141,
+        "dn_price": 0.336,
+        "up_shares": 1914.2,
+        "dn_shares": 2120.3,
+        "lean": "DOWN",
+        "entry_offset": 75
+      }
+    ],
+    "sell_activity": {
+      "total_sells": 0,
+      "windows_with_sells": 0
+    }
+  },
+  "Unlawful-Shear": {
+    "name": "Unlawful-Shear",
+    "total_trades": 3496,
+    "total_unique_windows": 48,
+    "total_volume": 96159.82,
+    "total_shares": 185450.4,
+    "time_span_hours": 2.89,
+    "ts_range": [
+      1774364537,
+      1774374949
+    ],
+    "coin_breakdown": {
+      "BTC": {
+        "windows": 48,
+        "shares": 185450.30000000002,
+        "volume": 96159.85000000002
+      }
+    },
+    "tf_breakdown": {
+      "15M": {
+        "windows": 12,
+        "shares": 54383.89999999999
+      },
+      "5M": {
+        "windows": 36,
+        "shares": 131066.40000000002
+      }
+    },
+    "both_side_rate": 100.0,
+    "both_count": 48,
+    "single_count": 0,
+    "combined_prices": {
+      "count": 48,
+      "mean": 1.0222,
+      "median": 1.0356,
+      "min": 0.7767,
+      "max": 1.2054,
+      "stdev": 0.0755,
+      "pct_below_1": 22.9
+    },
+    "entry_timing": {
+      "count": 48,
+      "mean_s": 19.8,
+      "median_s": 9.0,
+      "min_s": 7,
+      "max_s": 221,
+      "p25_s": 7,
+      "p75_s": 13
+    },
+    "lean": {
+      "up_lean_pct": 33.3,
+      "down_lean_pct": 66.7,
+      "mean_ratio": 1.56,
+      "median_ratio": 1.36,
+      "max_ratio": 4.96
+    },
+    "sizing": {
+      "mean_shares": 53.0,
+      "median_shares": 29.1,
+      "min_shares": 0.1,
+      "max_shares": 1858.5,
+      "p25": 20.0,
+      "p75": 58.5
+    },
+    "price_distribution": {
+      "0.0-0.1": 11,
+      "0.1-0.2": 17,
+      "0.2-0.3": 50,
+      "0.3-0.4": 315,
+      "0.4-0.5": 1044,
+      "0.5-0.6": 1295,
+      "0.6-0.7": 598,
+      "0.7-0.8": 108,
+      "0.8-0.9": 42,
+      "0.9-1.0": 16
+    },
+    "hourly_distribution": {
+      "15": 1390,
+      "16": 1215,
+      "17": 891
+    },
+    "daily_activity": {
+      "2026-03-24": {
+        "trades": 3496,
+        "volume": 96159.85,
+        "windows": 48
+      }
+    },
+    "best_arb_windows": [
+      {
+        "slug": "btc-updown-5m-1774371000",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.7767,
+        "up_price": 0.5736,
+        "dn_price": 0.2031,
+        "up_shares": 897.5,
+        "dn_shares": 2047.0,
+        "lean": "DOWN",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774371900",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.7948,
+        "up_price": 0.1366,
+        "dn_price": 0.6583,
+        "up_shares": 421.5,
+        "dn_shares": 2091.2,
+        "lean": "DOWN",
+        "entry_offset": 15
+      },
+      {
+        "slug": "btc-updown-5m-1774368900",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.8619,
+        "up_price": 0.6069,
+        "dn_price": 0.2549,
+        "up_shares": 500.5,
+        "dn_shares": 522.3,
+        "lean": "DOWN",
+        "entry_offset": 33
+      },
+      {
+        "slug": "btc-updown-5m-1774365300",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9072,
+        "up_price": 0.4356,
+        "dn_price": 0.4716,
+        "up_shares": 4427.3,
+        "dn_shares": 6060.5,
+        "lean": "DOWN",
+        "entry_offset": 9
+      },
+      {
+        "slug": "btc-updown-5m-1774371600",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9168,
+        "up_price": 0.2965,
+        "dn_price": 0.6203,
+        "up_shares": 486.7,
+        "dn_shares": 1078.0,
+        "lean": "DOWN",
+        "entry_offset": 17
+      },
+      {
+        "slug": "btc-updown-15m-1774372500",
+        "coin": "BTC",
+        "tf": "15M",
+        "combined": 0.9569,
+        "up_price": 0.4449,
+        "dn_price": 0.512,
+        "up_shares": 2288.6,
+        "dn_shares": 2470.7,
+        "lean": "DOWN",
+        "entry_offset": 11
+      },
+      {
+        "slug": "btc-updown-5m-1774369500",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9634,
+        "up_price": 0.414,
+        "dn_price": 0.5494,
+        "up_shares": 764.4,
+        "dn_shares": 974.9,
+        "lean": "DOWN",
+        "entry_offset": 9
+      },
+      {
+        "slug": "btc-updown-5m-1774374000",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9671,
+        "up_price": 0.415,
+        "dn_price": 0.5521,
+        "up_shares": 432.0,
+        "dn_shares": 622.8,
+        "lean": "DOWN",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774373100",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9679,
+        "up_price": 0.4522,
+        "dn_price": 0.5157,
+        "up_shares": 1114.8,
+        "dn_shares": 828.6,
+        "lean": "UP",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774372800",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 0.9916,
+        "up_price": 0.6404,
+        "dn_price": 0.3513,
+        "up_shares": 490.3,
+        "dn_shares": 219.8,
+        "lean": "UP",
+        "entry_offset": 21
+      }
+    ],
+    "worst_arb_windows": [
+      {
+        "slug": "btc-updown-5m-1774367400",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.2054,
+        "up_price": 0.8586,
+        "dn_price": 0.3468,
+        "up_shares": 2718.2,
+        "dn_shares": 1350.0,
+        "lean": "UP",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-15m-1774367100",
+        "coin": "BTC",
+        "tf": "15M",
+        "combined": 1.1582,
+        "up_price": 0.5929,
+        "dn_price": 0.5654,
+        "up_shares": 2221.1,
+        "dn_shares": 1352.5,
+        "lean": "UP",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774366200",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.107,
+        "up_price": 0.5328,
+        "dn_price": 0.5742,
+        "up_shares": 1011.2,
+        "dn_shares": 1099.2,
+        "lean": "DOWN",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774368300",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.1002,
+        "up_price": 0.633,
+        "dn_price": 0.4673,
+        "up_shares": 624.7,
+        "dn_shares": 669.5,
+        "lean": "DOWN",
+        "entry_offset": 15
+      },
+      {
+        "slug": "btc-updown-5m-1774369200",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0895,
+        "up_price": 0.4806,
+        "dn_price": 0.6089,
+        "up_shares": 378.8,
+        "dn_shares": 557.2,
+        "lean": "DOWN",
+        "entry_offset": 9
+      },
+      {
+        "slug": "btc-updown-5m-1774365600",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0735,
+        "up_price": 0.5062,
+        "dn_price": 0.5673,
+        "up_shares": 1098.3,
+        "dn_shares": 471.3,
+        "lean": "UP",
+        "entry_offset": 9
+      },
+      {
+        "slug": "btc-updown-5m-1774373700",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0692,
+        "up_price": 0.5777,
+        "dn_price": 0.4915,
+        "up_shares": 978.0,
+        "dn_shares": 908.0,
+        "lean": "UP",
+        "entry_offset": 13
+      },
+      {
+        "slug": "btc-updown-5m-1774369800",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0686,
+        "up_price": 0.5061,
+        "dn_price": 0.5625,
+        "up_shares": 1275.1,
+        "dn_shares": 1250.2,
+        "lean": "UP",
+        "entry_offset": 7
+      },
+      {
+        "slug": "btc-updown-5m-1774364700",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0644,
+        "up_price": 0.4959,
+        "dn_price": 0.5685,
+        "up_shares": 2584.1,
+        "dn_shares": 3539.9,
+        "lean": "DOWN",
+        "entry_offset": 221
+      },
+      {
+        "slug": "btc-updown-5m-1774367100",
+        "coin": "BTC",
+        "tf": "5M",
+        "combined": 1.0582,
+        "up_price": 0.4779,
+        "dn_price": 0.5803,
+        "up_shares": 1158.4,
+        "dn_shares": 1849.0,
+        "lean": "DOWN",
+        "entry_offset": 9
+      }
+    ],
+    "sell_activity": {
+      "total_sells": 0,
+      "windows_with_sells": 0
+    }
+  }
+}

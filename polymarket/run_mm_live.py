@@ -105,6 +105,10 @@ _ENDGAME_MID_RANGE = (0.17, 0.83)   # only undecided markets
 _ENDGAME_FLIP_RANGE = (0.38, 0.62)  # case 1: coin flip zone
 _ENDGAME_REVERSAL = 0.20     # case 2: ≥20pt mid move in 30s toward center
 _ENDGAME_DAILY_CAP = 10      # max 10 bets/day → worst case $2.50 (< 2% of $300 bankroll)
+# ── Reversal Research: log extreme markets in last 5min for dry-run analysis ──
+_REVERSAL_LOG = os.path.join(_LOG_DIR, "reversal_research.jsonl")
+_REVERSAL_TTE_START = 300    # start logging at T-5min
+_REVERSAL_EXTREME_THRESH = 0.10  # log when cheap side ≤ 10¢ (90/10+)
 _BINANCE = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
 
@@ -443,6 +447,14 @@ _REPRICE_MAX_PER_ORDER = 3  # max 3 reprices per order lifetime
 # 90s timeout = zero false cancels on 33-trade sample (max BOTH lean gap = 87s).
 _LEAN_UNFILLED_TIMEOUT_S = 90  # seconds after entry before declaring lean unfilled
 _LEAN_PREEMPTIVE_S = 20        # seconds for Stage 1 preemptive hedge cancel
+# ── W4 Taker Conversion: one side fills → taker the other side to complete arb ──
+# When hedge fills as maker, lean is still pending → cancel lean maker → re-buy as taker.
+# Cost: ~1-2¢ extra spread. Benefit: guarantees both-fill = true arb (no naked positions).
+_TAKER_CONVERT_ENABLED = True
+_TAKER_CONVERT_DELAY_S = 3    # wait N seconds after first fill before converting
+_TAKER_CONVERT_MAX_SPREAD = 0.04  # abort if taker price > maker price + 4¢
+
+_MIN_VIABLE_BUDGET = 3.50  # 2 sides × 5 shares × ~$0.20 = $2 min; need ≥$3.33 for T1 60% split
 
 
 def _w4_signal(window_start_ms: int, symbol: str = "BTCUSDT") -> tuple:
@@ -633,11 +645,25 @@ def _execute(orders: list[PlannedOrder], client,
                 # Dry-run: simulate instant fill (no real CLOB)
                 if r.get("dry_run"):
                     status = "matched"
+            # ⚠️ DZ-4: Partial fill blindspot — use size_matched not size. See docs/DANGER_ZONES.md
+            # Extract actual matched size from API response (partial fill detection)
+            _size_matched = o.size  # default: assume full fill
+            if isinstance(r, dict):
+                _taking = r.get("takingAmount", "")
+                if _taking and str(_taking).strip():
+                    try:
+                        _size_matched = float(_taking)
+                    except (ValueError, TypeError):
+                        _size_matched = o.size
             logger.info("ORDER SUBMITTED %s %s: %.1f shares @ $%.3f ($%.2f) → %s [%s]",
                         o.outcome, o.token_id[:10], o.size, o.price, amount,
                         order_id[:12] if order_id else "ok", status)
+            if abs(_size_matched - o.size) > 0.1:
+                logger.warning("PARTIAL FILL DETECTED %s: submitted=%.1f matched=%.1f",
+                               order_id[:12] if order_id else "?", o.size, _size_matched)
             results.append({"outcome": o.outcome, "price": o.price,
-                           "size": o.size, "token_id": o.token_id,
+                           "size": o.size, "size_matched": _size_matched,
+                           "token_id": o.token_id,
                            "order_id": order_id, "status": status,
                            "submitted": True, "order_ts": time.time()})
             # Per-order submit log (AS analysis data)
@@ -744,6 +770,172 @@ def _check_fills(state: dict, client) -> None:
                                 cid[:8], mkt["up_shares"], mkt["down_shares"],
                                 mkt["entry_cost"])
                     continue  # all resolved via WS, skip REST
+
+                # ── Taker Conversion: one side filled, other still pending ──
+                # If hedge filled but lean is still on the book → convert lean to taker
+                # to guarantee both-fill and complete the arb.
+                if (_TAKER_CONVERT_ENABLED and mkt.get("both_sides")
+                        and client and hasattr(client, "buy_shares")
+                        and not dry_run and not mkt.get("_taker_converted")):
+                    _has_up = mkt.get("up_shares", 0) > 0
+                    _has_dn = mkt.get("down_shares", 0) > 0
+                    _pend_outcomes = {p.get("outcome", "").upper() for p in pending}
+                    # One side filled, other still pending
+                    if ((_has_up and not _has_dn and "DOWN" in _pend_outcomes)
+                            or (_has_dn and not _has_up and "UP" in _pend_outcomes)):
+                        _unfilled_side = "DOWN" if _has_up else "UP"
+                        _unfilled_po = next(
+                            (p for p in pending if p.get("outcome", "").upper() == _unfilled_side),
+                            None)
+                        if _unfilled_po:
+                            _entry_ts = mkt.get("entry_ts", 0)
+                            _age_s = time.time() - _entry_ts if _entry_ts > 0 else 999
+                            if _age_s >= _TAKER_CONVERT_DELAY_S:
+                                _tc_tok = _unfilled_po.get("token_id", "")
+                                _tc_oid = _unfilled_po.get("order_id", "")
+                                _tc_maker_px = _unfilled_po.get("price", 0)
+                                _tc_size = _unfilled_po.get("size", 0)
+                                # Get current ask to determine taker price
+                                try:
+                                    _tc_ob = client.get_order_book(_tc_tok)
+                                    _tc_asks = _tc_ob.get("asks", [])
+                                    _tc_best_ask = min(a["price"] for a in _tc_asks) if _tc_asks else 0
+                                except Exception:
+                                    _tc_best_ask = 0
+                                if _tc_best_ask > 0:
+                                    _tc_spread = _tc_best_ask - _tc_maker_px
+                                    if _tc_spread <= _TAKER_CONVERT_MAX_SPREAD:
+                                        # Combined cost check: maker cost + taker cost must be ≤ $1.00
+                                        # Purpose: prevent naked exposure. Even breakeven ($1.00) is better
+                                        # than naked position. Only block if guaranteed loss (>$1.00).
+                                        _filled_side_key = "up_avg_price" if _has_up else "down_avg_price"
+                                        _filled_px = mkt.get(_filled_side_key, 0)
+                                        _tc_combined = _filled_px + _tc_best_ask + 0.01  # +1¢ for taker aggression
+                                        if _tc_combined > 1.00:
+                                            logger.info(
+                                                "TAKER CONVERT SKIP %s %s: combined %.3f > $1.00 (guaranteed loss)",
+                                                cid[:8], _unfilled_side, _tc_combined)
+                                        else:
+                                            # Cancel maker order first
+                                            _tc_cancel_ok = False
+                                            # Pre-cancel: Check if already filled (race guard)
+                                            _tc_ws_st = ""
+                                            if _ws_user and _ws_user.connected:
+                                                _tc_ws_st = _ws_user.get_order_status(_tc_oid)
+                                            if _tc_ws_st == "MATCHED":
+                                                logger.info("TAKER CONVERT SKIP %s %s: already filled during wait",
+                                                            cid[:8], _unfilled_side)
+                                            else:
+                                                try:
+                                                    client.client.cancel(order_id=_tc_oid)
+                                                    _tc_cancel_ok = True
+                                                except Exception as _tce:
+                                                    logger.warning("TAKER CONVERT cancel failed %s: %s",
+                                                                   cid[:8], _tce)
+                                                # Post-cancel: verify order didn't fill during cancel RTT
+                                                # (DZ-1 lesson: cancel(matched) = no-op success)
+                                                if _tc_cancel_ok and _ws_user and _ws_user.connected:
+                                                    time.sleep(0.05)  # 50ms for WS propagation
+                                                    if _ws_user.get_order_status(_tc_oid) == "MATCHED":
+                                                        # Order filled during cancel — account for it
+                                                        _tc_det = _ws_user.get_order_detail(_tc_oid)
+                                                        _pc_sz = _tc_size
+                                                        if _tc_det and _tc_det.get("size_matched", 0) > 0:
+                                                            _pc_sz = _tc_det["size_matched"]
+                                                        if _unfilled_side == "UP":
+                                                            old_v = mkt["up_shares"] * mkt["up_avg_price"]
+                                                            mkt["up_shares"] += _pc_sz
+                                                            mkt["up_avg_price"] = (old_v + _pc_sz * _tc_maker_px) / mkt["up_shares"]
+                                                        else:
+                                                            old_v = mkt["down_shares"] * mkt["down_avg_price"]
+                                                            mkt["down_shares"] += _pc_sz
+                                                            mkt["down_avg_price"] = (old_v + _pc_sz * _tc_maker_px) / mkt["down_shares"]
+                                                        mkt["entry_cost"] += _pc_sz * _tc_maker_px
+                                                        _bump_fill(state, "filled")
+                                                        mkt["pending_orders"] = [
+                                                            p for p in pending if p is not _unfilled_po]
+                                                        if not mkt["pending_orders"]:
+                                                            mkt["fills_confirmed"] = True
+                                                        mkt["_taker_converted"] = True
+                                                        logger.warning(
+                                                            "TAKER CONVERT ABORT (post-cancel) %s %s: "
+                                                            "maker FILLED during cancel RTT (%.1f @ $%.3f) "
+                                                            "— phantom fill recovered, NO taker placed",
+                                                            cid[:8], _unfilled_side, _pc_sz, _tc_maker_px)
+                                                        _tc_cancel_ok = False  # block taker placement
+                                            if _tc_cancel_ok:
+                                                # Re-buy as taker: hit best ask
+                                                _tc_taker_px = round(_tc_best_ask + 0.01, 2)
+                                                _tc_amount = round(_tc_size * _tc_taker_px, 2)
+                                                try:
+                                                    _tc_r = client.buy_shares(
+                                                        _tc_tok, _tc_amount, price=_tc_taker_px)
+                                                    _tc_status = ""
+                                                    _tc_new_oid = ""
+                                                    if isinstance(_tc_r, dict):
+                                                        _tc_status = _tc_r.get("status", "")
+                                                        _tc_new_oid = _tc_r.get("orderID", "")
+                                                    _tc_fill_sz = _tc_size
+                                                    if isinstance(_tc_r, dict):
+                                                        _taking = _tc_r.get("takingAmount", "")
+                                                        if _taking and str(_taking).strip():
+                                                            try:
+                                                                _tc_fill_sz = float(_taking)
+                                                            except (ValueError, TypeError):
+                                                                pass
+                                                    if _tc_status == "matched":
+                                                        # Taker filled — update position
+                                                        if _unfilled_side == "UP":
+                                                            old_v = mkt["up_shares"] * mkt["up_avg_price"]
+                                                            mkt["up_shares"] += _tc_fill_sz
+                                                            mkt["up_avg_price"] = (old_v + _tc_fill_sz * _tc_taker_px) / mkt["up_shares"]
+                                                        else:
+                                                            old_v = mkt["down_shares"] * mkt["down_avg_price"]
+                                                            mkt["down_shares"] += _tc_fill_sz
+                                                            mkt["down_avg_price"] = (old_v + _tc_fill_sz * _tc_taker_px) / mkt["down_shares"]
+                                                        mkt["entry_cost"] += _tc_fill_sz * _tc_taker_px
+                                                        _bump_fill(state, "filled")
+                                                        # Remove from pending
+                                                        mkt["pending_orders"] = [
+                                                            p for p in pending if p is not _unfilled_po]
+                                                        if not mkt["pending_orders"]:
+                                                            mkt["fills_confirmed"] = True
+                                                        mkt["_taker_converted"] = True
+                                                        logger.info(
+                                                            "TAKER CONVERT %s %s: maker@%.2f→taker@%.2f "
+                                                            "(spread=%.3f, %.1f shares) cost=$%.2f | "
+                                                            "UP=%.1f DN=%.1f total=$%.2f",
+                                                            cid[:8], _unfilled_side,
+                                                            _tc_maker_px, _tc_taker_px, _tc_spread,
+                                                            _tc_fill_sz, _tc_fill_sz * _tc_taker_px,
+                                                            mkt["up_shares"], mkt["down_shares"],
+                                                            mkt["entry_cost"])
+                                                    else:
+                                                        # Taker went live (unlikely with ask+1¢ pricing)
+                                                        _new_po = dict(_unfilled_po)
+                                                        _new_po["order_id"] = _tc_new_oid
+                                                        _new_po["price"] = _tc_taker_px
+                                                        _new_po["order_ts"] = time.time()
+                                                        _new_po["_taker_convert"] = True
+                                                        mkt["pending_orders"] = [
+                                                            p for p in pending if p is not _unfilled_po
+                                                        ] + [_new_po]
+                                                        mkt["_taker_converted"] = True
+                                                        logger.warning(
+                                                            "TAKER CONVERT PENDING %s %s: taker@%.2f "
+                                                            "status=%s — still on book",
+                                                            cid[:8], _unfilled_side,
+                                                            _tc_taker_px, _tc_status)
+                                                except Exception as _tce2:
+                                                    logger.error(
+                                                        "TAKER CONVERT BUY FAILED %s %s: %s — "
+                                                        "maker cancelled, taker failed, ORDER LOST",
+                                                        cid[:8], _unfilled_side, _tce2)
+                                    else:
+                                        logger.info(
+                                            "TAKER CONVERT SKIP %s %s: spread %.3f > max %.3f",
+                                            cid[:8], _unfilled_side, _tc_spread,
+                                            _TAKER_CONVERT_MAX_SPREAD)
 
             # If nothing remaining, skip REST entirely
             if not pending:
@@ -1015,7 +1207,7 @@ def _get_risk_mode(state: dict) -> str:
 #  Resolution
 # ═══════════════════════════════════════
 
-def _check_resolutions(state: dict):
+def _check_resolutions(state: dict, client=None):
     now_ms = int(time.time() * 1000)
     for cid, md in list(state["markets"].items()):
         if md["phase"] == "RESOLVED":
@@ -1048,6 +1240,66 @@ def _check_resolutions(state: dict):
 
         ms = _from_dict(md)
         _is_paper = md.get("paper", False)
+
+        # ── Pre-resolve reconciliation: bot state vs on-chain trades ──
+        # ⚠️ DZ-2: Bot state vs on-chain drift. Phantom/partial fills compound bankroll error. See docs/DANGER_ZONES.md
+        _on_chain_up = -1.0  # -1 = skip reconciliation
+        _on_chain_dn = 0.0
+        try:
+            _trades = (
+                client.get_trades(market=cid)
+                if client and hasattr(client, "get_trades")
+                else []
+            )
+            if _trades:
+                _on_chain_up = 0.0
+                _on_chain_dn = 0.0
+                for _t in _trades:
+                    _side = _t.get("side", "")
+                    _asset_id = _t.get("asset_id", "")
+                    _size = float(_t.get("size", 0))
+                    if _asset_id == ms.up_token_id:
+                        if _side == "BUY":
+                            _on_chain_up += _size
+                        elif _side == "SELL":
+                            _on_chain_up -= _size
+                    elif _asset_id == ms.down_token_id:
+                        if _side == "BUY":
+                            _on_chain_dn += _size
+                        elif _side == "SELL":
+                            _on_chain_dn -= _size
+        except Exception as e:
+            logger.warning(
+                "RECONCILE FAIL %s: %s — using bot state", cid[:8], e
+            )
+
+        if _on_chain_up >= 0:
+            _bot_up = ms.up_shares
+            _bot_dn = ms.down_shares
+            if abs(_on_chain_up - _bot_up) > 1 or abs(_on_chain_dn - _bot_dn) > 1:
+                # Safety: if bot avg_price is 0 (never tracked these fills),
+                # we can't calculate cost → using chain shares would produce
+                # garbage PnL (payout - $0 cost = inflated profit).
+                # In this case, LOG the mismatch but use BOT state (safer: undercount > overcount).
+                _has_cost = (ms.up_avg_price > 0 or ms.down_avg_price > 0)
+                if not _has_cost:
+                    logger.error(
+                        "RECONCILE MISMATCH %s: bot UP=%.1f DN=%.1f"
+                        " | chain UP=%.1f DN=%.1f — BUT avg_price=0, "
+                        "CANNOT reconcile cost → using BOT state (undercount)",
+                        cid[:8], _bot_up, _bot_dn, _on_chain_up, _on_chain_dn)
+                else:
+                    logger.error(
+                        "RECONCILE MISMATCH %s: bot UP=%.1f DN=%.1f"
+                        " | chain UP=%.1f DN=%.1f — USING CHAIN",
+                        cid[:8], _bot_up, _bot_dn, _on_chain_up, _on_chain_dn)
+                    ms.up_shares = _on_chain_up
+                    ms.down_shares = _on_chain_dn
+                    ms.entry_cost = (
+                        _on_chain_up * ms.up_avg_price
+                        + _on_chain_dn * ms.down_avg_price
+                    )
+
         pnl = resolve_market(ms, result)
         state["markets"][cid] = _to_dict(ms)
 
@@ -1158,6 +1410,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     # Kill switches — FIX #11: use % of bankroll, not absolute $50
     br = state.get("bankroll", 100.0)
 
+    # ⚠️ DZ-6: Hard stop + daily kill cancel ALL wallet orders — includes other bots. See docs/DANGER_ZONES.md
     # HARD STOP: total PnL drops >20% of HIGH WATER MARK → permanent halt
     # Auto-updates on deposit detection (balance > previous high water mark)
     _total_pnl = state.get("total_pnl", 0.0)
@@ -1578,11 +1831,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 del state["watchlist"][cid]
                 continue
 
-            # v4: Skip dead hours (HKT 22-06 = low liquidity, fill rate unvalidated)
-            _hkt_hour = datetime.now(tz=_HKT).hour
-            if _hkt_hour >= 22 or _hkt_hour < 6:
+            # v4: Skip dead hours (HKT 02:45-07:30 = US late night, low liquidity)
+            _hkt_now = datetime.now(tz=_HKT)
+            _hkt_hm = _hkt_now.hour * 60 + _hkt_now.minute  # minutes since midnight
+            if 165 <= _hkt_hm < 450:  # 02:45 (165min) to 07:30 (450min)
                 if not wl.get("_dead_hour_logged"):
-                    logger.info("W4 SKIP DEAD %s: HKT %02d:xx (dead hours 22-06)", cid[:8], _hkt_hour)
+                    logger.info("W4 SKIP DEAD %s: HKT %02d:%02d (dead hours 02:45-07:30)", cid[:8], _hkt_now.hour, _hkt_now.minute)
                     wl["_dead_hour_logged"] = True
                 del state["watchlist"][cid]
                 continue
@@ -1639,12 +1893,44 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 del state["watchlist"][cid]
                 continue
 
+            # v4: Cheap side tiered gate — 17¢-31¢, cheaper = bigger position
+            # Tier 1: 25¢-31¢ → 1/3 sizing (test the water)
+            # Tier 2: 20¢-25¢ → 2/3 sizing (add)
+            # Tier 3: 17¢-20¢ → full sizing (best R/R)
+            _cheap_bid = min(_up_bid, _dn_bid)
+            if _cheap_bid > 0.31 or _cheap_bid < 0.02:
+                logger.info("W4 SKIP %s: cheap side $%.2f outside 2¢-31¢ range",
+                            cid[:8], _cheap_bid)
+                del state["watchlist"][cid]
+                continue
+            # Graduated sizing: cheaper = better R/R = bigger position
+            # 5 tiers, bankroll-friendly (smallest = 20% of normal)
+            _CHEAP_TIERS = [
+                (0.17, 1.0),   # T5: ≤17¢ → 100% (R/R 4.9:1)
+                (0.20, 0.80),  # T4: 18-20¢ → 80%  (R/R 4.0:1)
+                (0.23, 0.60),  # T3: 21-23¢ → 60%  (R/R 3.3:1)
+                (0.27, 0.40),  # T2: 24-27¢ → 40%  (R/R 2.7:1)
+                (0.31, 0.20),  # T1: 28-31¢ → 20%  (R/R 2.2:1)
+            ]
+            _cheap_mult = 0.20  # default: smallest
+            _cheap_tier = 1
+            for _ct_i, (_ct_max, _ct_mult) in enumerate(_CHEAP_TIERS):
+                if _cheap_bid <= _ct_max:
+                    _cheap_mult = _ct_mult
+                    _cheap_tier = 5 - _ct_i  # T5=best, T1=smallest
+                    break
+
             # 🔴 FIX: Lean = SHARE COUNT ratio, not budget ratio
             # Bug was: budget fraction / price → cheap side gets MORE shares than lean side
             # W4 lean R:1 means lean side has R× more SHARES (R = dynamic, see _w4_dynamic_ratio)
             bankroll = state.get("bankroll", 100.0)
             _coin_bet_pct = _BET_PCT_BY_COIN.get(_coin_slug, config.bet_pct)
-            _full_budget = bankroll * _coin_bet_pct * _daily_budget_mult
+            _full_budget = bankroll * _coin_bet_pct * _daily_budget_mult * _cheap_mult
+            if _full_budget < _MIN_VIABLE_BUDGET:
+                logger.info("W4 SKIP %s: budget $%.2f < $%.2f min (tier %d, mult %.0f%%)",
+                            cid[:8], _full_budget, _MIN_VIABLE_BUDGET, _cheap_tier, _cheap_mult * 100)
+                del state["watchlist"][cid]
+                continue
             _budget = _full_budget * _W4_T1_PCT  # T1 = 60%, T2 adds 40% at T+480s if confirmed
             _lean_dir = _w4_dir  # "UP" or "DOWN"
 
@@ -1705,7 +1991,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     "w4_mag_bps": round(_w4_mag, 1),
                     "up_mid": round(_up_mid, 4), "dn_mid": round(_dn_mid, 4),
                     "up_bid": _up_bid, "dn_bid": _dn_bid,
-                    "combined": _bs_combined,
+                    "combined": _bs_combined, "cheap_tier": _cheap_tier,
+                    "cheap_mult": _cheap_mult, "cheap_bid": _cheap_bid,
                     "up_shares": _up_shares, "dn_shares": _dn_shares,
                     "budget": round(_budget, 2), "bankroll": round(bankroll, 2),
                     "bridge": round(bridge_p_up, 4), "live": not _observe_only,
@@ -1880,10 +2167,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _bump_fill(state, "submitted")
             status = r.get("status", "")
             if status == "matched":
-                apply_fill(ms, r["outcome"], "BUY", r["price"], r["size"])
+                _fill_sz = r.get("size_matched", r["size"])
+                apply_fill(ms, r["outcome"], "BUY", r["price"], _fill_sz)
                 _bump_fill(state, "filled")
                 logger.info("INSTANT FILL %s %s: %.1f @ $%.3f",
-                            cid[:8], r["outcome"], r["size"], r["price"])
+                            cid[:8], r["outcome"], _fill_sz, r["price"])
             else:
                 pending.append(r)
 
@@ -1975,6 +2263,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
             # T2 confirmation: direction must match T1 AND magnitude still above threshold
             if _t2_dir == _t1_dir and _t2_mag >= _W4_THRESHOLD_BPS:
+                # ⚠️ DZ-7: T2 has no budget cap (T1 does). Oversizing risk. See docs/DANGER_ZONES.md
                 # CONFIRMED — place T2 orders (40% of full budget)
                 _t2_budget = mkt_d.get("_w4_full_budget", 0) * _W4_T2_PCT
                 if _t2_budget < 1.0:
@@ -2058,7 +2347,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             # 🔴 2CHECK FIX: Track T2 instant fills in position state
                             _t2_out = r["outcome"]
                             _t2_px = r["price"]
-                            _t2_sz = r["size"]
+                            _t2_sz = r.get("size_matched", r["size"])
                             if _t2_out == "UP":
                                 _old_val = mkt_d.get("up_shares", 0) * mkt_d.get("up_avg_price", 0)
                                 mkt_d["up_shares"] = mkt_d.get("up_shares", 0) + _t2_sz
@@ -2227,6 +2516,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                 cid[:8], _pr["price"], " + ".join(_reasons), _pr["_approach_count"])
                 break
 
+    # ⚠️ DZ-1: Cancel race condition — cancel(matched_order) = no-op, causes double exposure. WS pre-check mandatory. See docs/DANGER_ZONES.md
     # Cancel defense: 3 triggers for unfilled orders
     if client and hasattr(client, "client") and not dry_run:
         for cid, mkt in state["markets"].items():
@@ -2357,11 +2647,45 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                 pass
 
             actually_cancelled = []
+            _phantom_fills = []
             _time_on_book = now_s - entry_ts if entry_ts > 0 else 0
             _dist_to_end_s = (end_ms / 1000 - now_s) if end_ms > 0 else 0
             for po in to_cancel:
                 oid = po.get("order_id", "")
                 if oid:
+                    # ── Race condition guard: check if order already filled ──
+                    # If matched on-chain, cancel is no-op. We must account
+                    # for the fill instead of silently dropping it.
+                    if _ws_user and _ws_user.connected:
+                        _ws_st = _ws_user.get_order_status(oid)
+                        if _ws_st == "MATCHED":
+                            _fill_size = po["size"]
+                            _ws_det = _ws_user.get_order_detail(oid)
+                            if _ws_det and _ws_det.get("size_matched", 0) > 0:
+                                _fill_size = _ws_det["size_matched"]
+                            _fill_price = po.get("price", 0)
+                            outcome = po["outcome"]
+                            if outcome == "UP":
+                                old_val = mkt["up_shares"] * mkt["up_avg_price"]
+                                mkt["up_shares"] += _fill_size
+                                mkt["up_avg_price"] = (
+                                    (old_val + _fill_size * _fill_price) / mkt["up_shares"]
+                                )
+                            elif outcome == "DOWN":
+                                old_val = mkt["down_shares"] * mkt["down_avg_price"]
+                                mkt["down_shares"] += _fill_size
+                                mkt["down_avg_price"] = (
+                                    (old_val + _fill_size * _fill_price) / mkt["down_shares"]
+                                )
+                            mkt["entry_cost"] += _fill_size * _fill_price
+                            _bump_fill(state, "filled")
+                            logger.warning(
+                                "CANCEL ABORT %s %s [%s]: order ALREADY MATCHED "
+                                "(%.1f @ $%.3f) — phantom fill recovered",
+                                cid[:8], po["outcome"], reason, _fill_size, _fill_price)
+                            _phantom_fills.append(po)
+                            continue
+
                     try:
                         _cancel_t0 = time.time()
                         client.client.cancel(order_id=oid)
@@ -2380,12 +2704,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                                        cid[:8], po["outcome"], e)
 
             # Only remove successfully cancelled orders from pending
-            if actually_cancelled:
-                _bump_fill(state, "cancelled", len(actually_cancelled))
-                mkt["pending_orders"] = [p for p in pending if p not in actually_cancelled]
+            # Phantom fills are also removed from pending (already accounted for above)
+            _removed = actually_cancelled + _phantom_fills
+            if _removed:
+                if actually_cancelled:
+                    _bump_fill(state, "cancelled", len(actually_cancelled))
+                mkt["pending_orders"] = [p for p in pending if p not in _removed]
                 if not mkt["pending_orders"]:
                     mkt["fills_confirmed"] = True
 
+    # ⚠️ DZ-1: Reprice cancel race — same phantom fill risk as cancel defense. WS pre-check mandatory. See docs/DANGER_ZONES.md
     # ── W4 Order Repricing: improve stale limit orders when OB drops ──
     # 🔴 BMD FIX: Only reprice DOWNWARD (OB mid dropped → we get a better price).
     # Do NOT chase rising OB mid — W4 places at mid-1¢ and waits. Patience is the edge.
@@ -2446,6 +2774,43 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     _new_pending.append(po)
                     continue
 
+                # ── Step 0: Check if old order already filled (race condition guard) ──
+                # If the order was matched on-chain before we cancel, cancel is a
+                # no-op but the fill is real. We MUST detect this BEFORE placing
+                # a replacement, otherwise we double our exposure.
+                # Bug discovered 2026-03-24: caused 25 UP / 10 DOWN when bot
+                # only tracked 10/5 → -$9.38 real loss vs +$0.55 tracked.
+                _already_filled = False
+                if _ws_user and _ws_user.connected:
+                    _pre_status = _ws_user.get_order_status(_oid)
+                    if _pre_status == "MATCHED":
+                        _already_filled = True
+                        # Account for the phantom fill
+                        _fill_size = po["size"]
+                        _ws_det = _ws_user.get_order_detail(_oid)
+                        if _ws_det and _ws_det.get("size_matched", 0) > 0:
+                            _fill_size = _ws_det["size_matched"]
+                        outcome = po["outcome"]
+                        if outcome == "UP":
+                            old_val = mkt["up_shares"] * mkt["up_avg_price"]
+                            mkt["up_shares"] += _fill_size
+                            mkt["up_avg_price"] = (old_val + _fill_size * _old_price) / mkt["up_shares"]
+                        elif outcome == "DOWN":
+                            old_val = mkt["down_shares"] * mkt["down_avg_price"]
+                            mkt["down_shares"] += _fill_size
+                            mkt["down_avg_price"] = (old_val + _fill_size * _old_price) / mkt["down_shares"]
+                        mkt["entry_cost"] += _fill_size * _old_price
+                        _bump_fill(state, "filled")
+                        logger.warning(
+                            "W4 REPRICE ABORT %s %s: old order ALREADY MATCHED "
+                            "(%.1f @ $%.3f) — phantom fill recovered, NO replacement placed",
+                            cid[:8], po["outcome"], _fill_size, _old_price)
+                        _repriced_any = True
+                        continue  # do NOT place replacement order
+
+                if _already_filled:
+                    continue
+
                 # Step 1: Cancel old order (separate try block)
                 _cancel_ok = False
                 try:
@@ -2456,7 +2821,36 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     _new_pending.append(po)  # keep original order
                     continue
 
-                # Step 2: Place replacement (only if cancel succeeded)
+                # Step 1.5: Post-cancel verification — did order fill during cancel RTT?
+                # Small window but real: order could match between our check and cancel.
+                if _ws_user and _ws_user.connected:
+                    time.sleep(0.05)  # 50ms for WS to propagate match event
+                    _post_status = _ws_user.get_order_status(_oid)
+                    if _post_status == "MATCHED":
+                        # Order filled DURING our cancel call — cancel was no-op
+                        _fill_size = po["size"]
+                        _ws_det = _ws_user.get_order_detail(_oid)
+                        if _ws_det and _ws_det.get("size_matched", 0) > 0:
+                            _fill_size = _ws_det["size_matched"]
+                        outcome = po["outcome"]
+                        if outcome == "UP":
+                            old_val = mkt["up_shares"] * mkt["up_avg_price"]
+                            mkt["up_shares"] += _fill_size
+                            mkt["up_avg_price"] = (old_val + _fill_size * _old_price) / mkt["up_shares"]
+                        elif outcome == "DOWN":
+                            old_val = mkt["down_shares"] * mkt["down_avg_price"]
+                            mkt["down_shares"] += _fill_size
+                            mkt["down_avg_price"] = (old_val + _fill_size * _old_price) / mkt["down_shares"]
+                        mkt["entry_cost"] += _fill_size * _old_price
+                        _bump_fill(state, "filled")
+                        logger.warning(
+                            "W4 REPRICE ABORT (post-cancel) %s %s: order MATCHED during cancel RTT "
+                            "(%.1f @ $%.3f) — phantom fill recovered, NO replacement placed",
+                            cid[:8], po["outcome"], _fill_size, _old_price)
+                        _repriced_any = True
+                        continue  # do NOT place replacement
+
+                # Step 2: Place replacement (only if cancel verified clean)
                 try:
                     _amount = round(po["size"] * _new_bid, 2)
                     _r = client.buy_shares(_tok, _amount, price=_new_bid)
@@ -2546,6 +2940,99 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         _post_fill_checks.extend(_remaining)
 
     # ── ENDGAME: 1-share bets in undecided markets (T-120s to T-30s) ──
+    # ── Reversal Research: snapshot extreme markets every heavy cycle (dry-run data) ──
+    # Records: time, mid, BTC price, gap to target, tte — for offline analysis
+    # Goal: 50 samples to evaluate reversal strategy viability
+    if is_heavy:
+        for cid, mkt in state["markets"].items():
+            if mkt["phase"] != "OPEN":
+                continue
+            end_ms = mkt.get("window_end_ms", 0)
+            if end_ms <= 0:
+                continue
+            _rv_tte = (end_ms - now_ms) / 1000
+            if not (0 < _rv_tte < _REVERSAL_TTE_START):
+                continue
+            _rv_up_tok = mkt.get("up_token_id", "")
+            if not _rv_up_tok:
+                continue
+            _rv_mid = _poly_midpoint(client, _rv_up_tok) if client else 0
+            if _rv_mid <= 0:
+                continue
+            _rv_cheap = min(_rv_mid, 1.0 - _rv_mid)
+            if _rv_cheap > _REVERSAL_EXTREME_THRESH:
+                continue  # not extreme enough
+            # Get BTC price for gap calculation
+            _rv_btc = 0
+            if _ws_binance:
+                _rv_btc = _ws_binance.get_price("BTCUSDT")
+            _rv_open = mkt.get("entry_price", 0)  # BTC price at window open
+            _rv_gap = _rv_btc - _rv_open if _rv_btc > 0 and _rv_open > 0 else 0
+            # Log every 30s (use tte buckets to avoid flooding)
+            _rv_bucket = int(_rv_tte / 30) * 30
+            _rv_log_key = f"_rv_logged_{_rv_bucket}"
+            if not mkt.get(_rv_log_key):
+                mkt[_rv_log_key] = True
+                try:
+                    with open(_REVERSAL_LOG, "a") as _rvf:
+                        _rvf.write(json.dumps({
+                            "ts": datetime.now(tz=_HKT).isoformat(),
+                            "cid": cid[:8],
+                            "coin": "btc" if "bitcoin" in mkt.get("title", "").lower() else "other",
+                            "tte_s": round(_rv_tte),
+                            "up_mid": round(_rv_mid, 4),
+                            "cheap_mid": round(_rv_cheap, 4),
+                            "btc_price": round(_rv_btc, 2) if _rv_btc else 0,
+                            "btc_gap": round(_rv_gap, 2) if _rv_gap else 0,
+                            "window_open_px": round(_rv_open, 2) if _rv_open else 0,
+                        }) + "\n")
+                except Exception:
+                    pass
+
+        # ── Reversal Research (watchlist): scan markets we SKIPPED at entry ──
+        # Watchlist items have different field names; no entry_price available.
+        for _wl_key, wl in state.get("watchlist", {}).items():
+            _wl_end = wl.get("end_ms", 0)
+            if _wl_end <= 0:
+                continue
+            _wl_tte = (_wl_end - now_ms) / 1000
+            if not (0 < _wl_tte < _REVERSAL_TTE_START):
+                continue
+            _wl_up_tok = wl.get("up_tok", "")
+            if not _wl_up_tok:
+                continue
+            _wl_mid = _poly_midpoint(client, _wl_up_tok) if client else 0
+            if _wl_mid <= 0:
+                continue
+            _wl_cheap = min(_wl_mid, 1.0 - _wl_mid)
+            if _wl_cheap > _REVERSAL_EXTREME_THRESH:
+                continue  # not extreme enough
+            # BTC price (no entry_price in watchlist, so gap = 0)
+            _wl_btc = 0
+            if _ws_binance:
+                _wl_btc = _ws_binance.get_price("BTCUSDT")
+            # 30s bucket dedup (flag stored on wl dict)
+            _wl_bucket = int(_wl_tte / 30) * 30
+            _wl_log_key = f"_rv_logged_{_wl_bucket}"
+            if not wl.get(_wl_log_key):
+                wl[_wl_log_key] = True
+                try:
+                    with open(_REVERSAL_LOG, "a") as _rvf:
+                        _rvf.write(json.dumps({
+                            "ts": datetime.now(tz=_HKT).isoformat(),
+                            "cid": _wl_key[:8],
+                            "coin": "btc" if "bitcoin" in wl.get("title", "").lower() else "other",
+                            "tte_s": round(_wl_tte),
+                            "up_mid": round(_wl_mid, 4),
+                            "cheap_mid": round(_wl_cheap, 4),
+                            "btc_price": round(_wl_btc, 2) if _wl_btc else 0,
+                            "btc_gap": 0,
+                            "window_open_px": 0,
+                            "source": "watchlist",
+                        }) + "\n")
+                except Exception:
+                    pass
+
     # Three cases:
     #   1: Coin flip (mid 0.38-0.62) → bet bridge direction
     #   2: Reversal (20pt move in 30s toward center) → follow the move
@@ -2653,12 +3140,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     # Instant fill — update shares + entry_cost
                     _sk = "up_shares" if _eg_dir == "UP" else "down_shares"
                     _ak = "up_avg_price" if _eg_dir == "UP" else "down_avg_price"
+                    _fill_sz = r.get("size_matched", r["size"])
                     _old_s = mkt.get(_sk, 0)
                     _old_a = mkt.get(_ak, 0)
-                    _new_s = _old_s + r["size"]
+                    _new_s = _old_s + _fill_sz
                     mkt[_sk] = _new_s
-                    mkt[_ak] = (_old_a * _old_s + r["price"] * r["size"]) / _new_s if _new_s > 0 else r["price"]
-                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + r["size"] * r["price"]
+                    mkt[_ak] = (_old_a * _old_s + r["price"] * _fill_sz) / _new_s if _new_s > 0 else r["price"]
+                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + _fill_sz * r["price"]
                     logger.info("ENDGAME FILL C%d %s %s mid=%.2f @$%.2f tte=%ds",
                                 _eg_case, _eg_dir, cid[:8], _eg_mid, r["price"], int(tte_s))
                 else:
@@ -2753,13 +3241,14 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if not r.get("submitted"):
                     continue
                 if r.get("status") == "matched":
+                    _fill_sz = r.get("size_matched", r["size"])
                     _sk = "up_shares" if _opp_dir == "UP" else "down_shares"
                     _ak = "up_avg_price" if _opp_dir == "UP" else "down_avg_price"
                     _old_s = mkt.get(_sk, 0)
-                    _new_s = _old_s + r["size"]
+                    _new_s = _old_s + _fill_sz
                     mkt[_sk] = _new_s
-                    mkt[_ak] = (mkt.get(_ak, 0) * _old_s + r["price"] * r["size"]) / _new_s if _new_s > 0 else r["price"]
-                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + r["size"] * r["price"]
+                    mkt[_ak] = (mkt.get(_ak, 0) * _old_s + r["price"] * _fill_sz) / _new_s if _new_s > 0 else r["price"]
+                    mkt["entry_cost"] = mkt.get("entry_cost", 0) + _fill_sz * r["price"]
                 else:
                     r["hedge"] = True
                     mkt.setdefault("pending_orders", []).append(r)
@@ -2820,6 +3309,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 ]
                 _tp_key = f"_tp_tier_{side}"
                 _tp_done = mkt.get(_tp_key, 0)  # how many tiers already executed
+                # ⚠️ DZ-3: All exit sells below — must check fill status before updating shares. See docs/DANGER_ZONES.md
                 if _tp_done < len(_PARTIAL_TP_TIERS) and not _cost_recovered:
                     _mult, _sell_pct = _PARTIAL_TP_TIERS[_tp_done]
                     _tp_target = avg * _mult
@@ -2827,17 +3317,28 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         _tp_sell = max(1, int(shares * _sell_pct))
                         try:
                             _tp_price = round(max(0.01, mid * 0.97), 2)
-                            client.sell_shares(tok, _tp_sell, price=_tp_price)
-                            _tp_pnl = _tp_sell * (_tp_price - avg)
-                            mkt[shares_key] = shares - _tp_sell
-                            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _tp_sell * avg)
-                            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _tp_pnl
-                            mkt[_tp_key] = _tp_done + 1
-                            logger.info("PARTIAL TP T%d %s %s: sell %d/%d @ $%.3f (target $%.3f, x%.1f) pnl=$%.2f",
-                                        _tp_done + 1, cid[:8], side, _tp_sell, int(shares),
-                                        _tp_price, _tp_target, _mult, _tp_pnl)
-                            # Free roll hedge: only on LAST tier (T3)
-                            if _tp_done + 1 == len(_PARTIAL_TP_TIERS):
+                            _tp_r = client.sell_shares(tok, _tp_sell, price=_tp_price)
+                            _tp_sell_status = _tp_r.get("status", "") if isinstance(_tp_r, dict) else ""
+                            if _tp_sell_status != "matched":
+                                # Sell is pending on CLOB — do NOT reduce shares until fill confirmed
+                                mkt.setdefault("pending_sells", []).append({
+                                    "side": side, "shares": _tp_sell, "price": _tp_price,
+                                    "order_id": _tp_r.get("orderID", "") if isinstance(_tp_r, dict) else "",
+                                    "order_ts": time.time(), "type": "partial_tp",
+                                })
+                                logger.warning("PARTIAL TP PENDING %s %s: %d shares @ $%.3f — shares NOT reduced until fill confirmed (status=%s)",
+                                               cid[:8], side, _tp_sell, _tp_price, _tp_sell_status)
+                            else:
+                                _tp_pnl = _tp_sell * (_tp_price - avg)
+                                mkt[shares_key] = shares - _tp_sell
+                                mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _tp_sell * avg)
+                                mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _tp_pnl
+                                mkt[_tp_key] = _tp_done + 1
+                                logger.info("PARTIAL TP T%d %s %s: sell %d/%d @ $%.3f (target $%.3f, x%.1f) pnl=$%.2f",
+                                            _tp_done + 1, cid[:8], side, _tp_sell, int(shares),
+                                            _tp_price, _tp_target, _mult, _tp_pnl)
+                            # Free roll hedge: only on LAST tier (T3) — only if sell confirmed
+                            if _tp_sell_status == "matched" and _tp_done + 1 == len(_PARTIAL_TP_TIERS):
                                 _tte_exit = (end_ms - now_ms) / 1000 if end_ms > 0 else 999
                                 if _tte_exit > 60:
                                     _opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
@@ -2866,19 +3367,31 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                         # Aggressive taker: hit best bid (mid × 0.97) to guarantee fill
                         # Last 2-3s bots can move price — speed > price
                         _sell_price = round(max(0.01, mid * 0.97), 2)
-                        client.sell_shares(tok, _sell_shares, price=_sell_price)
-                        _pnl = _sell_shares * (_sell_price - avg)
-                        _remaining_cost = _keep * avg
-                        logger.info("PROFIT LOCK %s %s: sell %d/%d @ $%.2f | pnl=$%.2f | keep %d free (cost=$%.2f covered)",
-                                    cid[:8], side, _sell_shares, int(shares), _sell_price,
-                                    _pnl, int(_keep), _remaining_cost)
-                        mkt[shares_key] = _keep
-                        # FIX: reduce entry_cost so resolve_market PnL is correct
-                        _sold_cost = _sell_shares * avg
-                        mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
-                        mkt["cost_recovered"] = True  # remaining shares = free roll
-                        # Don't set RESOLVED — keep shares alive for resolution payout
+                        _pl_r = client.sell_shares(tok, _sell_shares, price=_sell_price)
+                        _pl_status = _pl_r.get("status", "") if isinstance(_pl_r, dict) else ""
+                        if _pl_status == "matched":
+                            _pnl = _sell_shares * (_sell_price - avg)
+                            _remaining_cost = _keep * avg
+                            logger.info("PROFIT LOCK %s %s: sell %d/%d @ $%.2f | pnl=$%.2f | keep %d free (cost=$%.2f covered)",
+                                        cid[:8], side, _sell_shares, int(shares), _sell_price,
+                                        _pnl, int(_keep), _remaining_cost)
+                            mkt[shares_key] = _keep
+                            # FIX: reduce entry_cost so resolve_market PnL is correct
+                            _sold_cost = _sell_shares * avg
+                            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
+                            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _pnl
+                            mkt["cost_recovered"] = True  # remaining shares = free roll
+                            # Don't set RESOLVED — keep shares alive for resolution payout
+                        else:
+                            # Sell is pending on CLOB — do NOT reduce shares until fill confirmed
+                            mkt.setdefault("pending_sells", []).append({
+                                "side": side, "shares": _sell_shares, "price": _sell_price,
+                                "order_id": _pl_r.get("orderID", "") if isinstance(_pl_r, dict) else "",
+                                "order_ts": time.time(), "type": "profit_lock",
+                            })
+                            logger.warning("PROFIT LOCK PENDING %s %s: %d shares @ $%.3f — shares NOT reduced until fill confirmed (status=%s)",
+                                           cid[:8], side, _sell_shares, _sell_price, _pl_status)
+                            continue  # don't proceed to hedge if sell not confirmed
                     except Exception as e:
                         logger.warning("Profit lock sell failed %s: %s", cid[:8], e)
                         continue
@@ -2916,18 +3429,29 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     if _shares_to_sell < 1:
                         continue
                     try:
-                        client.sell_shares(tok, _shares_to_sell, price=_sell_price)
-                        _recovered = _shares_to_sell * _sell_price
-                        _remaining = shares - _shares_to_sell
-                        logger.info("COST RECOVERY %s %s: sell %.0f/%.0f @ %.3f = $%.2f recovered | %.1f free shares",
-                                    cid[:8], side, _shares_to_sell, shares, _sell_price,
-                                    _recovered, _remaining)
-                        mkt[shares_key] = _remaining
-                        # FIX: reduce entry_cost so resolve_market PnL is correct
-                        _sold_cost = _shares_to_sell * avg
-                        mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
-                        mkt["cost_recovered"] = True
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _sold_cost)
+                        _cr_r = client.sell_shares(tok, _shares_to_sell, price=_sell_price)
+                        _cr_status = _cr_r.get("status", "") if isinstance(_cr_r, dict) else ""
+                        if _cr_status == "matched":
+                            _recovered = _shares_to_sell * _sell_price
+                            _remaining = shares - _shares_to_sell
+                            logger.info("COST RECOVERY %s %s: sell %.0f/%.0f @ %.3f = $%.2f recovered | %.1f free shares",
+                                        cid[:8], side, _shares_to_sell, shares, _sell_price,
+                                        _recovered, _remaining)
+                            mkt[shares_key] = _remaining
+                            # FIX: reduce entry_cost so resolve_market PnL is correct
+                            _sold_cost = _shares_to_sell * avg
+                            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - _sold_cost)
+                            mkt["cost_recovered"] = True
+                            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + (_recovered - _sold_cost)
+                        else:
+                            # Sell is pending on CLOB — do NOT reduce shares until fill confirmed
+                            mkt.setdefault("pending_sells", []).append({
+                                "side": side, "shares": _shares_to_sell, "price": _sell_price,
+                                "order_id": _cr_r.get("orderID", "") if isinstance(_cr_r, dict) else "",
+                                "order_ts": time.time(), "type": "cost_recovery",
+                            })
+                            logger.warning("COST RECOVERY PENDING %s %s: %d shares @ $%.3f — shares NOT reduced until fill confirmed (status=%s)",
+                                           cid[:8], side, _shares_to_sell, _sell_price, _cr_status)
                     except Exception as e:
                         logger.warning("Cost recovery sell failed %s: %s", cid[:8], e)
                     continue
@@ -2937,33 +3461,44 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if pnl_pct < -_EXIT_STOP_PCT:
                     try:
                         _sell_price = round(max(0.01, mid * 0.97), 2)
-                        client.sell_shares(tok, shares, price=_sell_price)
-                        _round_pnl = shares * (_sell_price - avg)
-                        mkt[shares_key] = 0
-                        mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
-                        mkt["rounds"] = mkt.get("rounds", 0) + 1
-                        mkt["last_sell_ts"] = int(time.time())
-                        _rd = mkt["rounds"]
-                        logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) pnl=$%.2f",
-                                    _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
-                        # Cancel remaining unfilled rungs (prevent DCA into losing position)
-                        try:
-                            _open_orders = client.get_orders(market=cid) if hasattr(client, "get_orders") else []
-                            for _oo in (_open_orders or []):
-                                _oid = _oo.get("id", "")
-                                if _oid:
-                                    client.client.cancel(order_id=_oid)
-                            if _open_orders:
-                                logger.info("SL CANCEL %s: cancelled %d remaining orders after stop loss",
-                                            cid[:8], len(_open_orders))
-                        except Exception as _ce:
-                            logger.warning("SL cancel remaining failed %s: %s", cid[:8], _ce)
-                        # Clear phased rungs to prevent DCA into stopped-out position
-                        mkt["phased_rungs"] = []
-                        mkt["pending_orders"] = []
-                        if _rd >= _MAX_ROUNDS:
-                            mkt["phase"] = "RESOLVED"
-                            mkt["early_exit"] = "stop_loss"
+                        _sl_r = client.sell_shares(tok, shares, price=_sell_price)
+                        _sl_status = _sl_r.get("status", "") if isinstance(_sl_r, dict) else ""
+                        if _sl_status == "matched":
+                            _round_pnl = shares * (_sell_price - avg)
+                            mkt[shares_key] = 0
+                            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + _round_pnl
+                            mkt["rounds"] = mkt.get("rounds", 0) + 1
+                            mkt["last_sell_ts"] = int(time.time())
+                            _rd = mkt["rounds"]
+                            logger.info("STOP LOSS R%d %s %s: sell %.1f @ %.3f (entry %.3f, %.0f%%) pnl=$%.2f",
+                                        _rd, cid[:8], side, shares, mid, avg, pnl_pct * 100, _round_pnl)
+                            # Cancel remaining unfilled rungs (prevent DCA into losing position)
+                            try:
+                                _open_orders = client.get_orders(market=cid) if hasattr(client, "get_orders") else []
+                                for _oo in (_open_orders or []):
+                                    _oid = _oo.get("id", "")
+                                    if _oid:
+                                        client.client.cancel(order_id=_oid)
+                                if _open_orders:
+                                    logger.info("SL CANCEL %s: cancelled %d remaining orders after stop loss",
+                                                cid[:8], len(_open_orders))
+                            except Exception as _ce:
+                                logger.warning("SL cancel remaining failed %s: %s", cid[:8], _ce)
+                            # Clear phased rungs to prevent DCA into stopped-out position
+                            mkt["phased_rungs"] = []
+                            mkt["pending_orders"] = []
+                            if _rd >= _MAX_ROUNDS:
+                                mkt["phase"] = "RESOLVED"
+                                mkt["early_exit"] = "stop_loss"
+                        else:
+                            # Sell is pending on CLOB — do NOT zero shares until fill confirmed
+                            mkt.setdefault("pending_sells", []).append({
+                                "side": side, "shares": shares, "price": _sell_price,
+                                "order_id": _sl_r.get("orderID", "") if isinstance(_sl_r, dict) else "",
+                                "order_ts": time.time(), "type": "stop_loss",
+                            })
+                            logger.warning("STOP LOSS PENDING %s %s: %.1f shares @ $%.3f — shares NOT reduced until fill confirmed (status=%s)",
+                                           cid[:8], side, shares, _sell_price, _sl_status)
                     except Exception as e:
                         logger.warning("Stop loss failed %s %s: %s", cid[:8], side, e)
 
@@ -3109,7 +3644,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if status == "matched":
                     outcome = r["outcome"]
                     price = r["price"]
-                    size = r["size"]
+                    size = r.get("size_matched", r["size"])
                     if outcome == "UP":
                         old = mkt["up_shares"] * mkt["up_avg_price"]
                         mkt["up_shares"] += size
@@ -3154,7 +3689,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         logger.debug("WS feeds: %s", " | ".join(_ws_status))
 
     # Resolutions
-    _check_resolutions(state)
+    _check_resolutions(state, client=client)
 
     # Periodic fill rate log (every heavy cycle)
     if is_heavy:
@@ -3308,6 +3843,7 @@ def main():
             from polymarket.exchange.polymarket_client import PolymarketClient
             client = PolymarketClient(dry_run=False)
             print("  CLOB: connected")
+            # ⚠️ DZ-9: Startup orphan cancel — does NOT check if orders were filled before cancelling. See docs/DANGER_ZONES.md
             # Startup safety: cancel OWN orphan orders only (not 1H bot's orders)
             try:
                 existing = client.get_orders()

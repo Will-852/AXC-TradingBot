@@ -64,9 +64,9 @@ def register_backtest_routes():
         return JSONResponse(content=data, status_code=code)
 
     @app.get('/api/backtest/aggtrades')
-    async def bt_aggtrades(symbol: str = '', days: str = ''):
+    async def bt_aggtrades(symbol: str = '', days: str = '', interval: str = '1h', features: str = 'delta,large,profile,heatmap,cvd'):
         bt = _get_bt()
-        qs = {'symbol': [symbol], 'days': [days]}
+        qs = {'symbol': [symbol], 'days': [days], 'interval': [interval], 'features': [features]}
         from nicegui import run
         code, data = await run.io_bound(bt.handle_bt_aggtrades, qs)
         return JSONResponse(content=data, status_code=code)

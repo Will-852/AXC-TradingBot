@@ -4184,6 +4184,9 @@ function scheduleLiveReconnect() {
 var liveOFWorker = null;
 var liveOFActive = false;
 
+// Worker path: /backtest.html (NiceGUI :5567) → /canvas/ prefix; /backtest (Flask :5566) → root
+var _workerBase = (location.pathname === '/backtest.html') ? '/canvas/' : '';
+
 var _AGG_BUCKET_DEFAULTS = {
   BTCUSDT: 50, ETHUSDT: 10, SOLUSDT: 1, XRPUSDT: 0.01, BNBUSDT: 2
 };
@@ -4211,7 +4214,7 @@ function startLiveOFWorker() {
   if (liveOFWorker) closeLiveOFWorker();
   var sym = document.getElementById('sel-symbol').value;
   var bkt = _AGG_BUCKET_DEFAULTS[sym] || 50;
-  liveOFWorker = new Worker('live-orderflow-worker.js');
+  liveOFWorker = new Worker(_workerBase + 'live-orderflow-worker.js');
   liveOFWorker.onmessage = handleOFMessage;
   liveOFWorker.onerror = function(e) { console.error('OF Worker error:', e); };
   liveOFWorker.postMessage({ type: 'start', symbol: sym, interval: currentInterval, bucketSize: bkt });
@@ -4357,7 +4360,7 @@ function toggleDepth() {
 function startDepthWorker() {
   if (depthWorker) closeDepthWorker();
   var sym = document.getElementById('sel-symbol').value;
-  depthWorker = new Worker('depth-worker.js');
+  depthWorker = new Worker(_workerBase + 'depth-worker.js');
   depthWorker.onmessage = handleDepthMessage;
   depthWorker.onerror = function(e) { console.error('Depth Worker error:', e); };
   depthWorker.postMessage({ type: 'start', symbol: sym });

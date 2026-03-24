@@ -28,13 +28,7 @@ def _get_cycle_status() -> dict:
 def render_polymarket_page():
     """Render the full Polymarket page content."""
 
-    # ── Per-market focused view (distinct-baguette style) ──
-    from scripts.dashboard_ng.components.poly_market_view import render_market_view
-    render_market_view()
-
-    ui.separator().classes('bg-gray-700 my-2')
-
-    # ── Aggregate view (existing) ──
+    # ── Aggregate view data (initialise early — used by both columns) ──
     poly_data = {'data': {}}
 
     def _fetch_data_api() -> dict:
@@ -286,7 +280,7 @@ def render_polymarket_page():
 
     ui.timer(0.5, refresh_auth, once=True)
 
-    # ── KPI row ──
+    # ── KPI row (market + wallet merged) ──
     with ui.row().classes('gap-3 flex-wrap'):
         kpi_labels = {}
         for key, label in [
@@ -296,9 +290,11 @@ def render_polymarket_page():
             ('positions_count', 'Positions'),
             ('total_exposure', 'Exposure'),
             ('exposure_pct', 'Exposure %'),
+            ('open_orders', 'Open Orders'),
+            ('total_trades', 'Total Trades'),
             ('last_updated', 'Last Updated'),
         ]:
-            with ui.card().classes('p-3 bg-gray-800 border border-gray-700 min-w-[120px]'):
+            with ui.card().classes('p-3 bg-gray-800 border border-gray-700 min-w-[100px]'):
                 ui.label(label).classes('text-[11px] text-gray-500 uppercase')
                 kpi_labels[key] = ui.label('—').classes('text-lg font-bold font-mono')
 
@@ -402,22 +398,19 @@ def render_polymarket_page():
         ui.button('Check Merge', icon='merge_type', on_click=check_merge).props('flat color=grey-6')
         ui.button('Refresh', icon='refresh', on_click=refresh).props('flat color=grey')
 
-    # ── Tabbed content (no scrolling needed) ──
-    with ui.tabs().classes('w-full').props('dense align=left active-color=indigo indicator-color=indigo') as tabs:
-        tab_live = ui.tab('Live', icon='account_balance_wallet')
-        tab_analytics = ui.tab('Analytics', icon='analytics')
-        tab_ops = ui.tab('Ops', icon='engineering')
+    # ── Split layout: Market (left) | Wallet (right) ──
+    with ui.row().classes('w-full gap-4 items-start'):
 
-    with ui.tab_panels(tabs, value=tab_live).classes('w-full'):
+        # ── LEFT: Per-market charts ──
+        with ui.column().classes('gap-2').style('flex: 55 1 0%; min-width: 0'):
+            from scripts.dashboard_ng.components.poly_market_view import render_market_view
+            render_market_view()
 
-        # ━━━ TAB: Live ━━━
-        with ui.tab_panel(tab_live):
-            # Live Wallet Monitor
-            ui.label('LIVE WALLET MONITOR').classes('text-xs text-gray-500 uppercase tracking-wide')
-            live_container = ui.column().classes('w-full gap-1')
-            live_ts = ui.label('').classes('text-[11px] text-gray-600 font-mono')
-
-            ui.separator().classes('bg-gray-700 my-2')
+        # ── RIGHT: Orders + Trades (sticky — stays visible while scrolling charts) ──
+        with ui.column().classes('gap-2').style('flex: 45 1 0%; min-width: 0; position: sticky; top: 0; align-self: flex-start'):
+            # Hidden containers for live data refresh (no visible wallet header — stats merged into KPI row)
+            live_container = ui.column().classes('hidden')
+            live_ts = ui.label('').classes('hidden')
 
             # Open Orders
             ui.label('OPEN ORDERS (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide')
@@ -425,7 +418,16 @@ def render_polymarket_page():
 
             # Recent Trades
             ui.label('RECENT TRADES (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
-            trades_container = ui.column().classes('w-full')
+            trades_container = ui.column().classes('w-full max-h-96 overflow-y-auto')
+
+    ui.separator().classes('bg-gray-700 my-2')
+
+    # ── Analytics / Ops tabs (full width, below split) ──
+    with ui.tabs().classes('w-full').props('dense align=left active-color=indigo indicator-color=indigo') as tabs:
+        tab_analytics = ui.tab('Analytics', icon='analytics')
+        tab_ops = ui.tab('Ops', icon='engineering')
+
+    with ui.tab_panels(tabs, value=tab_analytics).classes('w-full'):
 
         # ━━━ TAB: Analytics ━━━
         with ui.tab_panel(tab_analytics):
@@ -575,27 +577,16 @@ def render_polymarket_page():
         try:
             data = await run.io_bound(query_live)
         except Exception as e:
-            live_container.clear()
-            with live_container:
-                ui.label(f'CLOB error: {e}').classes('text-red-400 text-sm')
             return
-        live_container.clear()
-        with live_container:
-            if not data:
-                ui.label('Could not query CLOB').classes('text-gray-600 text-sm')
-                return
-            bal = data.get('balance', 0)
-            with ui.row().classes('items-center gap-4'):
-                with ui.column().classes('gap-0'):
-                    ui.label('USDC BALANCE').classes('text-[11px] text-gray-600 uppercase')
-                    ui.label(f'${bal:.2f}').classes('text-xl font-mono font-bold text-green-400')
-                with ui.column().classes('gap-0'):
-                    ui.label('OPEN ORDERS').classes('text-[11px] text-gray-600 uppercase')
-                    ui.label(str(data.get('open_orders', 0))).classes('text-xl font-mono font-bold')
-                with ui.column().classes('gap-0'):
-                    ui.label('TOTAL TRADES').classes('text-[11px] text-gray-600 uppercase')
-                    ui.label(str(data.get('total_trades', 0))).classes('text-xl font-mono font-bold')
-        live_ts.text = f'Live: {datetime.now().strftime("%H:%M:%S")} | {data.get("total_trades", 0)} trades | {data.get("open_orders", 0)} orders'
+        if not data:
+            return
+        # Update KPI cards with live wallet data
+        bal = data.get('balance', 0)
+        if isinstance(bal, (int, float)):
+            kpi_labels['usdc_balance'].text = f'${bal:.2f}'
+            poly_data['live'] = data  # store for update_all
+        kpi_labels['open_orders'].text = str(data.get('open_orders', 0))
+        kpi_labels['total_trades'].text = str(data.get('total_trades', 0))
 
     def _update_cycle_status(status: dict):
         cycle_container.clear()
@@ -634,16 +625,15 @@ def render_polymarket_page():
         proc_count_badge._props['color'] = 'green' if procs else 'grey'
         proc_count_badge.update()
 
-        # Update bot button states (green outline + uptime when running)
+        # Update bot button states (green outline when running, no uptime on button)
         for key, (start_b,) in bot_btns.items():
             matched = next((p for p in procs if key in p.get('cmd', '') or key in p.get('cmd_full', '')), None)
             base_name = start_b.text.split(' ⏱')[0]
             if matched:
                 start_b.props('color=green-8 outline')
-                start_b.text = f'{base_name} ⏱{matched["uptime"]}'
             else:
                 start_b.props('color=green-8')
-                start_b.text = base_name
+            start_b.text = base_name
 
         proc_container.clear()
         with proc_container:
@@ -653,7 +643,10 @@ def render_polymarket_page():
                 for p in procs:
                     with ui.row().classes('items-center gap-2 w-full py-0.5'):
                         ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[12px]')
-                        ui.label(f'⏱ {p["uptime"]}').classes('text-[12px] font-mono text-amber-400')
+                        # Show uptime only if meaningful (>1min)
+                        up = p['uptime'].strip()
+                        if up and up != '00:00' and not up.startswith('00:0'):
+                            ui.label(up).classes('text-[12px] font-mono text-amber-400')
                         ui.label(p['cmd']).classes('text-[12px] text-gray-400 font-mono truncate')
 
     ui.timer(5, refresh_live, once=True)
