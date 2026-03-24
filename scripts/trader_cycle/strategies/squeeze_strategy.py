@@ -182,6 +182,7 @@ class SqueezeStrategy(StrategyBase):
             direction=direction,
             strategy="squeeze",
             strength="MEDIUM" if confidence < 0.60 else "STRONG",
+            entry_price=price,
             confidence=confidence,
             score=score,
             reasons=reasons,

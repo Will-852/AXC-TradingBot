@@ -231,12 +231,14 @@ class SizePositionStep:
         sl_pct_actual = sl_distance / entry_price if entry_price > 0 else 0
         account_risk_pct = sl_pct_actual * leverage * margin_pct
 
-        # Kelly cap: if Kelly has data, scale down margin if over-betting
-        kelly_risk = compute_kelly_base_risk(ctx.market_mode)
+        # Kelly cap: use signal's own strategy mode for regime-specific Kelly
+        # (squeeze/burst have their own Kelly tracks, not tied to market_mode)
+        kelly_mode = signal.strategy.upper() if signal.strategy else ctx.market_mode
+        kelly_risk = compute_kelly_base_risk(kelly_mode)
         kelly_capped = False
         if kelly_risk == KELLY_NO_EDGE:
             ctx.warnings.append(
-                f"Kelly: no statistical edge in {ctx.market_mode} regime → signal blocked"
+                f"Kelly: no statistical edge in {kelly_mode} regime → signal blocked"
             )
             ctx.selected_signal = None
             return ctx
@@ -304,7 +306,7 @@ class SizePositionStep:
             tp1, tp2 = self._calc_trend_tp(signal, ind_4h, entry_price, sl_distance, ctx)
         elif signal.strategy == "crash":
             tp1, tp2 = self._calc_crash_tp(signal, ind_4h, entry_price, sl_distance, ctx)
-        elif signal.strategy in ("scalp", "squeeze"):
+        elif signal.strategy in ("scalp", "squeeze", "burst"):
             # Scalp / Squeeze: fixed ATR multiple for TP
             atr = ind_1h.get("atr") or ind_4h.get("atr", 0)
             tp_mult = params.tp_atr_mult or 3.0
