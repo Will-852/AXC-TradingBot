@@ -9,18 +9,23 @@ from scripts.dashboard_ng.state import get_data
 log = logging.getLogger('axc.positions')
 
 
-async def _close_position(symbol: str, platform: str):
-    """Market-close a position."""
+async def _close_position(symbol: str, platform: str,
+                          order_type: str = 'MARKET', limit_price: float = 0):
+    """Close a position via market or limit order."""
     _pos_dialog_open['value'] = True
     try:
         import json
         from scripts.dashboard.handlers import handle_close_position
-        payload = json.dumps({'symbol': symbol, 'platform': platform})
+        payload = json.dumps({
+            'symbol': symbol, 'platform': platform,
+            'order_type': order_type, 'limit_price': limit_price,
+        })
         result = await run.io_bound(handle_close_position, payload)
         if isinstance(result, tuple):
             status, data = result
             if status == 200:
-                ui.notify(f'Closed {symbol}', type='positive')
+                label = '市價' if order_type == 'MARKET' else f'限價 ${limit_price:,.1f}'
+                ui.notify(f'{label} 平倉 {symbol} 成功', type='positive')
             else:
                 ui.notify(f'Close failed: {data.get("error", "unknown")}', type='negative')
         elif isinstance(result, dict) and result.get('ok'):
@@ -150,19 +155,62 @@ def _render_position_card(pos: dict):
             with ui.row().classes('gap-2'):
                 ui.button('Modify', on_click=lambda p=pos: _show_modify_dialog(p)) \
                     .props('flat dense size=sm color=indigo')
-                async def _confirm_close(s=symbol, p=platform, pnl=pnl_val):
+                async def _confirm_close(s=symbol, p=platform, pnl=pnl_val, mk=mark, sd=side):
                     dlg = ui.dialog().props('persistent')
                     dlg.move()
-                    with dlg, ui.card().classes('p-4 min-w-[280px]'):
+                    with dlg, ui.card().classes('p-5 min-w-[340px]'):
                         ui.label(f'確認平倉 {s}？').classes('text-lg font-bold')
                         ui.label(f'PnL: ${pnl:+.2f}').classes('text-sm text-gray-400 mt-1')
+
+                        # Market / Limit toggle
+                        order_type = {'v': 'MARKET'}
+                        with ui.row().classes('mt-3 gap-2 items-center'):
+                            ui.label('落單方式').classes('text-xs text-gray-500')
+                            toggle = ui.toggle(
+                                {'MARKET': '市價 (Taker)', 'LIMIT': '限價 (Maker)'},
+                                value='MARKET',
+                            ).classes('text-xs')
+
+                        # Limit price input (hidden by default)
+                        mk_f = float(mk) if mk else 0
+                        # Default limit: best price for closing
+                        # LONG close = SELL → use bid (slightly below mark)
+                        # SHORT close = BUY → use ask (slightly above mark)
+                        default_limit = round(mk_f * (0.9999 if sd == 'LONG' else 1.0001), 1)
+                        limit_row = ui.row().classes('mt-2 items-center gap-2')
+                        limit_row.set_visibility(False)
+                        with limit_row:
+                            limit_input = ui.number(
+                                'Limit Price', value=default_limit,
+                                format='%.1f',
+                            ).classes('w-full')
+
+                        # Slippage warning (market only)
+                        warn_row = ui.row().classes('mt-2')
+                        with warn_row:
+                            ui.label('⚠️ 市價落單可能有滑點（~0.01-0.05%）') \
+                                .classes('text-xs text-amber-400')
+
+                        def _on_toggle(e):
+                            order_type['v'] = e.value
+                            limit_row.set_visibility(e.value == 'LIMIT')
+                            warn_row.set_visibility(e.value == 'MARKET')
+                        toggle.on_value_change(_on_toggle)
+
                         with ui.row().classes('gap-2 mt-4 justify-end'):
                             ui.button('Cancel', on_click=dlg.close).props('flat color=grey')
-                            ui.button('平倉', on_click=lambda: dlg.submit(True)) \
-                                .props('color=red')
-                    confirmed = await dlg
-                    if confirmed:
-                        await _close_position(s, p)
+                            ui.button('平倉', on_click=lambda: dlg.submit({
+                                'type': order_type['v'],
+                                'limit': limit_input.value,
+                            })).props('color=red')
+
+                    result = await dlg
+                    if result:
+                        await _close_position(
+                            s, p,
+                            order_type=result['type'],
+                            limit_price=float(result['limit'] or 0) if result['type'] == 'LIMIT' else 0,
+                        )
                 ui.button('Close', on_click=_confirm_close) \
                     .props('flat dense size=sm color=red')
 

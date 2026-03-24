@@ -191,7 +191,7 @@ def handle_set_trading(body):
 # ── Position / Order Actions ─────────────────────────────────────────
 
 def handle_close_position(body):
-    """POST /api/close-position — market close a position via dashboard."""
+    """POST /api/close-position — market or limit close a position via dashboard."""
     try:
         data = json.loads(body)
     except (json.JSONDecodeError, TypeError):
@@ -199,11 +199,18 @@ def handle_close_position(body):
 
     symbol = (data.get("symbol") or "").upper().strip()
     platform = (data.get("platform") or "").lower().strip()
+    order_type = (data.get("order_type") or "MARKET").upper().strip()
+    try:
+        limit_price = float(data.get("limit_price") or 0)
+    except (ValueError, TypeError):
+        limit_price = 0
 
     if not symbol or not symbol.endswith("USDT"):
         return 400, {"error": f"Invalid symbol: {symbol}"}
     if platform not in ("aster", "binance", "hyperliquid"):
         return 400, {"error": f"Invalid platform: {platform}"}
+    if order_type == "LIMIT" and limit_price <= 0:
+        return 400, {"error": "Limit 平倉需要提供價格"}
 
     client_fns = {
         "aster": _get_aster_client,
@@ -212,8 +219,21 @@ def handle_close_position(body):
     }
     try:
         client = client_fns[platform]()
-        result = client.close_position_market(symbol)
-        logging.info("Dashboard close-position: %s %s → %s", platform, symbol, result)
+        if order_type == "LIMIT":
+            positions = client.get_positions(symbol)
+            pos = next((p for p in positions if float(p.get("positionAmt", 0)) != 0), None)
+            if not pos:
+                return 400, {"error": f"{symbol} 無持倉"}
+            amt = float(pos["positionAmt"])
+            close_side = "SELL" if amt > 0 else "BUY"
+            result = client.create_limit_order(
+                symbol, close_side, abs(amt), limit_price, reduce_only=True
+            )
+            logging.info("Dashboard limit-close: %s %s @%.1f → %s",
+                         platform, symbol, limit_price, result)
+        else:
+            result = client.close_position_market(symbol)
+            logging.info("Dashboard market-close: %s %s → %s", platform, symbol, result)
         return 200, {"ok": True, "result": result}
     except Exception as e:
         logging.error("Dashboard close-position failed: %s %s → %s", platform, symbol, e)
