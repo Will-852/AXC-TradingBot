@@ -11,7 +11,7 @@ PROFILE = {
     "description":            "Zone B：高槓桿 (11-20x)，確定性高",
     "zone":                   "B",
     "trigger_pct":            0.020,   # 較敏感（高 confidence signal 唔應該等）
-    "margin_pct":             0.03,    # 3% account as margin per trade
+    "margin_pct":             0.25,    # 25% account as margin per trade ($30 account = $7.50/trade)
     "sl_pct_base":            0.006,   # 0.6% SL (BTC baseline, scaled by pair vol_mult)
     "tp_pct_base":            0.015,   # 1.5% TP (scaled by vol_mult, same as SL)
     "range_leverage":         18,      # Range 策略高槓桿
