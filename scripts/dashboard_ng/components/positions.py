@@ -185,12 +185,14 @@ def _render_position_card(pos: dict):
 
         # Hold Score — parsed + formatted as badge with factor tooltip
         hs = _parse_hold_score(hold_score_raw)
+        log.debug('hold_score raw type=%s, parsed=%s', type(hold_score_raw).__name__,
+                  'ok' if hs else 'FAIL')
         if hs and 'score' in hs:
             sc = float(hs['score'])
             color = ('green' if sc >= 8 else 'indigo' if sc >= 6
                      else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
             factors = hs.get('factors', [])
-            with ui.row().classes('mt-2 items-center gap-2'):
+            with ui.row().classes('mt-2 items-center gap-2 flex-wrap'):
                 ui.label('Hold Score').classes('text-xs text-gray-500')
                 badge = ui.badge(f'{sc:.1f}', color=color).classes('text-sm')
                 if factors:
@@ -205,6 +207,11 @@ def _render_position_card(pos: dict):
                     f_color = 'green' if f_sc >= 7 else 'amber' if f_sc >= 4 else 'red'
                     ui.badge(f"{f.get('name', '?')} {f_sc:.0f}", color=f_color) \
                         .classes('text-xs').props('outline')
+        elif hold_score_raw is not None:
+            # Fallback: show score label even if parse fails (for debugging)
+            with ui.row().classes('mt-2 items-center gap-2'):
+                ui.label('Hold Score').classes('text-xs text-gray-500')
+                ui.label('Parse error — check logs').classes('text-xs text-red-400')
 
 
 _pos_dialog_open = {'value': False}
