@@ -156,6 +156,7 @@ def render_strategy_matrix():
         ui.label('STRATEGY MATRIX').classes(SECTION_HEADER)
 
         strategies = ["range", "trend", "crash", "squeeze", "burst"]
+        strategy_labels = {"range": "Range", "trend": "Trend", "crash": "Crash", "squeeze": "Sqz", "burst": "Burst"}
         coins = ["btc", "eth", "sol", "xrp"]
 
         with ui.element('div').classes('mt-2 overflow-x-auto'):
@@ -163,9 +164,9 @@ def render_strategy_matrix():
             with ui.row().classes('gap-0 items-center'):
                 ui.label('').classes('min-w-[45px]')  # corner cell
                 for s in strategies:
-                    ui.label(s[:3].upper()).classes(
+                    ui.label(strategy_labels[s]).classes(
                         f'text-[9px] font-bold text-[{TEXT_MUTED}] '
-                        f'w-[42px] text-center uppercase tracking-wider'
+                        f'w-[48px] text-center uppercase tracking-wider'
                     )
 
             # Coin rows
@@ -185,11 +186,11 @@ def render_strategy_matrix():
                         enabled = cfg.get(s, {}).get("enabled", False)
                         if enabled:
                             ui.label('●').classes(
-                                f'w-[42px] text-center text-[14px] text-[{GREEN}]'
+                                f'w-[48px] text-center text-[14px] text-[{GREEN}]'
                             )
                         else:
                             ui.label('○').classes(
-                                f'w-[42px] text-center text-[14px] text-[{TEXT_MUTED}]/30'
+                                f'w-[48px] text-center text-[14px] text-[{TEXT_MUTED}]/30'
                             )
 
 
@@ -199,12 +200,12 @@ def render_strategy_matrix():
 
 def render_signal_journal():
     """Latest signals from signal_journal.jsonl."""
-    card = ui.card().classes(f'{CARD_DARK} flex-1 min-w-[400px]')
+    card = ui.card().classes(f'{CARD_DARK} w-full')
     with card:
         with ui.row().classes('items-center gap-2'):
             ui.label('SIGNAL JOURNAL').classes(SECTION_HEADER)
             count_label = ui.label('').classes(f'text-[10px] text-[{TEXT_MUTED}]')
-        container = ui.column().classes('gap-1 mt-2 w-full max-h-[300px] overflow-y-auto')
+        container = ui.column().classes('gap-1 mt-2 w-full max-h-[250px] overflow-y-auto')
 
         def update():
             entries = _read_journal_tail(8)
@@ -341,11 +342,12 @@ def render_strategy_pnl():
 
 def render_strategy_panels():
     """Render all 4 strategy panels as a new dashboard section."""
-    # Row A: Squeeze status + Strategy matrix
-    with ui.row().classes('gap-2 w-full items-start'):
+    # Row A: Squeeze status + Strategy matrix + PnL
+    with ui.row().classes('gap-2 w-full items-stretch'):
         render_squeeze_status()
         render_strategy_matrix()
         render_strategy_pnl()
 
     # Row B: Signal journal (full width)
-    render_signal_journal()
+    with ui.row().classes('gap-2 w-full'):
+        render_signal_journal()
