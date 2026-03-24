@@ -138,6 +138,7 @@ def _normalize_kline(data: dict) -> dict:
         "v": k["v"],
         "q": k["q"],
         "n": str(k["n"]),  # trade count
+        "V": k.get("V", "0"),  # taker buy base volume (for buy/sell imbalance)
         "is_closed": "1" if k["x"] else "0",
         "open_time": str(k["t"]),
         "close_time": str(k["T"]),

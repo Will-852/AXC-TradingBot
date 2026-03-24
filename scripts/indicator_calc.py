@@ -351,6 +351,8 @@ def calc_indicators(df: pd.DataFrame, params: dict) -> dict:
         "z_robust": safe_val(z_robust, i),
         # BB Width Percentile (0-100)
         "bb_width_pctl": safe_val(bb_width_pctl, i),
+        # Previous candle close (for burst strategy price_change calc)
+        "prev_close": safe_val(close, i - 1) if len(df) >= 2 else None,
     }
     return result
 

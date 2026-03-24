@@ -52,10 +52,12 @@ from scripts.indicator_calc import (
 )
 from scripts.shared_infra.redis_bus import (
     STREAM_KLINES,
+    STREAM_VOL_TRIGGER,
     ensure_group,
     is_available as redis_available,
     xreadgroup,
     xack,
+    xadd,
 )
 from scripts.shared_infra.telegram import send_telegram
 
@@ -121,6 +123,17 @@ _stats = {
     "errors": 0,
 }
 
+# ── Volume trigger state ─────────────────────────
+VOL_PROJECTION_THRESHOLD = 5.0    # projected vol_ratio > 5x → trigger
+VOL_PROJECTION_MIN_ELAPSED = 0.30  # 至少 30% candle 過咗先計算（reduce noise）
+
+# Per-symbol squeeze readiness (updated on every 1H close)
+_squeeze_ready: dict[str, bool] = {}
+
+# Per-symbol volume projection state (for open kline monitoring)
+# {symbol: {open_time: int, triggered: bool}}
+_vol_projection_state: dict[str, dict] = {}
+
 
 def _handle_signal(signum, frame):
     global _shutdown
@@ -150,6 +163,120 @@ def _calc_volume_ratio(df: pd.DataFrame) -> float:
         current_vol = df["volume"].iloc[-1]
         return round(current_vol / avg_vol, 6) if avg_vol > 0 else 1.0
     return 1.0
+
+
+def _update_squeeze_ready(symbol: str) -> None:
+    """Update squeeze readiness from latest 1H indicators.
+
+    Squeeze ready = bb_width_pctl < 30 AND adx < 25.
+    Called on every 1H kline close.
+    """
+    ind_1h = _indicators.get(symbol, {}).get("1h", {})
+    bb_pctl = ind_1h.get("bb_width_pctl")
+    adx = ind_1h.get("adx")
+
+    volume_ratio = ind_1h.get("volume_ratio")
+    ready = (
+        (bb_pctl is not None and bb_pctl < 30.0)
+        and (adx is None or adx < 25.0)
+        and (volume_ratio is None or volume_ratio < 0.80)
+    )
+    prev = _squeeze_ready.get(symbol, False)
+    _squeeze_ready[symbol] = ready
+
+    if ready != prev:
+        logger.info("Squeeze ready %s → %s for %s (pctl=%.1f adx=%s)",
+                     prev, ready, symbol,
+                     bb_pctl if bb_pctl is not None else -1,
+                     f"{adx:.1f}" if adx is not None else "N/A")
+
+
+def _monitor_volume_projection(symbol: str, kline: dict) -> None:
+    """Monitor open kline volume for early spike detection.
+
+    Called on every open (is_closed=0) 1H kline update.
+    Projects full-candle volume ratio from partial data.
+    If projected > threshold AND squeeze_ready → emit trigger.
+
+    設計決定：
+    - 只 monitor 1H（3m 太 noisy, 15m 可能漏, 4H 太慢）
+    - elapsed < 30% 唔計算（early noise）
+    - 每個 candle 每個 symbol 最多 trigger 1 次（debounce）
+    """
+    try:
+        open_time = int(kline.get("open_time", 0))
+        close_time = int(kline.get("close_time", 0))
+        current_vol = float(kline.get("v", 0))
+    except (ValueError, TypeError):
+        return
+
+    if close_time <= open_time or current_vol <= 0:
+        return
+
+    # Debounce: check if already triggered for this candle
+    state = _vol_projection_state.get(symbol, {})
+    if state.get("open_time") == open_time and state.get("triggered"):
+        return
+
+    # Reset state if new candle
+    if state.get("open_time") != open_time:
+        _vol_projection_state[symbol] = {"open_time": open_time, "triggered": False}
+
+    # Calculate elapsed percentage
+    now_ms = int(time.time() * 1000)
+    candle_duration = close_time - open_time
+    if candle_duration <= 0:
+        return
+    elapsed_pct = min((now_ms - open_time) / candle_duration, 1.0)
+
+    if elapsed_pct < VOL_PROJECTION_MIN_ELAPSED:
+        return  # Too early — projection unreliable
+
+    # Get avg volume from rolling DataFrame
+    sym_dfs = _dataframes.get(symbol, {})
+    df_1h = sym_dfs.get("1h")
+    if df_1h is None or len(df_1h) < 30:
+        return
+    avg_vol = df_1h["volume"].tail(30).mean()
+    if avg_vol <= 0:
+        return
+
+    # Project full-candle volume ratio
+    projected = (current_vol / elapsed_pct) / avg_vol
+
+    if projected < VOL_PROJECTION_THRESHOLD:
+        return
+
+    # Check squeeze readiness
+    if not _squeeze_ready.get(symbol, False):
+        return
+
+    # ── Trigger! ──
+    _vol_projection_state[symbol]["triggered"] = True
+
+    # Determine direction from price movement
+    try:
+        price = float(kline.get("c", 0))
+        open_price = float(kline.get("o", 0))
+        direction = "LONG" if price > open_price else "SHORT"
+    except (ValueError, TypeError):
+        direction = "UNKNOWN"
+
+    trigger_data = {
+        "symbol": symbol,
+        "projected_ratio": f"{projected:.2f}",
+        "elapsed_pct": f"{elapsed_pct:.2f}",
+        "direction": direction,
+        "squeeze_ready": "1",
+        "ts": str(int(time.time())),
+    }
+
+    xadd(STREAM_VOL_TRIGGER, trigger_data)
+
+    logger.info(
+        "VOL TRIGGER %s: projected=%.1fx elapsed=%.0f%% dir=%s squeeze=ready",
+        symbol, projected, elapsed_pct * 100, direction,
+    )
 
 
 def _calc_indicators_for(symbol: str, timeframe: str) -> dict | None:
@@ -367,7 +494,7 @@ def _append_kline_to_df(symbol: str, tf: str, kline: dict) -> None:
         "close_time": int(kline["close_time"]),
         "quote_volume": float(kline.get("q", 0)),
         "trades": int(kline.get("n", 0)),
-        "taker_buy_volume": 0.0,
+        "taker_buy_volume": float(kline.get("V", 0)),
         "taker_buy_quote_volume": 0.0,
         "ignore": 0,
         "timestamp": pd.to_datetime(int(kline["open_time"]), unit="ms"),
@@ -407,6 +534,10 @@ def _process_kline_close(symbol: str, tf: str, kline: dict) -> None:
     if symbol == REGIME_ANCHOR and tf in ("4h", "1h"):
         global _macro
         _macro = _calc_macro()
+
+    # Update squeeze readiness on 1H close (for volume trigger)
+    if tf == "1h":
+        _update_squeeze_ready(symbol)
 
     _stats["klines_processed"] += 1
     _write_cache()
@@ -453,10 +584,18 @@ async def _redis_consumer_loop() -> None:
             interval = fields.get("interval", "")
             raw_symbol = fields.get("symbol", "").lower()
 
-            # Only process coins we're tracking
-            if is_closed and interval in TIMEFRAMES and raw_symbol in _SYMBOLS_LOWER:
-                symbol = _SYMBOL_MAP[raw_symbol]
+            if raw_symbol not in _SYMBOLS_LOWER:
+                xack(STREAM_KLINES, GROUP, entry_id)
+                continue
+
+            symbol = _SYMBOL_MAP[raw_symbol]
+
+            if is_closed and interval in TIMEFRAMES:
+                # Full indicator recalc on candle close
                 _process_kline_close(symbol, interval, fields)
+            elif not is_closed and interval == "1h":
+                # Open 1H kline → volume projection monitor
+                _monitor_volume_projection(symbol, fields)
 
             xack(STREAM_KLINES, GROUP, entry_id)
 

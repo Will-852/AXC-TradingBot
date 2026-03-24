@@ -1,15 +1,8 @@
 """
-bt_burst_strategy.py — XRP Burst Strategy for backtest.
+burst_strategy.py — Volume Burst Strategy (Production)
 
-設計決定：
-  XRP 嘅特性係長期 range-bound 但間中有 volume spike burst。
-  傳統 range/trend 策略喺 XRP 上表現差，因為：
-  - Range：XRP 嘅 range 太闊、breakout 太突然
-  - Trend：XRP trend 持續時間短
-
-  Burst strategy 專門捕捉 volume spike 帶動嘅短期 momentum：
-  - LONG：volume burst + price up + OBV 確認 → ride the spike
-  - SHORT：volume burst + price down + 做空回調
+捕捉 volume spike 帶動嘅短期 momentum。同 squeeze strategy 共享 signal module
+但觸發條件完全唔同：squeeze 等壓縮後爆發，burst 捉即時 volume spike。
 
 觸發條件（全部要 pass）：
   1. volume_ratio > 2.5（30-candle avg 嘅 2.5 倍）
@@ -20,24 +13,25 @@ bt_burst_strategy.py — XRP Burst Strategy for backtest.
 安全網：
   - 4H cooldown（4 個 1H candle）after each burst signal
   - Confidence cap at 0.80
-  - SHORT only when price_change_1h < -2%（唔亂做空）
+
+SL = 1.5 × ATR, R:R = 2.0 → BE = 33%
+
+Origin: backtest/strategies/bt_burst_strategy.py — 搬入 production，
+保持 signal parity。
 """
 
 from __future__ import annotations
 
-import os
-import sys
+import logging
+import time
 
-_AXC = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
-_scripts = os.path.join(_AXC, "scripts")
-if _scripts not in sys.path:
-    sys.path.insert(0, _scripts)
-
-from trader_cycle.strategies.base import StrategyBase, PositionParams
-from trader_cycle.core.context import CycleContext, Signal
+from ..core.context import CycleContext, Signal
+from .base import StrategyBase, PositionParams
 
 from signals.volume import score_volume_spike
 from signals.obv import score_obv_confirmation
+
+log = logging.getLogger(__name__)
 
 # ── Thresholds ──
 VOLUME_RATIO_MIN = 2.5        # minimum volume spike (× 30-candle avg)
@@ -45,7 +39,7 @@ VOLUME_SPIKE_CEILING = 5.0    # full score at 5x (decoupled from VOLUME_RATIO_MI
 PRICE_CHANGE_MIN = 0.02       # minimum |price change| (2%)
 CONFIDENCE_CAP = 0.80         # max confidence output
 CONFIDENCE_THRESHOLD = 0.30   # min confidence to emit signal
-BURST_COOLDOWN_CANDLES = 4    # internal cooldown (4H on 1H clock)
+BURST_COOLDOWN_SECONDS = 4 * 3600  # 4 hours (= 4 × 1H candles, time-based for production)
 
 # ── Sub-score weights (sum = 1.0) ──
 W_VOLUME = 0.40    # volume spike strength
@@ -61,8 +55,8 @@ def _score_momentum(price_change_pct: float) -> float:
     return min((abs_change - PRICE_CHANGE_MIN) / 0.04, 1.0)
 
 
-class BTBurstStrategy(StrategyBase):
-    """XRP volume-burst strategy for backtest.
+class BurstStrategy(StrategyBase):
+    """Volume-burst strategy for production.
 
     Detects volume spikes with price momentum and OBV confirmation.
     Emits LONG on upward bursts, SHORT on downward bursts.
@@ -70,41 +64,19 @@ class BTBurstStrategy(StrategyBase):
     """
 
     name = "burst"
-    mode = "BURST"  # doesn't map to any real mode — always penalized by mode affinity
+    mode = "BURST"
     required_timeframes = ["1h"]
 
-    def __init__(
-        self,
-        entry_overrides: dict | None = None,
-        position_overrides: dict | None = None,
-    ):
-        self._entry = entry_overrides or {}
-        self._pos = position_overrides or {}
-        # Internal cooldown counter (decremented each candle by engine caller)
-        self._cooldown_remaining = 0
-
-    @property
-    def vol_min(self) -> float:
-        return self._entry.get("volume_min", VOLUME_RATIO_MIN)
-
-    @property
-    def price_change_min(self) -> float:
-        return self._entry.get("price_change_min", PRICE_CHANGE_MIN)
-
-    @property
-    def cooldown(self) -> int:
-        return self._entry.get("cooldown", BURST_COOLDOWN_CANDLES)
-
-    def tick_cooldown(self):
-        """Called each candle by engine to decrement internal burst cooldown."""
-        if self._cooldown_remaining > 0:
-            self._cooldown_remaining -= 1
+    def __init__(self):
+        # Per-symbol cooldown: {symbol: cooldown_expiry_timestamp}
+        self._cooldowns: dict[str, float] = {}
 
     def evaluate(
         self, pair: str, indicators: dict[str, dict], ctx: CycleContext,
     ) -> Signal | None:
-        # ── Internal cooldown check ──
-        if self._cooldown_remaining > 0:
+        # ── Time-based cooldown check (per-symbol) ──
+        now = time.time()
+        if self._cooldowns.get(pair, 0) > now:
             return None
 
         # ── Safety: skip during HIGH volatility regime (crash conditions) ──
@@ -123,20 +95,17 @@ class BTBurstStrategy(StrategyBase):
         if price is None or price <= 0:
             return None
 
-        # ── Compute price change from close vs previous close ──
-        # Use rolling_high/low and price to approximate 1H change
-        # Engine provides prev_close if available, otherwise use BB basis as proxy
+        # ── Price change from prev_close ──
         prev_close = ind_1h.get("prev_close")
         if prev_close is None or prev_close <= 0:
-            # Fallback: can't compute price change without prev_close
             return None
 
         price_change_pct = (price - prev_close) / prev_close
 
         # ── Hard gates (ALL must pass) ──
-        if volume_ratio < self.vol_min:
+        if volume_ratio < VOLUME_RATIO_MIN:
             return None
-        if abs(price_change_pct) < self.price_change_min:
+        if abs(price_change_pct) < PRICE_CHANGE_MIN:
             return None
 
         # ── Direction from price change ──
@@ -145,10 +114,12 @@ class BTBurstStrategy(StrategyBase):
         # ── OBV confirmation gate (shared signal module) ──
         obv_score = score_obv_confirmation(obv, obv_ema, direction)
         if obv_score <= 0:
-            return None  # OBV must confirm direction
+            return None
 
         # ── Confidence scoring ──
-        vol_score = score_volume_spike(volume_ratio, floor=self.vol_min, ceiling=VOLUME_SPIKE_CEILING)
+        vol_score = score_volume_spike(
+            volume_ratio, floor=VOLUME_RATIO_MIN, ceiling=VOLUME_SPIKE_CEILING,
+        )
         mom_score = _score_momentum(price_change_pct)
 
         confidence = W_VOLUME * vol_score + W_MOMENTUM * mom_score + W_OBV * obv_score
@@ -157,8 +128,8 @@ class BTBurstStrategy(StrategyBase):
         if confidence < CONFIDENCE_THRESHOLD:
             return None
 
-        # ── Activate burst cooldown ──
-        self._cooldown_remaining = self.cooldown
+        # ── Activate burst cooldown (time-based, per-symbol) ──
+        self._cooldowns[pair] = time.time() + BURST_COOLDOWN_SECONDS
 
         strength = "STRONG" if confidence >= 0.6 else "WEAK"
         score = 3.0 + confidence * 2.0  # 3.0-5.0 range
@@ -181,10 +152,9 @@ class BTBurstStrategy(StrategyBase):
         )
 
     def get_position_params(self) -> PositionParams:
-        """Burst trades: tight SL (1.5 ATR), moderate leverage, quick TP."""
         return PositionParams(
-            risk_pct=self._pos.get("risk_pct", 0.02),
-            leverage=self._pos.get("leverage", 5),
-            sl_atr_mult=self._pos.get("sl_atr_mult", 1.5),
-            min_rr=self._pos.get("min_rr", 2.0),
+            risk_pct=0.02,
+            leverage=5,
+            sl_atr_mult=1.5,
+            min_rr=2.0,
         )

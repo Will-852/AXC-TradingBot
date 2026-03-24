@@ -167,6 +167,9 @@ class CycleContext:
     available_margin: float = 0.0
     margin_utilization_pct: float = 0.0  # aggregate margin / balance (for dashboard + validator)
 
+    # ─── Volume Triggers (from indicator_engine event-driven detection) ───
+    vol_triggers: list[dict] = field(default_factory=list)
+
     # ─── Strategy ───
     signals: list[Signal] = field(default_factory=list)
     selected_signal: Signal | None = None

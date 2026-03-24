@@ -35,6 +35,9 @@ from ..config.settings import PRIMARY_TIMEFRAME, SECONDARY_TIMEFRAME
 from ..core.context import CycleContext, Signal
 from .base import StrategyBase, PositionParams
 
+from signals.squeeze import detect_squeeze
+from signals.obv import detect_obv_divergence
+
 log = logging.getLogger(__name__)
 
 # ─── Weights ───
@@ -51,44 +54,11 @@ ADX_LOW_THRESHOLD = 25.0      # ADX < 25 (was 20, too strict)
 VOL_QUIET_THRESHOLD = 0.80    # volume_ratio < 0.8 (was 0.7, too strict)
 
 # ─── Session bonus/penalty (per-coin from config) ───
-# 360d backtest finding: BTC/ETH profit in NON-US, SOL profit in US.
-# Per-coin session_preference in coin config determines bonus direction.
-# "non_us" = bonus for ASIA/EU, "us" = bonus for US_PRE/US_OPEN
 SESSION_BONUS = 0.10
 OBV_DIVERGENCE_BONUS = 0.05
 
 _US_SESSIONS = {"US_PRE", "US_OPEN"}
 _NON_US_SESSIONS = {"ASIA", "EU_OPEN"}
-
-
-def _score_bb_squeeze(bb_width_pctl: float | None) -> float:
-    """Score based on BB width percentile. Lower = tighter squeeze = higher score."""
-    if bb_width_pctl is None:
-        return 0.0
-    if bb_width_pctl >= BB_PCTL_SQUEEZE:
-        return 0.0  # Not in squeeze
-    # Linear: pctl=0 → 1.0, pctl=20 → 0.0
-    return 1.0 - (bb_width_pctl / BB_PCTL_SQUEEZE)
-
-
-def _score_adx_low(adx: float | None) -> float:
-    """Score based on ADX. Lower = less directional energy = higher score."""
-    if adx is None:
-        return 0.0
-    if adx >= ADX_LOW_THRESHOLD:
-        return 0.0
-    # Linear: adx=0 → 1.0, adx=20 → 0.0
-    return 1.0 - (adx / ADX_LOW_THRESHOLD)
-
-
-def _score_vol_quiet(volume_ratio: float | None) -> float:
-    """Score based on volume quietness. Lower ratio = quieter = higher score."""
-    if volume_ratio is None:
-        return 0.0
-    if volume_ratio >= VOL_QUIET_THRESHOLD:
-        return 0.0
-    # Linear: vol=0 → 1.0, vol=0.7 → 0.0
-    return 1.0 - (volume_ratio / VOL_QUIET_THRESHOLD)
 
 
 def _score_bb_break(
@@ -141,28 +111,28 @@ class SqueezeStrategy(StrategyBase):
         if price is None or bb_upper is None or bb_lower is None:
             return None
 
-        # ─── Gate: must be in squeeze (BB percentile < 30%) ───
-        if bb_width_pctl is not None and bb_width_pctl >= BB_PCTL_SQUEEZE:
-            return None  # Not in squeeze — skip
+        # ─── Squeeze detection (shared signal module) ───
+        # Note: production uses current snapshot only (lookback=0).
+        # bt_squeeze.py ADJUSTED uses lookback=3 for research — intentional difference.
+        sqz = detect_squeeze(
+            bb_width_pctl, adx, volume_ratio,
+            bb_pctl_max=BB_PCTL_SQUEEZE,
+            adx_max=ADX_LOW_THRESHOLD,
+            vol_ratio_max=VOL_QUIET_THRESHOLD,
+        )
+        if not sqz.is_squeeze:
+            return None
 
-        # ─── Gate: ADX must be low (< 20) ───
-        if adx is not None and adx >= ADX_LOW_THRESHOLD:
-            return None  # Too much directional energy — not a squeeze
-
-        # ─── Sub-scores ───
-        bb_pctl_score = _score_bb_squeeze(bb_width_pctl)
-        adx_score = _score_adx_low(adx)
-        vol_score = _score_vol_quiet(volume_ratio)
+        # ─── BB breakout (squeeze-specific — not in signal module) ───
         break_score, direction = _score_bb_break(price, bb_upper, bb_lower, bb_width)
-
         if not direction:
             return None  # No breakout — price still inside bands
 
-        # ─── Weighted confidence ───
+        # ─── Weighted confidence (reuse scores from detect_squeeze) ───
         confidence = (
-            W_BB_PCTL * bb_pctl_score
-            + W_ADX_LOW * adx_score
-            + W_VOL_QUIET * vol_score
+            W_BB_PCTL * sqz.bb_pctl_score
+            + W_ADX_LOW * sqz.adx_score
+            + W_VOL_QUIET * sqz.vol_quiet_score
             + W_BB_BREAK * break_score
         )
 
@@ -183,18 +153,14 @@ class SqueezeStrategy(StrategyBase):
             confidence += SESSION_BONUS
             reasons.append(f"US_SESSION +{SESSION_BONUS}")
 
-        # OBV divergence: OBV already moving while price is flat
-        if obv is not None and obv_ema is not None:
-            if direction == "LONG" and obv > obv_ema:
-                confidence += OBV_DIVERGENCE_BONUS
-                reasons.append(f"OBV_DIV +{OBV_DIVERGENCE_BONUS}")
-            elif direction == "SHORT" and obv < obv_ema:
-                confidence += OBV_DIVERGENCE_BONUS
-                reasons.append(f"OBV_DIV +{OBV_DIVERGENCE_BONUS}")
+        # OBV divergence (shared signal module)
+        if detect_obv_divergence(obv, obv_ema, direction):
+            confidence += OBV_DIVERGENCE_BONUS
+            reasons.append(f"OBV_DIV +{OBV_DIVERGENCE_BONUS}")
 
         # ─── 4H confirmation: check 4H also shows squeeze ───
         bb_pctl_4h = ind_4h.get("bb_width_pctl")
-        if bb_pctl_4h is not None and bb_pctl_4h < 30.0:
+        if bb_pctl_4h is not None and bb_pctl_4h < BB_PCTL_SQUEEZE:
             confidence += 0.05  # Multi-TF squeeze confirmation
             reasons.append("4H_SQUEEZE +0.05")
 
@@ -205,7 +171,7 @@ class SqueezeStrategy(StrategyBase):
         confidence = min(confidence, 1.0)
 
         # Build score from sub-components
-        score = bb_pctl_score + adx_score + vol_score + break_score
+        score = sqz.composite_score + break_score
 
         reasons.insert(0,
             f"SQZ: pctl={bb_width_pctl or 0:.0f}% adx={adx or 0:.1f} vol={volume_ratio or 0:.2f}"

@@ -31,10 +31,12 @@ __all__ = [
     "xack",
     "stream_len",
     "stream_info",
+    "get_redis",
     # Stream keys
     "STREAM_KLINES",
     "STREAM_TICKER",
     "STREAM_POLL",
+    "STREAM_VOL_TRIGGER",
 ]
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ logger = logging.getLogger(__name__)
 STREAM_KLINES = "market:klines"
 STREAM_TICKER = "market:ticker"
 STREAM_POLL = "market:poll"
+STREAM_VOL_TRIGGER = "market:vol_trigger"
 
 # ── Config ───────────────────────────────────────────────────
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
@@ -54,6 +57,7 @@ DEFAULT_MAXLEN: dict[str, int] = {
     STREAM_KLINES: 10_000,
     STREAM_TICKER: 1_000,
     STREAM_POLL: 5_000,
+    STREAM_VOL_TRIGGER: 100,
 }
 
 # ── Connection pool (lazy singleton) ─────────────────────────
@@ -84,6 +88,11 @@ def get_pool() -> redis.ConnectionPool:
 def _client() -> redis.Redis:
     """Get a Redis client from the pool."""
     return redis.Redis(connection_pool=get_pool())
+
+
+def get_redis() -> redis.Redis:
+    """Public accessor for a Redis client from the pool."""
+    return _client()
 
 
 # ── Health ───────────────────────────────────────────────────

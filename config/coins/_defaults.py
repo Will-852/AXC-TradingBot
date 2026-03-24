@@ -74,6 +74,10 @@ COIN_DEFAULTS = {
             "enabled": False,     # Opt-in: new/untested strategy, explicitly enable per coin
             "conf_gate": 0.40,
         },
+        "burst": {
+            "enabled": False,     # Opt-in: volume spike strategy, explicitly enable per coin
+            "conf_gate": 0.30,
+        },
     },
 
     # ─── Session preference (squeeze strategy) ───

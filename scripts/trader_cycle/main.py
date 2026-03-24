@@ -45,6 +45,7 @@ from trader_cycle.core.registry import StrategyRegistry
 from trader_cycle.state.scan_config import read_scan_config, write_scan_config
 from trader_cycle.state.trade_state import read_trade_state
 from trader_cycle.exchange.market_data import FetchMarketDataStep, CalcIndicatorsStep
+from trader_cycle.exchange.vol_trigger import CheckVolTriggersStep
 from trader_cycle.exchange.position_sync import CheckPositionsStep
 from trader_cycle.exchange.execute_trade import ExecuteTradeStep
 from trader_cycle.strategies.mode_detector import DetectModeStep
@@ -52,6 +53,7 @@ from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
 from trader_cycle.strategies.squeeze_strategy import SqueezeStrategy
+from trader_cycle.strategies.burst_strategy import BurstStrategy
 from trader_cycle.strategies.evaluate import EvaluateSignalsStep, SelectSignalStep
 from trader_cycle.strategies.signal_filter import SignalFilterStep
 from trader_cycle.risk.risk_manager import SafetyCheckStep, NoTradeCheckStep, ManagePositionsStep
@@ -437,6 +439,7 @@ def register_strategies() -> None:
     StrategyRegistry.register(TrendStrategy())
     StrategyRegistry.register(CrashStrategy())
     StrategyRegistry.register(SqueezeStrategy())
+    StrategyRegistry.register(BurstStrategy())
 
 
 def build_pipeline() -> Pipeline:
@@ -477,6 +480,7 @@ def build_pipeline() -> Pipeline:
     pipeline.add_step(CalcIndicatorsStep())     # 4
     pipeline.add_step(ReadSentimentStep())      # 4.5 — news sentiment overlay
     pipeline.add_step(LiqSignalStep())          # 4.6 — liquidation event detection
+    pipeline.add_step(CheckVolTriggersStep())   # 4.7 — event-driven volume spike triggers
     pipeline.add_step(DetectModeStep())         # 5
     pipeline.add_step(SelectRiskProfileStep())  # 5.5 — vol regime → risk profile
     pipeline.add_step(NoTradeCheckStep())       # 6
