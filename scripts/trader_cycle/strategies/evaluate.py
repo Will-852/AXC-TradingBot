@@ -111,6 +111,11 @@ class EvaluateSignalsStep:
                                 break
 
                     ctx.signals.append(signal)
+
+                    # Log full context snapshot for counterfactual analysis
+                    from trader_cycle.state.signal_journal import log_signal_snapshot
+                    log_signal_snapshot(signal, ctx)
+
                     if ctx.verbose:
                         print(
                             f"    {symbol}: {signal.direction} {signal.strength} "
