@@ -1454,6 +1454,8 @@
 
 <!-- KLineChart v10 CDN -->
 <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
+<!-- Footprint IndexedDB cache — persist flow/vol data across TF switches -->
+<script src="fp-cache.js"></script>
 
 <script>
 // ══════════════════════════════════════════════════
@@ -1589,6 +1591,10 @@ function initChart() {
         tickText: { color: '#d1d4dc', size: 11 }
       },
       yAxis: {
+        // ⚠️ 2CHECK: 移到左邊避免被 OB panel 遮住。VP (Volume Profile) 用 custom canvas draw
+        //    從 chart 左邊開始畫，可能同 left y-axis labels 輕微重疊 — 視覺上可接受
+        //    因為 VP bars 有 opacity + y-axis text 喺 axis area 唔喺 chart area。
+        position: 'left',
         axisLine: { color: '#2a2e39' },
         tickLine: { color: '#2a2e39' },
         tickText: { color: '#787b86' }
@@ -1765,11 +1771,19 @@ function _pollAggtrades(jobId, myVersion, elapsed) {
 
       // Done — data contains the full result
       _showFpLoading(false);
+      // ⚠️ 2CHECK (BUG FIX): 如果 live flow worker 跑緊，歷史 fetch 唔應該覆蓋 live 嘅 current candle。
+      //    Strategy: 歷史數據做 base，live worker 嘅 current candle data 保留。
+      // Load historical data as base
       footprintData.delta_volume = data.delta_volume || {};
       footprintData.large_trades = data.large_trades || [];
       footprintData.volume_profile = data.volume_profile || [];
       footprintData.heatmap = data.heatmap || {};
       footprintData.cvd = data.cvd || {};
+      if (liveOFActive) {
+        // Reset VP base so live worker re-snapshots from fresh historical data.
+        // Next VP message from worker will create a new _vpHistBase snapshot.
+        delete footprintData._vpHistBase;
+      }
       fpFetched = true;
       fpLoading = false;
 
@@ -1793,6 +1807,11 @@ function _pollAggtrades(jobId, myVersion, elapsed) {
             match: deltaKeys.indexOf(firstTs) >= 0
           });
         }
+      }
+
+      // ── Save to IndexedDB cache for instant restore on next TF switch ──
+      if (_fpCacheSaveSymbol && _fpCacheSaveInterval) {
+        FPCache.put(_fpCacheSaveSymbol, _fpCacheSaveInterval, footprintData);
       }
 
       var msg = 'AggTrades 載入完成 (' + (data.elapsed || '?') + 's, ' + (footprintData.large_trades.length) + ' whale trades)';
@@ -1828,6 +1847,60 @@ function _onFpError(myVersion, e) {
   } else {
     showToast('AggTrades 載入失敗: ' + errMsg, 'error');
   }
+}
+
+/**
+ * Try restoring footprint data from IndexedDB cache.
+ * If cache hit: immediately populate footprintData + apply active toggles.
+ * Then optionally trigger background refresh.
+ * ⚠️ 2CHECK: race condition — 如果 cache restore 返嚟之前用戶又轉 TF，
+ *    _fpCacheSaveInterval 已經變咗，要 check 一致性。
+ */
+function _tryRestoreFromCache(symbol, interval) {
+  // Only restore if any toggle is active (user expects to see something)
+  var anyActive = Object.keys(fpActive).some(function(k) { return fpActive[k]; });
+  if (!anyActive) return;
+
+  FPCache.get(symbol, interval).then(function(result) {
+    // Stale check: user may have switched again while we were reading IndexedDB
+    if (_fpCacheSaveSymbol !== symbol || _fpCacheSaveInterval !== interval) return;
+    if (!result) {
+      // No cache → trigger fresh fetch if toggles active
+      fetchFootprintData();
+      return;
+    }
+    var cached = result.data;
+    var ageMs = result.ageMs || Infinity;
+    // Shape validation — corrupt cache should not crash the app
+    if (typeof cached.delta_volume !== 'object' || !Array.isArray(cached.volume_profile)) {
+      console.warn('[FPCache] Corrupt cache entry, skipping restore');
+      fetchFootprintData();
+      return;
+    }
+    // Restore from cache
+    footprintData.delta_volume = cached.delta_volume || {};
+    footprintData.large_trades = cached.large_trades || [];
+    footprintData.volume_profile = cached.volume_profile || [];
+    footprintData.heatmap = cached.heatmap || {};
+    footprintData.cvd = cached.cvd || {};
+    fpFetched = true;
+    console.log('[FPCache] Restored', symbol + ':' + interval,
+      '— delta:', Object.keys(cached.delta_volume || {}).length,
+      'vp:', (cached.volume_profile || []).length,
+      'age:', Math.round(ageMs / 1000) + 's');
+    // Apply all active toggles
+    Object.keys(fpActive).forEach(function(f) {
+      if (fpActive[f]) applyFootprintFeature(f);
+    });
+    showToast('Flow 數據已從 cache 恢復', 'info');
+    // Background refresh: skip if cache is fresh (< 5 min), otherwise re-fetch
+    var FRESH_THRESHOLD_MS = 5 * 60 * 1000;  // 5 minutes
+    if (ageMs > FRESH_THRESHOLD_MS) {
+      fetchFootprintData();
+    } else {
+      console.log('[FPCache] Cache fresh (' + Math.round(ageMs/1000) + 's), skipping background refresh');
+    }
+  });
 }
 
 function applyFootprintFeature(feature) {
@@ -1878,20 +1951,30 @@ function clearLargeTradeMarkers() {
   largeTradeOverlays = [];
 }
 
+// ⚠️ 2CHECK: _fpCacheSaveSymbol/_fpCacheSaveInterval 必須喺 loadKlines() 入面
+//    call resetFootprintData() 之前已經 set 好，否則 cache 存錯 key。
+var _fpCacheSaveSymbol = '';
+var _fpCacheSaveInterval = '';
+
 function resetFootprintData() {
   fpLoading = false;
   _showFpLoading(false);
+
+  // ── Cache: save current data before clearing (if we have meaningful data) ──
+  // ⚠️ 2CHECK: 只喺 fpFetched=true 時存 cache，避免存空數據覆蓋好嘅 cache。
+  if (fpFetched && _fpCacheSaveSymbol && _fpCacheSaveInterval) {
+    FPCache.put(_fpCacheSaveSymbol, _fpCacheSaveInterval, footprintData);
+  }
+
   clearLargeTradeMarkers();
   ['AXC_DELTA','AXC_VP','AXC_HEATMAP','AXC_CVD'].forEach(function(name) {
     if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
   });
   footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {}, cvd: {} };
   fpFetched = false;
-  fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
+  // ── Preserve fpActive toggles — user expectation: switches stay ON across TF change ──
+  // Only clear toggle state when explicitly requested (e.g. error)
   _syncFpToggleStyle();
-  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
-  var volBtn = document.querySelector('.vol-preset-btn');
-  if (volBtn) volBtn.classList.remove('active');
 }
 
 function toggleFpMode() {
@@ -2167,6 +2250,79 @@ function registerBackendIndicators() {
     }
   });
 
+  // ── Custom VOL with delta coloring ──
+  // Built-in VOL colors by candle direction (green up / red down).
+  // AXC_VOL colors by NET DELTA when footprint data available:
+  //   positive delta (more buying) = teal, negative = red.
+  //   Fallback: candle direction when no footprint data.
+  // ⚠️ 2CHECK: styles callback 需要 return object with 'color' key (唔係 'upColor'/'downColor')
+  klinecharts.registerIndicator({
+    name: 'AXC_VOL',
+    shortName: 'VOL',
+    calcParams: [5, 10, 20],
+    figures: [
+      {
+        key: 'vol',
+        title: 'VOLUME: ',
+        type: 'bar',
+        baseValue: 0,
+        styles: function(data) {
+          var d = data.current;
+          var defaultUp = 'rgba(38, 166, 154, 0.55)';
+          var defaultDown = 'rgba(239, 83, 80, 0.55)';
+          // Try delta coloring from footprint data
+          // KLineChart v9: data = {current, prev, next}, current = {kLineData, indicatorData}
+          var kd = d && d.indicatorData;
+          if (kd && kd._hasDelta) {
+            return { color: kd._deltaPos ? defaultUp : defaultDown };
+          }
+          // Fallback: candle direction
+          if (d && d.kLineData) {
+            var isUp = d.kLineData.close >= d.kLineData.open;
+            return { color: isUp ? defaultUp : defaultDown };
+          }
+          return { color: 'rgba(120, 123, 134, 0.35)' };
+        }
+      },
+      { key: 'ma5', title: 'MA5: ', type: 'line' },
+      { key: 'ma10', title: 'MA10: ', type: 'line' },
+      { key: 'ma20', title: 'MA20: ', type: 'line' }
+    ],
+    calc: function(dataList, indicator) {
+      var params = indicator.calcParams || [5, 10, 20];
+      var volumes = dataList.map(function(d) { return d.volume || 0; });
+      // Pre-calc MA sums
+      var sums = params.map(function() { return 0; });
+      return dataList.map(function(d, i) {
+        var result = { vol: d.volume || 0 };
+        // Delta coloring flag
+        var dv = footprintData.delta_volume[String(d.timestamp)];
+        if (dv) {
+          result._hasDelta = true;
+          result._deltaPos = (dv.delta_usd || dv.delta || 0) >= 0;
+        } else {
+          result._hasDelta = false;
+        }
+        // Moving averages
+        params.forEach(function(p, pi) {
+          sums[pi] += volumes[i];
+          if (i >= p) sums[pi] -= volumes[i - p];
+          if (i >= p - 1) {
+            result['ma' + p] = sums[pi] / p;
+          }
+        });
+        return result;
+      });
+    },
+    styles: {
+      lines: [
+        { style: 'solid', smooth: false, size: 1, color: '#FFAB40' },
+        { style: 'solid', smooth: false, size: 1, color: '#AB47BC' },
+        { style: 'dashed', smooth: false, size: 1, dashedValue: [3, 3], color: '#42A5F5' }
+      ]
+    }
+  });
+
   // ── Delta Volume bar (sub-pane) ──
   klinecharts.registerIndicator({
     name: 'AXC_DELTA',
@@ -2203,7 +2359,10 @@ function registerBackendIndicators() {
       vp.forEach(function(v) { if (v && v.total_vol > maxVol) maxVol = v.total_vol; });
       if (maxVol === 0) return false;
 
-      var maxBarWidth = bounding.width * 0.15;  // narrower to not block candles
+      // ⚠️ 2CHECK: VP 移到右邊（y-axis 已移左），加寬到 25%。
+      //    如果 OB panel 開緊（520px wide），VP 可能被遮 — 但 OB 係 fixed overlay，
+      //    chart canvas 唔知 OB 存在。可接受：VP 喺 canvas 右邊，OB overlay 可能蓋住部分。
+      var maxBarWidth = bounding.width * 0.25;
       var bucketSize = vp.length > 1 ? Math.abs(vp[1].price - vp[0].price) : 50;
 
       // Find POC (Point of Control = highest volume level)
@@ -2228,16 +2387,17 @@ function registerBackendIndicators() {
       // High-Volume Nodes threshold (top 15% = supply/demand zones)
       var hvnThreshold = maxVol * 0.55;
 
-      // Draw Value Area background band (yellow tint across full chart width)
+      // Draw Value Area background band (Phase 7: stronger visibility)
       var vaTopY = yAxis.convertToPixel(vp[vaHigh].price + bucketSize);
       var vaBotY = yAxis.convertToPixel(vp[vaLow].price);
       if (vaTopY != null && vaBotY != null && !isNaN(vaTopY) && !isNaN(vaBotY)) {
-        ctx.fillStyle = 'rgba(255,193,7,0.06)';
+        // VA fill — increased opacity for visibility
+        ctx.fillStyle = 'rgba(255,193,7,0.10)';
         ctx.fillRect(bounding.left, Math.min(vaTopY, vaBotY), bounding.width, Math.abs(vaBotY - vaTopY));
-        // Value Area border lines
-        ctx.strokeStyle = 'rgba(255,193,7,0.25)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        // VA border lines — stronger, slightly thicker
+        ctx.strokeStyle = 'rgba(255,193,7,0.40)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 3]);
         ctx.beginPath();
         ctx.moveTo(bounding.left, vaTopY);
         ctx.lineTo(bounding.left + bounding.width, vaTopY);
@@ -2245,9 +2405,16 @@ function registerBackendIndicators() {
         ctx.lineTo(bounding.left + bounding.width, vaBotY);
         ctx.stroke();
         ctx.setLineDash([]);
+        // VAH/VAL labels
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = 'rgba(255,193,7,0.65)';
+        ctx.textAlign = 'left';
+        ctx.fillText('VAH', bounding.left + 4, vaTopY - 3);
+        ctx.fillText('VAL', bounding.left + 4, vaBotY + 10);
       }
 
-      // Draw VP bars (left-side, blue=buy, yellow=sell)
+      // Draw VP bars (RIGHT-side, buy=blue, sell=yellow, right-aligned)
+      var chartRight = bounding.left + bounding.width;
       vp.forEach(function(v, i) {
         if (!v || typeof v.total_vol !== 'number') return;
         var y1 = yAxis.convertToPixel(v.price + bucketSize);
@@ -2261,62 +2428,66 @@ function registerBackendIndicators() {
         var sellW = (v.sell_vol / maxVol) * maxBarWidth;
         var totalW = buyW + sellW;
         var isInVA = (i >= vaLow && i <= vaHigh);
-        var alphaBase = isInVA ? 0.45 : 0.20;
+        var alphaBase = isInVA ? 0.50 : 0.22;
 
-        // Left-side: sell (yellow) first, then buy (blue) stacked right
-        var xStart = bounding.left + 2;
+        // Right-aligned: bars grow leftward from chart right edge
+        var xEnd = chartRight - 2;
 
-        // Sell bar (yellow/orange)
-        ctx.fillStyle = 'rgba(255,193,7,' + alphaBase.toFixed(2) + ')';
-        ctx.fillRect(xStart, yTop, sellW, barH);
-
-        // Buy bar (blue)
+        // Buy bar (blue) — rightmost
         ctx.fillStyle = 'rgba(66,133,244,' + alphaBase.toFixed(2) + ')';
-        ctx.fillRect(xStart + sellW, yTop, buyW, barH);
+        ctx.fillRect(xEnd - buyW, yTop, buyW, barH);
 
-        // POC highlight — red accent bar + extended line
+        // Sell bar (yellow/orange) — left of buy
+        ctx.fillStyle = 'rgba(255,193,7,' + alphaBase.toFixed(2) + ')';
+        ctx.fillRect(xEnd - buyW - sellW, yTop, sellW, barH);
+
+        // ── POC highlight (Phase 7: enhanced) ──
         if (i === pocIdx) {
-          // Red highlight on the bar
-          ctx.fillStyle = 'rgba(239,83,80,0.30)';
-          ctx.fillRect(xStart, yTop, totalW, barH);
-          // POC line across chart
+          // Bright red accent on the bar
+          ctx.fillStyle = 'rgba(239,83,80,0.40)';
+          ctx.fillRect(xEnd - totalW, yTop, totalW, barH);
+          // POC line across chart — SOLID, thicker, brighter
           var pocY = yTop + barH / 2;
-          ctx.strokeStyle = 'rgba(239,83,80,0.50)';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([6, 3]);
+          ctx.strokeStyle = 'rgba(239,83,80,0.75)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([]);  // solid line (was dashed)
           ctx.beginPath();
-          ctx.moveTo(xStart + totalW + 4, pocY);
-          ctx.lineTo(bounding.left + bounding.width, pocY);
+          ctx.moveTo(bounding.left, pocY);
+          ctx.lineTo(xEnd - totalW - 4, pocY);
           ctx.stroke();
-          ctx.setLineDash([]);
-          // POC label
-          ctx.fillStyle = 'rgba(239,83,80,0.85)';
-          ctx.font = 'bold 10px sans-serif';
-          ctx.fillText('POC', xStart + totalW + 6, pocY + 3);
+          // POC label — larger, positioned left of bars
+          ctx.fillStyle = 'rgba(239,83,80,0.90)';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'right';
+          ctx.fillText('POC', xEnd - totalW - 8, pocY + 4);
+          ctx.textAlign = 'left';
         }
 
         // Volume text on bar when bar is wide enough
         if (totalW > 40 && barH > 10) {
           ctx.font = '9px sans-serif';
           ctx.textBaseline = 'middle';
+          ctx.textAlign = 'right';
+          ctx.fillStyle = 'rgba(209,212,220,0.80)';
+          ctx.fillText(_fmtVolShort(v.total_vol), xEnd - totalW - 3, yTop + barH / 2);
           ctx.textAlign = 'left';
-          ctx.fillStyle = 'rgba(209,212,220,0.75)';
-          ctx.fillText(_fmtVolShort(v.total_vol), xStart + totalW + 3, yTop + barH / 2);
+          ctx.textBaseline = 'alphabetic';
         }
 
         // High-Volume Node (HVN) = supply/demand zone — horizontal band
         if (v.total_vol >= hvnThreshold && i !== pocIdx) {
           var hvnColor = v.buy_vol > v.sell_vol
-            ? 'rgba(66,133,244,0.06)'   // demand zone (buy dominant)
-            : 'rgba(239,83,80,0.06)';   // supply zone (sell dominant)
+            ? 'rgba(66,133,244,0.08)'   // demand zone (buy dominant)
+            : 'rgba(239,83,80,0.08)';   // supply zone (sell dominant)
           ctx.fillStyle = hvnColor;
-          ctx.fillRect(xStart + totalW, yTop, bounding.width - totalW - 4, barH);
+          ctx.fillRect(bounding.left, yTop, bounding.width - totalW - 4, barH);
         }
       });
 
-      // Legend — offset below OHLCV crosshair area to avoid overlap
+      // Legend — positioned left of VP bars to avoid overlap
+      ctx.textBaseline = 'alphabetic';
       ctx.font = '9px sans-serif';
-      var lx = bounding.left + 4, ly = bounding.top + 36;
+      var lx = chartRight - maxBarWidth - 150, ly = bounding.top + 18;
       ctx.fillStyle = 'rgba(66,133,244,0.6)';
       ctx.fillRect(lx, ly - 8, 8, 8);
       ctx.fillStyle = 'rgba(66,133,244,0.8)';
@@ -2327,7 +2498,7 @@ function registerBackendIndicators() {
       ctx.fillText('Sell', lx + 50, ly);
       ctx.fillStyle = 'rgba(239,83,80,0.7)';
       ctx.fillText('POC', lx + 80, ly);
-      ctx.fillStyle = 'rgba(255,193,7,0.5)';
+      ctx.fillStyle = 'rgba(255,193,7,0.6)';
       ctx.fillText('VA', lx + 108, ly);
 
       return false;  // don't suppress candles
@@ -2717,10 +2888,13 @@ function loadKlines(symbol, days, cb, interval, errCb) {
         };
       }));
       currentInterval = interval;
-      // Add built-in VOL sub-pane (volume bars per kline, TradingView style)
+      // Add custom VOL sub-pane with delta coloring (replaces built-in VOL)
+      // ⚠️ 2CHECK: AXC_VOL 用 footprintData.delta_volume 做色，
+      //    初始冇 footprint data 時 fallback 到 candle direction。
+      //    Cache restore / fetch 完成後 VOL bars 會自動更新（因為 calc 每次 repaint 都讀 footprintData）。
       if (!indicatorPaneIds['VOL']) {
         try {
-          var volPaneId = mainChart.createIndicator('VOL', false, {
+          var volPaneId = mainChart.createIndicator('AXC_VOL', false, {
             height: 80,
             minHeight: 30,
             dragEnabled: true,
@@ -2728,30 +2902,19 @@ function loadKlines(symbol, days, cb, interval, errCb) {
           });
           if (volPaneId) {
             indicatorPaneIds['VOL'] = volPaneId;
-            mainChart.overrideIndicator({
-              name: 'VOL',
-              calcParams: [5, 10, 20],
-              styles: {
-                bars: [{
-                  style: 'fill',
-                  borderSize: 0,
-                  upColor: 'rgba(38, 166, 154, 0.45)',
-                  downColor: 'rgba(239, 83, 80, 0.45)',
-                  noChangeColor: 'rgba(120, 123, 134, 0.35)'
-                }],
-                lines: [
-                  { style: 'solid', smooth: false, size: 1, color: '#FFAB40' },
-                  { style: 'solid', smooth: false, size: 1, color: '#AB47BC' },
-                  { style: 'dashed', smooth: false, size: 1, dashedValue: [3, 3], color: '#42A5F5' }
-                ]
-              }
-            }, volPaneId);
           }
         } catch(e) { console.warn('VOL indicator failed:', e); }
       }
       setState('LOADED', {symbol: symbol, interval: interval});
-      // Reset footprint data on chart reload (symbol/interval/days changed)
+      // ── Cache: save old data under OLD keys, then switch to new keys ──
+      // resetFootprintData() reads _fpCacheSaveSymbol/Interval to know WHERE to save.
+      // On first load both are '' → fpFetched is false → put() is skipped. Safe.
       resetFootprintData();
+      // Now point keys to NEW symbol/interval for subsequent saves + restore
+      _fpCacheSaveSymbol = symbol;
+      _fpCacheSaveInterval = interval;
+      // ── Cache restore: try loading cached data for new symbol:interval ──
+      _tryRestoreFromCache(symbol, interval);
       // Gate indicators for non-1h intervals
       gateIndicators(interval);
       if (cb) cb(candles);
@@ -3673,13 +3836,20 @@ function onIntervalChange() {
       if (currentTrades.length) drawTradeMarkers(currentTrades);
       // Reconnect live WS after chart reloaded with new interval
       if (liveWs) { closeLiveWs(); connectLiveWs(true); }
+      // ⚠️ 2CHECK (BUG FIX): Restart flow worker with new interval
+      //    之前 interval change 唔 restart worker → 舊 interval bucket timestamps 唔對齊新 chart
+      if (liveOFActive) startLiveOFWorker();
     }, interval);
   } else if (liveWs) {
     // No chart data but live active — reload history then reconnect WS
     var sym2 = document.getElementById('sel-symbol').value;
     var days2 = parseInt(daysEl.value) || 3;
     closeLiveWs();
-    loadKlines(sym2, days2, function() { connectLiveWs(true); }, interval);
+    loadKlines(sym2, days2, function() {
+      connectLiveWs(true);
+      // ⚠️ 2CHECK (BUG FIX): Same restart for this path
+      if (liveOFActive) startLiveOFWorker();
+    }, interval);
   }
 }
 
@@ -4670,6 +4840,8 @@ window.addEventListener('DOMContentLoaded', function() {
   checkConnection();
   renderTemplateMenu();
   setTimeout(showOnboarding, 1000);
+  // Cleanup expired IndexedDB cache entries
+  FPCache.cleanup();
 });
 
 // ── Resize handling ──
