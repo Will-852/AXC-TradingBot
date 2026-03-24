@@ -162,14 +162,15 @@ TP_EXTEND_RSI_LONG_MAX = 75        # RSI still room for LONG
 TP_EXTEND_RSI_SHORT_MIN = 25       # RSI still room for SHORT
 TP_EXTEND_ATR_MULT = 1.0           # extend TP by 1×ATR
 TP_PROXIMITY_PCT = 0.003           # 0.3% = near TP
-REENTRY_COOLDOWN_CYCLES = 3        # 3 cycles ≈ 1.5h
+REENTRY_COOLDOWN_CYCLES = 3        # DEPRECATED — kept for profile loader compat
+REENTRY_COOLDOWN_SEC = 5400        # 1.5h wall-clock (replaces cycle-based cooldown)
 
 # ─── Telegram ───
 TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
 TG_CHAT_ID = "2060972655"
 
 # ─── Silent Mode ───
-SILENT_MODE_THRESHOLD_CYCLES = 2  # 2 consecutive NO SIGNAL → silent
+SILENT_MODE_THRESHOLD_CYCLES = 15  # 15 × 120s = 30min before silent (was 2 at 900s interval)
 
 # ─── SCAN_CONFIG Writer Fields (trader-cycle owns these) ───
 TRADER_OWNED_FIELDS = [

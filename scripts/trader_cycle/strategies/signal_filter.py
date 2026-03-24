@@ -27,6 +27,7 @@ from config.params import (
     SIGNAL_MODE_AFFINITY,
     SIGNAL_MODE_DEFAULT_PENALTY,
     SIGNAL_PERSISTENCE,
+    SIGNAL_PERSISTENCE_SEC,
     SIGNAL_COOLDOWN_HOURS,
 )
 from config.coins.loader import get_conf_gate as _coin_conf_gate
@@ -151,28 +152,44 @@ class SignalFilterStep:
 
             signal.confidence = max(adj_conf, 0.0)
 
-            # ── 4. Persistence check ──
-            threshold = SIGNAL_PERSISTENCE.get(signal.strategy, 0)
-            if threshold > 1:
+            # ── 4. Persistence check (time-based) ──
+            min_sec = SIGNAL_PERSISTENCE_SEC.get(signal.strategy, 0)
+            if min_sec > 0:
                 key = signal.pair
                 ps = persist_state.get(key, {})
+                now_iso = ctx.timestamp.astimezone(timezone.utc).isoformat()
+
                 if (ps.get("strategy") == signal.strategy
                         and ps.get("direction") == signal.direction):
-                    ps["count"] = ps.get("count", 0) + 1
+                    # Same signal — check if enough time has elapsed
+                    first_seen = ps.get("first_seen_ts", now_iso)
+                    try:
+                        first_dt = datetime.fromisoformat(first_seen)
+                        elapsed = (ctx.timestamp.astimezone(timezone.utc) - first_dt).total_seconds()
+                    except (ValueError, TypeError):
+                        elapsed = 0
+                        first_seen = now_iso
+
+                    ps["first_seen_ts"] = first_seen
                 else:
+                    # New signal — reset timer
                     ps = {"strategy": signal.strategy,
-                          "direction": signal.direction, "count": 1}
+                          "direction": signal.direction,
+                          "first_seen_ts": now_iso}
+                    elapsed = 0
+
                 persist_state[key] = ps
 
-                if ps["count"] < threshold:
+                if elapsed < min_sec:
                     if ctx.verbose:
                         log.info(
-                            "PERSIST_WAIT %s %s %s: %d/%d",
+                            "PERSIST_WAIT %s %s %s: %.0fs / %ds",
                             signal.pair, signal.direction, signal.strategy,
-                            ps["count"], threshold,
+                            elapsed, min_sec,
                         )
                     continue
-                ps["count"] = 0
+                # Passed — reset for next round
+                ps["first_seen_ts"] = now_iso
 
             filtered.append(signal)
 

@@ -44,6 +44,7 @@ from ..config.settings import (
     TP_EXTEND_ATR_MULT,
     TP_PROXIMITY_PCT,
     REENTRY_COOLDOWN_CYCLES,
+    REENTRY_COOLDOWN_SEC,
     REGIME_ADJUST_ENABLED,
     REGIME_ATR_EXPAND_THRESHOLD,
     REGIME_ATR_CONTRACT_THRESHOLD,
@@ -531,7 +532,7 @@ class AdjustPositionsStep:
                 f"<b>Early Exit</b> [{pos.pair} {pos.direction}]\n"
                 f"PnL: {pos.unrealized_pnl:.2f}\n"
                 f"Reason: {exit_reason}\n"
-                f"Re-entry eligible: {REENTRY_COOLDOWN_CYCLES} cycles"
+                f"Re-entry eligible: {REENTRY_COOLDOWN_SEC // 60}min cooldown"
             )
         except Exception as e:
             ctx.errors.append(f"EarlyExit [{pos.pair}]: close failed: {e}")
@@ -551,30 +552,51 @@ class AdjustPositionsStep:
         if ctx.dry_run:
             return
 
-        # Cross-cycle persistence via TRADE_STATE
+        # Cross-cycle persistence via TRADE_STATE (time-based cooldown)
         ctx.trade_state_updates.update({
             "REENTRY_ELIGIBLE": "YES",
             "REENTRY_PAIR": pos.pair,
             "REENTRY_DIRECTION": pos.direction,
             "REENTRY_ORIGINAL_ENTRY": str(pos.entry_price),
             "REENTRY_EXIT_TIME": ctx.timestamp_str,
-            "REENTRY_CYCLES_REMAINING": str(REENTRY_COOLDOWN_CYCLES),
+            "REENTRY_COOLDOWN_SEC": str(REENTRY_COOLDOWN_SEC),
+            "REENTRY_CYCLES_REMAINING": "0",  # deprecated, kept for compat
         })
 
         if ctx.verbose:
             print(
-                f"    ReEntry [{pos.pair}]: eligible for {REENTRY_COOLDOWN_CYCLES} cycles "
+                f"    ReEntry [{pos.pair}]: eligible for {REENTRY_COOLDOWN_SEC}s "
                 f"(direction={pos.direction})"
             )
 
     def _load_reentry_state(self, ctx: CycleContext) -> None:
-        """Load re-entry state from TRADE_STATE for cross-cycle persistence."""
+        """Load re-entry state from TRADE_STATE — time-based cooldown."""
         ts = ctx.trade_state
         if ts.get("REENTRY_ELIGIBLE") != "YES":
             return
 
-        cycles_remaining = _parse_int(ts.get("REENTRY_CYCLES_REMAINING", 0))
-        if cycles_remaining <= 0:
+        # Time-based expiry: compare wall clock against exit time
+        exit_time_str = ts.get("REENTRY_EXIT_TIME", "")
+        cooldown_sec = _parse_int(ts.get("REENTRY_COOLDOWN_SEC", REENTRY_COOLDOWN_SEC))
+        expired = False
+
+        if exit_time_str and exit_time_str != "—":
+            try:
+                from datetime import datetime as _dt
+                exit_time = _dt.strptime(str(exit_time_str), "%Y-%m-%d %H:%M")
+                exit_time = exit_time.replace(tzinfo=ctx.timestamp.tzinfo)
+                elapsed = (ctx.timestamp - exit_time).total_seconds()
+                if elapsed >= cooldown_sec:
+                    expired = True
+                remaining_sec = max(0, cooldown_sec - elapsed)
+            except (ValueError, TypeError):
+                expired = True  # can't parse → treat as expired
+                remaining_sec = 0
+        else:
+            expired = True
+            remaining_sec = 0
+
+        if expired:
             # Expired — clear re-entry state (skip in DRY_RUN to avoid state pollution)
             if not ctx.dry_run:
                 ctx.trade_state_updates.update({
@@ -583,25 +605,20 @@ class AdjustPositionsStep:
                     "REENTRY_DIRECTION": "—",
                     "REENTRY_ORIGINAL_ENTRY": "0",
                     "REENTRY_EXIT_TIME": "—",
+                    "REENTRY_COOLDOWN_SEC": "0",
                     "REENTRY_CYCLES_REMAINING": "0",
                 })
             return
 
-        # Active re-entry eligibility (in-memory only — safe for both modes)
+        # Active re-entry eligibility
         ctx.reentry_eligible = True
         ctx.reentry_pair = str(ts.get("REENTRY_PAIR", ""))
         ctx.reentry_direction = str(ts.get("REENTRY_DIRECTION", ""))
 
-        # Decrement cycles remaining (skip in DRY_RUN)
-        if not ctx.dry_run:
-            ctx.trade_state_updates["REENTRY_CYCLES_REMAINING"] = str(
-                cycles_remaining - 1
-            )
-
         if ctx.verbose:
             print(
                 f"    ReEntry: {ctx.reentry_pair} {ctx.reentry_direction} "
-                f"eligible ({cycles_remaining} cycles left)"
+                f"eligible ({remaining_sec:.0f}s left)"
             )
 
     # ──────────────────────────────────────────────

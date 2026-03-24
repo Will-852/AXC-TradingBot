@@ -93,7 +93,7 @@ class ReadStateStep:
                 lu = datetime.strptime(str(last_updated), "%Y-%m-%d %H:%M")
                 lu = lu.replace(tzinfo=HKT)
                 age_min = (ctx.timestamp - lu).total_seconds() / 60
-                if age_min < 25:
+                if age_min < 5:  # tightened for 2-min cycle (was 25 at 15-min)
                     ctx.mode = "FAST"
             except (ValueError, TypeError):
                 pass

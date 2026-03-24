@@ -256,7 +256,7 @@ REGIME_PRESETS = {
     "bocpd":      {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": False},
     "full":       {"REGIME_ENGINE": "bocpd_cp",  "CP_ENABLED": True},
 }
-ACTIVE_REGIME_PRESET = "classic"  # 2026-03-23: was "full". BOCPD hurts BTC (-11.16% vs HMM +3.29%). Revert to HMM-only.
+ACTIVE_REGIME_PRESET = "classic"
 # Derived from preset（settings.py getattr 繼續正常運作）
 REGIME_ENGINE = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["REGIME_ENGINE"]
 CP_ENABLED = REGIME_PRESETS[ACTIVE_REGIME_PRESET]["CP_ENABLED"]
@@ -302,7 +302,10 @@ SIGNAL_MODE_AFFINITY = {
 # Squeeze: 0 penalty in TREND/RANGE (squeeze can happen in either), slight penalty in CRASH
 SIGNAL_MODE_DEFAULT_PENALTY = {"trend": -0.18, "range": -0.20, "crash": 0.0, "squeeze": -0.05}
 
-SIGNAL_PERSISTENCE = {"range": 3, "trend": 1, "crash": 2, "squeeze": 1}  # squeeze = immediate (breakout is time-sensitive)
+SIGNAL_PERSISTENCE = {"range": 3, "trend": 1, "crash": 2, "squeeze": 1}  # DEPRECATED cycle-count
+# Time-based persistence: signal must persist for N seconds before passing filter
+# Range: 2700s=45min (was 3×15min). Squeeze/trend/burst: immediate (time-sensitive).
+SIGNAL_PERSISTENCE_SEC = {"range": 2700, "trend": 0, "crash": 1800, "squeeze": 0, "burst": 0}
 
 SIGNAL_COOLDOWN_HOURS = 12
 
