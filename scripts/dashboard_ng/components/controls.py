@@ -59,9 +59,20 @@ def render_controls():
     with ui.row().classes('gap-4 flex-wrap items-end'):
         # Profile selector
         with ui.column().classes('gap-1'):
-            ui.label('Profile').classes('text-xs text-gray-500 uppercase tracking-wide')
+            with ui.row().classes('items-center gap-1'):
+                ui.label('Profile').classes('text-xs text-gray-500 uppercase tracking-wide')
+                with ui.icon('help_outline').classes('text-[12px] text-gray-600 cursor-help'):
+                    ui.tooltip(
+                        'Risk profile — controls leverage.\n'
+                        'Zone A: Conservative (7-8x)\n'
+                        'Zone B: Aggressive (15-18x)\n'
+                        'Auto-selected by signal confidence.'
+                    ).classes('text-[11px]')
             profile_select = ui.toggle(
-                ['ZONE_A', 'ZONE_B'],
+                {
+                    'ZONE_A': 'A · 7-8x',
+                    'ZONE_B': 'B · 15-18x',
+                },
                 value='ZONE_A',
             ).props('dense no-caps color=indigo')
 
@@ -76,9 +87,23 @@ def render_controls():
 
         # Regime selector
         with ui.column().classes('gap-1'):
-            ui.label('Regime').classes('text-xs text-gray-500 uppercase tracking-wide')
+            with ui.row().classes('items-center gap-1'):
+                ui.label('Regime').classes('text-xs text-gray-500 uppercase tracking-wide')
+                with ui.icon('help_outline').classes('text-[12px] text-gray-600 cursor-help'):
+                    ui.tooltip(
+                        'Volatility detection method.\n'
+                        'classic: ATR percentile\n'
+                        'classic_cp: + change point\n'
+                        'bocpd: Bayesian change point\n'
+                        'full: HMM + BOCPD vote (recommended)'
+                    ).classes('text-[11px]')
             regime_select = ui.toggle(
-                ['classic', 'classic_cp', 'bocpd', 'full'],
+                {
+                    'classic': 'ATR',
+                    'classic_cp': 'ATR+CP',
+                    'bocpd': 'BOCPD',
+                    'full': 'Full',
+                },
                 value='full',
             ).props('dense no-caps color=indigo')
 
@@ -93,7 +118,13 @@ def render_controls():
 
         # Trading toggle
         with ui.column().classes('gap-1'):
-            ui.label('Trading').classes('text-xs text-gray-500 uppercase tracking-wide')
+            with ui.row().classes('items-center gap-1'):
+                ui.label('Trading').classes('text-xs text-gray-500 uppercase tracking-wide')
+                with ui.icon('help_outline').classes('text-[12px] text-gray-600 cursor-help'):
+                    ui.tooltip(
+                        'Master switch for live trading.\n'
+                        'OFF = signals evaluate but no orders placed.'
+                    ).classes('text-[11px]')
             trading_switch = ui.switch('Enabled').props('color=green')
 
             async def on_trading(e):
