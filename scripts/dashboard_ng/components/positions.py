@@ -37,9 +37,9 @@ async def _close_position(symbol: str, platform: str):
 async def _show_modify_dialog(pos: dict):
     """Show SL/TP modification dialog."""
     _pos_dialog_open['value'] = True
-    symbol = pos.get('symbol', '?')
-    current_sl = pos.get('sl', '')
-    current_tp = pos.get('tp', '')
+    symbol = pos.get('pair') or pos.get('symbol', '?')
+    current_sl = pos.get('sl_price') or pos.get('sl', '')
+    current_tp = pos.get('tp_price') or pos.get('tp', '')
 
     dialog = ui.dialog().props('persistent')
     dialog.move()  # page root
@@ -127,14 +127,14 @@ def _parse_hold_score(raw):
 
 def _render_position_card(pos: dict):
     """Render a single position detail card."""
-    symbol = pos.get('symbol', '?')
-    side = pos.get('side', '?')
+    symbol = pos.get('pair') or pos.get('symbol', '?')
+    side = pos.get('direction') or pos.get('side', '?')
     entry = pos.get('entry_price', 0)
     mark = pos.get('mark_price', 0)
     unrealized = pos.get('unrealized_pnl', 0)
     unrealized_pct = pos.get('unrealized_pct', 0)
-    sl = pos.get('sl', '')
-    tp = pos.get('tp', '')
+    sl = pos.get('sl_price') or pos.get('sl', '')
+    tp = pos.get('tp_price') or pos.get('tp', '')
     platform = pos.get('platform', 'aster')
     hold_score_raw = pos.get('hold_score', None)
 
