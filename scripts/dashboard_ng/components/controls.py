@@ -20,33 +20,41 @@ PARAMS_PATH = os.path.join(AXC_HOME, 'config', 'params.py')
 
 
 def _write_param(key: str, value: str):
-    """Update a single parameter in params.py (string replacement).
+    """Update a single parameter in params.py using line-by-line replacement.
 
-    If key doesn't exist, appends it (matches current dashboard behavior).
+    Safety: reads all lines, modifies only the target line, preserves everything else.
+    If key doesn't exist, appends it at the end.
     """
     with open(PARAMS_PATH, 'r') as f:
-        content = f.read()
+        lines = f.readlines()
 
-    # Match: KEY = "VALUE" or KEY = 'VALUE' or KEY = True/False/word
-    if value in ('True', 'False'):
-        pattern = rf'^({key}\s*=\s*)\w+'
-        replacement = rf'\g<1>{value}'
-    else:
-        pattern = rf'^({key}\s*=\s*["\']).*?(["\'])'
-        replacement = rf'\g<1>{value}\g<2>'
+    # Guard: params.py should be >100 lines. If truncated, refuse to write.
+    if len(lines) < 10:
+        log.error('params.py truncated (%d lines) — refusing to write to avoid data loss', len(lines))
+        return False
 
-    new_content, count = re.subn(pattern, replacement, content, flags=re.MULTILINE)
-    if count == 0:
-        # Key doesn't exist — append it
+    found = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(f'{key} ') or stripped.startswith(f'{key}='):
+            # Replace this line
+            if value in ('True', 'False'):
+                lines[i] = f'{key} = {value}\n'
+            else:
+                lines[i] = f'{key} = "{value}"\n'
+            found = True
+            break
+
+    if not found:
+        # Append
         if value in ('True', 'False'):
-            content += f'\n{key} = {value}\n'
+            lines.append(f'\n{key} = {value}\n')
         else:
-            content += f'\n{key} = "{value}"\n'
-        new_content = content
+            lines.append(f'\n{key} = "{value}"\n')
         log.info('Appended %s = %s to params.py', key, value)
 
     with open(PARAMS_PATH, 'w') as f:
-        f.write(new_content)
+        f.writelines(lines)
     log.info('Updated %s = %s', key, value)
     return True
 
