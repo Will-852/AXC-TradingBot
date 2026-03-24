@@ -51,7 +51,7 @@ COIN = {
             "conf_gate": 0.45,     # XRP 46% BTC contagion — more independent, need higher conf
         },
         "burst": {
-            "enabled": True,       # Paper testing: XRP originally designed for burst (volume spike)
+            "enabled": False,      # REJECTED: prior backtest found no directional signal on XRP volume spikes
             "conf_gate": 0.30,
         },
     },
