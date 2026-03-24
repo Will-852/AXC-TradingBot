@@ -168,11 +168,11 @@ def render_service_panel():
     status_labels = {}
     run_output = {'ref': None}
 
-    with ui.card().classes('w-full'):
-        ui.label('Services').classes('text-sm font-bold uppercase tracking-wide text-gray-400')
+    with ui.card().classes('w-full p-2'):
+        ui.label('Services').classes('text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1')
 
         # Service rows
-        with ui.column().classes('gap-2 w-full'):
+        with ui.column().classes('gap-1 w-full'):
             for key, svc in svc_ctl.SERVICE_DEFS.items():
                 with ui.row().classes('items-center gap-2 w-full'):
                     # Status indicator
