@@ -173,17 +173,28 @@ def _render_position_card(pos: dict):
 
                         # Limit price input (hidden by default)
                         mk_f = float(mk) if mk else 0
-                        # Default limit: best price for closing
-                        # LONG close = SELL → use bid (slightly below mark)
-                        # SHORT close = BUY → use ask (slightly above mark)
-                        default_limit = round(mk_f * (0.9999 if sd == 'LONG' else 1.0001), 1)
-                        limit_row = ui.row().classes('mt-2 items-center gap-2')
+                        # Default = mark price (user adjusts to desired maker price)
+                        default_limit = round(mk_f, 1)
+                        limit_row = ui.column().classes('mt-2 gap-1')
                         limit_row.set_visibility(False)
                         with limit_row:
                             limit_input = ui.number(
                                 'Limit Price', value=default_limit,
                                 format='%.1f',
                             ).classes('w-full')
+                            # Fat-finger warning (>2% from mark)
+                            limit_warn = ui.label('').classes('text-xs text-red-400')
+                            limit_warn.set_visibility(False)
+
+                            def _check_limit(e, m=mk_f):
+                                if m > 0 and e.value:
+                                    dev = abs(e.value - m) / m
+                                    if dev > 0.02:
+                                        limit_warn.text = f'⚠️ 偏離 mark price {dev:.1%} — 確認價格正確'
+                                        limit_warn.set_visibility(True)
+                                    else:
+                                        limit_warn.set_visibility(False)
+                            limit_input.on_value_change(_check_limit)
 
                         # Slippage warning (market only)
                         warn_row = ui.row().classes('mt-2')
