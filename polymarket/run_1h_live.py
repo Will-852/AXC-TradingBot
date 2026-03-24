@@ -82,9 +82,8 @@ _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0
 _COIN_SLUGS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana"}
 _COIN_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
 
-# Coin scope: all 3 coins in dry-run for data collection
-# BTC/ETH/SOL all active — live mode gated by --live flag, not coin filter
-_LIVE_COINS = {"BTC", "ETH", "SOL"}
+# Coin scope: BTC live, ETH+SOL observe only (collect data, no execution)
+_LIVE_COINS = {"BTC"}
 _OBSERVE_LOG = os.path.join(os.path.dirname(__file__), "logs", "observe_1h.jsonl")
 
 _running = True
@@ -1158,10 +1157,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     for _vc in ("BTC", "ETH", "SOL"):
         _coin_vols[_vc] = _vol_1m(_vc)
 
-    # ── Refresh bankroll ──
+    # ── Refresh bankroll (10% of wallet — share with 15M bot) ──
+    _1H_BANKROLL_FRACTION = 0.10
     if client and hasattr(client, "get_usdc_balance") and not dry_run:
         try:
-            state["bankroll"] = client.get_usdc_balance()
+            state["bankroll"] = client.get_usdc_balance() * _1H_BANKROLL_FRACTION
         except Exception:
             pass
 

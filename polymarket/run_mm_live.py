@@ -82,8 +82,8 @@ _ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # per-order lifecycle
 _BOTHSIDES_LOG = os.path.join(_LOG_DIR, "mm_bothsides.jsonl")  # both-sides experiment log
 _POS_LOG = os.path.join(_LOG_DIR, "mm_positions.jsonl")  # position snapshots for post-session analysis
 _CYCLE_S = 5           # 5s main loop — fast reaction
-_SCAN_S = 300          # discovery every 5 min (watchlist covers gaps)
-_HEAVY_INTERVAL_S = 5  # heavy ops every 5s (~60 CLOB req/min, stop OB recorder if hitting limit)
+_SCAN_S = 120          # discovery every 2 min (was 300s; tighter scan for faster T1 entry)
+_HEAVY_INTERVAL_S = 3  # heavy ops every 3s (~100 CLOB req/min, limit=200 self-imposed, 2400 CLOB max)
 
 # Newbie protection: first N hours of live trading, cap exposure
 _PROTECTION_HOURS = 3
@@ -92,8 +92,10 @@ _PROTECTION_MAX_MARKETS = 1  # 1 market per cycle (= 1 per 15min window)
 _MAX_ROUNDS = 3          # max scalp rounds per market window
 _REENTRY_COOLDOWN_S = 30 # seconds after sell before re-entry
 # Live execution gate: only these coins place real orders.
-# ETH + SOL = discover + log signals but NEVER execute (observation only).
-_LIVE_TRADE_COINS = {"btc"}  # lowercase slug prefix
+# ETH + XRP = discover + log signals but NEVER execute (observation only).
+_LIVE_TRADE_COINS = {"btc", "sol"}  # BTC + SOL live; ETH + XRP = observe only
+# Per-coin bet sizing: SOL at 1% (smaller, less data), BTC at 3% (proven edge)
+_BET_PCT_BY_COIN = {"btc": 0.03, "sol": 0.01}
 # ── Endgame: 1-share data collection in undecided markets (last 2 min) ──
 _ENDGAME_ENABLED = True
 _ENDGAME_TTE_START = 120     # activate at T-120s (after normal cancel-all)
@@ -407,7 +409,40 @@ def _cvd_buy_ratio(symbol: str = "BTCUSDT", minutes: int = 3) -> float:
 # ── W4 Signal: momentum from window open (5bps threshold at T+300s for 15M) ──
 _W4_DELAY_S = 300       # 5 min after window open (15M sweet spot)
 _W4_THRESHOLD_BPS = 5   # 5 basis points minimum
-_W4_LEAN_RATIO = 1.5    # 1.5:1 lean (Agent D: 1.5:1 Sharpe > 2:1)
+_W4_LEAN_RATIO = 1.0    # v4: PURE ARB. Lean killed. Direction = data collection only.
+# v3 had dynamic 1.2/1.0 by tier. BMD proved: (1) lean = -$14.55 drag on 26 trades,
+# (2) T1+T2 amplifies to R=2.7-4.2x, (3) one bad trade wipes session.
+# Keep _w4_dynamic_ratio() for logging but FORCE R=1.0.
+_W4_RATIO_BY_TIER = {
+    "5-10": 1.0,   # pure arb — lean killed pending 50-trade validation
+    "10+":  1.0,   # pure arb
+}
+_W4_EFFECTIVE_R_CAP = 1.1  # runtime cap: cancel excess if actual ratio > this
+
+
+def _w4_dynamic_ratio(mag_bps: float) -> float:
+    """Returns R=1.0 for all tiers (v4 pure arb mode).
+    Dynamic tiers preserved in _W4_RATIO_BY_TIER for future re-enable.
+    """
+    return 1.0  # v4: pure arb, no lean
+# ── W4 Staged Entry: T1 at 5min, T2 confirmation at 8min ──
+# Data: T+480s confirms T+300s → 86.1% WR (vs 76.1% overall)
+#       T+480s flips → 21.5% WR. Skip rate 23.9%.
+_W4_T2_DELAY_S = 480       # T2 confirmation at 8 min into window
+_W4_T1_PCT = 0.60          # T1 gets 60% of budget
+_W4_T2_PCT = 0.40          # T2 gets 40% (if direction confirmed)
+# ── W4 Order Repricing ──
+_REPRICE_COOLDOWN_S = 30    # max 1 reprice per 30s per market
+_REPRICE_THRESHOLD = 0.02   # 2¢ drift triggers reprice
+_REPRICE_MAX_PER_ORDER = 3  # max 3 reprices per order lifetime
+# ── W4 Lean-Unfilled Protection (Door B) ──
+# Data: 30.3% of entries = lean miss (hedge fills, lean doesn't).
+# These cost -$2.30/33 trades. Cancel hedge early to avoid naked hedge.
+# Stage 1 (preemptive): hedge still pending → cancel for free.
+# Stage 2 (reactive): hedge already filled → cancel lean, block T2, let hedge resolve.
+# 90s timeout = zero false cancels on 33-trade sample (max BOTH lean gap = 87s).
+_LEAN_UNFILLED_TIMEOUT_S = 90  # seconds after entry before declaring lean unfilled
+_LEAN_PREEMPTIVE_S = 20        # seconds for Stage 1 preemptive hedge cancel
 
 
 def _w4_signal(window_start_ms: int, symbol: str = "BTCUSDT") -> tuple:
@@ -525,7 +560,7 @@ def _discover(gamma: GammaClient, config: MMConfig) -> list[tuple[PolyMarket, di
     slot = (now_et.minute // 15) * 15
     base = now_et.replace(minute=0, second=0, microsecond=0)
 
-    _COINS = [("btc", "bitcoin"), ("eth", "ethereum"), ("sol", "solana")]
+    _COINS = [("btc", "bitcoin"), ("eth", "ethereum"), ("sol", "solana"), ("xrp", "xrp")]
 
     for i in range(5):
         ws = base + timedelta(minutes=slot + i * 15)
@@ -1389,15 +1424,20 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _sym, _coin_slug = "ETHUSDT", "eth"
         elif "solana" in _title_lower:
             _sym, _coin_slug = "SOLUSDT", "sol"
+        elif "xrp" in _title_lower:
+            _sym, _coin_slug = "XRPUSDT", "xrp"
         else:
             _sym, _coin_slug = "BTCUSDT", "btc"
 
         # Observation gate: non-live coins → log signals but skip execution
         _observe_only = _coin_slug not in _LIVE_TRADE_COINS
 
-        # ── Momentum Filter ──
+        # ── Momentum Filter (SKIP for both-sides — W4 has its own signal at line 1531) ──
         _m1_vol = _vol_1m(_sym)
-        if continuous_momentum:
+        _m1 = 0.0  # default for both-sides path
+        if both_sides:
+            pass  # W4 signal handles momentum check at line 1531, skip M1 filter
+        elif continuous_momentum:
             # Continuous: current price vs window open (catches late moves)
             _cm_open = _open_at(wl["start_ms"], _sym) or _price(_sym)
             _cm_now = _price(_sym)
@@ -1529,6 +1569,24 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # ── W4 Both-Sides: buy UP + DOWN with momentum lean ──
         if both_sides:
+            # Y1: Skip :45 windows (27% WR vs 44-47% for :00/:15/:30, n=52)
+            _win_min = datetime.utcfromtimestamp(wl["start_ms"] / 1000).minute
+            if _win_min == 45:
+                if not wl.get("_45_skip_logged"):
+                    logger.info("W4 SKIP :45 %s: :45 window anomaly (27%% WR)", cid[:8])
+                    wl["_45_skip_logged"] = True
+                del state["watchlist"][cid]
+                continue
+
+            # v4: Skip dead hours (HKT 22-06 = low liquidity, fill rate unvalidated)
+            _hkt_hour = datetime.now(tz=_HKT).hour
+            if _hkt_hour >= 22 or _hkt_hour < 6:
+                if not wl.get("_dead_hour_logged"):
+                    logger.info("W4 SKIP DEAD %s: HKT %02d:xx (dead hours 22-06)", cid[:8], _hkt_hour)
+                    wl["_dead_hour_logged"] = True
+                del state["watchlist"][cid]
+                continue
+
             # W4 signal: log return from window open at T+300s
             _w4_dir, _w4_mag, _w4_ret = _w4_signal(wl["start_ms"], _sym)
             if _w4_dir == "WAIT":
@@ -1572,28 +1630,50 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             _dn_bid = round(max(0.02, _dn_mid - _TICK), 2)
             _bs_combined = round(_up_bid + _dn_bid, 4)
 
-            # Safety cap — W4 combined avg = $0.9974, 48% > $1.00
-            # Edge = directional lean accuracy, NOT structural arb
-            # Cap at $1.05 to allow W4-style entries (BMD fix #1)
-            if _bs_combined >= 1.05:
-                logger.warning("W4 ABORT %s: combined $%.4f >= $1.05", cid[:8], _bs_combined)
+            # v4: Combined gate — arb requires combined < $1.00.
+            # At R=1.0 pure arb, combined >= $0.99 = margin too thin ($0.01/pair).
+            # Old cap was $1.05 (allowed losing entries). Now strict $0.99.
+            if _bs_combined >= 0.99:
+                logger.info("W4 SKIP %s: combined $%.4f >= $0.99 (arb spread too thin)",
+                            cid[:8], _bs_combined)
                 del state["watchlist"][cid]
                 continue
 
-            # 🔴 2CHECK: Sizing — must meet Poly 5-share minimum on BOTH sides
+            # 🔴 FIX: Lean = SHARE COUNT ratio, not budget ratio
+            # Bug was: budget fraction / price → cheap side gets MORE shares than lean side
+            # W4 lean R:1 means lean side has R× more SHARES (R = dynamic, see _w4_dynamic_ratio)
             bankroll = state.get("bankroll", 100.0)
-            _budget = bankroll * config.bet_pct * _daily_budget_mult
+            _coin_bet_pct = _BET_PCT_BY_COIN.get(_coin_slug, config.bet_pct)
+            _full_budget = bankroll * _coin_bet_pct * _daily_budget_mult
+            _budget = _full_budget * _W4_T1_PCT  # T1 = 60%, T2 adds 40% at T+480s if confirmed
             _lean_dir = _w4_dir  # "UP" or "DOWN"
-            _lean_frac = _W4_LEAN_RATIO / (_W4_LEAN_RATIO + 1)  # 0.60 at 1.5:1
-            _hedge_frac = 1.0 / (_W4_LEAN_RATIO + 1)             # 0.40 at 1.5:1
+
+            # Calculate base shares from budget, then apply lean ratio to SHARES
+            # Total shares = budget / avg_price_per_share
+            _avg_price = (_up_bid + _dn_bid) / 2  # rough avg for sizing
+            _total_shares = max(10, _budget / _avg_price)  # at least 10 shares total
+
+            # Dynamic lean ratio by signal magnitude (Q1 adverse selection fix)
+            _dyn_ratio = _w4_dynamic_ratio(_w4_mag)
+            _lean_share_frac = _dyn_ratio / (_dyn_ratio + 1)    # 0.545 at 1.2:1, 0.500 at 1.0
+            _hedge_share_frac = 1.0 / (_dyn_ratio + 1)          # 0.455 at 1.2:1, 0.500 at 1.0
 
             if _lean_dir == "UP":
-                _up_budget, _dn_budget = _budget * _lean_frac, _budget * _hedge_frac
+                _up_shares = max(config.min_order_size, round(_total_shares * _lean_share_frac, 1))
+                _dn_shares = max(config.min_order_size, round(_total_shares * _hedge_share_frac, 1))
             else:
-                _up_budget, _dn_budget = _budget * _hedge_frac, _budget * _lean_frac
+                _up_shares = max(config.min_order_size, round(_total_shares * _hedge_share_frac, 1))
+                _dn_shares = max(config.min_order_size, round(_total_shares * _lean_share_frac, 1))
 
-            _up_shares = max(config.min_order_size, round(_up_budget / _up_bid, 1))
-            _dn_shares = max(config.min_order_size, round(_dn_budget / _dn_bid, 1))
+            # 🔴 Budget cap: min_order_size floors can inflate spend beyond budget (bug #6)
+            # SOL 1% = $1.25 budget but floors force ~$5 spend. Cap to 1.5x budget max.
+            _est_cost = _up_shares * _up_bid + _dn_shares * _dn_bid
+            if _est_cost > _budget * 1.5 and _budget > 0:
+                _scale = _budget / _est_cost
+                _up_shares = max(1, round(_up_shares * _scale, 1))
+                _dn_shares = max(1, round(_dn_shares * _scale, 1))
+                logger.info("W4 BUDGET CAP %s: est $%.2f > budget $%.2f → scaled to %.1f/%.1f shares",
+                            cid[:8], _est_cost, _budget, _up_shares, _dn_shares)
 
             # 🔴 2CHECK: Double order prevention — only enter if NOT already in state["markets"]
             if cid in state.get("markets", {}):
@@ -1621,7 +1701,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 _bs_entry = {
                     "ts": datetime.now(tz=_HKT).isoformat(), "event": "w4_entry",
                     "cid": cid[:8], "coin": _coin_slug,
-                    "lean_dir": _lean_dir, "lean_ratio": _W4_LEAN_RATIO,
+                    "lean_dir": _lean_dir, "lean_ratio": _dyn_ratio,
                     "w4_mag_bps": round(_w4_mag, 1),
                     "up_mid": round(_up_mid, 4), "dn_mid": round(_dn_mid, 4),
                     "up_bid": _up_bid, "dn_bid": _dn_bid,
@@ -1823,6 +1903,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         if both_sides:
             mkt_dict["both_sides"] = True
             mkt_dict["bs_combined"] = _bs_combined
+            mkt_dict["_w4_t2_pending"] = True  # T2 confirmation at T+480s
+            mkt_dict["_w4_t1_dir"] = _lean_dir
+            mkt_dict["_w4_t1_ratio"] = _dyn_ratio  # carry T1 ratio to T2
+            mkt_dict["_w4_full_budget"] = round(_full_budget, 4)
         if _observe_only:
             mkt_dict["paper"] = True  # paper trade — no real money, don't affect bankroll/risk
         state["markets"][cid] = mkt_dict
@@ -1835,106 +1919,200 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         cost_str = f"${ms.entry_cost:.2f}" if ms.entry_cost > 0 else "$0"
         print(f"  OPEN {cid[:8]} | {filled_str} | pend: {pending_str or '-'} | {cost_str}{t_str}")
 
-    # ── Phased entry: DISABLED (replaced by phased rung system) ──
-    # Old tranche code used plan_opening() which bypasses ladder pricing.
-    # Phased rungs 3-4 with checkpoint are the replacement.
-    if False and is_heavy:  # DISABLED
+    # ── W4 Tranche 2: confirmation entry at T+480s ──
+    # Data: T+480s confirms T+300s direction → 86.1% WR (vs 76.1% base)
+    #        T+480s flips → 21.5% WR. Skip saves ~24% of losing trades.
+    if both_sides and is_heavy:
         for cid, mkt_d in list(state["markets"].items()):
+            if not mkt_d.get("_w4_t2_pending"):
+                continue
             if mkt_d["phase"] != "OPEN":
+                mkt_d["_w4_t2_pending"] = False
                 continue
-            t_done = mkt_d.get("tranches_done", 1)
-            t_total = mkt_d.get("tranches_total", 1)
-            if t_done >= t_total:
+
+            # 🔴 2CHECK FIX: Don't fire T2 if T1 had zero fills AND zero pending
+            # (all T1 orders were cancelled = adverse market, don't re-enter)
+            _t1_has_position = (mkt_d.get("up_shares", 0) > 0 or mkt_d.get("down_shares", 0) > 0
+                                or mkt_d.get("pending_orders", []))
+            if not _t1_has_position:
+                logger.info("W4 T2 SKIP %s: T1 has zero position (all cancelled)", cid[:8])
+                mkt_d["_w4_t2_pending"] = False
                 continue
-            # Check timing: at least tranche_interval since entry
-            entry_ts = mkt_d.get("entry_ts", 0)
-            if time.time() - entry_ts < config.tranche_interval_s * t_done:
+
+            # 🟡 BMD FIX: Cross-check tranches_done to prevent duplicate T2
+            if mkt_d.get("tranches_done", 1) >= 2:
+                mkt_d["_w4_t2_pending"] = False
                 continue
-            # Check: enough time left (>3 min before window end)
+
+            start_ms = mkt_d.get("window_start_ms", 0)
             end_ms = mkt_d.get("window_end_ms", 0)
+            if start_ms <= 0:
+                mkt_d["_w4_t2_pending"] = False
+                continue
+            _t2_elapsed_s = (now_ms - start_ms) / 1000
+            if _t2_elapsed_s < _W4_T2_DELAY_S:
+                continue  # not yet T+480s, keep waiting
+
+            # Too close to window end (< 3 min) → skip T2
             if end_ms > 0 and now_ms > end_ms - 180_000:
+                logger.info("W4 T2 SKIP %s: too close to window end (%.0fs left)",
+                            cid[:8], (end_ms - now_ms) / 1000)
+                mkt_d["_w4_t2_pending"] = False
                 continue
 
-            # Re-evaluate fair price for this tranche
-            _t2 = mkt_d.get("title", "").lower()
-            _s2 = "ETHUSDT" if "ethereum" in _t2 else "BTCUSDT"
-            _p2 = _price(_s2)
-            _o2 = mkt_d.get("btc_open_price", _p2)
-            _v2 = _vol_1m(_s2)
-            _ml2 = max(1, (end_ms - now_ms) / 60_000)
-            fair2 = compute_fair_up(_p2, _o2, _v2, int(_ml2))
+            # Detect coin symbol
+            _t2_title = mkt_d.get("title", "").lower()
+            if "ethereum" in _t2_title:
+                _t2_sym = "ETHUSDT"
+            elif "solana" in _t2_title:
+                _t2_sym = "SOLUSDT"
+            else:
+                _t2_sym = "BTCUSDT"
 
-            # Market midpoint sanity for tranches
-            if client and hasattr(client, "get_midpoint") and not dry_run:
-                orig_dir_tok = mkt_d.get("up_token_id", "") if mkt_d.get("original_dir") == "UP" else mkt_d.get("down_token_id", "")
-                _t_mid = _poly_midpoint(client, orig_dir_tok) if orig_dir_tok else 0
-                if 0 < _t_mid < 0.38:
-                    logger.info("ABORT tranche %s: market mid=%.3f < 0.38 → market says we're wrong",
-                                cid[:8], _t_mid)
-                    mkt_d["tranches_done"] = t_total
+            # Re-check W4 signal at current time
+            _t2_dir, _t2_mag, _t2_ret = _w4_signal(start_ms, _t2_sym)
+            _t1_dir = mkt_d.get("_w4_t1_dir", "")
+
+            # T2 confirmation: direction must match T1 AND magnitude still above threshold
+            if _t2_dir == _t1_dir and _t2_mag >= _W4_THRESHOLD_BPS:
+                # CONFIRMED — place T2 orders (40% of full budget)
+                _t2_budget = mkt_d.get("_w4_full_budget", 0) * _W4_T2_PCT
+                if _t2_budget < 1.0:
+                    logger.info("W4 T2 SKIP %s: budget $%.2f too small", cid[:8], _t2_budget)
+                    mkt_d["_w4_t2_pending"] = False
                     continue
 
-            # Keep original direction — only abort if REVERSED
-            orig_dir = mkt_d.get("original_dir", "UP")
-            if orig_dir == "UP" and fair2 < 0.45:
-                logger.info("ABORT tranche %s: direction REVERSED (fair=%.3f, was UP)",
-                            cid[:8], fair2)
-                mkt_d["tranches_done"] = t_total
-                continue
-            elif orig_dir == "DOWN" and fair2 > 0.55:
-                logger.info("ABORT tranche %s: direction REVERSED (fair=%.3f, was DOWN)",
-                            cid[:8], fair2)
-                mkt_d["tranches_done"] = t_total
-                continue
+                # Fetch OB mid for pricing (same as T1 logic)
+                _t2_up_mid, _t2_dn_mid = 0.0, 0.0
+                _t2_up_tok = mkt_d.get("up_token_id", "")
+                _t2_dn_tok = mkt_d.get("down_token_id", "")
+                if client and hasattr(client, "get_order_book") and not dry_run:
+                    try:
+                        _t2_ub = client.get_order_book(_t2_up_tok)
+                        _t2_ubids = _t2_ub.get("bids", [])
+                        _t2_uasks = _t2_ub.get("asks", [])
+                        if _t2_ubids and _t2_uasks:
+                            _t2_up_mid = (max(b["price"] for b in _t2_ubids) + min(a["price"] for a in _t2_uasks)) / 2
+                        _t2_db = client.get_order_book(_t2_dn_tok)
+                        _t2_dbids = _t2_db.get("bids", [])
+                        _t2_dasks = _t2_db.get("asks", [])
+                        if _t2_dbids and _t2_dasks:
+                            _t2_dn_mid = (max(b["price"] for b in _t2_dbids) + min(a["price"] for a in _t2_dasks)) / 2
+                    except Exception as e:
+                        logger.debug("W4 T2 OB fetch failed: %s", e)
 
-            # Use original direction with current price (buy the dip)
-            # Override fair to force original direction
-            if orig_dir == "UP" and fair2 < 0.50:
-                fair2 = max(fair2, 0.50 + 0.001)  # nudge to keep UP direction
-            elif orig_dir == "DOWN" and fair2 > 0.50:
-                fair2 = min(fair2, 0.50 - 0.001)
+                # Fallback if OB unavailable
+                if _t2_up_mid <= 0.01 or _t2_up_mid >= 0.99:
+                    _t2_up_mid = 0.50
+                if _t2_dn_mid <= 0.01 or _t2_dn_mid >= 0.99:
+                    _t2_dn_mid = 0.50
 
-            mkt2 = PolyMarket(
-                condition_id=cid, title=mkt_d.get("title", ""),
-                category="crypto_15m",
-                yes_token_id=mkt_d.get("up_token_id", ""),
-                no_token_id=mkt_d.get("down_token_id", ""),
-                liquidity=15000)
-            bankroll2 = state.get("bankroll", 100.0)
-            orders2 = plan_opening(mkt2, fair2, config, bankroll=bankroll2,
-                                   tranche=t_done, total_tranches=t_total)
-            if not orders2:
-                mkt_d["tranches_done"] = t_total
-                continue
+                _t2_up_bid = round(max(0.02, _t2_up_mid - 0.01), 2)
+                _t2_dn_bid = round(max(0.02, _t2_dn_mid - 0.01), 2)
+                _t2_combined = round(_t2_up_bid + _t2_dn_bid, 4)
 
-            results2 = _execute(orders2, client, cid=cid,
-                                signal_ctx={"fair": round(fair2, 4), "tranche": t_done + 1})
-            for r in results2:
-                if not r.get("submitted"):
+                if _t2_combined >= 0.99:
+                    logger.info("W4 T2 SKIP %s: combined $%.4f >= $0.99 (arb spread too thin)",
+                                cid[:8], _t2_combined)
+                    mkt_d["_w4_t2_pending"] = False
                     continue
-                _bump_fill(state, "submitted")
-                status = r.get("status", "")
-                if status == "matched":
-                    _bump_fill(state, "filled")
-                    outcome = r["outcome"]
-                    price = r["price"]
-                    size = r["size"]
-                    if outcome == "UP":
-                        old = mkt_d["up_shares"] * mkt_d["up_avg_price"]
-                        mkt_d["up_shares"] += size
-                        mkt_d["up_avg_price"] = (old + size * price) / mkt_d["up_shares"] if mkt_d["up_shares"] > 0 else 0
-                    elif outcome == "DOWN":
-                        old = mkt_d["down_shares"] * mkt_d["down_avg_price"]
-                        mkt_d["down_shares"] += size
-                        mkt_d["down_avg_price"] = (old + size * price) / mkt_d["down_shares"] if mkt_d["down_shares"] > 0 else 0
-                    mkt_d["entry_cost"] += size * price
+
+                # Calculate T2 shares (same lean ratio as T1 — stored in market state)
+                _t2_ratio = mkt_d.get("_w4_t1_ratio", _W4_LEAN_RATIO)  # fallback to constant
+                _t2_avg_price = (_t2_up_bid + _t2_dn_bid) / 2
+                _t2_total_shares = max(6, _t2_budget / _t2_avg_price)
+                _t2_lean_frac = _t2_ratio / (_t2_ratio + 1)
+                _t2_hedge_frac = 1.0 / (_t2_ratio + 1)
+
+                if _t1_dir == "UP":
+                    _t2_up_sh = max(config.min_order_size, round(_t2_total_shares * _t2_lean_frac, 1))
+                    _t2_dn_sh = max(config.min_order_size, round(_t2_total_shares * _t2_hedge_frac, 1))
                 else:
-                    mkt_d.setdefault("pending_orders", []).append(r)
-                    mkt_d["fills_confirmed"] = False
+                    _t2_up_sh = max(config.min_order_size, round(_t2_total_shares * _t2_hedge_frac, 1))
+                    _t2_dn_sh = max(config.min_order_size, round(_t2_total_shares * _t2_lean_frac, 1))
 
-            mkt_d["tranches_done"] = t_done + 1
-            logger.info("TRANCHE %d/%d %s | cost=$%.2f",
-                        t_done + 1, t_total, cid[:8], mkt_d["entry_cost"])
+                _t2_orders = [
+                    PlannedOrder(token_id=_t2_up_tok, side="BUY",
+                                 price=_t2_up_bid, size=_t2_up_sh, outcome="UP"),
+                    PlannedOrder(token_id=_t2_dn_tok, side="BUY",
+                                 price=_t2_dn_bid, size=_t2_dn_sh, outcome="DOWN"),
+                ]
+
+                # Execute T2 orders (respect live gate)
+                _t2_observe = mkt_d.get("paper", False) or not state.get("_w4_live")
+                if _t2_observe:
+                    class _T2Paper:
+                        def buy_shares(self, tid, amt, price=0):
+                            return {"orderID": f"paper_t2_{tid[:8]}_{int(time.time())}",
+                                    "status": "matched", "dry_run": True}
+                    _t2_results = _execute(_t2_orders, _T2Paper(), cid=cid)
+                else:
+                    _t2_results = _execute(_t2_orders, client, cid=cid)
+
+                # Merge T2 results into existing market state
+                for r in _t2_results:
+                    if r.get("submitted"):
+                        _bump_fill(state, "submitted")
+                        if r.get("status") == "matched":
+                            _bump_fill(state, "filled")
+                            # 🔴 2CHECK FIX: Track T2 instant fills in position state
+                            _t2_out = r["outcome"]
+                            _t2_px = r["price"]
+                            _t2_sz = r["size"]
+                            if _t2_out == "UP":
+                                _old_val = mkt_d.get("up_shares", 0) * mkt_d.get("up_avg_price", 0)
+                                mkt_d["up_shares"] = mkt_d.get("up_shares", 0) + _t2_sz
+                                mkt_d["up_avg_price"] = (_old_val + _t2_sz * _t2_px) / mkt_d["up_shares"] if mkt_d["up_shares"] > 0 else 0
+                            elif _t2_out == "DOWN":
+                                _old_val = mkt_d.get("down_shares", 0) * mkt_d.get("down_avg_price", 0)
+                                mkt_d["down_shares"] = mkt_d.get("down_shares", 0) + _t2_sz
+                                mkt_d["down_avg_price"] = (_old_val + _t2_sz * _t2_px) / mkt_d["down_shares"] if mkt_d["down_shares"] > 0 else 0
+                            mkt_d["entry_cost"] = mkt_d.get("entry_cost", 0) + _t2_sz * _t2_px
+                            logger.info("W4 T2 INSTANT FILL %s %s: %.1f @ $%.3f",
+                                        cid[:8], _t2_out, _t2_sz, _t2_px)
+                        else:
+                            mkt_d.setdefault("pending_orders", []).append(r)
+
+                # Log T2
+                try:
+                    _t2_entry = {
+                        "ts": datetime.now(tz=_HKT).isoformat(), "event": "w4_t2_entry",
+                        "cid": cid[:8], "lean_dir": _t1_dir,
+                        "t2_dir": _t2_dir, "t2_mag_bps": round(_t2_mag, 1),
+                        "up_bid": _t2_up_bid, "dn_bid": _t2_dn_bid,
+                        "combined": _t2_combined,
+                        "up_shares": _t2_up_sh, "dn_shares": _t2_dn_sh,
+                        "budget": round(_t2_budget, 2), "live": not _t2_observe,
+                    }
+                    with open(_BOTHSIDES_LOG, "a") as _bsf:
+                        _bsf.write(json.dumps(_t2_entry) + "\n")
+                except Exception:
+                    pass
+
+                logger.info("W4 T2 %s %s: CONFIRMED %s %+.1fbps | UP@$%.2f×%.0f + DN@$%.2f×%.0f = $%.3f",
+                            "LIVE" if not _t2_observe else "PAPER", cid[:8],
+                            _t1_dir, _t2_mag,
+                            _t2_up_bid, _t2_up_sh, _t2_dn_bid, _t2_dn_sh, _t2_combined)
+                mkt_d["_w4_t2_pending"] = False
+                mkt_d["tranches_done"] = 2
+
+            else:
+                # FLIPPED or below threshold → skip T2
+                logger.info("W4 T2 SKIP %s: T1=%s T2=%s mag=%.1fbps (need %s >=%dbps)",
+                            cid[:8], _t1_dir, _t2_dir, _t2_mag,
+                            _t1_dir, _W4_THRESHOLD_BPS)
+                try:
+                    _t2_skip = {
+                        "ts": datetime.now(tz=_HKT).isoformat(), "event": "w4_t2_skip",
+                        "cid": cid[:8], "t1_dir": _t1_dir,
+                        "t2_dir": _t2_dir, "t2_mag_bps": round(_t2_mag, 1),
+                        "reason": "flip" if _t2_dir != _t1_dir else "below_threshold",
+                    }
+                    with open(_BOTHSIDES_LOG, "a") as _bsf:
+                        _bsf.write(json.dumps(_t2_skip) + "\n")
+                except Exception:
+                    pass
+                mkt_d["_w4_t2_pending"] = False
 
     # ── Helper: identify directional vs hedge orders ──
     def _find_directional_orders(pending_list):
@@ -2109,6 +2287,75 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                     if to_cancel:
                         reason = f"ttl_{int(_time_on_book)}s_max{int(_max_ttl_s)}s"
 
+            # Trigger 4: Lean-unfilled protection (both-sides only)
+            # Stage 1: preemptive — if lean & hedge both unfilled after 20s → cancel hedge (free)
+            # Stage 2: reactive  — if lean unfilled after 90s → cancel lean+orphan hedge, block T2
+            if not to_cancel and _is_bs and entry_ts > 0:
+                _lean_age = now_s - entry_ts
+                _lean_dir = mkt.get("_w4_t1_dir", "")
+                if _lean_dir:
+                    # 🔴 BMD FIX: WS pre-check to prevent stale-state cancel.
+                    # _check_fills runs AFTER cancel defense, so shares may be stale.
+                    # Quick WS check: if lean order actually matched, skip Door B.
+                    _lean_ws_filled = False
+                    if _ws_user and _ws_user.connected:
+                        for _db_po in pending:
+                            _db_oid = _db_po.get("order_id", "")
+                            if (_db_oid and _db_po.get("outcome", "").upper() == _lean_dir
+                                    and _ws_user.get_order_status(_db_oid) == "MATCHED"):
+                                _lean_ws_filled = True
+                                break
+
+                    _lean_key = "up_shares" if _lean_dir == "UP" else "down_shares"
+                    _hedge_key = "down_shares" if _lean_dir == "UP" else "up_shares"
+                    _lean_sh = mkt.get(_lean_key, 0)
+                    _hedge_sh = mkt.get(_hedge_key, 0)
+                    _lean_pending = [p for p in pending if p.get("outcome", "").upper() == _lean_dir]
+                    _hedge_pending = [p for p in pending if p.get("outcome", "").upper() != _lean_dir]
+
+                    # Skip Door B if lean actually filled (WS says MATCHED but shares not yet updated)
+                    if not _lean_ws_filled and _lean_sh == 0:
+                        # Stage 1: preemptive hedge cancel (both sides still pending)
+                        if (_lean_age >= _LEAN_PREEMPTIVE_S
+                                and _hedge_sh == 0 and _hedge_pending and _lean_pending):
+                            to_cancel = _hedge_pending
+                            reason = f"lean_unfilled_preemptive_{int(_lean_age)}s"
+                            logger.info("DOOR-B STAGE1 %s: lean=%s unfilled@%ds → cancel hedge (free)",
+                                        cid[:8], _lean_dir, int(_lean_age))
+                            try:
+                                with open(_BOTHSIDES_LOG, "a") as _bsf:
+                                    _bsf.write(json.dumps({"ts": _ts_hkt(), "event": "door_b_stage1",
+                                        "cid": cid[:8], "lean_dir": _lean_dir,
+                                        "age_s": int(_lean_age)}) + "\n")
+                            except Exception:
+                                pass
+
+                        # Stage 2: lean still unfilled after 90s → cancel lean + orphan hedge
+                        elif _lean_age >= _LEAN_UNFILLED_TIMEOUT_S and _lean_pending:
+                            to_cancel = list(_lean_pending)  # cancel stale lean orders
+                            # 🟡 2CHECK FIX: also cancel orphan hedge pending if hedge unfilled
+                            if _hedge_sh == 0 and _hedge_pending:
+                                to_cancel.extend(_hedge_pending)
+                            reason = f"lean_unfilled_{int(_lean_age)}s"
+                            mkt["_w4_t2_pending"] = False  # block T2
+                            if _hedge_sh > 0:
+                                logger.warning("DOOR-B STAGE2 %s: lean=%s unfilled@%ds, "
+                                               "hedge=%.1f shares → cancel lean, block T2, naked hedge",
+                                               cid[:8], _lean_dir, int(_lean_age), _hedge_sh)
+                            else:
+                                logger.info("DOOR-B STAGE2 %s: lean=%s unfilled@%ds, "
+                                            "no hedge → cancel all, block T2",
+                                            cid[:8], _lean_dir, int(_lean_age))
+                            try:
+                                with open(_BOTHSIDES_LOG, "a") as _bsf:
+                                    _bsf.write(json.dumps({"ts": _ts_hkt(), "event": "door_b_stage2",
+                                        "cid": cid[:8], "lean_dir": _lean_dir,
+                                        "age_s": int(_lean_age),
+                                        "hedge_shares": round(_hedge_sh, 1),
+                                        "naked_hedge": _hedge_sh > 0}) + "\n")
+                            except Exception:
+                                pass
+
             actually_cancelled = []
             _time_on_book = now_s - entry_ts if entry_ts > 0 else 0
             _dist_to_end_s = (end_ms / 1000 - now_s) if end_ms > 0 else 0
@@ -2139,9 +2386,150 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 if not mkt["pending_orders"]:
                     mkt["fills_confirmed"] = True
 
+    # ── W4 Order Repricing: improve stale limit orders when OB drops ──
+    # 🔴 BMD FIX: Only reprice DOWNWARD (OB mid dropped → we get a better price).
+    # Do NOT chase rising OB mid — W4 places at mid-1¢ and waits. Patience is the edge.
+    # 🔴 2CHECK FIX: Split cancel+buy into separate try blocks to prevent ghost orders.
+    if both_sides and client and hasattr(client, "client") and not dry_run and is_heavy:
+        _reprice_now = time.time()
+        for cid, mkt in state["markets"].items():
+            if not mkt.get("both_sides") or mkt["phase"] != "OPEN":
+                continue
+            pending = mkt.get("pending_orders", [])
+            if not pending:
+                continue
+            # Per-market cooldown
+            if _reprice_now - mkt.get("_last_reprice_ts", 0) < _REPRICE_COOLDOWN_S:
+                continue
+            # Don't reprice if window ending soon (< 3 min)
+            end_ms = mkt.get("window_end_ms", 0)
+            if end_ms > 0 and now_ms > end_ms - 180_000:
+                continue
+
+            _repriced_any = False
+            _new_pending = []
+            for po in pending:
+                # Skip if already repriced too many times
+                if po.get("_reprice_count", 0) >= _REPRICE_MAX_PER_ORDER:
+                    _new_pending.append(po)
+                    continue
+                _tok = po.get("token_id", "")
+                _oid = po.get("order_id", "")
+                if not _tok or not _oid:
+                    _new_pending.append(po)
+                    continue
+
+                # Fetch current OB mid
+                try:
+                    _ob = client.get_order_book(_tok)
+                    _bids = _ob.get("bids", [])
+                    _asks = _ob.get("asks", [])
+                    if not _bids or not _asks:
+                        _new_pending.append(po)
+                        continue
+                    _cur_mid = (max(b["price"] for b in _bids) + min(a["price"] for a in _asks)) / 2
+                except Exception:
+                    _new_pending.append(po)
+                    continue
+
+                _old_price = po.get("price", 0)
+                _new_bid = round(max(0.02, _cur_mid - 0.01), 2)
+
+                # 🔴 BMD: Only reprice if new bid is LOWER (better price for us).
+                # If OB mid rose, our old bid is already good — just wait for fill.
+                if _new_bid >= _old_price:
+                    _new_pending.append(po)
+                    continue
+
+                # Check threshold: only reprice if improvement > 2¢
+                if _old_price - _new_bid < _REPRICE_THRESHOLD:
+                    _new_pending.append(po)
+                    continue
+
+                # Step 1: Cancel old order (separate try block)
+                _cancel_ok = False
+                try:
+                    client.client.cancel(order_id=_oid)
+                    _cancel_ok = True
+                except Exception as e:
+                    logger.warning("W4 REPRICE CANCEL FAILED %s %s: %s", cid[:8], po["outcome"], e)
+                    _new_pending.append(po)  # keep original order
+                    continue
+
+                # Step 2: Place replacement (only if cancel succeeded)
+                try:
+                    _amount = round(po["size"] * _new_bid, 2)
+                    _r = client.buy_shares(_tok, _amount, price=_new_bid)
+                    _new_oid = ""
+                    _new_status = ""
+                    if isinstance(_r, dict):
+                        _new_oid = _r.get("orderID", _r.get("id", ""))
+                        _new_status = _r.get("status", "")
+
+                    if _new_status == "matched":
+                        _bump_fill(state, "filled")
+                        logger.info("W4 REPRICE+FILL %s %s: $%.2f → $%.2f (mid=%.3f)",
+                                    cid[:8], po["outcome"], _old_price, _new_bid, _cur_mid)
+                    else:
+                        _new_po = dict(po)
+                        _new_po["order_id"] = _new_oid
+                        _new_po["price"] = _new_bid
+                        _new_po["_reprice_count"] = po.get("_reprice_count", 0) + 1
+                        _new_po["order_ts"] = time.time()
+                        _new_pending.append(_new_po)
+                        logger.info("W4 REPRICE %s %s: $%.2f → $%.2f (mid=%.3f, #%d)",
+                                    cid[:8], po["outcome"], _old_price, _new_bid,
+                                    _cur_mid, _new_po["_reprice_count"])
+                    _repriced_any = True
+                except Exception as e:
+                    # Cancel succeeded but buy failed → order is GONE from CLOB
+                    # Log as lost order, do NOT add stale order_id back
+                    logger.error("W4 REPRICE BUY FAILED %s %s: cancel OK but buy failed: %s — order LOST",
+                                 cid[:8], po["outcome"], e)
+                    _repriced_any = True  # trigger pending update to remove old entry
+
+            if _repriced_any:
+                mkt["pending_orders"] = _new_pending
+                mkt["_last_reprice_ts"] = _reprice_now
+                if not _new_pending:
+                    mkt["fills_confirmed"] = True
+
     # Check fills (submitted → actually filled?)
     if not dry_run:
         _check_fills(state, client)
+
+    # ── v4: Runtime ratio cap — cancel excess lean if effective R > cap ──
+    # T1+T2 can amplify ratio to 2.7-4.2x. One R=2.7 trade lost $10.44.
+    for _rc_cid, _rc_mkt in list(state.get("markets", {}).items()):
+        if not _rc_mkt.get("both_sides"):
+            continue
+        _rc_up = _rc_mkt.get("up_shares", 0)
+        _rc_dn = _rc_mkt.get("down_shares", 0)
+        if _rc_up > 0 and _rc_dn > 0:
+            _rc_ratio = max(_rc_up, _rc_dn) / min(_rc_up, _rc_dn)
+            if _rc_ratio > _W4_EFFECTIVE_R_CAP:
+                _rc_excess = abs(_rc_up - _rc_dn)
+                _rc_excess_side = "UP" if _rc_up > _rc_dn else "DOWN"
+                # Cancel pending orders on the excess side
+                _rc_pending = _rc_mkt.get("pending_orders", [])
+                _rc_cancel = [p for p in _rc_pending
+                              if p.get("outcome", "").upper() == _rc_excess_side]
+                if _rc_cancel and client and hasattr(client, "client"):
+                    for _rc_o in _rc_cancel:
+                        _rc_oid = _rc_o.get("order_id", "")
+                        if _rc_oid:
+                            try:
+                                client.client.cancel(_rc_oid)
+                                logger.warning("RATIO CAP %s: R=%.1f > %.1f cap → cancelled %s %s",
+                                               _rc_cid[:8], _rc_ratio, _W4_EFFECTIVE_R_CAP,
+                                               _rc_excess_side, _rc_oid[:12])
+                            except Exception:
+                                pass
+                else:
+                    # Design flaw: ratio exceeded but all orders already filled — can't undo
+                    logger.warning("RATIO CAP WARN %s: R=%.1f > %.1f cap, UP=%.0f DN=%.0f, "
+                                   "but no pending to cancel (all filled)",
+                                   _rc_cid[:8], _rc_ratio, _W4_EFFECTIVE_R_CAP, _rc_up, _rc_dn)
 
     # ── Post-fill AS measurement: check midpoint 60s after fill ──
     if _post_fill_checks and client and hasattr(client, "get_midpoint"):

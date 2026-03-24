@@ -87,7 +87,7 @@ _BINANCE_FUTURES = "https://fapi.binance.com"
 
 _WINDOW_S = 300           # 5M = 300 seconds
 _CYCLE_S = 5              # 5s main loop
-_HEAVY_INTERVAL_S = 10    # heavy ops every 10s
+_HEAVY_INTERVAL_S = 5     # heavy ops every 5s (v4 port, was 10s)
 _SCAN_S = 60              # discover every 60s (5M windows every 300s)
 _CANCEL_BEFORE_END_S = 30 # cancel 30s before window end (not 120s like 15M)
 _RESOLUTION_DELAY_MS = 60_000  # wait 60s after window end before resolving
@@ -117,14 +117,16 @@ class CoinConfig:
     min_order_size: float = 5.0 # CLOB minimum shares per order
 
 
-# 🔴 2CHECK: CoinConfig.live must be False for all coins on first deploy.
-# Only enable live after 48h paper data confirms positive EV.
+# v4 port: R=1.0 pure arb (lean killed). All dry-run.
 COIN_CONFIG = {
-    "btc": CoinConfig(live=True, symbol="BTCUSDT", slug_prefix="btc"),
-    "eth": CoinConfig(live=False, symbol="ETHUSDT", slug_prefix="eth"),
+    "btc": CoinConfig(live=False, symbol="BTCUSDT", slug_prefix="btc",
+                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+    "eth": CoinConfig(live=False, symbol="ETHUSDT", slug_prefix="eth",
+                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
     "sol": CoinConfig(live=False, symbol="SOLUSDT", slug_prefix="sol",
-                      contrarian=True, delay_s=15, threshold_bps=10),
-    "xrp": CoinConfig(live=False, symbol="XRPUSDT", slug_prefix="xrp"),
+                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+    "xrp": CoinConfig(live=False, symbol="XRPUSDT", slug_prefix="xrp",
+                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
 }
 
 # Binance symbol map for price lookups (matches 1H bot pattern)
@@ -389,6 +391,11 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
         logger.debug("W4 DUP %s: already in markets, skip", cid[:8])
         return None
 
+    # v4 port: Dead hours skip (HKT 22-06 = low liquidity)
+    _hkt_hour = datetime.now(tz=_HKT).hour
+    if _hkt_hour >= 22 or _hkt_hour < 6:
+        return "DEAD_HOUR"
+
     # Signal check
     w4_dir, w4_mag, w4_ret = _w4_signal(wl["start_ms"], coin, cfg)
     if w4_dir == "WAIT":
@@ -425,29 +432,36 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
     _dn_ask = round(min(0.95, _dn_mid + _TICK), 2)
     _bs_combined = round(_up_ask + _dn_ask, 4)
 
-    # Safety cap: combined < $1.05 (W4 avg $1.0005, allow slight overshoot)
-    if _bs_combined >= 1.05:
-        logger.warning("W4 ABORT %s %s: combined $%.4f >= $1.05",
-                        coin, cid[:8], _bs_combined)
+    # v4: combined gate — arb requires combined < $1.00. $0.99 = thin margin.
+    if _bs_combined >= 0.99:
+        logger.info("W4 SKIP %s %s: combined $%.4f >= $0.99 (arb spread too thin)",
+                     coin, cid[:8], _bs_combined)
         return "ABORT"
 
-    # ── Sizing: W4 lean 12.5:1 ──
-    # lean_frac = 12.5 / (12.5 + 1) = 0.926
-    # hedge_frac = 1.0 / (12.5 + 1) = 0.074
+    # ── Sizing: W4 lean = SHARE COUNT ratio (not budget ratio) ──
+    # FIX: budget fraction / price → cheap side gets MORE shares. Must use share fraction.
     _budget = bankroll * bet_pct
-    _lean_frac = cfg.lean_ratio / (cfg.lean_ratio + 1)
-    _hedge_frac = 1.0 / (cfg.lean_ratio + 1)
+    _avg_price = (_up_ask + _dn_ask) / 2
+    _total_shares = max(10, _budget / _avg_price)
+
+    _lean_share_frac = cfg.lean_ratio / (cfg.lean_ratio + 1)  # 0.926 at 12.5:1
+    _hedge_share_frac = 1.0 / (cfg.lean_ratio + 1)            # 0.074 at 12.5:1
 
     if w4_dir == "UP":
-        _up_budget = _budget * _lean_frac
-        _dn_budget = _budget * _hedge_frac
+        _up_shares = max(cfg.min_order_size, round(_total_shares * _lean_share_frac, 1))
+        _dn_shares = max(cfg.min_order_size, round(_total_shares * _hedge_share_frac, 1))
     else:
-        _up_budget = _budget * _hedge_frac
-        _dn_budget = _budget * _lean_frac
+        _up_shares = max(cfg.min_order_size, round(_total_shares * _hedge_share_frac, 1))
+        _dn_shares = max(cfg.min_order_size, round(_total_shares * _lean_share_frac, 1))
 
-    # 🔴 2CHECK: Must meet Poly 5-share minimum on BOTH sides
-    _up_shares = max(cfg.min_order_size, round(_up_budget / _up_ask, 1))
-    _dn_shares = max(cfg.min_order_size, round(_dn_budget / _dn_ask, 1))
+    # v4 port: Budget cap — min_order_size floors can inflate spend beyond budget
+    _est_cost = _up_shares * _up_ask + _dn_shares * _dn_ask
+    if _est_cost > _budget * 1.5 and _budget > 0:
+        _scale = _budget / _est_cost
+        _up_shares = max(1, round(_up_shares * _scale, 1))
+        _dn_shares = max(1, round(_dn_shares * _scale, 1))
+        logger.info("W4 BUDGET CAP %s: est $%.2f > budget $%.2f → scaled",
+                     coin, _est_cost, _budget)
 
     # Actual cost check
     _actual_cost = _up_shares * _up_ask + _dn_shares * _dn_ask
@@ -531,14 +545,22 @@ def _execute_order(client, token_id: str, outcome: str,
             return {"outcome": outcome, "submitted": False, "reason": "below_min"}
 
     try:
+        # 🔴 CRITICAL FIX: dry_run gate — MUST block real orders when paper mode
+        if dry_run:
+            logger.info("DRY 5M %s %s: %.1f shares @ $%.3f ($%.2f)",
+                        coin.upper(), outcome, size, price, amount)
+            return {
+                "outcome": outcome, "submitted": True, "dry_run": True,
+                "price": price, "size": size, "status": "matched",
+                "order_id": f"5m_dry_{token_id[:8]}_{int(time.time())}",
+            }
+
         r = client.buy_shares(token_id, amount, price=price)
         order_id = ""
         status = ""
         if isinstance(r, dict):
             order_id = r.get("orderID", r.get("id", ""))
             status = r.get("status", "")
-            if r.get("dry_run"):
-                status = "matched"
 
         # Reject if CLOB returns no order_id
         if not order_id and status != "matched":
@@ -720,16 +742,10 @@ def _check_resolutions(state: dict):
         if start_ms <= 0:
             continue
 
-        # 🔴 2CHECK: symbol detection from market title
-        title = md.get("title", "").lower()
-        if "solana" in title or "sol" in title:
-            sym = "SOLUSDT"
-        elif "ethereum" in title or "eth" in title:
-            sym = "ETHUSDT"
-        elif "xrp" in title or "ripple" in title:
-            sym = "XRPUSDT"
-        else:
-            sym = "BTCUSDT"
+        # Resolution symbol: use stored coin key (not title parsing — 2check CRITICAL fix)
+        _res_coin = md.get("coin", "btc")
+        _res_cfg = COIN_CONFIG.get(_res_coin)
+        sym = _res_cfg.symbol if _res_cfg else "BTCUSDT"
 
         # Fetch Binance 5m candle at window start
         data = _get_json(
@@ -1015,7 +1031,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
 
     # ── Evaluate watchlist: W4 entry for each active market ──
+    # CRITICAL FIX: concurrent position cap (prevent aggregate exposure blowup)
+    _MAX_CONCURRENT = 8  # 4 coins × 2 windows max
+    _open_count = sum(1 for m in state.get("markets", {}).values() if m.get("phase") == "OPEN")
+
     for cid in list(state.get("watchlist", {}).keys()):
+        if _open_count >= _MAX_CONCURRENT:
+            break  # concurrent cap reached
         wl = state["watchlist"].get(cid)
         if not wl:
             continue
@@ -1110,9 +1132,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             if not mkt["pending_orders"]:
                 mkt["fills_confirmed"] = True
 
-            # Remove from watchlist
+            # Remove from watchlist + increment concurrent counter
             if cid in state.get("watchlist", {}):
                 del state["watchlist"][cid]
+            _open_count += 1
 
     return state, cached_markets
 
@@ -1286,6 +1309,33 @@ def main():
                      state["initial_bankroll"] * _TOTAL_LOSS_FUSE_PCT)
 
     os.makedirs(_LOG_DIR, exist_ok=True)
+
+    # 🔴 v4 FIX: Startup orphan cleanup — only cancel 5M orders (not 15M/1H!)
+    # Old code cancelled ALL wallet orders not in 5M state = would kill 15M bot's orders.
+    # Fix: only cancel orders whose market slug contains "-5m-".
+    if client and hasattr(client, "get_orders") and not dry_run:
+        try:
+            existing = client.get_orders()
+            known_cids = set(state.get("markets", {}).keys())
+            orphans = 0
+            for o in (existing or []):
+                oid = o.get("id", "")
+                mkt_id = o.get("market", "")
+                # Only cancel if (a) not in 5M state AND (b) looks like a 5M market
+                # 5M condition_ids are different from 15M, but we can't check slug from order.
+                # Safest: only cancel if the market IS in our known 5M cids (stale orders).
+                # Skip unknown markets entirely — they belong to other bots.
+                if oid and mkt_id in known_cids and state["markets"].get(mkt_id, {}).get("phase") == "DONE":
+                    try:
+                        client.client.cancel(order_id=oid)
+                        orphans += 1
+                    except Exception:
+                        pass
+            if orphans:
+                logger.warning("STARTUP: cancelled %d stale 5M orders", orphans)
+        except Exception as e:
+            logger.warning("Startup orphan check failed: %s", e)
+
     cached_markets: list = []
     fuse_blown = False
 
