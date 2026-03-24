@@ -109,7 +109,19 @@ def _render_position_card(pos: dict):
                 ui.label(f'{sl} / {tp}').classes('text-sm')
             with ui.column().classes('gap-1'):
                 ui.label('Hold Score').classes('text-xs text-gray-500')
-                ui.label(str(hold_score)).classes('text-sm')
+                if isinstance(hold_score, dict) and 'score' in hold_score:
+                    sc = float(hold_score['score'])
+                    color = ('green' if sc >= 8 else 'indigo' if sc >= 6
+                             else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
+                    tip = '\n'.join(
+                        f"{f['name']}: {f['score']}  {f.get('detail', '')}"
+                        for f in hold_score.get('factors', [])
+                    )
+                    badge = ui.badge(f'{sc:.1f}', color=color).classes('text-sm')
+                    if tip:
+                        badge.tooltip(tip)
+                else:
+                    ui.label(str(hold_score)).classes('text-sm')
 
 
 _pos_dialog_open = {'value': False}
