@@ -168,19 +168,13 @@ def render_service_panel():
     status_labels = {}
     run_output = {'ref': None}
 
-    with ui.card().classes('w-full p-2'):
-        ui.label('Services').classes('text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1')
-
-        # Service rows
-        with ui.column().classes('gap-1 w-full'):
+    with ui.expansion('Services', icon='dns').classes('w-full').props('dense header-class="text-[11px] p-1"'):
+        with ui.column().classes('gap-1 w-full p-1'):
             for key, svc in svc_ctl.SERVICE_DEFS.items():
-                with ui.row().classes('items-center gap-2 w-full'):
-                    # Status indicator
+                with ui.row().classes('items-center gap-1 w-full'):
                     status_badge = ui.badge('...', color='grey').props('outline')
                     status_labels[key] = status_badge
-
-                    # Name
-                    ui.label(svc['display']).classes('text-sm min-w-[120px]')
+                    ui.label(svc['display']).classes('text-[11px] min-w-[100px]')
 
                     # Start button
                     async def on_start(k=key):

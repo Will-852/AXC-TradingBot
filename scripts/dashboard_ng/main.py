@@ -85,12 +85,11 @@ def main_page():
     from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
 
     with ui.column().classes('w-full p-3 gap-2'):
-        # ── Row 1: Controls + Service Panel (compact) ──
-        with ui.row().classes('gap-2 w-full items-start'):
+        # ── Row 1: Controls (inline with) Service Panel ──
+        with ui.row().classes('gap-3 w-full items-center flex-wrap'):
             render_controls()
-            ui.element('div').classes('flex-1')  # spacer
-            with ui.element('div').classes('min-w-[280px]'):
-                render_service_panel()
+            ui.element('div').classes('flex-1')
+            render_service_panel()
 
         # ── Row 2: KPI Stats ──
         render_stats_row()
