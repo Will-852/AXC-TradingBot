@@ -129,9 +129,11 @@ CONFIDENCE_RISK_CAP = 0.03          # absolute cap: never exceed 3% risk
 # ─── Kelly Criterion Position Sizing ───
 # Activates per-regime when enough closed trades exist.
 # Below threshold → fixed params.risk_pct fallback.
-KELLY_MIN_TRADES_RANGE  = 30        # min closed trades before Kelly activates
-KELLY_MIN_TRADES_TREND  = 30
-KELLY_MIN_TRADES_CRASH  = 20        # lower: crash triggers are rare by design
+KELLY_MIN_TRADES_RANGE   = 30        # min closed trades before Kelly activates
+KELLY_MIN_TRADES_TREND   = 30
+KELLY_MIN_TRADES_CRASH   = 20        # lower: crash triggers are rare by design
+KELLY_MIN_TRADES_SQUEEZE = 20        # new strategy, start tracking early
+KELLY_MIN_TRADES_BURST   = 20        # new strategy, start tracking early
 KELLY_WINDOW_N          = 60        # rolling window: last N trades per regime
 KELLY_MIN_RISK          = 0.005     # 0.5% floor (half-Kelly can go very low)
 KELLY_MAX_RISK          = 0.03      # 3% cap (= CONFIDENCE_RISK_CAP)
