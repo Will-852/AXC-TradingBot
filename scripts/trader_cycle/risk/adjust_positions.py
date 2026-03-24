@@ -31,6 +31,7 @@ from memory.writer import write_trade
 
 from ..config.settings import (
     PRIMARY_TIMEFRAME,
+    TRAILING_SL_ENABLED,
     TRAILING_SL_BREAKEVEN_ATR,
     TRAILING_SL_LOCK_PROFIT_ATR,
     EARLY_EXIT_RSI_OVERBOUGHT,
@@ -83,12 +84,13 @@ class AdjustPositionsStep:
                 ctx.warnings.append(f"RegimeAdjust error [{pos.pair}]: {e}")
                 logger.error("RegimeAdjust [%s]: %s", pos.pair, e)
 
-            # Operation 1: Trailing SL
-            try:
-                self._trailing_sl(pos, atr, ctx)
-            except Exception as e:
-                ctx.warnings.append(f"TrailingSL error [{pos.pair}]: {e}")
-                logger.error(f"TrailingSL [{pos.pair}]: {e}")
+            # Operation 1: Trailing SL (disabled when TRAILING_SL_ENABLED=False)
+            if TRAILING_SL_ENABLED:
+                try:
+                    self._trailing_sl(pos, atr, ctx)
+                except Exception as e:
+                    ctx.warnings.append(f"TrailingSL error [{pos.pair}]: {e}")
+                    logger.error(f"TrailingSL [{pos.pair}]: {e}")
 
             # Operation 2: TP Extension
             try:

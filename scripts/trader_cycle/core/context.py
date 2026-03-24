@@ -58,6 +58,7 @@ class Position:
     entry_time: datetime | None = None
     unrealized_pnl: float = 0.0
     funding_cost: float = 0.0
+    strategy: str = ""              # "range", "trend", "crash", "squeeze", "burst"
     platform: str = "aster"         # "aster", "binance", or "hyperliquid"
     # Margin health (Sprint 2B)
     liquidation_price: float = 0.0

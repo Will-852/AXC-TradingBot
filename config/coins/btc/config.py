@@ -46,7 +46,7 @@ COIN = {
             "conf_gate": 0.48,
         },
         "crash": {
-            "enabled": True,       # Keep: crash detection is regime-level, not edge-dependent
+            "enabled": False,      # DISABLED: PF=0.90, no edge at 20x leverage
             "conf_gate": 0.33,
         },
         "squeeze": {

@@ -150,7 +150,8 @@ REENTRY_INDICATORS_REQUIRED = 5  # 5/5 indicators (stricter)
 REENTRY_SIZE_REDUCTION = 0.30    # 30% smaller position
 
 # ─── Trailing SL/TP + Early Exit (AdjustPositionsStep) ───
-TRAILING_SL_BREAKEVEN_ATR = 1.0    # profit > 1×ATR → SL to entry
+TRAILING_SL_ENABLED = False        # 2026-03-24: DISABLED. Math shows trailing costs -0.10R on squeeze +0.075R edge.
+TRAILING_SL_BREAKEVEN_ATR = 1.0    # profit > 1×ATR → SL to entry (inactive when TRAILING_SL_ENABLED=False)
 TRAILING_SL_LOCK_PROFIT_ATR = 2.0  # profit > 2×ATR → SL to entry+1×ATR
 EARLY_EXIT_RSI_OVERBOUGHT = 70     # LONG exit threshold
 EARLY_EXIT_RSI_OVERSOLD = 30       # SHORT exit threshold
