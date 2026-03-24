@@ -95,6 +95,10 @@ def main_page():
         # ── Row 2: KPI Stats ──
         render_stats_row()
 
+        # ── Row 2.5: Strategy panels (squeeze/burst status + matrix + journal) ──
+        from scripts.dashboard_ng.components.strategy_panel import render_strategy_panels
+        render_strategy_panels()
+
         # ── Row 3: Risk + Market mode (side by side) ──
         render_risk_boxes()
 
