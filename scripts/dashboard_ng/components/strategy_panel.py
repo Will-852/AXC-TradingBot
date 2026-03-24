@@ -340,14 +340,71 @@ def render_strategy_pnl():
 # COMBINED RENDER
 # ═══════════════════════════════════════════════════════════════
 
-def render_strategy_panels():
-    """Render all 4 strategy panels as a new dashboard section."""
-    # Row A: Squeeze status + Strategy matrix + PnL
-    with ui.row().classes('gap-2 w-full items-stretch'):
-        render_squeeze_status()
-        render_strategy_matrix()
-        render_strategy_pnl()
+def _render_squeeze_inline():
+    """Compact one-line squeeze status for all coins."""
+    container = ui.row().classes('gap-3 flex-wrap items-center')
 
-    # Row B: Signal journal (full width)
-    with ui.row().classes('gap-2 w-full'):
-        render_signal_journal()
+    def update():
+        container.clear()
+        cache = _read_cache()
+        with container:
+            for sym in _COINS:
+                short = _COIN_SHORT[sym]
+                h1 = cache.get(sym, {}).get("1h", {})
+                bb_pctl = h1.get("bb_width_pctl")
+                adx = h1.get("adx")
+                vol = h1.get("volume_ratio")
+                price = h1.get("price")
+                bb_upper = h1.get("bb_upper")
+                bb_lower = h1.get("bb_lower")
+
+                squeeze_ready = (
+                    bb_pctl is not None and bb_pctl < _SQZ_BB_MAX
+                    and (adx is None or adx < _SQZ_ADX_MAX)
+                    and (vol is None or vol < _SQZ_VOL_MAX)
+                )
+                breakout = ""
+                if price and bb_upper and price > bb_upper:
+                    breakout = "↑"
+                elif price and bb_lower and price < bb_lower:
+                    breakout = "↓"
+
+                color = _COIN_COLORS.get(short, ACCENT)
+                if squeeze_ready and breakout:
+                    badge_bg, badge_text = f'{AMBER}', f'{breakout} BREAKOUT'
+                elif squeeze_ready:
+                    badge_bg, badge_text = f'{GREEN}', f'SQZ {bb_pctl:.0f}%'
+                else:
+                    badge_bg, badge_text = f'{TEXT_MUTED}', f'{bb_pctl:.0f}%' if bb_pctl else '—'
+
+                with ui.element('div').classes(
+                    f'flex items-center gap-1 px-2 py-0.5 rounded '
+                    f'bg-[{BG_ELEVATED}] border border-[{BORDER}]'
+                ):
+                    ui.label(short).classes(f'text-[10px] font-bold text-[{color}]')
+                    ui.element('div').classes(
+                        f'w-[6px] h-[6px] rounded-full bg-[{badge_bg}]'
+                    )
+                    ui.label(badge_text).classes(f'text-[9px] font-mono text-[{badge_bg}]')
+
+    ui.timer(5, update)
+
+
+def render_strategy_panels():
+    """Render strategy panels — compact squeeze inline + collapsible details."""
+    # Squeeze status: always visible, compact inline
+    with ui.card().classes(f'{CARD_DARK} w-full'):
+        with ui.row().classes('items-center gap-3 w-full'):
+            ui.label('SQUEEZE').classes(f'text-[10px] font-bold text-[{TEXT_MUTED}] uppercase tracking-wider')
+            _render_squeeze_inline()
+
+    # Details: collapsible
+    with ui.expansion('Strategy Details', icon='analytics').classes('w-full').props(
+        'dense header-class="text-[11px] p-1 text-gray-400"'
+    ):
+        with ui.row().classes('gap-2 w-full items-stretch'):
+            render_squeeze_status()
+            render_strategy_matrix()
+            render_strategy_pnl()
+        with ui.row().classes('gap-2 w-full mt-2'):
+            render_signal_journal()
