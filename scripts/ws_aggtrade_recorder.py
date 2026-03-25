@@ -28,7 +28,7 @@ LOG_DIR = os.path.join(AXC_HOME, "logs")
 HEARTBEAT_FILE = os.path.join(LOG_DIR, "ws_aggtrade_heartbeat.txt")
 
 # Config
-SYMBOLS = ["BTCUSDT", "ETHUSDT"]  # symbols to record
+SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
 FLUSH_INTERVAL_S = 5  # flush buffer to disk every N seconds
 FLUSH_MAX_TRADES = 1000  # or when buffer reaches N trades
 AGG_RETENTION_DAYS = 30  # delete CSVs older than this
