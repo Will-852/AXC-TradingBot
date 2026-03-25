@@ -2642,7 +2642,7 @@ function registerBackendIndicators() {
       return result;
     },
     styles: {
-      bars: [{ upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#787b86' }]
+      bars: [{ style: 'fill', borderSize: 0, upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#787b86' }]
     }
   });
 
@@ -5877,7 +5877,18 @@ function showOnboarding() {
 }
 </script>
 
-<script src="backtest-compare.js"></script>
+<script>
+(function() {
+  var paths = ['canvas/backtest-compare.js', 'backtest-compare.js'];
+  function tryLoad(i) {
+    if (i >= paths.length) return;
+    var s = document.createElement('script'); s.src = paths[i];
+    s.onerror = function() { tryLoad(i+1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 
 </body>
 </html>
