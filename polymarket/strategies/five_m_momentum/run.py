@@ -156,15 +156,31 @@ def discover_windows() -> list[dict]:
 
             mkt = data[0]
             cid = mkt.get("conditionId", "") or mkt.get("condition_id", "")
-            tokens = mkt.get("tokens", [])
 
+            # ⚠️ RISK: Gamma API returns tokens in two formats:
+            #   - "tokens" list (old format, may be None)
+            #   - "clobTokenIds" JSON string + "outcomes" JSON string (current format)
             up_tok = dn_tok = ""
-            for t in tokens:
-                outcome = t.get("outcome", "").upper()
-                if outcome in ("UP", "YES"):
-                    up_tok = t.get("token_id", "")
-                elif outcome in ("DOWN", "NO"):
-                    dn_tok = t.get("token_id", "")
+            tokens = mkt.get("tokens") or []
+            if tokens:
+                for t in tokens:
+                    outcome = t.get("outcome", "").upper()
+                    if outcome in ("UP", "YES"):
+                        up_tok = t.get("token_id", "")
+                    elif outcome in ("DOWN", "NO"):
+                        dn_tok = t.get("token_id", "")
+            else:
+                # Current Gamma format: clobTokenIds + outcomes as JSON strings
+                try:
+                    clob_ids = json.loads(mkt.get("clobTokenIds", "[]"))
+                    outcomes = json.loads(mkt.get("outcomes", "[]"))
+                    for outcome, tid in zip(outcomes, clob_ids):
+                        if outcome.upper() in ("UP", "YES"):
+                            up_tok = str(tid)
+                        elif outcome.upper() in ("DOWN", "NO"):
+                            dn_tok = str(tid)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             if cid and up_tok and dn_tok:
                 results.append({
