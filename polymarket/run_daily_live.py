@@ -73,9 +73,9 @@ _WINDOW_MIN = 1440      # 24H = 1440 minutes
 _WAIT_MIN = 240         # wait 4H before first entry (momentum read)
 _LATE_CUTOFF_MIN = 1200 # no new entries after T+20H
 
-# ── Pricing: cheap zone only ──
-_MIN_ENTRY_PRICE = 0.20
-_MAX_ENTRY_PRICE = 0.40
+# ── Pricing: mid-price zone (daily OB has 0 depth below $0.40) ──
+_MIN_ENTRY_PRICE = 0.40
+_MAX_ENTRY_PRICE = 0.55
 _MIN_FAIR_DEVIATION = 0.08  # bridge must deviate ≥8c from 0.50
 
 # ── Sizing ──
@@ -89,10 +89,12 @@ _TOTAL_LOSS_FUSE_PCT = 0.22
 
 # ── Coins (only verified daily markets) ──
 _COIN_SLUGS = {
-    "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "XRP": "xrp",
+    "BTC": "bitcoin", "ETH": "ethereum",
+    # SOL/XRP removed: daily OB depth ≤$0.50 = 0 shares (2026-03-26 audit)
+    # Re-add when liquidity improves
 }
 _COIN_SYMBOLS = {
-    "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "XRP": "XRPUSDT",
+    "BTC": "BTCUSDT", "ETH": "ETHUSDT",
 }
 # Paper only — redline doesn't include daily yet
 _LIVE_COINS: set = set()
@@ -368,13 +370,18 @@ def _daily_signal(
         result["reason"] = f"signal conflict (bridge={bridge_dir}, momentum={momentum_dir})"
         return result
 
-    # ── Both agree → ENTER ──
+    # ── Both agree → check confidence ──
     direction = bridge_dir
     confidence = min(1.0, fair_deviation * 2.5)
     result["confidence"] = round(confidence, 3)
     result["direction"] = direction
 
-    # ── Entry price: cheap zone, confidence-driven ──
+    # Gate: daily mid-price entries ($0.40+) need real conviction
+    if confidence < 0.30:
+        result["reason"] = f"low confidence ({confidence:.2f} < 0.30)"
+        return result
+
+    # ── Entry price: mid-price zone, confidence-driven ──
     entry_price = _MIN_ENTRY_PRICE + confidence * 0.15
     entry_price = max(_MIN_ENTRY_PRICE, min(_MAX_ENTRY_PRICE, round(entry_price, 2)))
     result["entry_price"] = entry_price
@@ -709,7 +716,26 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
 #  Signal Tape
 # ═══════════════════════════════════════
 
+_adanos_cache: dict = {}
+_adanos_last_fetch: float = 0
+
+
+def _get_adanos(coin: str) -> dict:
+    global _adanos_last_fetch
+    now = time.time()
+    if now - _adanos_last_fetch > 300:
+        try:
+            from polymarket.data.adanos_sentiment import crypto_signal_summary
+            _adanos_cache.clear()
+            _adanos_cache.update(crypto_signal_summary())
+            _adanos_last_fetch = now
+        except Exception:
+            pass
+    return _adanos_cache.get(coin, {})
+
+
 def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
+    adanos = _get_adanos(coin)
     entry = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "coin": coin, "cid": cid[:12],
@@ -722,6 +748,9 @@ def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
         "confidence": sig.get("confidence", 0),
         "entry_price": sig.get("entry_price", 0),
         "reason": sig.get("reason", "")[:80],
+        "adanos_buzz": adanos.get("buzz", 0),
+        "adanos_sentiment": adanos.get("sentiment"),
+        "adanos_trend": adanos.get("trend", ""),
     }
     path = _signal_path(coin)
     try:

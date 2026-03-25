@@ -263,7 +263,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         both_sides, is_heavy)
 
     # ══════ CHECK FILLS ══════
-    if not dry_run:
+    if dry_run:
+        order_lifecycle.check_fills_paper(
+            state, client, ws_poly=_ws_poly)
+    else:
         order_lifecycle.check_fills(
             state, client, dry_run=dry_run,
             ws_user=_ws_user, ws_poly=_ws_poly)

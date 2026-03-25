@@ -40,7 +40,6 @@ from polymarket.exchange.gamma_client import GammaClient
 logger = logging.getLogger(__name__)
 
 _HKT = timezone(timedelta(hours=8))
-_ET = timezone(timedelta(hours=-4))
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state_4h.json")
 
@@ -73,9 +72,9 @@ _WINDOW_MIN = 240       # 4H = 240 minutes
 _WAIT_MIN = 60          # wait 60 min before first entry (momentum read)
 _LATE_CUTOFF_MIN = 210  # no new entries in last 30 min
 
-# ── Pricing: cheap zone only (positive selection bias) ──
+# ── Pricing: cheap-to-mid zone (OB depth mostly $0.30-$0.50) ──
 _MIN_ENTRY_PRICE = 0.20
-_MAX_ENTRY_PRICE = 0.40  # hard ceiling
+_MAX_ENTRY_PRICE = 0.50  # raised from 0.40 — OB depth at $0.40-$0.50
 _MIN_FAIR_DEVIATION = 0.08  # bridge must deviate ≥8c from 0.50
 
 # ── Sizing ──
@@ -89,10 +88,11 @@ _TOTAL_LOSS_FUSE_PCT = 0.22  # 22% total loss → stop live
 
 # ── Coins ──
 _COIN_SLUGS = {
-    "BTC": "btc", "ETH": "eth", "SOL": "sol", "XRP": "xrp",
+    "BTC": "btc", "ETH": "eth", "SOL": "sol",
+    # XRP removed: OB depth ≤$0.50 = 9 shares (2026-03-26 audit)
 }
 _COIN_SYMBOLS = {
-    "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "XRP": "XRPUSDT",
+    "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT",
 }
 # BTC paper-only. Others observe (collect signals, no execution).
 _LIVE_COINS = set()  # empty = all dry-run for now
@@ -367,9 +367,9 @@ def _4h_signal(
     result["confidence"] = round(confidence, 3)
     result["direction"] = direction
 
-    # ── Entry price: cheap zone, confidence-driven ──
-    # Base: $0.25 at low confidence, up to $0.35 at high confidence
-    entry_price = _MIN_ENTRY_PRICE + confidence * 0.15
+    # ── Entry price: scaled to OB depth zone ($0.20-$0.50) ──
+    # Low conf → $0.20, high conf → $0.50 (where liquidity exists)
+    entry_price = _MIN_ENTRY_PRICE + confidence * 0.30
     entry_price = max(_MIN_ENTRY_PRICE, min(_MAX_ENTRY_PRICE, round(entry_price, 2)))
     result["entry_price"] = entry_price
 
@@ -696,7 +696,27 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
 #  Signal Tape (for future analysis)
 # ═══════════════════════════════════════
 
+_adanos_cache: dict = {}
+_adanos_last_fetch: float = 0
+
+
+def _get_adanos(coin: str) -> dict:
+    """Get Adanos sentiment (cached 5min across all coins)."""
+    global _adanos_last_fetch
+    now = time.time()
+    if now - _adanos_last_fetch > 300:
+        try:
+            from polymarket.data.adanos_sentiment import crypto_signal_summary
+            _adanos_cache.clear()
+            _adanos_cache.update(crypto_signal_summary())
+            _adanos_last_fetch = now
+        except Exception:
+            pass
+    return _adanos_cache.get(coin, {})
+
+
 def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
+    adanos = _get_adanos(coin)
     entry = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "coin": coin, "cid": cid[:12],
@@ -709,6 +729,9 @@ def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
         "confidence": sig.get("confidence", 0),
         "entry_price": sig.get("entry_price", 0),
         "reason": sig.get("reason", "")[:80],
+        "adanos_buzz": adanos.get("buzz", 0),
+        "adanos_sentiment": adanos.get("sentiment"),
+        "adanos_trend": adanos.get("trend", ""),
     }
     try:
         path = _signal_path(coin)
@@ -887,6 +910,12 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
                         coin, sig["direction"], sig["confidence"],
                         sig["fair_up"], sig["entry_price"], sig["size_usd"],
                         sig["reason"][:60])
+
+    # ── Prune old resolved markets (keep last 50) ──
+    resolved = [c for c, m in state["markets"].items() if m.get("phase") == "RESOLVED"]
+    if len(resolved) > 50:
+        for c in resolved[:-50]:
+            del state["markets"][c]
 
     return state, last_scan, last_heavy, cached_markets, cached_vols
 

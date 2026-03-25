@@ -101,6 +101,77 @@ def execute(orders, client, cid: str = "", signal_ctx: dict | None = None, coin:
     return results
 
 
+def check_fills_paper(state: dict, client=None, ws_poly=None) -> None:
+    """Paper fill simulation: maker order fills when market mid ≤ our limit price.
+
+    For MM bot paper testing. Simulates GTC limit order being lifted.
+    """
+    now = time.time()
+    now_ms = int(now * 1000)
+
+    for cid, mkt in list(state.get("markets", {}).items()):
+        if mkt.get("phase") != "OPEN" or mkt.get("fills_confirmed"):
+            continue
+        _coin = mkt.get("coin", "") or coin_from_title(mkt.get("title", ""))
+        pending = mkt.get("pending_orders", [])
+        if not pending:
+            continue
+
+        end_ms = mkt.get("window_end_ms", 0)
+        if end_ms > 0 and now_ms > end_ms:
+            for po in pending:
+                log_order("paper_expired", po.get("order_id", ""), cid, coin=_coin,
+                          outcome=po.get("outcome", ""))
+            bump_fill(state, "expired", len(pending))
+            mkt["pending_orders"] = []
+            mkt["fills_confirmed"] = True
+            continue
+
+        new_pending = []
+        for po in pending:
+            if not po.get("submitted"):
+                new_pending.append(po)
+                continue
+            tok = po.get("token_id", "")
+            # Try WS mid first, fall back to REST
+            mid = None
+            if ws_poly:
+                mid = ws_poly.get_midpoint(tok)
+            if mid is None or mid <= 0:
+                mid = poly_midpoint(client, tok) if tok else None
+            if mid is None or mid <= 0:
+                new_pending.append(po)
+                continue
+
+            # Maker fill: our bid price >= market mid (mid dropped to our level)
+            if po["price"] >= mid:
+                o = po.get("outcome", "UP")
+                s = po.get("size", 0)
+                p = po["price"]
+                if o == "UP":
+                    old_val = mkt.get("up_shares", 0) * mkt.get("up_avg_price", 0)
+                    mkt["up_shares"] = mkt.get("up_shares", 0) + s
+                    mkt["up_avg_price"] = (old_val + s * p) / mkt["up_shares"] if mkt["up_shares"] else p
+                else:
+                    old_val = mkt.get("down_shares", 0) * mkt.get("down_avg_price", 0)
+                    mkt["down_shares"] = mkt.get("down_shares", 0) + s
+                    mkt["down_avg_price"] = (old_val + s * p) / mkt["down_shares"] if mkt["down_shares"] else p
+                mkt["entry_cost"] = mkt.get("entry_cost", 0) + s * p
+                bump_fill(state, "filled")
+                fill_age = now - po.get("order_ts", now)
+                logger.info("PAPER FILL %s %s @ $%.3f (mid=$%.3f, age=%.0fs)",
+                            cid[:8], o, p, mid, fill_age)
+                log_order("paper_fill", po.get("order_id", ""), cid, coin=_coin,
+                          outcome=o, price=p, mid=round(mid, 3),
+                          size=s, fill_age_s=round(fill_age))
+            else:
+                new_pending.append(po)
+
+        mkt["pending_orders"] = new_pending
+        if not new_pending and (mkt.get("up_shares", 0) > 0 or mkt.get("down_shares", 0) > 0):
+            mkt["fills_confirmed"] = True
+
+
 def check_fills(state: dict, client, dry_run: bool = False,
                 ws_user=None, ws_poly=None) -> None:
     """Check which submitted orders actually filled on-chain.
