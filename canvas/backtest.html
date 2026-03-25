@@ -518,8 +518,8 @@
     [data-tip] { position: relative; }
     [data-tip]::after {
       content: attr(data-tip);
-      position: absolute; left: 50%; top: 100%;
-      transform: translateX(-50%); z-index: 999;
+      position: absolute; left: 0; top: 100%;
+      z-index: 999;
       background: #1e222d; color: #d1d4dc; border: 1px solid #363a45;
       border-radius: 6px; padding: 8px 12px;
       font-size: 11px; line-height: 1.6; white-space: pre-line;
@@ -1133,7 +1133,7 @@
         <button class="itab" data-val="1d" onclick="setInterval_(this)">1D</button>
       </div>
       <span class="sep"></span>
-      <span class="ind-group-label" title="需要先執行回測才有數據">疊加指標 <small style="color:#64748b">⚡回測</small></span>
+      <span class="ind-group-label">疊加指標 <small style="color:#64748b">⚡回測</small></span>
       <label data-tip="📊 布林帶 BB ⚡回測
 • 價格波動範圍（上下 2 個標準差）
 • 碰上軌 → 可能過熱
@@ -1199,7 +1199,7 @@
 • Zoom 入 < 30 支 candle 先見數字
 • 同一價位 買>>賣 → 吸收（支撐💪）
 • 同一價位 賣>>買 → 派發（阻力🧱）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
-      <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" title="切換色塊/氣泡模式">Blk</button>
+      <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" data-tip="切換色塊/氣泡顯示模式">Blk</button>
       <label data-tip="📈 累積淨量 CVD = 由頭到而家邊邊一直更急
 • 持續升 → 買方一直主導
 • 持續跌 → 賣方一直主導
