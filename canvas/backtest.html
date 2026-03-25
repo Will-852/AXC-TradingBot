@@ -2623,13 +2623,19 @@ function registerBackendIndicators() {
   klinecharts.registerIndicator({
     name: 'AXC_DELTA',
     figures: [
-      { key: 'delta', title: 'Delta $', type: 'bar' }
+      { key: 'delta', title: 'Delta $', type: 'bar', baseValue: 0 }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var hitCount = 0;
+      var result = dataList.map(function(d) {
         var dv = footprintData.delta_volume[String(d.timestamp)];
-        return dv ? { delta: dv.delta_usd } : {};
+        if (dv) { hitCount++; return { delta: dv.delta_usd }; }
+        return {};
       });
+      if (hitCount === 0 && dataList.length > 0) {
+        console.warn('[AXC_DELTA] 0 matches out of', dataList.length, 'bars. Sample kline ts:', dataList[0].timestamp, 'delta_volume keys:', Object.keys(footprintData.delta_volume).slice(0, 3));
+      }
+      return result;
     },
     styles: {
       bars: [{ upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#787b86' }]
