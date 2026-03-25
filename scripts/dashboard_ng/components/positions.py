@@ -245,14 +245,35 @@ def _render_position_card(pos: dict):
             size_f = float(size) if size else 0
             ui.label(f'{size_f:g}').classes('text-sm font-mono')
 
-            # SL / TP / Liq
+            # SL / TP / Liq — with expected PnL
             ui.label('SL').classes('text-xs text-gray-500')
             ui.label('TP').classes('text-xs text-gray-500')
             ui.label('Liq Price').classes('text-xs text-gray-500')
-            sl_str = _fmt_price(sl) if sl else '—'
-            tp_str = _fmt_price(tp) if tp else '—'
-            ui.label(f'{sl_str}').classes('text-sm font-mono text-red-300' if sl else 'text-sm font-mono text-gray-600')
-            ui.label(f'{tp_str}').classes('text-sm font-mono text-green-300' if tp else 'text-sm font-mono text-gray-600')
+
+            entry_f = float(entry) if entry else 0
+            sl_f = float(sl) if sl else 0
+            tp_f = float(tp) if tp else 0
+            size_f2 = float(size) if size else 0
+            is_long = (side == 'LONG')
+
+            # SL cell: price + expected loss
+            if sl_f > 0 and entry_f > 0 and size_f2 > 0:
+                sl_loss = abs(entry_f - sl_f) * size_f2
+                ui.label(f'{_fmt_price(sl)} (-${sl_loss:,.2f})') \
+                    .classes('text-sm font-mono text-red-300')
+            else:
+                ui.label(_fmt_price(sl) if sl else '—') \
+                    .classes('text-sm font-mono text-red-300' if sl else 'text-sm font-mono text-gray-600')
+
+            # TP cell: price + expected gain
+            if tp_f > 0 and entry_f > 0 and size_f2 > 0:
+                tp_gain = abs(tp_f - entry_f) * size_f2
+                ui.label(f'{_fmt_price(tp)} (+${tp_gain:,.2f})') \
+                    .classes('text-sm font-mono text-green-300')
+            else:
+                ui.label(_fmt_price(tp) if tp else '—') \
+                    .classes('text-sm font-mono text-green-300' if tp else 'text-sm font-mono text-gray-600')
+
             if liq_f > 0:
                 ui.label(f'{_fmt_price(liq_price)} ({liq_dist_pct:.1f}%)').classes(f'text-sm font-mono {liq_color}')
             else:

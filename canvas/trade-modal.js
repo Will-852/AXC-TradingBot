@@ -41,6 +41,9 @@ function openTradeModal(planData) {
   // Leverage default + clear inputs (before _setDirection, which triggers preview)
   document.getElementById('tm-leverage').value = '5';
   document.getElementById('tm-qty-input').value = '';
+  var coinEl = document.getElementById('tm-coin-input');
+  if (coinEl) coinEl.value = '';
+  _tmLastEdited = ['margin', 'leverage'];  // reset auto-calc tracking
 
   // Reset order type to MARKET
   _setOrderType('MARKET');
@@ -254,26 +257,78 @@ function _getEntryPrice() {
   return _tmState.price;
 }
 
+// ── 3-Pick-2 Auto-Calc: margin / qty / leverage ──
+// Formula: notional = price × qty = margin × leverage
+// User edits one field → recalc the LEAST recently edited of the other two.
+var _tmCalcLock = false;  // prevent infinite loop
+var _tmLastEdited = ['margin', 'leverage'];  // track which 2 user last touched
+
+function _tmAutoCalc(editedField) {
+  if (_tmCalcLock) return;
+  _tmCalcLock = true;
+
+  // Track last 2 edited fields
+  if (_tmLastEdited[_tmLastEdited.length - 1] !== editedField) {
+    _tmLastEdited.push(editedField);
+    if (_tmLastEdited.length > 2) _tmLastEdited.shift();
+  }
+
+  var price = _getEntryPrice();
+  var effectivePrice = _tmState.orderType === 'LIMIT'
+    ? (parseFloat(document.getElementById('tm-limit-price').value) || price)
+    : price;
+  if (effectivePrice <= 0) { _tmCalcLock = false; _updatePreview(); return; }
+
+  var marginEl = document.getElementById('tm-qty-input');
+  var coinEl = document.getElementById('tm-coin-input');
+  var levEl = document.getElementById('tm-leverage');
+
+  var margin = parseFloat(marginEl.value) || 0;
+  var coinQty = parseFloat(coinEl.value) || 0;
+  var leverage = parseInt(levEl.value) || 0;
+
+  // Determine which field to auto-calc (the one NOT in _tmLastEdited)
+  var calcTarget = 'qty';  // default
+  if (_tmLastEdited.indexOf('margin') === -1) calcTarget = 'margin';
+  else if (_tmLastEdited.indexOf('qty') === -1) calcTarget = 'qty';
+  else if (_tmLastEdited.indexOf('leverage') === -1) calcTarget = 'leverage';
+
+  if (calcTarget === 'qty' && margin > 0 && leverage > 0) {
+    // qty = margin × leverage / price
+    coinEl.value = (margin * leverage / effectivePrice).toFixed(6);
+  } else if (calcTarget === 'margin' && coinQty > 0 && leverage > 0) {
+    // margin = qty × price / leverage
+    marginEl.value = (coinQty * effectivePrice / leverage).toFixed(2);
+  } else if (calcTarget === 'leverage' && margin > 0 && coinQty > 0) {
+    // leverage = qty × price / margin
+    var calcLev = Math.round(coinQty * effectivePrice / margin);
+    if (calcLev >= 1 && calcLev <= 125) levEl.value = calcLev;
+  }
+
+  _tmCalcLock = false;
+  _updatePreview();
+}
+
 function _updatePreview() {
   var price = _getEntryPrice();
   var leverage = parseInt(document.getElementById('tm-leverage').value) || 5;
   var usdtInput = parseFloat(document.getElementById('tm-qty-input').value) || 0;
+  var coinInput = parseFloat(document.getElementById('tm-coin-input').value) || 0;
   var slPrice = parseFloat(document.getElementById('tm-sl-price').value) || 0;
   var tpPrice = parseFloat(document.getElementById('tm-tp-price').value) || 0;
 
-  // Use limit price for calculations when in limit mode
   var effectivePrice = _tmState.orderType === 'LIMIT'
     ? (parseFloat(document.getElementById('tm-limit-price').value) || price)
     : price;
 
-  // Estimated qty with min_qty warning
-  var qty = effectivePrice > 0 ? usdtInput * leverage / effectivePrice : 0;
+  // Use coin input if available, otherwise derive from margin
+  var qty = coinInput > 0 ? coinInput : (effectivePrice > 0 ? usdtInput * leverage / effectivePrice : 0);
   var estEl = document.getElementById('tm-est-pos');
   var displayName = _tmState.symbol.replace('USDT', '');
   var info = _tmState.symbolInfo;
   if (qty > 0) {
-    var estText = '預計倉位: ' + qty.toFixed(6) + ' ' + displayName;
-    // Warn if below minimum after rounding
+    var notional = qty * effectivePrice;
+    var estText = qty.toFixed(6) + ' ' + displayName + ' ($' + notional.toFixed(0) + ')';
     if (info && info.step_size) {
       var step = info.step_size;
       var roundedQty = step > 0 ? Math.round(Math.round(qty / step) * step * 1e8) / 1e8 : qty;
@@ -290,25 +345,27 @@ function _updatePreview() {
     estEl.style.color = '';
   }
 
-  // SL/TP pct hints (use effectivePrice so limit orders show correct %)
+  // SL/TP pct + $$ hints
   var slPctEl = document.getElementById('tm-sl-pct');
   var tpPctEl = document.getElementById('tm-tp-pct');
   if (slPrice > 0 && effectivePrice > 0) {
     var slPct = Math.abs(slPrice - effectivePrice) / effectivePrice * 100;
-    slPctEl.textContent = '-' + slPct.toFixed(2) + '%';
+    var slLoss = qty > 0 ? Math.abs(slPrice - effectivePrice) * qty : 0;
+    slPctEl.textContent = '-' + slPct.toFixed(2) + '%' + (slLoss > 0 ? ' (-$' + slLoss.toFixed(2) + ')' : '');
   } else {
     slPctEl.textContent = '';
   }
   if (tpPrice > 0 && effectivePrice > 0) {
     var tpPct = Math.abs(tpPrice - effectivePrice) / effectivePrice * 100;
-    tpPctEl.textContent = '+' + tpPct.toFixed(2) + '%';
+    var tpGain = qty > 0 ? Math.abs(tpPrice - effectivePrice) * qty : 0;
+    tpPctEl.textContent = '+' + tpPct.toFixed(2) + '%' + (tpGain > 0 ? ' (+$' + tpGain.toFixed(2) + ')' : '');
   } else {
     tpPctEl.textContent = '';
   }
 
   // Preview card
   var margin = leverage > 0 ? usdtInput : 0;
-  var feeEst = usdtInput * leverage * 0.0004;  // 0.04% taker fee
+  var feeEst = (qty * effectivePrice) * 0.0004;  // 0.04% taker fee on notional
   var rr = 0;
   if (slPrice > 0 && tpPrice > 0 && effectivePrice > 0) {
     var risk = Math.abs(effectivePrice - slPrice);
@@ -316,7 +373,6 @@ function _updatePreview() {
     rr = risk > 0 ? reward / risk : 0;
   }
 
-  // Balance display
   var platform = _getSelectedPlatform();
   var bal = _tmState.balance[platform];
   var balHtml = _tmState.balanceLoaded && bal != null
@@ -363,15 +419,19 @@ function submitTradeOrder() {
   var isLimit = _tmState.orderType === 'LIMIT';
   var limitPrice = isLimit ? (parseFloat(document.getElementById('tm-limit-price').value) || 0) : 0;
 
-  if (usdtInput <= 0) { _tmShowError('請輸入數量'); return; }
+  var coinInput = parseFloat(document.getElementById('tm-coin-input').value) || 0;
+  if (usdtInput <= 0 && coinInput <= 0) { _tmShowError('請輸入保證金或數量'); return; }
   if (isLimit && limitPrice <= 0) { _tmShowError('請輸入限價'); return; }
   if (!isLimit && price <= 0) { _tmShowError('無法取得價格'); return; }
 
-  // For limit orders, use limit price for qty calculation
   var calcPrice = isLimit ? limitPrice : price;
   if (calcPrice <= 0) { _tmShowError('無法取得價格'); return; }
 
-  // SL/TP direction sanity check — use limitPrice as reference for limit orders
+  // If user provided coin qty directly, derive margin from it
+  if (coinInput > 0 && usdtInput <= 0) {
+    usdtInput = coinInput * calcPrice / leverage;
+  }
+
   var refPrice = isLimit ? limitPrice : price;
   if (slPrice > 0 || tpPrice > 0) {
     if (_tmState.direction === 'LONG') {
