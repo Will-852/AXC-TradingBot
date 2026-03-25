@@ -1456,7 +1456,20 @@
 <!-- KLineChart v10 CDN -->
 <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
 <!-- Footprint IndexedDB cache — persist flow/vol data across TF switches -->
-<script src="fp-cache.js"></script>
+<script>
+// Load fp-cache.js — try multiple paths (NiceGUI vs old dashboard serve different roots)
+(function() {
+  var paths = ['canvas/fp-cache.js', 'fp-cache.js'];
+  function tryLoad(i) {
+    if (i >= paths.length) { console.warn('fp-cache.js not found, cache disabled'); window.FPCache = {get:function(){return Promise.resolve(null)},put:function(){return Promise.resolve()},cleanup:function(){}}; return; }
+    var s = document.createElement('script'); s.src = paths[i];
+    s.onload = function() { console.log('[FPCache] loaded from', paths[i]); };
+    s.onerror = function() { tryLoad(i+1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 
 <script>
 // ══════════════════════════════════════════════════
@@ -4590,7 +4603,7 @@ function handleOFMessage(evt) {
     });
   } else if (msg.type === 'large_trade') {
     footprintData.large_trades.push(msg.data);
-    if (fpActive.large) drawSingleLargeTradeMarker(msg.data);
+    // AXC_WHALE indicator auto-redraws from footprintData on next repaint — no manual overlay needed
   } else if (msg.type === 'status') {
     // Could update UI status indicator here
     return;
