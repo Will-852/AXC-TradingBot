@@ -21,7 +21,7 @@ from polymarket.mm.constants import (
     _BOTHSIDES_LOG, _LEAN_PREEMPTIVE_S, _LEAN_UNFILLED_TIMEOUT_S,
     _REPRICE_COOLDOWN_S, _REPRICE_MAX_PER_ORDER, _REPRICE_THRESHOLD,
     _TAKER_CONVERT_DELAY_S, _TAKER_CONVERT_ENABLED, _TAKER_CONVERT_MAX_SPREAD,
-    _W4_EFFECTIVE_R_CAP, ts_hkt,
+    _W4_EFFECTIVE_R_CAP, coin_from_title, ts_hkt,
 )
 from polymarket.mm.data_feeds import btc_price, poly_midpoint, price
 from polymarket.mm.state_io import bump_fill, log_order
@@ -50,7 +50,7 @@ def find_directional_orders(pending_list: list) -> list:
             if id(p) not in hedge_up_ids and id(p) not in hedge_dn_ids]
 
 
-def execute(orders, client, cid: str = "", signal_ctx: dict | None = None) -> list[dict]:
+def execute(orders, client, cid: str = "", signal_ctx: dict | None = None, coin: str = "") -> list[dict]:
     """Submit limit orders. Returns order IDs — NOT fills.
 
     🔴 IMPORTANT: Limit orders (GTC) go on the book. Submit != filled.
@@ -92,7 +92,7 @@ def execute(orders, client, cid: str = "", signal_ctx: dict | None = None) -> li
                            "token_id": o.token_id,
                            "order_id": order_id, "status": status,
                            "submitted": True, "order_ts": time.time()})
-            log_order("submit", order_id, cid,
+            log_order("submit", order_id, cid, coin=coin,
                       outcome=o.outcome, price=o.price, size=o.size,
                       status=status, **_ctx)
         except Exception as e:
@@ -122,11 +122,13 @@ def check_fills(state: dict, client, dry_run: bool = False,
         if not pending:
             continue
 
+        _coin = mkt.get("coin", "") or coin_from_title(mkt.get("title", ""))
+
         end_ms = mkt.get("window_end_ms", 0)
         if end_ms > 0 and now_ms > end_ms:
             bump_fill(state, "expired", len(pending))
             for _ep in pending:
-                log_order("expired", _ep.get("order_id", ""), cid,
+                log_order("expired", _ep.get("order_id", ""), cid, coin=_coin,
                           outcome=_ep.get("outcome", ""))
             logger.info("Window ended %s: %d pending orders → expired (not filled)",
                         cid[:8], len(pending))
@@ -165,14 +167,14 @@ def check_fills(state: dict, client, dry_run: bool = False,
                         mkt["down_avg_price"] = (old + size * _price) / mkt["down_shares"]
                     mkt["entry_cost"] += size * _price
                     bump_fill(state, "filled")
-                    log_order("fill_ws", oid, cid, outcome=outcome,
+                    log_order("fill_ws", oid, cid, coin=_coin, outcome=outcome,
                               price=_price, size=size)
                     logger.info("FILL (WS) %s %s: %.1f @ $%.3f",
                                 cid[:8], outcome, size, _price)
                     ws_resolved.append(po)
                 elif ws_status in ("CANCELED", "CANCELLED"):
                     bump_fill(state, "cancelled")
-                    log_order("cancelled_ws", oid, cid,
+                    log_order("cancelled_ws", oid, cid, coin=_coin,
                               outcome=po.get("outcome", ""))
                     logger.info("CANCEL (WS) %s %s", cid[:8], po.get("outcome", ""))
                     ws_resolved.append(po)
@@ -367,7 +369,7 @@ def check_fills(state: dict, client, dry_run: bool = False,
                     still_open.append(po)
                 else:
                     bump_fill(state, "cancelled")
-                    log_order("cancelled_external", po.get("order_id", ""), cid,
+                    log_order("cancelled_external", po.get("order_id", ""), cid, coin=_coin,
                               outcome=po.get("outcome", ""))
                     logger.info("Order %s %s: not in trades or open → cancelled",
                                 cid[:8], po["outcome"])
@@ -396,7 +398,7 @@ def check_fills(state: dict, client, dry_run: bool = False,
                     _btc_fill = price(_fill_sym)
                     _order_ts = f.get("order_ts", 0)
                     _ttf = round(time.time() - _order_ts, 1) if _order_ts > 0 else 0
-                    log_order("fill", f.get("order_id", ""), cid,
+                    log_order("fill", f.get("order_id", ""), cid, coin=_coin,
                               outcome=outcome, price=_fprice, size=size,
                               mid_at_fill=round(_fill_mid, 4) if _fill_mid else 0,
                               btc_at_fill=round(_btc_fill, 2),
@@ -443,6 +445,7 @@ def cancel_defense(state: dict, client, dry_run: bool,
 
         _t = mkt.get("title", "").lower()
         _s = "ETHUSDT" if "ethereum" in _t else "BTCUSDT"
+        _coin = mkt.get("coin", "") or coin_from_title(mkt.get("title", ""))
 
         to_cancel = []
         reason = ""
@@ -588,7 +591,7 @@ def cancel_defense(state: dict, client, dry_run: bool,
                     logger.info("CANCEL %s %s [%s] book=%ds end=%ds rtt=%dms",
                                 cid[:8], po["outcome"], reason,
                                 _time_on_book, _dist_to_end_s, _cancel_rtt_ms)
-                    log_order("cancel", oid, cid,
+                    log_order("cancel", oid, cid, coin=_coin,
                               outcome=po.get("outcome", ""), reason=reason,
                               time_on_book_s=_time_on_book,
                               dist_to_end_s=int(_dist_to_end_s),
@@ -819,7 +822,7 @@ def post_fill_as_check(client, ws_poly=None) -> None:
     for _pf_time, _pf_oid, _pf_cid, _pf_tok in post_fill_checks:
         if _now >= _pf_time:
             _pf_mid = poly_midpoint(client, _pf_tok, ws_poly=ws_poly)
-            log_order("post_fill_60s", _pf_oid, _pf_cid,
+            log_order("post_fill_60s", _pf_oid, _pf_cid, coin="",
                       mid_60s=round(_pf_mid, 4) if _pf_mid else 0)
         else:
             _remaining.append((_pf_time, _pf_oid, _pf_cid, _pf_tok))

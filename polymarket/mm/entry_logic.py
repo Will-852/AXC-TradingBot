@@ -27,6 +27,7 @@ from polymarket.mm.constants import (
     _LIVE_TRADE_COINS, _LOG_DIR, _MAX_ROUNDS, _MIN_VIABLE_BUDGET,
     _REENTRY_COOLDOWN_S, _SIGNAL_LOG, _W4_LEAN_RATIO, _W4_T1_PCT,
     _W4_T2_DELAY_S, _W4_T2_PCT, _W4_THRESHOLD_BPS,
+    coin_from_title, signal_path,
 )
 from polymarket.mm.data_feeds import (
     cross_exchange_price, cvd_buy_ratio, holder_imbalance, m1_return,
@@ -239,7 +240,7 @@ def try_entries(state: dict, client, config, dry_run: bool,
                         "age_ms": round(_snap.age_ms),
                     }
             os.makedirs(_LOG_DIR, exist_ok=True)
-            with open(_SIGNAL_LOG, "a") as _sf:
+            with open(signal_path(_coin_slug.upper()), "a") as _sf:
                 _sf.write(json.dumps(_sig_record) + "\n")
         except Exception:
             pass
@@ -531,11 +532,11 @@ def try_entries(state: dict, client, config, dry_run: bool,
         if _observe_only:
             _sig_ctx["paper"] = True
             _paper_client = PaperClient()
-            results = execute_fn(orders, _paper_client, cid=cid, signal_ctx=_sig_ctx)
+            results = execute_fn(orders, _paper_client, cid=cid, signal_ctx=_sig_ctx, coin=_coin_slug.upper())
             logger.info("PAPER %s %s: fair=%.3f bridge=%.3f %d orders simulated",
                         cid[:8], _coin_slug.upper(), fair, bridge_p_up, len(orders))
         else:
-            results = execute_fn(orders, client, cid=cid, signal_ctx=_sig_ctx)
+            results = execute_fn(orders, client, cid=cid, signal_ctx=_sig_ctx, coin=_coin_slug.upper())
         ms = MMMarketState(condition_id=cid, title=wl["title"],
                            up_token_id=wl["up_tok"], down_token_id=wl["dn_tok"],
                            window_start_ms=wl["start_ms"], window_end_ms=wl["end_ms"],
@@ -710,9 +711,9 @@ def try_w4_t2(state: dict, client, dry_run: bool,
 
             _t2_observe = mkt_d.get("paper", False) or not state.get("_w4_live")
             if _t2_observe:
-                _t2_results = execute_fn(_t2_orders, T2PaperClient(), cid=cid)
+                _t2_results = execute_fn(_t2_orders, T2PaperClient(), cid=cid, coin=coin_from_title(_t2_title))
             else:
-                _t2_results = execute_fn(_t2_orders, client, cid=cid)
+                _t2_results = execute_fn(_t2_orders, client, cid=cid, coin=coin_from_title(_t2_title))
 
             for r in _t2_results:
                 if r.get("submitted"):
@@ -852,7 +853,7 @@ def place_phased_rungs(state: dict, client, dry_run: bool,
                         [PlannedOrder(token_id=_tok_id, side="BUY",
                                       price=_pr["price"], size=_pr["size"],
                                       outcome=_pr["outcome"])],
-                        client, cid=cid)
+                        client, cid=cid, coin=coin_from_title(mkt.get("title", "")))
                     _pr["placed"] = True
                     for _r in (_results or []):
                         if _r.get("submitted"):
@@ -993,7 +994,8 @@ def try_reentry(state: dict, client, config, dry_run: bool,
 
         results = execute_fn(orders, client, cid=cid,
                              signal_ctx={"fair": round(fair, 4), "round": _rd + 1,
-                                         "bridge": round(bridge_p_up, 4)})
+                                         "bridge": round(bridge_p_up, 4)},
+                             coin=coin_from_title(mkt.get("title", "")))
         mkt["phased_rungs"] = []
         mkt["entry_price"] = _coin_price
         mkt["entry_ts"] = int(time.time())

@@ -1,0 +1,208 @@
+{
+  "symbol": "BTCUSDT",
+  "days": 365,
+  "window_type": "24H (9am ET \u2192 9am ET)",
+  "n_train": 296,
+  "n_test": 128,
+  "base_rate_up": 0.4688,
+  "indicators": {
+    "momentum": {
+      "accuracy": 0.6875,
+      "n_predictions": 128,
+      "coverage": 1.0
+    },
+    "rsi": {
+      "accuracy": 0.5275,
+      "n_predictions": 91,
+      "coverage": 0.7109
+    },
+    "macd": {
+      "accuracy": 0.5156,
+      "n_predictions": 128,
+      "coverage": 1.0
+    },
+    "bb_squeeze": {
+      "accuracy": 0.4571,
+      "n_predictions": 35,
+      "coverage": 0.2734
+    },
+    "volume": {
+      "accuracy": 0.625,
+      "n_predictions": 16,
+      "coverage": 0.125
+    },
+    "adx": {
+      "accuracy": 0.5253,
+      "n_predictions": 99,
+      "coverage": 0.7734
+    },
+    "day_of_week": {
+      "accuracy": 0.4182,
+      "n_predictions": 55,
+      "coverage": 0.4297
+    },
+    "bridge": {
+      "accuracy": 0.6916,
+      "n_predictions": 107,
+      "coverage": 0.8359
+    },
+    "obv": {
+      "accuracy": 0.5469,
+      "n_predictions": 128,
+      "coverage": 1.0
+    },
+    "ema_cross": {
+      "accuracy": 0.5,
+      "n_predictions": 128,
+      "coverage": 1.0
+    }
+  },
+  "dow_bias_train": {
+    "Sat": "UP",
+    "Tue": "UP",
+    "Thu": "DOWN"
+  },
+  "top_combos": [
+    {
+      "combo": "momentum+day_of_week+bridge",
+      "size": 3,
+      "correct": 35,
+      "total": 47,
+      "accuracy": 0.7447
+    },
+    {
+      "combo": "momentum+adx+bridge",
+      "size": 3,
+      "correct": 58,
+      "total": 83,
+      "accuracy": 0.6988
+    },
+    {
+      "combo": "momentum+bridge",
+      "size": 2,
+      "correct": 74,
+      "total": 107,
+      "accuracy": 0.6916
+    },
+    {
+      "combo": "momentum+macd+bridge",
+      "size": 3,
+      "correct": 74,
+      "total": 107,
+      "accuracy": 0.6916
+    },
+    {
+      "combo": "momentum+bridge+obv",
+      "size": 3,
+      "correct": 74,
+      "total": 107,
+      "accuracy": 0.6916
+    },
+    {
+      "combo": "momentum+bridge+ema_cross",
+      "size": 3,
+      "correct": 74,
+      "total": 107,
+      "accuracy": 0.6916
+    },
+    {
+      "combo": "momentum+macd",
+      "size": 2,
+      "correct": 87,
+      "total": 128,
+      "accuracy": 0.6797
+    },
+    {
+      "combo": "macd+bridge",
+      "size": 2,
+      "correct": 72,
+      "total": 107,
+      "accuracy": 0.6729
+    },
+    {
+      "combo": "momentum+macd+ema_cross",
+      "size": 3,
+      "correct": 85,
+      "total": 128,
+      "accuracy": 0.6641
+    },
+    {
+      "combo": "momentum+macd+bb_squeeze",
+      "size": 3,
+      "correct": 23,
+      "total": 35,
+      "accuracy": 0.6571
+    },
+    {
+      "combo": "momentum+bb_squeeze+bridge",
+      "size": 3,
+      "correct": 21,
+      "total": 32,
+      "accuracy": 0.6562
+    },
+    {
+      "combo": "macd+bb_squeeze+bridge",
+      "size": 3,
+      "correct": 21,
+      "total": 32,
+      "accuracy": 0.6562
+    },
+    {
+      "combo": "macd+bridge+ema_cross",
+      "size": 3,
+      "correct": 70,
+      "total": 107,
+      "accuracy": 0.6542
+    },
+    {
+      "combo": "momentum+rsi+bridge",
+      "size": 3,
+      "correct": 51,
+      "total": 79,
+      "accuracy": 0.6456
+    },
+    {
+      "combo": "day_of_week+bridge",
+      "size": 2,
+      "correct": 30,
+      "total": 47,
+      "accuracy": 0.6383
+    },
+    {
+      "combo": "momentum+macd+obv",
+      "size": 3,
+      "correct": 80,
+      "total": 128,
+      "accuracy": 0.625
+    },
+    {
+      "combo": "momentum+adx+day_of_week",
+      "size": 3,
+      "correct": 26,
+      "total": 42,
+      "accuracy": 0.619
+    },
+    {
+      "combo": "momentum+day_of_week",
+      "size": 2,
+      "correct": 34,
+      "total": 55,
+      "accuracy": 0.6182
+    },
+    {
+      "combo": "momentum+day_of_week+obv",
+      "size": 3,
+      "correct": 34,
+      "total": 55,
+      "accuracy": 0.6182
+    },
+    {
+      "combo": "day_of_week+bridge+obv",
+      "size": 3,
+      "correct": 29,
+      "total": 47,
+      "accuracy": 0.617
+    }
+  ],
+  "timestamp": "2026-03-25T16:56:08.572964+00:00"
+}

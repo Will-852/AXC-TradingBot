@@ -14,19 +14,39 @@ from zoneinfo import ZoneInfo
 _AXC = os.environ.get("AXC_HOME", os.path.expanduser("~/projects/axc-trading"))
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state.json")
-_TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")
-_SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")
-_ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")
+_TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades.jsonl")  # base, see trade_path()
+_SIGNAL_LOG = os.path.join(_LOG_DIR, "mm_signals.jsonl")  # base, see signal_path()
+_ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log.jsonl")  # base, see order_path()
 _BOTHSIDES_LOG = os.path.join(_LOG_DIR, "mm_bothsides.jsonl")
 _POS_LOG = os.path.join(_LOG_DIR, "mm_positions.jsonl")
 _REVERSAL_LOG = os.path.join(_LOG_DIR, "reversal_research.jsonl")
+
+
+def signal_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_signals_{coin.upper()}.jsonl")
+
+
+def order_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_order_log_{coin.upper()}.jsonl")
+
+
+def trade_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_trades_{coin.upper()}.jsonl")
+
+
+def coin_from_title(title: str) -> str:
+    t = title.lower()
+    if "ethereum" in t: return "ETH"
+    if "solana" in t: return "SOL"
+    if "xrp" in t: return "XRP"
+    return "BTC"
 
 # ─── Timezone ───
 _HKT = ZoneInfo("Asia/Hong_Kong")
 _ET = ZoneInfo("America/New_York")
 
 # ─── Loop timing ───
-_CYCLE_S = 5           # 5s main loop — fast reaction
+_CYCLE_S = 2           # 2s main loop — fast reaction
 _SCAN_S = 120          # discovery every 2 min
 _HEAVY_INTERVAL_S = 3  # heavy ops every 3s
 

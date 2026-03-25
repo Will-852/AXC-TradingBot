@@ -23,6 +23,7 @@ from polymarket.mm.constants import (
     _ENDGAME_SHARES, _ENDGAME_TTE_START, _ENDGAME_TTE_STOP,
     _EXIT_STOP_PCT, _HEDGE_BTC_THRESHOLD, _HEDGE_PCT, _HKT,
     _LIVE_TRADE_COINS, _LOG_DIR, _MAX_ROUNDS, _REENTRY_COOLDOWN_S,
+    coin_from_title,
 )
 from polymarket.mm.data_feeds import (
     btc_price, cross_exchange_price, m1_return, poly_midpoint, price, vol_1m,
@@ -141,7 +142,8 @@ def check_resolutions(state: dict, client=None) -> None:
                        "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
                        "paper_total_pnl": round(state.get("paper_pnl", 0), 2),
                        "coin": _coin_label, "paper": True},
-                      log_path=os.path.join(_LOG_DIR, "mm_paper_trades.jsonl"))
+                      log_path=os.path.join(_LOG_DIR, "mm_paper_trades.jsonl"),
+                      coin=_coin_label)
             if md.get("both_sides"):
                 _bs_res = {
                     "ts": datetime.now(tz=_HKT).isoformat(), "event": "resolution",
@@ -197,12 +199,15 @@ def check_resolutions(state: dict, client=None) -> None:
 
         fr_pct, _, _ = fill_rate(state)
         _total_rounds = md.get("rounds", 0) + 1
+        _coin_live = coin_from_title(md.get("title", ""))
         log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                    "result": result, "pnl": round(pnl, 4),
                    "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
                    "total_pnl": round(state["total_pnl"], 2),
                    "fill_rate_pct": round(fr_pct, 1),
-                   "rounds": _total_rounds})
+                   "rounds": _total_rounds,
+                   "coin": _coin_live},
+                  coin=_coin_live)
 
         d = "↑" if result == "UP" else "↓"
         _rd_str = f" R{_total_rounds}" if _total_rounds > 1 else ""
@@ -533,7 +538,7 @@ def run_endgame(state: dict, client, dry_run: bool,
         mkt["endgame_dir"] = _eg_dir
         mkt["endgame_case"] = _eg_case
 
-        results = execute_fn(orders, client, cid=cid, signal_ctx=_eg_ctx)
+        results = execute_fn(orders, client, cid=cid, signal_ctx=_eg_ctx, coin=_eg_coin.upper())
 
         for r in results:
             if not r.get("submitted"):
@@ -640,7 +645,7 @@ def run_last_minute_hedge(state: dict, client, dry_run: bool,
         orders = [PlannedOrder(token_id=_opp_tok, side="BUY",
                                price=_hedge_price, size=_hedge_shares,
                                outcome=_opp_dir)]
-        results = execute_fn(orders, client, cid=cid, signal_ctx=_hedge_ctx)
+        results = execute_fn(orders, client, cid=cid, signal_ctx=_hedge_ctx, coin="BTC")
 
         for r in results:
             if not r.get("submitted"):

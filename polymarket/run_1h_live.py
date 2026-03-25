@@ -50,16 +50,30 @@ _HKT = timezone(timedelta(hours=8))
 _ET = timezone(timedelta(hours=-4))
 _LOG_DIR = os.path.join(_AXC, "polymarket", "logs")
 _STATE_PATH = os.path.join(_LOG_DIR, "mm_state_1h.json")
-_TRADE_LOG = os.path.join(_LOG_DIR, "mm_trades_1h.jsonl")
-_ORDER_LOG = os.path.join(_LOG_DIR, "mm_order_log_1h.jsonl")
 _GAMMA = "https://gamma-api.polymarket.com"
 _BINANCE = "https://api.binance.com/api/v3"
 _DATA_API = "https://data-api.polymarket.com"
 _ANALYSIS_TAPE = os.path.join(_LOG_DIR, "analysis_1h.jsonl")
-_SIGNAL_TAPE_1H = os.path.join(_LOG_DIR, "signal_tape_1h.jsonl")
+
+
+def _signal_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"signal_tape_1h_{coin}.jsonl")
+
+def _order_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_order_log_1h_{coin}.jsonl")
+
+def _trade_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_trades_1h_{coin}.jsonl")
+
+def _coin_from_title(title: str) -> str:
+    t = title.lower()
+    if "ethereum" in t: return "ETH"
+    if "solana" in t: return "SOL"
+    if "xrp" in t: return "XRP"
+    return "BTC"
 _PAPER_PNL_LOG = os.path.join(_LOG_DIR, "paper_pnl_1h.jsonl")
 
-_CYCLE_S = 10           # main loop: 10s (1H is slower than 15M)
+_CYCLE_S = 5            # main loop: 5s (1H doesn't need sub-second reaction)
 _HEAVY_INTERVAL_S = 20  # heavy ops every 20s (3x from 60s, 12 req/min, 50% total budget)
 _SCAN_INTERVAL_S = 300   # discovery every 5 min
 _TOTAL_LOSS_FUSE_PCT = 0.22  # 22% of initial bankroll → permanent stop live
@@ -79,8 +93,8 @@ if os.path.exists(_ENV_PATH):
 _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0}
 
 # Slug construction for 1H markets
-_COIN_SLUGS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana"}
-_COIN_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+_COIN_SLUGS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "XRP": "xrp"}
+_COIN_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "XRP": "XRPUSDT"}
 
 # Coin scope: BTC live, ETH+SOL observe only (collect data, no execution)
 _LIVE_COINS = {"BTC"}
@@ -403,7 +417,7 @@ def _record_signal_tape(coin: str, cid: str, up_tok: str, dn_tok: str,
         "h_imbal": round(h_imbal, 3),
     }
     try:
-        with open(_SIGNAL_TAPE_1H, "a") as f:
+        with open(_signal_path(coin), "a") as f:
             f.write(json.dumps(record) + "\n")
     except Exception:
         pass
@@ -797,19 +811,22 @@ def _execute_order(client, token_id: str, outcome: str,
             order_id = r.get("orderID", r.get("id", ""))
             status = r.get("status", "")
             if r.get("dry_run"):
-                status = "matched"
+                # Paper mode: order sits on book as "live" pending.
+                # Fill simulation via _check_fills_paper() each cycle.
+                # Don't instant-fill — allows repricing to work on pending orders.
+                pass  # keep status from mock ("live")
         # Phase 3 fix: if CLOB returns no order_id and status isn't matched,
         # treat as rejected — don't add to pending_orders.
         if not order_id and status != "matched":
             logger.warning("ORDER REJECTED %s: no order_id returned (status=%s)", outcome, status)
-            _log_order("rejected", "", cid,
+            _log_order("rejected", "", cid, coin=coin,
                        outcome=outcome, price=price, size=shares, status=status)
             return {"outcome": outcome, "submitted": False, "reason": "rejected_no_id"}
         _now = time.time()
         _btc_now = _btc_price(coin)
         logger.info("ORDER %s %.0f shares @ $%.3f ($%.2f) → %s",
                     outcome, shares, price, size_usd, status or order_id[:12])
-        _log_order("submit", order_id, cid,
+        _log_order("submit", order_id, cid, coin=coin,
                    outcome=outcome, price=price, size=shares,
                    status=status, btc=round(_btc_now, 2))
         return {"outcome": outcome, "price": price, "size": shares,
@@ -832,6 +849,7 @@ def _check_fills(state: dict, client) -> None:
     for cid, mkt in list(state["markets"].items()):
         if mkt.get("phase") != "OPEN" or mkt.get("fills_confirmed"):
             continue
+        _coin = mkt.get("coin", _coin_from_title(mkt.get("title", "")))
         pending = mkt.get("pending_orders", [])
         if not pending:
             continue
@@ -847,7 +865,7 @@ def _check_fills(state: dict, client) -> None:
                         logger.info("CANCEL EXPIRED %s %s", cid[:8], _ep.get("outcome", ""))
                     except Exception:
                         pass
-                _log_order("expired", _oid, cid,
+                _log_order("expired", _oid, cid, coin=_coin,
                            outcome=_ep.get("outcome", ""))
             _bump_fill(state, "expired", len(pending))
             mkt["pending_orders"] = []
@@ -877,11 +895,11 @@ def _check_fills(state: dict, client) -> None:
                 elif not oid:
                     # No order_id = CLOB rejected at submit (Phase 3 fix)
                     _bump_fill(state, "cancelled")
-                    _log_order("rejected", "", cid,
+                    _log_order("rejected", "", cid, coin=_coin,
                                outcome=po.get("outcome", ""))
                 else:
                     _bump_fill(state, "cancelled")
-                    _log_order("cancelled_external", oid, cid,
+                    _log_order("cancelled_external", oid, cid, coin=_coin,
                                outcome=po.get("outcome", ""))
 
             # FIX: always update pending_orders — not just when fills exist.
@@ -909,7 +927,7 @@ def _check_fills(state: dict, client) -> None:
                     _btc_fill = _btc_price(_fill_coin)
                     _order_ts = f.get("order_ts", 0)
                     _ttf = round(time.time() - _order_ts, 1) if _order_ts > 0 else 0
-                    _log_order("fill", f.get("order_id", ""), cid,
+                    _log_order("fill", f.get("order_id", ""), cid, coin=_coin,
                                outcome=o, price=f["price"], size=f["size"],
                                btc_at_fill=round(_btc_fill, 2),
                                time_to_fill_s=_ttf)
@@ -920,6 +938,81 @@ def _check_fills(state: dict, client) -> None:
                 mkt["fills_confirmed"] = True
         except Exception as e:
             logger.warning("Fill check %s: %s", cid[:8], e)
+
+
+def _check_fills_paper(state: dict) -> None:
+    """Simulate fills for paper/dry-run orders using real Polymarket mid prices.
+
+    Each cycle: for each pending paper order, if order_price >= current market mid
+    for that token, treat as filled (maker order lifted by taker).
+    Tracks _repriced flag for WR comparison analysis.
+    """
+    now = time.time()
+    now_ms = int(now * 1000)
+
+    for cid, mkt in list(state.get("markets", {}).items()):
+        if mkt.get("phase") != "OPEN" or mkt.get("fills_confirmed"):
+            continue
+        _coin = mkt.get("coin", _coin_from_title(mkt.get("title", "")))
+        pending = mkt.get("pending_orders", [])
+        if not pending:
+            continue
+
+        # Expire orders past window end
+        end_ms = mkt.get("window_end_ms", 0)
+        if end_ms > 0 and now_ms > end_ms:
+            for po in pending:
+                _log_order("paper_expired", po.get("order_id", ""), cid, coin=_coin,
+                           outcome=po.get("outcome", ""),
+                           repriced=po.get("_repriced", False))
+            _bump_fill(state, "expired", len(pending))
+            mkt["pending_orders"] = []
+            mkt["fills_confirmed"] = True
+            continue
+
+        new_pending = []
+        for po in pending:
+            if not po.get("submitted"):
+                new_pending.append(po)
+                continue
+
+            tok = po.get("token_id", "")
+            mid = _poly_midpoint(tok) if tok else None
+            if mid is None or mid <= 0:
+                new_pending.append(po)
+                continue
+
+            # Simulate fill: our limit price >= current mid
+            # (conservative: we'd be best bid getting lifted)
+            if po["price"] >= mid:
+                o = po["outcome"]
+                s, p = po["size"], po["price"]
+                if o == "UP":
+                    old_val = mkt["up_shares"] * mkt["up_avg_price"]
+                    mkt["up_shares"] += s
+                    mkt["up_avg_price"] = (old_val + s * p) / mkt["up_shares"] if mkt["up_shares"] else p
+                elif o == "DOWN":
+                    old_val = mkt["down_shares"] * mkt["down_avg_price"]
+                    mkt["down_shares"] += s
+                    mkt["down_avg_price"] = (old_val + s * p) / mkt["down_shares"] if mkt["down_shares"] else p
+                mkt["entry_cost"] += s * p
+                _bump_fill(state, "filled")
+
+                repriced = po.get("_repriced", False)
+                fill_age_s = now - po.get("order_ts", now)
+                reprice_count = po.get("_reprice_count", 0)
+                logger.info("PAPER FILL %s %s @ $%.3f (age=%.0fs, repriced=%s, #reprices=%d)",
+                            cid[:8], o, p, fill_age_s, repriced, reprice_count)
+                _log_order("paper_fill", po.get("order_id", ""), cid, coin=_coin,
+                           outcome=o, price=p, size=s,
+                           repriced=repriced, reprice_count=reprice_count,
+                           fill_age_s=round(fill_age_s))
+            else:
+                new_pending.append(po)
+
+        mkt["pending_orders"] = new_pending
+        if not new_pending and (mkt["up_shares"] > 0 or mkt["down_shares"] > 0):
+            mkt["fills_confirmed"] = True
 
 
 # ═══════════════════════════════════════
@@ -950,8 +1043,9 @@ def _reprice_1h(state: dict, client, config, cached_markets: list,
     """
     global _repricing_cid
 
-    if not _1H_REPRICE_ENABLED or not client or dry_run:
+    if not _1H_REPRICE_ENABLED or not client:
         return
+    _is_paper = dry_run  # paper mode: simulate cancel+replace, no client calls
 
     now = time.time()
     now_ms = int(now * 1000)
@@ -1060,6 +1154,28 @@ def _reprice_1h(state: dict, client, config, cached_markets: list,
             # ⚠️ [REPRICE-LOCK] Set lock to prevent one-order guard from creating duplicates
             _repricing_cid = cid
 
+            # ── Paper mode: simulate cancel+replace (no client calls) ──
+            if _is_paper:
+                _new_po = dict(po)
+                _new_po["order_id"] = f"paper_{int(time.time()*1000)}"
+                _new_po["price"] = new_price
+                _new_po["_reprice_count"] = reprice_count + 1
+                _new_po["order_ts"] = time.time()
+                _new_po["_repriced"] = True
+                _new_pending.append(_new_po)
+                logger.info("PAPER REPRICE %s %s: $%.3f → $%.3f (#%d)",
+                            cid[:8], po.get("outcome", ""), old_price,
+                            new_price, _new_po["_reprice_count"])
+                _log_order("paper_reprice", _new_po["order_id"], cid, coin=coin,
+                           outcome=po.get("outcome", ""),
+                           old_price=old_price, new_price=new_price,
+                           reprice_count=_new_po["_reprice_count"])
+                _repriced_any = True
+                _repricing_cid = ""
+                continue
+
+            # ── Live mode: CLOB cancel → safety checks → replace ──
+
             # ⚠️ [CANCEL-SAFETY] Step 1: REST double-check before cancel
             # Pattern: get_trades → confirm not filled → proceed
             try:
@@ -1121,7 +1237,7 @@ def _reprice_1h(state: dict, client, config, cached_markets: list,
                                "NOT re-placing (safety)", cid[:8], e)
                 _repricing_cid = ""
                 _repriced_any = True
-                _log_order("reprice_lost", _oid, cid,
+                _log_order("reprice_lost", _oid, cid, coin=coin,
                            outcome=po.get("outcome", ""), old_price=old_price)
                 continue
 
@@ -1165,7 +1281,7 @@ def _reprice_1h(state: dict, client, config, cached_markets: list,
                                 cid[:8], po.get("outcome", ""), old_price,
                                 new_price, _new_po["_reprice_count"])
 
-                _log_order("reprice", _new_oid or _oid, cid,
+                _log_order("reprice", _new_oid or _oid, cid, coin=coin,
                            outcome=po.get("outcome", ""),
                            old_price=old_price, new_price=new_price,
                            reprice_count=_new_po["_reprice_count"])
@@ -1175,7 +1291,7 @@ def _reprice_1h(state: dict, client, config, cached_markets: list,
                 # Cancel succeeded but buy failed → order LOST from CLOB
                 logger.error("REPRICE BUY FAILED %s: cancel OK but buy failed: %s — order LOST",
                              cid[:8], e)
-                _log_order("reprice_lost", _oid, cid,
+                _log_order("reprice_lost", _oid, cid, coin=coin,
                            outcome=po.get("outcome", ""),
                            old_price=old_price, new_price=new_price)
                 _repriced_any = True
@@ -1212,6 +1328,7 @@ def _check_resolutions(state: dict):
             continue
 
         title = md.get("title", "").lower()
+        _res_coin = _coin_from_title(md.get("title", ""))
         if "solana" in title:
             sym = "SOLUSDT"
         elif "ethereum" in title:
@@ -1243,7 +1360,7 @@ def _check_resolutions(state: dict):
         _log_trade({"ts": datetime.now(tz=_HKT).isoformat(), "cid": cid,
                      "result": result, "pnl": round(pnl, 4),
                      "cost": round(ms.total_cost, 2), "payout": round(ms.payout, 2),
-                     "total_pnl": round(state["total_pnl"], 2)})
+                     "total_pnl": round(state["total_pnl"], 2)}, coin=_res_coin)
 
         d = "↑" if result == "UP" else "↓"
         print(f"  RESOLVED {cid[:8]} {d} | PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
@@ -1319,24 +1436,25 @@ def _from_dict(d: dict) -> MMMarketState:
     return s
 
 
-def _log_trade(record: dict):
+def _log_trade(record: dict, coin: str = "BTC"):
     os.makedirs(_LOG_DIR, exist_ok=True)
-    with open(_TRADE_LOG, "a") as f:
+    with open(_trade_path(coin), "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
 
 
-def _log_order(event: str, order_id: str, cid: str, **kwargs):
+def _log_order(event: str, order_id: str, cid: str, coin: str = "BTC", **kwargs):
     """Per-order lifecycle log: submit/fill/cancel/expired."""
     record = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "event": event,
         "order_id": order_id[:16] if order_id else "",
         "cid": cid[:8] if cid else "",
+        "coin": coin,
     }
     record.update(kwargs)
     try:
         os.makedirs(_LOG_DIR, exist_ok=True)
-        with open(_ORDER_LOG, "a") as f:
+        with open(_order_path(coin), "a") as f:
             f.write(json.dumps(record, default=str) + "\n")
     except Exception:
         pass
@@ -1392,7 +1510,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
         return state, last_scan, last_heavy, cached_markets, cached_vol
 
     # ── Fast ops (every cycle) ──
-    _check_fills(state, client)
+    if dry_run:
+        _check_fills_paper(state)
+    else:
+        _check_fills(state, client)
     _check_resolutions(state)
 
     # ── Heavy ops (every 60s) ──
@@ -1682,7 +1803,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             if result.get("submitted"):
                 _bump_fill(state, "submitted")
                 # Enrich order log with holder signal for post-hoc analysis
-                _log_order("holder_signal", result.get("order_id", ""), cid,
+                _log_order("holder_signal", result.get("order_id", ""), cid, coin=coin,
                            h_imbal=round(h_imbal, 3), flip=_flip,
                            imbal_with=round(imbal_with, 3),
                            imbal_against=round(imbal_against, 3),
@@ -1860,9 +1981,12 @@ def main():
 
     if dry_run and client is None:
         class _Mock:
+            _counter = 0
             def buy_shares(self, tid, amt, price=0):
-                logger.info("DRY BUY %s $%.2f @ $%.3f", tid[:10], amt, price)
-                return {"dry_run": True}
+                _Mock._counter += 1
+                oid = f"paper_{int(time.time()*1000)}_{_Mock._counter}"
+                logger.info("PAPER BUY %s $%.2f @ $%.3f → %s", tid[:10], amt, price, oid)
+                return {"orderID": oid, "status": "live", "dry_run": True}
             def get_usdc_balance(self):
                 return 138.0
             def get_orders(self, **kw):
@@ -1920,9 +2044,12 @@ def main():
                         dry_run = True
                         # Replace live client with mock for data collection
                         class _MockPost:
+                            _counter = 0
                             def buy_shares(self, tid, amt, price=0):
-                                logger.info("FUSE DRY BUY %s $%.2f @ $%.3f", tid[:10], amt, price)
-                                return {"dry_run": True}
+                                _MockPost._counter += 1
+                                oid = f"fuse_{int(time.time()*1000)}_{_MockPost._counter}"
+                                logger.info("FUSE DRY BUY %s $%.2f @ $%.3f → %s", tid[:10], amt, price, oid)
+                                return {"orderID": oid, "status": "live", "dry_run": True}
                             def get_usdc_balance(self):
                                 return state.get("bankroll", 0)
                             def get_orders(self, **kw):

@@ -94,18 +94,23 @@ def from_dict(d: dict):
     return s
 
 
-def log_trade(record: dict, log_path: str = ""):
-    """Append trade record to JSONL log."""
+def log_trade(record: dict, log_path: str = "", coin: str = ""):
+    """Append trade record to JSONL log. Per-coin file if coin provided."""
     os.makedirs(_LOG_DIR, exist_ok=True)
-    _path = log_path or _TRADE_LOG
+    _coin = coin or record.get("coin", "")
+    if _coin:
+        from polymarket.mm.constants import trade_path
+        _path = log_path or trade_path(_coin)
+    else:
+        _path = log_path or _TRADE_LOG
     with open(_path, "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
 
 
-def log_order(event: str, order_id: str, cid: str, **kwargs):
+def log_order(event: str, order_id: str, cid: str, coin: str = "", **kwargs):
     """Per-order lifecycle log: submit/fill/cancel/post_fill.
 
-    Enables AS analysis: time_to_fill, mid_at_fill, mid_60s_post_fill.
+    Writes to per-coin file if coin provided. Enables AS analysis.
     """
     record = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
@@ -113,10 +118,17 @@ def log_order(event: str, order_id: str, cid: str, **kwargs):
         "order_id": order_id[:16] if order_id else "",
         "cid": cid[:8] if cid else "",
     }
+    if coin:
+        record["coin"] = coin
     record.update(kwargs)
     try:
         os.makedirs(_LOG_DIR, exist_ok=True)
-        with open(_ORDER_LOG, "a") as f:
+        if coin:
+            from polymarket.mm.constants import order_path
+            _path = order_path(coin)
+        else:
+            _path = _ORDER_LOG
+        with open(_path, "a") as f:
             f.write(json.dumps(record, default=str) + "\n")
     except Exception:
         pass

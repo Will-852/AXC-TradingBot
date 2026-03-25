@@ -1,0 +1,266 @@
+{
+  "symbol": "BTCUSDT",
+  "days": 365,
+  "n_train": 1750,
+  "n_test": 750,
+  "base_rate_up": 0.516,
+  "train_period": "2025-02-02 \u2192 2025-11-20",
+  "test_period": "2025-11-20 \u2192 2026-03-25",
+  "indicators": {
+    "momentum": {
+      "accuracy": 0.636,
+      "n_predictions": 750,
+      "coverage": 1.0,
+      "correct": 477,
+      "wrong": 273,
+      "skip": 0
+    },
+    "rsi": {
+      "accuracy": 0.4489,
+      "n_predictions": 499,
+      "coverage": 0.6653,
+      "correct": 224,
+      "wrong": 275,
+      "skip": 251
+    },
+    "macd": {
+      "accuracy": 0.4933,
+      "n_predictions": 750,
+      "coverage": 1.0,
+      "correct": 370,
+      "wrong": 380,
+      "skip": 0
+    },
+    "bb_squeeze": {
+      "accuracy": 0.5337,
+      "n_predictions": 193,
+      "coverage": 0.2573,
+      "correct": 103,
+      "wrong": 90,
+      "skip": 557
+    },
+    "volume": {
+      "accuracy": 0.4823,
+      "n_predictions": 141,
+      "coverage": 0.188,
+      "correct": 68,
+      "wrong": 73,
+      "skip": 609
+    },
+    "adx": {
+      "accuracy": 0.5061,
+      "n_predictions": 326,
+      "coverage": 0.4347,
+      "correct": 165,
+      "wrong": 161,
+      "skip": 424
+    },
+    "session": {
+      "accuracy": 0.4869,
+      "n_predictions": 267,
+      "coverage": 0.356,
+      "correct": 130,
+      "wrong": 137,
+      "skip": 483
+    },
+    "bridge": {
+      "accuracy": 0.7754,
+      "n_predictions": 610,
+      "coverage": 0.8133,
+      "correct": 473,
+      "wrong": 137,
+      "skip": 140
+    },
+    "obv": {
+      "accuracy": 0.4907,
+      "n_predictions": 750,
+      "coverage": 1.0,
+      "correct": 368,
+      "wrong": 382,
+      "skip": 0
+    },
+    "ema_cross": {
+      "accuracy": 0.4773,
+      "n_predictions": 750,
+      "coverage": 1.0,
+      "correct": 358,
+      "wrong": 392,
+      "skip": 0
+    }
+  },
+  "session_bias_train": {
+    "EU_OPEN": "UP",
+    "US_PRE": "DOWN",
+    "US_OPEN": "DOWN"
+  },
+  "session_test": {
+    "US_OPEN": {
+      "up": 51,
+      "total": 89,
+      "up_pct": 0.573
+    },
+    "ASIA": {
+      "up": 140,
+      "total": 267,
+      "up_pct": 0.5243
+    },
+    "EU_OPEN": {
+      "up": 43,
+      "total": 89,
+      "up_pct": 0.4831
+    },
+    "US_PRE": {
+      "up": 40,
+      "total": 89,
+      "up_pct": 0.4494
+    },
+    "WEEKEND": {
+      "up": 113,
+      "total": 216,
+      "up_pct": 0.5231
+    }
+  },
+  "top_combos": [
+    {
+      "combo": "momentum+volume+bridge",
+      "size": 3,
+      "correct": 91,
+      "total": 116,
+      "accuracy": 0.7845
+    },
+    {
+      "combo": "momentum+macd+bridge",
+      "size": 3,
+      "correct": 442,
+      "total": 610,
+      "accuracy": 0.7246
+    },
+    {
+      "combo": "momentum+session+bridge",
+      "size": 3,
+      "correct": 160,
+      "total": 221,
+      "accuracy": 0.724
+    },
+    {
+      "combo": "momentum+bridge",
+      "size": 2,
+      "correct": 440,
+      "total": 610,
+      "accuracy": 0.7213
+    },
+    {
+      "combo": "momentum+adx+bridge",
+      "size": 3,
+      "correct": 192,
+      "total": 268,
+      "accuracy": 0.7164
+    },
+    {
+      "combo": "momentum+bridge+obv",
+      "size": 3,
+      "correct": 437,
+      "total": 610,
+      "accuracy": 0.7164
+    },
+    {
+      "combo": "momentum+bridge+ema_cross",
+      "size": 3,
+      "correct": 436,
+      "total": 610,
+      "accuracy": 0.7148
+    },
+    {
+      "combo": "momentum+rsi+bridge",
+      "size": 3,
+      "correct": 293,
+      "total": 413,
+      "accuracy": 0.7094
+    },
+    {
+      "combo": "momentum+bb_squeeze+bridge",
+      "size": 3,
+      "correct": 108,
+      "total": 156,
+      "accuracy": 0.6923
+    },
+    {
+      "combo": "macd+bb_squeeze+bridge",
+      "size": 3,
+      "correct": 108,
+      "total": 156,
+      "accuracy": 0.6923
+    },
+    {
+      "combo": "volume+adx+bridge",
+      "size": 3,
+      "correct": 38,
+      "total": 56,
+      "accuracy": 0.6786
+    },
+    {
+      "combo": "volume+session+bridge",
+      "size": 3,
+      "correct": 39,
+      "total": 59,
+      "accuracy": 0.661
+    },
+    {
+      "combo": "volume+bridge",
+      "size": 2,
+      "correct": 76,
+      "total": 116,
+      "accuracy": 0.6552
+    },
+    {
+      "combo": "macd+bridge",
+      "size": 2,
+      "correct": 398,
+      "total": 610,
+      "accuracy": 0.6525
+    },
+    {
+      "combo": "bb_squeeze+bridge+obv",
+      "size": 3,
+      "correct": 100,
+      "total": 156,
+      "accuracy": 0.641
+    },
+    {
+      "combo": "bridge+obv",
+      "size": 2,
+      "correct": 388,
+      "total": 610,
+      "accuracy": 0.6361
+    },
+    {
+      "combo": "macd+session+bridge",
+      "size": 3,
+      "correct": 139,
+      "total": 221,
+      "accuracy": 0.629
+    },
+    {
+      "combo": "session+bridge+obv",
+      "size": 3,
+      "correct": 139,
+      "total": 221,
+      "accuracy": 0.629
+    },
+    {
+      "combo": "macd+bridge+ema_cross",
+      "size": 3,
+      "correct": 380,
+      "total": 610,
+      "accuracy": 0.623
+    },
+    {
+      "combo": "momentum+volume+session",
+      "size": 3,
+      "correct": 45,
+      "total": 73,
+      "accuracy": 0.6164
+    }
+  ],
+  "timestamp": "2026-03-25T15:07:38.974034+00:00"
+}
