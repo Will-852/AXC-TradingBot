@@ -131,7 +131,7 @@ def _parse_hold_score(raw):
 
 
 def _render_position_card(pos: dict):
-    """Render a single position detail card."""
+    """Render a single position detail card — compact, data-rich layout."""
     symbol = pos.get('pair') or pos.get('symbol', '?')
     side = pos.get('direction') or pos.get('side', '?')
     entry = pos.get('entry_price', 0)
@@ -142,18 +142,34 @@ def _render_position_card(pos: dict):
     tp = pos.get('tp_price') or pos.get('tp', '')
     platform = pos.get('platform', 'aster')
     hold_score_raw = pos.get('hold_score', None)
+    size = pos.get('size', 0)
+    leverage = pos.get('leverage', 1)
+    notional = pos.get('notional', 0)
+    margin = pos.get('margin', 0)
+    liq_price = pos.get('liq_price', 0)
+    margin_type = pos.get('margin_type', 'isolated')
 
     pnl_val = float(unrealized) if unrealized else 0
+    pct_val = float(unrealized_pct) if unrealized_pct else 0
     pnl_color = 'text-green-400' if pnl_val >= 0 else 'text-red-400'
+    pnl_bg = 'bg-green-900/30' if pnl_val >= 0 else 'bg-red-900/30'
+
+    # Distance to liquidation
+    mark_f = float(mark) if mark else 0
+    liq_f = float(liq_price) if liq_price else 0
+    liq_dist_pct = abs(mark_f - liq_f) / mark_f * 100 if mark_f > 0 and liq_f > 0 else 0
+    liq_color = 'text-red-400' if liq_dist_pct < 10 else 'text-amber-400' if liq_dist_pct < 25 else 'text-gray-400'
 
     with ui.card().classes('p-4 bg-gray-800 border border-gray-700 w-full'):
-        with ui.row().classes('items-center justify-between mb-3'):
+        # ── Row 1: Header — symbol, badges, actions ──
+        with ui.row().classes('items-center justify-between mb-2'):
             with ui.row().classes('items-center gap-2'):
-                ui.label(symbol).classes('text-lg font-bold')
+                ui.label(symbol.replace('USDT', '')).classes('text-xl font-bold')
                 ui.badge(side, color='green' if side == 'LONG' else 'red').classes('text-xs')
+                ui.badge(f'{leverage}x', color='blue-grey').classes('text-xs')
                 ui.badge(platform.upper(), color='grey').classes('text-xs')
-            with ui.row().classes('gap-2'):
-                ui.button('Modify', on_click=lambda p=pos: _show_modify_dialog(p)) \
+            with ui.row().classes('gap-1'):
+                ui.button('SL/TP', on_click=lambda p=pos: _show_modify_dialog(p)) \
                     .props('flat dense size=sm color=indigo')
                 async def _confirm_close(s=symbol, p=platform, pnl=pnl_val, mk=mark, sd=side):
                     dlg = ui.dialog().props('persistent')
@@ -161,8 +177,6 @@ def _render_position_card(pos: dict):
                     with dlg, ui.card().classes('p-5 min-w-[340px]'):
                         ui.label(f'確認平倉 {s}？').classes('text-lg font-bold')
                         ui.label(f'PnL: ${pnl:+.2f}').classes('text-sm text-gray-400 mt-1')
-
-                        # Market / Limit toggle
                         order_type = {'v': 'MARKET'}
                         with ui.row().classes('mt-3 gap-2 items-center'):
                             ui.label('落單方式').classes('text-xs text-gray-500')
@@ -170,51 +184,38 @@ def _render_position_card(pos: dict):
                                 {'MARKET': '市價 (Taker)', 'LIMIT': '限價 (Maker)'},
                                 value='MARKET',
                             ).classes('text-xs')
-
-                        # Limit price input (hidden by default)
                         mk_f = float(mk) if mk else 0
-                        # Default = mark price (user adjusts to desired maker price)
                         default_limit = round(mk_f, 1)
                         limit_row = ui.column().classes('mt-2 gap-1')
                         limit_row.set_visibility(False)
                         with limit_row:
-                            limit_input = ui.number(
-                                'Limit Price', value=default_limit,
-                                format='%.1f',
-                            ).classes('w-full')
-                            # Fat-finger warning (>2% from mark)
+                            limit_input = ui.number('Limit Price', value=default_limit,
+                                                    format='%.1f').classes('w-full')
                             limit_warn = ui.label('').classes('text-xs text-red-400')
                             limit_warn.set_visibility(False)
-
                             def _check_limit(e, m=mk_f):
                                 if m > 0 and e.value:
                                     dev = abs(e.value - m) / m
                                     if dev > 0.02:
-                                        limit_warn.text = f'⚠️ 偏離 mark price {dev:.1%} — 確認價格正確'
+                                        limit_warn.text = f'⚠️ 偏離 {dev:.1%}'
                                         limit_warn.set_visibility(True)
                                     else:
                                         limit_warn.set_visibility(False)
                             limit_input.on_value_change(_check_limit)
-
-                        # Slippage warning (market only)
                         warn_row = ui.row().classes('mt-2')
                         with warn_row:
-                            ui.label('⚠️ 市價落單可能有滑點（~0.01-0.05%）') \
-                                .classes('text-xs text-amber-400')
-
+                            ui.label('⚠️ 市價可能有滑點').classes('text-xs text-amber-400')
                         def _on_toggle(e):
                             order_type['v'] = e.value
                             limit_row.set_visibility(e.value == 'LIMIT')
                             warn_row.set_visibility(e.value == 'MARKET')
                         toggle.on_value_change(_on_toggle)
-
                         with ui.row().classes('gap-2 mt-4 justify-end'):
                             ui.button('Cancel', on_click=dlg.close).props('flat color=grey')
                             ui.button('平倉', on_click=lambda: dlg.submit({
                                 'type': order_type['v'],
                                 'limit': limit_input.value,
                             })).props('color=red')
-
                     result = await dlg
                     if result:
                         await _close_position(
@@ -225,34 +226,53 @@ def _render_position_card(pos: dict):
                 ui.button('Close', on_click=_confirm_close) \
                     .props('flat dense size=sm color=red')
 
-        with ui.row().classes('gap-6'):
-            with ui.column().classes('gap-1'):
-                ui.label('Entry').classes('text-xs text-gray-500')
-                ui.label(f'${_fmt_price(entry)}').classes('text-sm font-mono')
-            with ui.column().classes('gap-1'):
-                ui.label('Mark').classes('text-xs text-gray-500')
-                ui.label(f'${_fmt_price(mark)}').classes('text-sm font-mono')
-            with ui.column().classes('gap-1'):
-                ui.label('PnL').classes('text-xs text-gray-500')
-                pct_val = float(unrealized_pct) if unrealized_pct else 0
-                ui.label(f'${_fmt_pnl(pnl_val)} ({pct_val:+.2f}%)').classes(f'text-sm font-mono {pnl_color}')
-            with ui.column().classes('gap-1'):
-                ui.label('SL / TP').classes('text-xs text-gray-500')
-                sl_str = _fmt_price(sl) if sl else '—'
-                tp_str = _fmt_price(tp) if tp else '—'
-                ui.label(f'{sl_str} / {tp_str}').classes('text-sm font-mono')
+        # ── Row 2: PnL highlight bar ──
+        with ui.row().classes(f'w-full rounded px-3 py-1 {pnl_bg} items-center justify-between mb-2'):
+            ui.label(f'${_fmt_pnl(pnl_val)}').classes(f'text-lg font-bold font-mono {pnl_color}')
+            ui.label(f'{pct_val:+.2f}%').classes(f'text-sm font-mono {pnl_color}')
+            notional_f = float(notional) if notional else 0
+            if notional_f > 0:
+                ui.label(f'${notional_f:,.0f} notional').classes('text-xs text-gray-500')
 
-        # Hold Score — parsed + formatted as badge with factor tooltip
+        # ── Row 3: Price grid (2x3) ──
+        with ui.grid(columns=3).classes('w-full gap-x-6 gap-y-1'):
+            # Entry
+            ui.label('Entry').classes('text-xs text-gray-500')
+            ui.label('Mark').classes('text-xs text-gray-500')
+            ui.label('Size').classes('text-xs text-gray-500')
+            ui.label(f'${_fmt_price(entry)}').classes('text-sm font-mono')
+            ui.label(f'${_fmt_price(mark)}').classes('text-sm font-mono')
+            size_f = float(size) if size else 0
+            ui.label(f'{size_f:g}').classes('text-sm font-mono')
+
+            # SL / TP / Liq
+            ui.label('SL').classes('text-xs text-gray-500')
+            ui.label('TP').classes('text-xs text-gray-500')
+            ui.label('Liq Price').classes('text-xs text-gray-500')
+            sl_str = _fmt_price(sl) if sl else '—'
+            tp_str = _fmt_price(tp) if tp else '—'
+            ui.label(f'{sl_str}').classes('text-sm font-mono text-red-300' if sl else 'text-sm font-mono text-gray-600')
+            ui.label(f'{tp_str}').classes('text-sm font-mono text-green-300' if tp else 'text-sm font-mono text-gray-600')
+            if liq_f > 0:
+                ui.label(f'{_fmt_price(liq_price)} ({liq_dist_pct:.1f}%)').classes(f'text-sm font-mono {liq_color}')
+            else:
+                ui.label('—').classes('text-sm font-mono text-gray-600')
+
+        # ── Row 4: Margin info ──
+        margin_f = float(margin) if margin else 0
+        if margin_f > 0:
+            with ui.row().classes('mt-1 gap-4 items-center'):
+                ui.label(f'Margin ${margin_f:,.2f}').classes('text-xs text-gray-500 font-mono')
+                ui.label(f'{margin_type.title()}').classes('text-xs text-gray-600')
+
+        # ── Row 5: Hold Score ──
         hs = _parse_hold_score(hold_score_raw)
-        log.debug('hold_score raw type=%s, parsed=%s', type(hold_score_raw).__name__,
-                  'ok' if hs else 'FAIL')
         if hs and 'score' in hs:
             sc = float(hs['score'])
             color = ('green' if sc >= 8 else 'indigo' if sc >= 6
                      else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
             factors = hs.get('factors', [])
             with ui.row().classes('mt-2 items-center gap-2 flex-wrap'):
-                ui.label('Hold Score').classes('text-xs text-gray-500')
                 badge = ui.badge(f'{sc:.1f}', color=color).classes('text-sm')
                 if factors:
                     tip = '\n'.join(
@@ -260,17 +280,11 @@ def _render_position_card(pos: dict):
                         for f in factors
                     )
                     badge.tooltip(tip)
-                # Factor breakdown inline
                 for f in factors:
                     f_sc = float(f.get('score', 0))
                     f_color = 'green' if f_sc >= 7 else 'amber' if f_sc >= 4 else 'red'
                     ui.badge(f"{f.get('name', '?')} {f_sc:.0f}", color=f_color) \
                         .classes('text-xs').props('outline')
-        elif hold_score_raw is not None:
-            # Fallback: show score label even if parse fails (for debugging)
-            with ui.row().classes('mt-2 items-center gap-2'):
-                ui.label('Hold Score').classes('text-xs text-gray-500')
-                ui.label('Parse error — check logs').classes('text-xs text-red-400')
 
 
 _pos_dialog_open = {'value': False}
