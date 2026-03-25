@@ -160,14 +160,17 @@ def _render_position_card(pos: dict):
     liq_dist_pct = abs(mark_f - liq_f) / mark_f * 100 if mark_f > 0 and liq_f > 0 else 0
     liq_color = 'text-red-400' if liq_dist_pct < 10 else 'text-amber-400' if liq_dist_pct < 25 else 'text-gray-400'
 
-    with ui.card().classes('p-4 bg-gray-800 border border-gray-700 w-full'):
-        # ── Row 1: Header — symbol, badges, actions ──
-        with ui.row().classes('items-center justify-between mb-2'):
-            with ui.row().classes('items-center gap-2'):
-                ui.label(symbol.replace('USDT', '')).classes('text-xl font-bold')
-                ui.badge(side, color='green' if side == 'LONG' else 'red').classes('text-xs')
-                ui.badge(f'{leverage}x', color='blue-grey').classes('text-xs')
-                ui.badge(platform.upper(), color='grey').classes('text-xs')
+    with ui.card().classes('p-2 px-3 bg-gray-800 border border-gray-700 w-full'):
+        # ── Row 1: Header — symbol, badges, PnL, actions (single line) ──
+        with ui.row().classes('items-center justify-between'):
+            with ui.row().classes('items-center gap-1'):
+                ui.label(symbol.replace('USDT', '')).classes('text-base font-bold')
+                ui.badge(side, color='green' if side == 'LONG' else 'red') \
+                    .classes('text-xs').props('dense')
+                ui.badge(f'{leverage}x', color='blue-grey') \
+                    .classes('text-xs').props('dense')
+                ui.badge(platform.upper(), color='grey') \
+                    .classes('text-xs').props('dense')
             with ui.row().classes('gap-1'):
                 ui.button('SL/TP', on_click=lambda p=pos: _show_modify_dialog(p)) \
                     .props('flat dense size=sm color=indigo')
@@ -226,16 +229,16 @@ def _render_position_card(pos: dict):
                 ui.button('Close', on_click=_confirm_close) \
                     .props('flat dense size=sm color=red')
 
-        # ── Row 2: PnL highlight bar ──
-        with ui.row().classes(f'w-full rounded px-3 py-1 {pnl_bg} items-center justify-between mb-2'):
-            ui.label(f'${_fmt_pnl(pnl_val)}').classes(f'text-lg font-bold font-mono {pnl_color}')
-            ui.label(f'{pct_val:+.2f}%').classes(f'text-sm font-mono {pnl_color}')
-            notional_f = float(notional) if notional else 0
-            if notional_f > 0:
-                ui.label(f'${notional_f:,.0f} notional').classes('text-xs text-gray-500')
+            # PnL inline in header
+            with ui.row().classes('items-center gap-2'):
+                notional_f = float(notional) if notional else 0
+                if notional_f > 0:
+                    ui.label(f'${notional_f:,.0f}').classes('text-xs text-gray-500 font-mono')
+                ui.label(f'{_fmt_pnl(pnl_val)} ({pct_val:+.1f}%)') \
+                    .classes(f'text-sm font-bold font-mono {pnl_color}')
 
-        # ── Row 3: Price grid (2x3) ──
-        with ui.grid(columns=3).classes('w-full gap-x-6 gap-y-1'):
+        # ── Row 2: Price grid (compact 2x3) ──
+        with ui.grid(columns=3).classes('w-full gap-x-4 gap-y-0 mt-1'):
             # Entry
             ui.label('Entry').classes('text-xs text-gray-500')
             ui.label('Mark').classes('text-xs text-gray-500')
@@ -279,22 +282,19 @@ def _render_position_card(pos: dict):
             else:
                 ui.label('—').classes('text-sm font-mono text-gray-600')
 
-        # ── Row 4: Margin info ──
-        margin_f = float(margin) if margin else 0
-        if margin_f > 0:
-            with ui.row().classes('mt-1 gap-4 items-center'):
-                ui.label(f'Margin ${margin_f:,.2f}').classes('text-xs text-gray-500 font-mono')
-                ui.label(f'{margin_type.title()}').classes('text-xs text-gray-600')
-
-        # ── Row 5: Hold Score ──
+        # ── Row 4: Margin + Hold Score (compact single row) ──
         hs = _parse_hold_score(hold_score_raw)
-        if hs and 'score' in hs:
-            sc = float(hs['score'])
-            color = ('green' if sc >= 8 else 'indigo' if sc >= 6
-                     else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
-            factors = hs.get('factors', [])
-            with ui.row().classes('mt-2 items-center gap-2 flex-wrap'):
-                badge = ui.badge(f'{sc:.1f}', color=color).classes('text-sm')
+        margin_f = float(margin) if margin else 0
+        with ui.row().classes('mt-1 items-center gap-2 flex-wrap'):
+            if margin_f > 0:
+                ui.label(f'Margin ${margin_f:,.2f} {margin_type}').classes('text-xs text-gray-500 font-mono')
+                ui.label('|').classes('text-xs text-gray-700')
+            if hs and 'score' in hs:
+                sc = float(hs['score'])
+                color = ('green' if sc >= 8 else 'indigo' if sc >= 6
+                         else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
+                factors = hs.get('factors', [])
+                badge = ui.badge(f'{sc:.1f}', color=color).classes('text-xs')
                 if factors:
                     tip = '\n'.join(
                         f"{f.get('name', '?')}: {f.get('score', '?')}  {f.get('detail', '')}"
@@ -305,7 +305,7 @@ def _render_position_card(pos: dict):
                     f_sc = float(f.get('score', 0))
                     f_color = 'green' if f_sc >= 7 else 'amber' if f_sc >= 4 else 'red'
                     ui.badge(f"{f.get('name', '?')} {f_sc:.0f}", color=f_color) \
-                        .classes('text-xs').props('outline')
+                        .classes('text-xs').props('outline dense')
 
 
 _pos_dialog_open = {'value': False}

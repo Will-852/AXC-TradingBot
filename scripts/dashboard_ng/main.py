@@ -103,13 +103,13 @@ def main_page():
 
         # ── Row 4: Two-column layout — Left: positions + orders | Right: PnL chart + stats ──
         with ui.row().classes('gap-2 w-full items-start'):
-            # Left column (60%)
-            with ui.column().classes('flex-[3] min-w-[400px] gap-2'):
+            # Left column (55%) — grows with positions
+            with ui.column().classes('flex-[3] min-w-[380px] gap-2'):
                 render_positions()
                 render_action_plan()
 
-            # Right column (40%)
-            with ui.column().classes('flex-[2] min-w-[300px] gap-2'):
+            # Right column (45%) — sticky so it stays visible when left grows
+            with ui.column().classes('flex-[2] min-w-[300px] gap-2 sticky top-2'):
                 render_pnl_chart()
                 with ui.row().classes('gap-2 flex-wrap w-full'):
                     render_fee_breakdown()
