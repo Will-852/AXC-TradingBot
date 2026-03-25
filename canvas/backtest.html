@@ -2788,7 +2788,11 @@ function applyIndicatorData(series) {
 
 function addIndicatorToChart(name) {
   if (!mainChart) return;
-  // Sub-pane indicators: each gets its OWN pane (false = don't stack on existing)
+  // Guard: don't add if already exists (prevents duplicate panes)
+  if (indicatorPaneIds[name]) {
+    console.log('[IND] Skip duplicate:', name);
+    return;
+  }
   var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA' || name === 'AXC_CVD');
   try {
     if (isSubPane) {
