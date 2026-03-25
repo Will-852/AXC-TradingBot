@@ -1135,265 +1135,268 @@
       </div>
       <span class="sep"></span>
       <span class="ind-group-label">疊加指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="📊 布林帶 BB（最佳 TF：1H-4H）
+      <label data-tip="🫁 布林帶 BB = 呼吸（最佳 TF：1H-4H）
+
+🫁 人體：市場嘅肺 — 收縮（呼氣）同擴張（吸氣）
+• 平穩呼吸 = 帶寬 3-8%（正常波動）
+• 閉氣 = 帶寬 <3%（squeeze，即將爆發💥）
+• 過度換氣 = 帶寬 >15%（極端波動）
 
 📐 正常範圍
-• 帶寬 3-8% = 正常波動
 • %B 0.2-0.8 = 價格喺帶內（89% 時間）
+• %B >1 = 破上軌（發燒） / %B <0 = 破下軌（失溫）
 
-⚠️ 異常信號
-• 帶寬 <3% = squeeze — 即將大突破（70% 向上）
-• 帶寬 >15% = 爆發後嘅極端波動
-• %B >1 = 破上軌（過熱） / %B <0 = 破下軌（超賣）
+🎯 實戰
+• 閉氣(squeeze) + 體溫正常(RSI 40-60) → 等爆發方向
+• 70% 嘅 squeeze 向上突破
+• 過度換氣 → 即將恢復平穩（vol 回歸均值）
 
-🎯 實戰用法
-• Squeeze + RSI 中性(40-60) → 等突破方向確認再入場
-• 破上軌 + volume spike → 可能係趨勢開始，唔好急住做空
-• 破下軌 + delta 大紅 → 恐慌性賣出，可能見底
+💡 配合
+• 呼吸(BB) + 體溫(RSI) + 心跳(Delta) = 三大生命體徵"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
+      <label data-tip="⚡ EMA 快(12) 慢(26) = 反射神經
 
-💡 同其他指標配合
-• BB squeeze + RSI + Delta = 最強組合
-• BB 寬度用百分位數比絕對值更準（因為 BTC 平均波動隨時間變化）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label data-tip="📈 EMA 快(12) 慢(26)
+⚡ 人體：周邊神經系統 — 快速反射
+• 快線(12) = 觸覺反射（即時反應）
+• 慢線(26) = 脊髓反射（稍慢但更穩）
+• 差距 = 神經興奮程度
 
 📐 正常範圍
-• 差距 ±0.5% = 震盪中（冇方向）
-• 差距 0.5-1.5% = 正常趨勢
-• 差距 >3% = 過度延伸⚠️（回調機會大）
+• ±0.5% = 冇刺激（平靜）
+• 0.5-1.5% = 正常反應
+• >3% = 過度興奮⚠️（即將疲勞）
 
-⚠️ 異常信號
-• 15M 差距 >1% = 短線過熱
-• 4H 差距 >3% = 大趨勢可能見頂/見底
+🎯 實戰
+• 金叉 → 神經開始興奮（做多）
+• 死叉 → 神經開始抑制（做空）
+• 回踩慢線後反彈 → 反射弧完整，趨勢健康
 
-🎯 實戰用法
-• 金叉（快穿上慢）→ 做多信號
-• 死叉（快穿落慢）→ 做空信號
-• 價格企穩 EMA 上方 → 趨勢健康，回踩 EMA 係買入機會
-• 價格喺兩條 EMA 之間震盪 → 觀望
+⚠️ EMA 差值 = MACD line（同一條神經）
+揀 EMA 或 MACD 一個就夠"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label data-tip="🦴 MA 50/200 = 骨架（脊椎 + 骨骼）
 
-⚠️ 注意：EMA 12/26 差值 = MACD line
-同 MACD 本質相同，日常揀一個開就夠"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
-      <label data-tip="📏 MA 50/200 長期趨勢
+🦴 人體：骨骼系統 — 結構支撐
+• MA50 = 脊椎（主要支撐，站直定彎腰）
+• MA200 = 骨架（最基本結構，極少斷）
+• 金叉 = 骨癒合 / 死叉 = 骨折⚠️
 
 📐 正常狀態
-• BTC 65% 時間 MA50 > MA200（結構性向上）
-• 牛市 80-85% 時間喺 200MA 上方
-• 熊市 70-80% 時間喺 200MA 下方
+• BTC 65% 時間企喺骨架(200MA)上方
+• 200 週線從未被跌穿 = 終極骨架
 
-⚠️ 重要信號
-• MA50 穿上 MA200 = 金叉（牛市確認）
-• MA50 穿落 MA200 = 死亡交叉
-• 但 BTC 死叉常見假信號 — 3 次中有 3 次係底部⚠️
-• 200 週線從未被跌穿（終極支撐）
-
-🎯 實戰用法
-• 只做大方向確認，唔好做入場依據
+⚠️ 但要留意
+• BTC 死叉常見假信號 — 3 次中 3 次係底部
 • 嚴重滯後 — 信號出時已走咗 20-40%
-• 價格企穩 200MA + RSI <35 = 高信心抄底"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
-      <label data-tip="⚖️ VWAP 成交量加權均價
 
-📐 正常範圍
-• 偏差 ±0.5% = 貼近公平價
-• 偏差 ±0.5-2% = 正常日內波動
-• 偏差 >5% = 極端（機構級活動 / 清算瀑布）
+🎯 只做結構確認
+• 骨架完整(MA50>200) = 大方向健康
+• 跌穿脊椎(MA50) + 體溫低(RSI<35) = 高信心抄底"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <label data-tip="⚖️ VWAP = 重心 / 丹田
+
+⚖️ 人體：前庭系統 + 丹田 — 平衡中心
+• VWAP = 市場嘅「重心」— 公平價位
+• 偏離重心太遠 → 身體會自動修正回來
+
+📐 偏離範圍
+• ±0.5% = 平衡（正常）
+• ±2% = 傾斜（留意）
+• >5% = 失衡（極端，機構活動）
 
 ⚠️ 機構行為
-• 價格 >2% above VWAP → 機構傾向賣出（唔追高）
-• 價格 >2% below VWAP → 機構傾向買入（吸貨）
-• VWAP = 大戶衡量入場好唔好嘅基準線
+• >2% above → 大戶傾向賣出（唔追高）
+• >2% below → 大戶傾向買入（吸貨）
 
-🎯 實戰用法
-• 價格 > VWAP → 短線偏多
-• 價格 < VWAP → 短線偏空
-• 價格觸碰 VWAP 後反彈 → VWAP 做支撐
-• BTC 24/7，每日 HKT 08:00 (UTC 0:00) reset
-
-💡 同 VP 配合
-• VWAP = 動態公平價 / VP POC = 靜態公平價
-• 兩者重疊 = 超強支撐/阻力"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
+🎯 實戰
+• 價格回到 VWAP = 回到重心（決策點）
+• VWAP + POC(丹田) 重疊 = 超強平衡點"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
       <span class="ind-group-label">震盪指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="💪 RSI 14（BTC 校準版，最佳 TF：1H-4H）
+      <label data-tip="🌡️ RSI 14 = 體溫（最佳 TF：1H-4H）
 
-📐 BTC 正常範圍（同股票唔同！）
-• 🐂 牛市：正常 45-80 / floor 40 / ceiling 90
-• 🐻 熊市：正常 25-55 / floor 20 / ceiling 60
-• 📊 震盪：正常 40-65（60% 時間在此）
+🌡️ 人體：體溫調節 — 發燒就要注意
+• RSI 50 = 正常體溫 36.5°C
+• RSI >70 = 發燒🤒（超買）
+• RSI <30 = 失溫🥶（超賣）
+• 身體會自動調節回正常 = 均值回歸
 
-🔴 極端信號（歷史驗證）
-• 日線 RSI <25 = 世紀抄底（2015年至今只出現 5 次）
-• 日線 RSI >85 = 2-4 週內大跌 15-30%
-• 4H RSI <30 或 >70 罕見但有意義
+📐 BTC 校準（同股票唔同！）
+• 🐂 牛市：正常 45-80 / floor 40
+• 🐻 熊市：正常 25-55 / ceiling 60
+• 📊 震盪：正常 40-65（60% 時間）
 
-⚠️ 唔同 TF 表現
-• 15M：20-80 不停震，noise 太多，唔建議單獨用
-• 1H：最佳日內 TF，40-65 常態
-• 4H：swing trading 甜蜜點
-• 日線：極端值（<30 或 >80）每年只出幾次
+🔴 極端（歷史驗證）
+• 日線 <25 = 世紀抄底（只出現過 5 次）
+• 日線 >85 = 2-4 週大跌 15-30%
 
-🎯 實戰用法
-• RSI <35 + BB 下軌 + 大單出現 = 高信心抄底
-• RSI >75 + EMA 差距 >2% = 高信心減倉
-• RSI 50 附近 = 冇方向，觀望
-• RSI 背離（價新高但 RSI 唔新高）= 早期反轉信號"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label data-tip="🔄 MACD (12,26,9)（最佳 TF：4H-日線）
+🎯 實戰
+• 失溫(RSI<35) + 破下軌(BB) + 大單 = 高信心抄底
+• 高燒(RSI>75) + 神經過度興奮(EMA差>2%) = 減倉
+• 體溫正常(50) = 觀望
+• 背離 = 體溫同行為唔一致（早期反轉信號）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label data-tip="💪 MACD (12,26,9) = 肌肉張力（最佳 TF：4H-日線）
 
-📐 正常範圍（Histogram 佔價格 %）
-• <0.05% = 噪音，忽略
-• 0.05-0.2% = 正常信號
-• 0.2-0.5% = 強信號
-• >1.5% = 極端（可能見頂/見底）
+💪 人體：肌肉系統 — 收縮同放鬆
+• Histogram 正 = 肌肉收縮（發力中）
+• Histogram 負 = 肌肉放鬆（卸力中）
+• 柱頂回落 = 肌肉開始疲勞⚠️
+• 零線交叉 = 肌肉從收縮切換到放鬆（或反過嚟）
 
-⚠️ 異常信號
-• Histogram 柱頂回落 = 最早嘅反轉警號
-  （比零線交叉早 2-5 根 candle）
-• 零線以上持續縮柱 = 牛力衰竭
-• 零線以下持續放大 = 仲未見底
+📐 力度（Hist 佔價格 %）
+• <0.05% = 冇力（忽略）
+• 0.2-0.5% = 正常發力
+• >1.5% = 極端用力（即將抽筋🤕）
 
-🎯 實戰用法
-• MACD 金叉 + volume 放大 → 強做多
-• MACD 柱翻紅 + RSI >70 → 減倉信號
-• MACD 同價格背離 = 反轉先兆
+🎯 實戰
+• 肌肉收縮(+) + 血流增加(vol↑) = 強做多
+• 肌肉疲勞(柱縮) + 發燒(RSI>70) = 減倉
+• 背離 = 肌肉話冇力但身體仲行 → 快跌
 
-⚠️ 同 EMA 12/26 差值本質相同
-揀 EMA 或 MACD 其中一個就夠，同時開係重複資訊"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
-      <label data-tip="🎲 Stoch (14,3) ⚠️ BTC 最弱指標
+⚠️ 同 EMA 差值本質相同（同一條神經）
+揀一個就夠"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+      <label data-tip="💉 Stoch (14,3) = 腎上腺素 ⚠️ 慎用
 
-📐 範圍
-• >80 = 超買 / <20 = 超賣
-• K 穿上 D = 買入信號 / K 穿落 D = 賣出信號
+💉 人體：腎上腺素 — 戰鬥或逃跑反應
+• >80 = 腎上腺素爆標（亢奮）
+• <20 = 腎上腺素耗盡（精疲力竭）
+• K/D 交叉 = 腎上腺素急升/急降
 
-🔴 BTC 嘅問題（點解弱）
-• 牛市可以釘 >80 連續幾日 → 不停發假賣出信號
-• 同 RSI 高度重複（兩個都量度動量）
+🔴 BTC 嘅問題
+• 牛市可以亢奮幾日（>80 釘死）→ 假信號多
+• 同體溫(RSI)量度差唔多嘅嘢 → 重複
 • 強趨勢中完全失效
 
 ✅ 唯一有用嘅場景
-• 確認係震盪市（ADX <20）時：
-  Stoch <20 + RSI <35 + BB %B <0.1 = 高信心超賣
-• 除此之外，日常唔建議開
+• 身體靜止（ADX<20 震盪市）時先有參考價值
+• Stoch<20 + RSI<35 + BB%B<0.1 = 三重超賣確認
 
-💡 建議
-• 日常組合：BB + EMA + RSI + Delta = 4 個就夠
-• Stoch 只喺你確認市場震盪時先開"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+💡 日常建議
+• 日常 4 件就夠：呼吸(BB) + 神經(EMA) + 體溫(RSI) + 心跳(Delta)
+• Stoch 只喺確認震盪市時先開"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
-      <label data-tip="🔀 市場模式 Mode 即時
-• 自動判斷：趨勢 / 震盪 / 突破
-• 趨勢模式 → 追
-• 震盪模式 → 高拋低吸
-• 突破模式 → 等確認"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
+      <label data-tip="🔄 市場模式 = 五行相位（需回測）
+
+🔄 中醫五行 — 市場循環
+• 🌱 木(生長) = 早期趨勢 / 蓄力期
+• 🔥 火(旺盛) = 高潮期 / 最強動量
+• 🏔️ 土(轉化) = 震盪期 / 方向未明
+• ⚔️ 金(收斂) = 趨勢衰減 / 開始轉向
+• 💧 水(蓄藏) = 底部蓄力 / 等待重生
+
+🎯 對應策略
+• 趨勢模式(木/火) → 追勢，順方向做
+• 震盪模式(土) → 高拋低吸，唔追
+• 突破模式(水→木) → 等確認再入場
+
+⚠️ 需要執行回測先有數據（Mode 係 backend 計算）"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
       <span class="sep"></span>
       <span class="fp-group-label">資金流</span>
-      <label data-tip="🐋 大額成交 ≥$100K（大單追蹤）
+      <label data-tip="⚡ 大額成交 ≥$100K = 衝擊波
 
-📐 顯示
-• 🟢 綠菱形 = 該 candle 內買方大單主導
-• 🔴 紅菱形 = 該 candle 內賣方大單主導
-• 菱形越大 = 總金額越大
+⚡ 人體：外來衝擊 — 腎上腺素瞬間飆升
+• 🟢 綠菱形 = 買方衝擊（有人大力買入）
+• 🔴 紅菱形 = 賣方衝擊（有人大力賣出）
+• 菱形大小 = 衝擊力度
 
-🎯 實戰用法
-• 大量綠菱形連續出現 → 機構正在建倉（睇升）
-• 突然出現巨大紅菱形 → 大戶出貨（短線危險）
-• 大單出現喺支撐位 → 支撐可信度高
-• 大單出現喺阻力位 → 阻力可信度高
+🎯 實戰
+• 連續綠菱形 → 機構正在建倉（趨勢開始）
+• 巨大紅菱形 → 大戶出貨（短線危險）
+• 衝擊出現喺骨架(MA)附近 → 結構性支撐/阻力更可信
 
-💡 配合其他指標
-• 大單 + Delta 同方向 = 強確認
-• 大單 + Delta 反方向 = 吸收/派發" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
-      <label data-tip="⚡ 淨量 Delta = 呢一刻邊邊更急（最佳 TF：15M-1H）
+💡 配合
+• 衝擊(大單) + 心跳(Delta) 同方向 = 強確認
+• 衝擊(大單) + 心跳(Delta) 反方向 = 吸收/派發
+  （有人接住衝擊 = 支撐；有人趁衝擊出貨 = 派發）" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
+      <label data-tip="♥️ 淨量 Delta = 心跳（最佳 TF：15M-1H）
 
-📐 BTC 1H 正常範圍
-• <$50M = 正常（冇特別）
-• $50-150M = 留意（有方向性）
-• $150-500M = 顯著（大戶活動）
-• >$500M = 極端（可能係清算瀑布或機構入場）
+♥️ 人體：每一下心跳 — 呢一刻邊邊更急
+• 🟢 綠 bar = 強力搏動（買方主導）
+• 🔴 紅 bar = 逆向搏動（賣方主導）
+• 灰色 = 平穩（冇特別方向）
 
-⚠️ 異常信號
-• 大 delta + 價唔動 = 吸收（有人頂住，即將反向）
-• 價升 + delta 縮 = 上升動力衰減（背離）
-• 價跌 + delta 由負轉正 = 有人抄底
+📐 BTC 1H 心跳力度
+• <$50M = 正常搏動
+• $50-150M = 搏動加速（留意）
+• $150-500M = 心跳劇烈（大戶活動）
+• >$500M = 心律不齊⚠️（清算/機構入場）
 
-🎯 實戰用法
-• 大綠 bar → 有人急住買，短線偏多
-• 大紅 bar → 有人急住賣，短線偏空
-• delta 持續同方向 3+ bar → 趨勢確認
-• delta 突然反向 → 可能係轉折點
+🎯 實戰
+• 大力搏動 + 價唔動 = 吸收（有人頂住）
+• 搏動減弱但價仲升 = 心力衰竭（背離⚠️）
+• 搏動突然反向 = 可能轉折點
 
-💡 同 VOL 嘅分別
-• VOL = 總成交量（唔分買賣）
-• Delta = 買 - 賣 嘅淨量（分方向）
-• VOL 大 + Delta 細 = 雙方激烈交戰（震盪）
-• VOL 大 + Delta 大 = 一方壓倒性勝出（趨勢）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
-      <label data-tip="📊 價位分佈 VP（右邊柱狀圖）
+💡 同 VOL 嘅分別（中醫：氣 vs 血）
+• VOL = 血流量（總量，唔分方向）
+• Delta = 氣（方向性力量）
+• 氣旺血行 = Delta 大 + VOL 大 → 趨勢健康
+• 有血無氣 = VOL 大 + Delta 細 → 雙方交戰" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
+      <label data-tip="🎯 價位分佈 VP = 丹田（重心）
 
-📐 組成部分
-• 🔵 藍 = 買量（主動買入）
-• 🟡 黃 = 賣量（主動賣出）
-• 🔴 POC = 最多成交嘅價位（紅色實線 + label）
-• 🟡 VA = 70% 成交集中區（黃色虛線 VAH/VAL）
-• HVN = 高成交節點（背景色帶）
+🎯 人體/中醫：丹田 — 身體嘅核心平衡點
+• POC(紅線) = 丹田位置（氣血最集中）
+• VA(黃線) = 身體嘅穩定範圍
+• 價格離開 VA = 失去平衡，傾向回歸
 
-⚠️ 強 POC vs 弱 POC
-• 強：>15% session 成交 + 窄 VA (<2%) = 超強磁石
-• 弱：<5% + 寬 VA (>5%) = 價格易穿透
-• 圓數 POC（$70,000, $80,000）= 極強 S/R
+📐 組成
+• 🔵 藍 = 買量 / 🟡 黃 = 賣量
+• POC = 最多成交價位（磁石🧲）
+• VA = 70% 成交集中區
 
-🎯 實戰用法
-• 價格接近 POC → 大概率被吸引住（唔好追）
-• 價格突破 VAH → 可能開始向上趨勢
-• 價格跌穿 VAL → 可能開始向下趨勢
-• LVN（低成交空間）→ 價格會快速穿過
+⚠️ 強丹田 vs 弱丹田
+• 強：>15% 集中 + 窄 VA → 超強吸引力
+• 弱：<5% + 寬 VA → 易被穿透
+• 圓數(70K/80K) = 全身穴位（極強 S/R）
 
-💡 同 VWAP 配合
-• VWAP = 動態公平價 / POC = 靜態公平價
-• 兩者重疊 = 超級支撐/阻力" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
-      <label data-tip="🔥 熱力圖 FP（每支蠟燭內嘅買賣分佈）
+🎯 實戰
+• 接近丹田(POC) → 被吸住（唔好追）
+• 突破 VA 上沿 → 趨勢起步
+• LVN(空位) → 氣血不通，價格快速穿過
+
+💡 丹田(POC) + 重心(VWAP) 重疊 = 超級平衡點" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
+      <label data-tip="🔬 熱力圖 FP = X 光片（內部透視）
+
+🔬 人體：X 光 / MRI — 睇到肉眼睇唔到嘅內部
+• 普通 K 線只見表面（OHLC）
+• 熱力圖可以睇到每支 candle 內部嘅買賣分佈
+• 好似醫生做 X 光先知邊度有問題
 
 📐 顯示
 • 色塊深淺 = 成交量大小
-• 左半 = 賣量（紅色系）/ 右半 = 買量（綠色系）
-• 白色邊框 = 該 candle 嘅 POC（最多成交價位）
+• 左半 = 賣量（紅）/ 右半 = 買量（綠）
 • Zoom 入 <30 支 candle 先見數字
 
-⚠️ 關鍵 pattern
-• 吸收：某價位買量 >> 賣量（3:1+）但價唔升
-  → 有人喺度靜靜買，可能係支撐💪
-• 派發：某價位賣量 >> 買量 但價唔跌
-  → 有人喺度靜靜賣，可能係阻力🧱
-• 失敗拍賣：某價位只有單邊交易
-  → 價格可能重返完成拍賣
+⚠️ X 光發現嘅 pattern
+• 吸收：買>>賣(3:1+) 但價唔動 → 隱藏支撐💪
+• 派發：賣>>買 但價唔跌 → 隱藏阻力🧱
+• 失敗拍賣：只有單邊 → 未完成，會重返
 
-🎯 實戰用法
-• 3+ 連續 price level 嘅買方 imbalance = 強支撐帶
-• 3+ 連續 price level 嘅賣方 imbalance = 強阻力帶
-• Candle 底部有大買量 → 抄底有人接" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
+🎯 3+ 連續 level 嘅 imbalance = 堅固嘅骨頭（結構性 S/R）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
       <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" data-tip="切換色塊/氣泡顯示模式
 • Blk = 色塊模式（標準 footprint）
 • Bbl = 氣泡模式（圓形大小 = 成交量）">Blk</button>
-      <label data-tip="📈 累積淨量 CVD = 由頭到而家邊邊一直更急（最佳 TF：1H-4H）
+      <label data-tip="🩸 累積淨量 CVD = 血壓（最佳 TF：1H-4H）
 
-📐 解讀
-• 持續升 → 買方一直主導（累積買壓）
-• 持續跌 → 賣方一直主導（累積賣壓）
-• 平穩 → 買賣平衡
+🩸 人體：血壓 — 累積嘅壓力趨勢
+• 心跳(Delta) = 每一下搏動
+• 血壓(CVD) = 搏動累積出嘅持續壓力
+• 血壓持續升 = 買方壓力一直累積
+• 血壓持續跌 = 賣方壓力一直累積
 
-⚠️ 背離信號（最有價值嘅用法）
-• 價跌但 CVD 升 → 有人偷偷吸貨（睇升🟢）
-  即係有大戶趁低買，只係未推高價格
-• 價升但 CVD 跌 → 有人偷偷出貨（睇跌🔴）
-  即係有大戶趁高賣，價格遲早跟跌
-• 背離持續 8-16 bar = 強信號
+⚠️ 背離 = 最有價值嘅診斷
+• 身體行(價升) + 血壓跌(CVD跌) = 內出血🩸
+  → 表面健康但內部衰退，即將倒下
+• 身體跌(價跌) + 血壓升(CVD升) = 暗中恢復
+  → 有人偷偷輸血，即將站起身
+• 背離 8-16 bar = 強信號
 
-🎯 Delta + CVD 組合判斷
-• Delta 大綠 + CVD 升 = 強確認買入
-• Delta 大綠 + CVD 跌 = 假突破⚠️（有人趁高出）
-• Delta 持續紅 + CVD 跌 = 空方壓倒
-• Delta 轉綠 + CVD 止跌 = 可能見底
+🎯 心跳 + 血壓 組合診斷
+• 心跳強(Delta+) + 血壓升(CVD↑) = 身體健康💪
+• 心跳強(Delta+) + 血壓跌(CVD↓) = 回光返照⚠️
+• 心跳弱(Delta-) + 血壓跌(CVD↓) = 衰竭中
+• 心跳轉正 + 血壓止跌 = 開始康復🟢
 
-💡 同 Delta 嘅分別
-• Delta = 呢一刻嘅快照（即時）
-• CVD = 由頭累積到而家（趨勢）
-• Delta 好似心跳，CVD 好似血壓" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
+💡 中醫：「氣為血之帥，血為氣之母」
+• 氣(Delta/意圖) 帶動 血(CVD/成交)
+• 氣旺血行 = 趨勢健康
+• 有氣無血 = 虛張聲勢" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
       <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵開/關：價位+熱圖+累積">全開</button>
       <button class="vol-preset-btn" onclick="clearAllFlowPanes()" title="清除所有資金流指標" style="color:#ef5350">清除</button>
       <span class="sep"></span>
