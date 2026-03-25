@@ -1,0 +1,313 @@
+{
+  "blankandyellow": {
+    "name": "blankandyellow",
+    "total_trades": 3500,
+    "total_markets": 172,
+    "days_active": 1,
+    "date_range": "2026-03-25 \u2192 2026-03-25",
+    "summary": {
+      "avg_combined_price": 0.9713,
+      "median_combined_price": 0.9767,
+      "avg_up_price": 0.4784,
+      "avg_down_price": 0.4966,
+      "total_up_cost": 20035.89,
+      "total_down_cost": 24720.23,
+      "total_up_shares": 45674.31,
+      "total_down_shares": 48422.07,
+      "up_down_cost_ratio": 0.811,
+      "both_sides_markets": 168,
+      "single_side_markets": 4,
+      "both_sides_pct": 97.7
+    },
+    "coin_breakdown": {
+      "BTC": 86,
+      "ETH": 86
+    },
+    "timeframe_breakdown": {
+      "5M": 172
+    },
+    "daily_pnl": {
+      "2026-03-25": {
+        "profit": 4222.64,
+        "loss": -2928.36,
+        "net": 1294.28,
+        "markets": 172,
+        "trades": 3500,
+        "total_cost": 44756.12,
+        "up_cost": 20035.89,
+        "down_cost": 24720.23,
+        "both_sides": 168,
+        "single_side": 4,
+        "avg_combined_price": 0.9713,
+        "coins": [
+          "BTC",
+          "ETH"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      }
+    }
+  },
+  "kafwhsd": {
+    "name": "kafwhsd",
+    "error": "no trades"
+  },
+  "likebot": {
+    "name": "likebot",
+    "total_trades": 3500,
+    "total_markets": 887,
+    "days_active": 8,
+    "date_range": "2026-03-17 \u2192 2026-03-24",
+    "summary": {
+      "avg_combined_price": 1.0282,
+      "median_combined_price": 1.0286,
+      "avg_up_price": 0.5239,
+      "avg_down_price": 0.5326,
+      "total_up_cost": 4442.85,
+      "total_down_cost": 4778.19,
+      "total_up_shares": 9281.14,
+      "total_down_shares": 9616.28,
+      "up_down_cost_ratio": 0.93,
+      "both_sides_markets": 402,
+      "single_side_markets": 485,
+      "both_sides_pct": 45.3
+    },
+    "coin_breakdown": {
+      "BTC": 887
+    },
+    "timeframe_breakdown": {
+      "5M": 887
+    },
+    "daily_pnl": {
+      "2026-03-17": {
+        "profit": 9.99,
+        "loss": -9.6,
+        "net": 0.39,
+        "markets": 12,
+        "trades": 38,
+        "total_cost": 91.65,
+        "up_cost": 30.5,
+        "down_cost": 61.15,
+        "both_sides": 2,
+        "single_side": 10,
+        "avg_combined_price": 0.8975,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-18": {
+        "profit": 584.86,
+        "loss": -133.13,
+        "net": 451.73,
+        "markets": 201,
+        "trades": 1122,
+        "total_cost": 2803.41,
+        "up_cost": 1174.11,
+        "down_cost": 1629.3,
+        "both_sides": 114,
+        "single_side": 87,
+        "avg_combined_price": 0.9564,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-19": {
+        "profit": 158.43,
+        "loss": -146.9,
+        "net": 11.53,
+        "markets": 174,
+        "trades": 666,
+        "total_cost": 1817.4,
+        "up_cost": 911.43,
+        "down_cost": 905.97,
+        "both_sides": 82,
+        "single_side": 92,
+        "avg_combined_price": 1.0207,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-20": {
+        "profit": 32.37,
+        "loss": -102.1,
+        "net": -69.73,
+        "markets": 103,
+        "trades": 254,
+        "total_cost": 706.18,
+        "up_cost": 346.97,
+        "down_cost": 359.2,
+        "both_sides": 29,
+        "single_side": 74,
+        "avg_combined_price": 1.0773,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-21": {
+        "profit": 57.37,
+        "loss": -181.11,
+        "net": -123.74,
+        "markets": 161,
+        "trades": 735,
+        "total_cost": 1952.96,
+        "up_cost": 1033.4,
+        "down_cost": 919.56,
+        "both_sides": 100,
+        "single_side": 61,
+        "avg_combined_price": 1.0595,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-22": {
+        "profit": 23.66,
+        "loss": -86.26,
+        "net": -62.6,
+        "markets": 78,
+        "trades": 244,
+        "total_cost": 654.48,
+        "up_cost": 303.06,
+        "down_cost": 351.41,
+        "both_sides": 23,
+        "single_side": 55,
+        "avg_combined_price": 1.1015,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-23": {
+        "profit": 39.57,
+        "loss": -136.71,
+        "net": -97.14,
+        "markets": 136,
+        "trades": 385,
+        "total_cost": 1049.75,
+        "up_cost": 575.74,
+        "down_cost": 474.01,
+        "both_sides": 48,
+        "single_side": 88,
+        "avg_combined_price": 1.0841,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      },
+      "2026-03-24": {
+        "profit": 6.63,
+        "loss": -18.8,
+        "net": -12.17,
+        "markets": 22,
+        "trades": 56,
+        "total_cost": 145.22,
+        "up_cost": 67.64,
+        "down_cost": 77.58,
+        "both_sides": 4,
+        "single_side": 18,
+        "avg_combined_price": 1.0596,
+        "coins": [
+          "BTC"
+        ],
+        "timeframes": [
+          "5M"
+        ]
+      }
+    }
+  },
+  "Anon": {
+    "name": "Anon",
+    "total_trades": 3500,
+    "total_markets": 174,
+    "days_active": 2,
+    "date_range": "2026-03-24 \u2192 2026-03-25",
+    "summary": {
+      "avg_combined_price": 0.997,
+      "median_combined_price": 1.0085,
+      "avg_up_price": 0.4742,
+      "avg_down_price": 0.5242,
+      "total_up_cost": 16825.26,
+      "total_down_cost": 19844.05,
+      "total_up_shares": 37742.92,
+      "total_down_shares": 36803.98,
+      "up_down_cost_ratio": 0.848,
+      "both_sides_markets": 173,
+      "single_side_markets": 1,
+      "both_sides_pct": 99.4
+    },
+    "coin_breakdown": {
+      "BTC": 69,
+      "ETH": 55,
+      "XRP": 50
+    },
+    "timeframe_breakdown": {
+      "15M": 160,
+      "UNKNOWN": 14
+    },
+    "daily_pnl": {
+      "2026-03-24": {
+        "profit": 187.81,
+        "loss": -415.54,
+        "net": -227.73,
+        "markets": 68,
+        "trades": 1487,
+        "total_cost": 15916.63,
+        "up_cost": 7479.98,
+        "down_cost": 8436.65,
+        "both_sides": 68,
+        "single_side": 0,
+        "avg_combined_price": 0.9863,
+        "coins": [
+          "BTC",
+          "ETH",
+          "XRP"
+        ],
+        "timeframes": [
+          "15M",
+          "UNKNOWN"
+        ]
+      },
+      "2026-03-25": {
+        "profit": 214.64,
+        "loss": -620.59,
+        "net": -405.95,
+        "markets": 106,
+        "trades": 2013,
+        "total_cost": 20752.68,
+        "up_cost": 9345.28,
+        "down_cost": 11407.4,
+        "both_sides": 105,
+        "single_side": 1,
+        "avg_combined_price": 1.0039,
+        "coins": [
+          "BTC",
+          "ETH",
+          "XRP"
+        ],
+        "timeframes": [
+          "15M",
+          "UNKNOWN"
+        ]
+      }
+    }
+  }
+}

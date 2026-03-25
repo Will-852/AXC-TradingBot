@@ -60,7 +60,7 @@ MAX_MARGIN_PCT = 0.50              # hard block: 50%
 MARGIN_WARNING_PCT = 0.40          # soft warning: 40%
 
 # ─── Risk — No-Trade Conditions ───
-NO_TRADE_VOLUME_MIN = 0.40       # volume < 40% of 30d avg = dead market
+NO_TRADE_VOLUME_MIN = 0.25       # volume < 25% of 30d avg = dead market (was 0.40, relaxed 2026-03-26)
 NO_TRADE_FUNDING_EXTREME = 0.003  # ±0.3% funding = extreme
 
 # ─── Order Chaser ───

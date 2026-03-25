@@ -77,23 +77,32 @@ def from_dict(d: dict):
     return s
 
 
-def log_trade(record: dict):
+def _trade_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_trades_1h_{coin}.jsonl")
+
+
+def _order_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"mm_order_log_1h_{coin}.jsonl")
+
+
+def log_trade(record: dict, coin: str = "BTC"):
     os.makedirs(_LOG_DIR, exist_ok=True)
-    with open(_TRADE_LOG, "a") as f:
+    with open(_trade_path(coin), "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
 
 
-def log_order(event: str, order_id: str, cid: str, **kwargs):
+def log_order(event: str, order_id: str, cid: str, coin: str = "BTC", **kwargs):
     record = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "event": event,
         "order_id": order_id[:16] if order_id else "",
         "cid": cid[:8] if cid else "",
+        "coin": coin,
     }
     record.update(kwargs)
     try:
         os.makedirs(_LOG_DIR, exist_ok=True)
-        with open(_ORDER_LOG, "a") as f:
+        with open(_order_path(coin), "a") as f:
             f.write(json.dumps(record, default=str) + "\n")
     except Exception:
         pass

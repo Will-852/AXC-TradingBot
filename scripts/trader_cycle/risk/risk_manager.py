@@ -25,7 +25,7 @@ from ..config.settings import (
     CIRCUIT_BREAKER_SINGLE, CIRCUIT_BREAKER_DAILY,
     COOLDOWN_2_LOSSES_MIN, COOLDOWN_3_LOSSES_MIN,
     MAX_HOLD_HOURS, FUNDING_COST_FORCE_RATIO,
-    NO_TRADE_VOLUME_MIN, NO_TRADE_FUNDING_EXTREME,
+    NO_TRADE_VOLUME_MIN, NO_TRADE_FUNDING_EXTREME, PRIMARY_TIMEFRAME,
     MAX_CRYPTO_POSITIONS, MAX_XAG_POSITIONS,
     POSITION_GROUPS, HKT,
     MAX_MARGIN_PCT, MARGIN_WARNING_PCT,
@@ -121,15 +121,16 @@ class NoTradeCheckStep:
         for symbol, snap in ctx.market_data.items():
             reasons = []
 
-            # ─── Volume too low ───
+            # ─── Volume too low (primary TF only) ───
             if symbol in ctx.indicators:
-                for tf in ctx.indicators[symbol]:
-                    vol_ratio = ctx.indicators[symbol][tf].get("volume_ratio")
-                    if vol_ratio is not None and vol_ratio < NO_TRADE_VOLUME_MIN:
-                        reasons.append(
-                            f"LOW_VOLUME: {symbol} {tf} "
-                            f"volume={vol_ratio:.0%} of avg (min {NO_TRADE_VOLUME_MIN:.0%})"
-                        )
+                vol_ratio = ctx.indicators[symbol].get(
+                    PRIMARY_TIMEFRAME, {}
+                ).get("volume_ratio")
+                if vol_ratio is not None and vol_ratio < NO_TRADE_VOLUME_MIN:
+                    reasons.append(
+                        f"LOW_VOLUME: {symbol} {PRIMARY_TIMEFRAME} "
+                        f"volume={vol_ratio:.0%} of avg (min {NO_TRADE_VOLUME_MIN:.0%})"
+                    )
 
             # ─── Extreme funding: log-only, no longer blocks ───
             # (ManagePositionsStep funding_cost_ratio force close retained as safety net)

@@ -85,3 +85,12 @@ _1H_REPRICE_MAX_PER_ORDER = 5
 _1H_REPRICE_STOP_BEFORE_END_S = 600
 _1H_REPRICE_MIN_AGE_S = 60
 _1H_REPRICE_COOLDOWN_S = 20
+
+
+# ─── Utility ───
+def _coin_from_title(title: str) -> str:
+    t = title.lower()
+    if "ethereum" in t: return "ETH"
+    if "solana" in t: return "SOL"
+    if "xrp" in t: return "XRP"
+    return "BTC"
