@@ -1133,45 +1133,45 @@
         <button class="itab" data-val="1d" onclick="setInterval_(this)">1D</button>
       </div>
       <span class="sep"></span>
-      <span class="ind-group-label">疊加指標 <small style="color:#64748b">⚡回測</small></span>
-      <label data-tip="📊 布林帶 BB ⚡回測
+      <span class="ind-group-label">疊加指標 <small style="color:#64748b">即時</small></span>
+      <label data-tip="📊 布林帶 BB 即時
 • 價格波動範圍（上下 2 個標準差）
 • 碰上軌 → 可能過熱
 • 碰下軌 → 可能超賣
 • 帶收窄 → 即將大突破（squeeze）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label data-tip="📈 EMA 快慢線 ⚡回測
+      <label data-tip="📈 EMA 快慢線 即時
 • 短期 vs 長期趨勢方向
 • 快線穿上慢線 → 金叉（睇升）
 • 快線穿落慢線 → 死叉（睇跌）
 • 價企穩 EMA 上方 → 趨勢向上"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
-      <label data-tip="📏 MA 50/200 ⚡回測
+      <label data-tip="📏 MA 50/200 即時
 • 長期趨勢（50日 + 200日均線）
 • MA50 > MA200 → 牛市
 • MA50 < MA200 → 熊市（死亡交叉）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
-      <label data-tip="⚖️ VWAP 成交量加權均價 ⚡回測
+      <label data-tip="⚖️ VWAP 成交量加權均價 即時
 • 當日嘅「公平價」
 • 價格 > VWAP → 買方主導
 • 價格 < VWAP → 賣方主導
 • 機構常用做基準"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
-      <span class="ind-group-label">震盪指標 <small style="color:#64748b">⚡回測</small></span>
-      <label data-tip="💪 RSI 相對強弱 ⚡回測
+      <span class="ind-group-label">震盪指標 <small style="color:#64748b">即時</small></span>
+      <label data-tip="💪 RSI 相對強弱 即時
 • 0-100 強弱度
 • > 70 → 超買（可能回調）
 • < 30 → 超賣（可能反彈）
 • 50 附近 → 無方向"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label data-tip="🔄 MACD 趨勢動量 ⚡回測
+      <label data-tip="🔄 MACD 趨勢動量 即時
 • 快慢 EMA 差值
 • 柱狀圖翻綠 → 動量轉強
 • 柱狀圖翻紅 → 動量轉弱
 • 金叉死叉同 EMA 類似但更靈敏"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
-      <label data-tip="🎲 Stoch 隨機指標 ⚡回測
+      <label data-tip="🎲 Stoch 隨機指標 即時
 • K 線同 D 線（0-100）
 • > 80 → 超買
 • < 20 → 超賣
 • K 穿上 D → 短線買入信號"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
-      <label data-tip="🔀 市場模式 Mode ⚡回測
+      <label data-tip="🔀 市場模式 Mode 即時
 • 自動判斷：趨勢 / 震盪 / 突破
 • 趨勢模式 → 追
 • 震盪模式 → 高拋低吸
@@ -2211,7 +2211,12 @@ function _fmtVolShort(v) {
 function registerBackendIndicators() {
   if (!klinecharts || !klinecharts.registerIndicator) return;
 
-  // BB Bands — 3 lines on main pane
+  // ═══════════════════════════════════════════════════════════════
+  //  JS Real-time Indicators — computed from OHLCV, no backend needed
+  //  Hybrid: JS default, backend override if backtest data available
+  // ═══════════════════════════════════════════════════════════════
+
+  // BB Bands — SMA(20) ± 2*stddev
   klinecharts.registerIndicator({
     name: 'AXC_BB',
     figures: [
@@ -2220,9 +2225,20 @@ function registerBackendIndicators() {
       { key: 'lower', title: 'BB Lower', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var period = 20, mult = 2;
+      var sum = 0, sumSq = 0;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { upper: ind.bb_upper, basis: ind.bb_basis, lower: ind.bb_lower } : {};
+        if (ind && ind.bb_upper != null) return { upper: ind.bb_upper, basis: ind.bb_basis, lower: ind.bb_lower };
+        var c = d.close;
+        sum += c;
+        sumSq += c * c;
+        if (i >= period) { sum -= dataList[i - period].close; sumSq -= dataList[i - period].close * dataList[i - period].close; }
+        if (i < period - 1) return {};
+        var sma = sum / period;
+        var variance = sumSq / period - sma * sma;
+        var std = Math.sqrt(Math.max(0, variance));
+        return { upper: sma + mult * std, basis: sma, lower: sma - mult * std };
       });
     },
     styles: {
@@ -2234,17 +2250,23 @@ function registerBackendIndicators() {
     }
   });
 
-  // EMA — 2 lines
+  // EMA — fast(12) + slow(26)
   klinecharts.registerIndicator({
     name: 'AXC_EMA',
     figures: [
-      { key: 'fast', title: 'EMA Fast', type: 'line' },
-      { key: 'slow', title: 'EMA Slow', type: 'line' }
+      { key: 'fast', title: 'EMA 12', type: 'line' },
+      { key: 'slow', title: 'EMA 26', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var kF = 2 / 13, kS = 2 / 27;
+      var emaF = null, emaS = null;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { fast: ind.ema_fast, slow: ind.ema_slow } : {};
+        if (ind && ind.ema_fast != null) return { fast: ind.ema_fast, slow: ind.ema_slow };
+        var c = d.close;
+        if (i === 0) { emaF = c; emaS = c; }
+        else { emaF = c * kF + emaF * (1 - kF); emaS = c * kS + emaS * (1 - kS); }
+        return { fast: emaF, slow: emaS };
       });
     },
     styles: {
@@ -2255,7 +2277,7 @@ function registerBackendIndicators() {
     }
   });
 
-  // MA — 2 lines
+  // MA — 50 + 200
   klinecharts.registerIndicator({
     name: 'AXC_MA',
     figures: [
@@ -2263,9 +2285,17 @@ function registerBackendIndicators() {
       { key: 'ma200', title: 'MA200', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var s50 = 0, s200 = 0;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { ma50: ind.ma50, ma200: ind.ma200 } : {};
+        if (ind && ind.ma50 != null) return { ma50: ind.ma50, ma200: ind.ma200 };
+        s50 += d.close; s200 += d.close;
+        if (i >= 50) s50 -= dataList[i - 50].close;
+        if (i >= 200) s200 -= dataList[i - 200].close;
+        var r = {};
+        if (i >= 49) r.ma50 = s50 / 50;
+        if (i >= 199) r.ma200 = s200 / 200;
+        return r;
       });
     },
     styles: {
@@ -2276,16 +2306,34 @@ function registerBackendIndicators() {
     }
   });
 
-  // RSI — sub-pane
+  // RSI — Wilder's smoothing, period 14
   klinecharts.registerIndicator({
     name: 'AXC_RSI',
     figures: [
-      { key: 'rsi', title: 'RSI', type: 'line' }
+      { key: 'rsi', title: 'RSI 14', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var period = 14;
+      var avgGain = 0, avgLoss = 0, started = false;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { rsi: ind.rsi } : {};
+        if (ind && ind.rsi != null) return { rsi: ind.rsi };
+        if (i === 0) return {};
+        var change = d.close - dataList[i - 1].close;
+        var gain = Math.max(0, change), loss = Math.max(0, -change);
+        if (!started) {
+          avgGain += gain; avgLoss += loss;
+          if (i === period) {
+            avgGain /= period; avgLoss /= period; started = true;
+            var rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
+            return { rsi: 100 - 100 / (1 + rs) };
+          }
+          return {};
+        }
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        var rs = avgLoss === 0 ? 999 : avgGain / avgLoss;
+        return { rsi: 100 - 100 / (1 + rs) };
       });
     },
     styles: {
@@ -2293,7 +2341,7 @@ function registerBackendIndicators() {
     }
   });
 
-  // MACD — sub-pane
+  // MACD — (12, 26, 9)
   klinecharts.registerIndicator({
     name: 'AXC_MACD',
     figures: [
@@ -2302,9 +2350,20 @@ function registerBackendIndicators() {
       { key: 'hist', title: 'Hist', type: 'bar' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var k12 = 2 / 13, k26 = 2 / 27, k9 = 2 / 10;
+      var ema12 = null, ema26 = null, sigEma = null;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { macd: ind.macd_line, signal: ind.macd_signal, hist: ind.macd_hist } : {};
+        if (ind && ind.macd_line != null) return { macd: ind.macd_line, signal: ind.macd_signal, hist: ind.macd_hist };
+        var c = d.close;
+        if (i === 0) { ema12 = c; ema26 = c; return {}; }
+        ema12 = c * k12 + ema12 * (1 - k12);
+        ema26 = c * k26 + ema26 * (1 - k26);
+        if (i < 25) return {};
+        var macdLine = ema12 - ema26;
+        if (sigEma === null) sigEma = macdLine;
+        else sigEma = macdLine * k9 + sigEma * (1 - k9);
+        return { macd: macdLine, signal: sigEma, hist: macdLine - sigEma };
       });
     },
     styles: {
@@ -2316,7 +2375,7 @@ function registerBackendIndicators() {
     }
   });
 
-  // Stochastic — sub-pane
+  // Stochastic — %K(14), %D(3)
   klinecharts.registerIndicator({
     name: 'AXC_STOCH',
     figures: [
@@ -2324,9 +2383,22 @@ function registerBackendIndicators() {
       { key: 'd', title: '%D', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var kPeriod = 14, dPeriod = 3;
+      var kBuf = [];
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { k: ind.stoch_k, d: ind.stoch_d } : {};
+        if (ind && ind.stoch_k != null) return { k: ind.stoch_k, d: ind.stoch_d };
+        if (i < kPeriod - 1) return {};
+        var hh = -Infinity, ll = Infinity;
+        for (var j = i - kPeriod + 1; j <= i; j++) {
+          if (dataList[j].high > hh) hh = dataList[j].high;
+          if (dataList[j].low < ll) ll = dataList[j].low;
+        }
+        var kVal = hh === ll ? 50 : (d.close - ll) / (hh - ll) * 100;
+        kBuf.push(kVal);
+        if (kBuf.length > dPeriod) kBuf.shift();
+        var dVal = kBuf.reduce(function(s, v) { return s + v; }, 0) / kBuf.length;
+        return { k: kVal, d: dVal };
       });
     },
     styles: {
@@ -2337,7 +2409,7 @@ function registerBackendIndicators() {
     }
   });
 
-  // ── VWAP (main pane overlay — gold line + bands) ──
+  // VWAP — daily reset, cumulative price*vol / cumulative vol + stddev bands
   klinecharts.registerIndicator({
     name: 'AXC_VWAP',
     figures: [
@@ -2346,9 +2418,22 @@ function registerBackendIndicators() {
       { key: 'lower', title: 'VWAP-', type: 'line' }
     ],
     calc: function(dataList) {
-      return dataList.map(function(d) {
+      var cumPV = 0, cumV = 0, cumPV2 = 0, lastDay = -1;
+      return dataList.map(function(d, i) {
         var ind = indicatorData[d.timestamp];
-        return ind ? { vwap: ind.vwap, upper: ind.vwap_upper, lower: ind.vwap_lower } : {};
+        if (ind && ind.vwap != null) return { vwap: ind.vwap, upper: ind.vwap_upper, lower: ind.vwap_lower };
+        // Daily reset (HKT = UTC+8)
+        var day = new Date(d.timestamp + 8 * 3600000).getUTCDate();
+        if (day !== lastDay) { cumPV = 0; cumV = 0; cumPV2 = 0; lastDay = day; }
+        var tp = (d.high + d.low + d.close) / 3;
+        cumPV += tp * d.volume;
+        cumV += d.volume;
+        cumPV2 += tp * tp * d.volume;
+        if (cumV === 0) return {};
+        var vwap = cumPV / cumV;
+        var variance = cumPV2 / cumV - vwap * vwap;
+        var std = Math.sqrt(Math.max(0, variance));
+        return { vwap: vwap, upper: vwap + std, lower: vwap - std };
       });
     },
     styles: {
@@ -3030,11 +3115,7 @@ function removeIndicatorFromChart(name) {
 function toggleIndicator(name) {
   activeIndicators[name] = !activeIndicators[name];
 
-  // Indicators need backtest data — warn if not available
-  if (activeIndicators[name] && !currentResult) {
-    showToast('請先按「執行回測」— 技術指標需要回測數據', 'warning');
-  }
-
+  // Only AXC_MODE needs backtest data — others are JS-computed
   if (name === 'AXC_MODE') {
     if (activeIndicators[name] && currentResult && currentResult.indicator_series) {
       drawModeTransitions(currentResult.indicator_series);
@@ -4078,23 +4159,22 @@ function onIntervalChange() {
 
 var _lastGatedInterval = '1h';
 function gateIndicators(interval) {
-  // Hide indicator labels + seps for non-1h, but KEEP fp-toggle + fp-group-label visible
+  // All indicators now work on ALL timeframes (JS-computed from OHLCV).
+  // Only AXC_MODE still needs backend backtest data (gated separately).
   var labels = document.querySelectorAll('#ind-toolbar label:not(.fp-toggle), #ind-toolbar .sep, #ind-toolbar .ind-group-label');
   var fpEls = document.querySelectorAll('#ind-toolbar .fp-toggle, #ind-toolbar .fp-group-label, #ind-toolbar .vol-preset-btn, #ind-toolbar .fp-mode-btn');
-  if (interval !== '1h') {
-    labels.forEach(function(el) { el.style.display = 'none'; });
-    fpEls.forEach(function(el) { el.style.display = 'flex'; });
-    ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH'].forEach(function(name) {
-      if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
-    });
-    clearModeOverlays();
-    if (_lastGatedInterval === '1h') showToast('技術指標只喺 1H 顯示（資金流仍可用）', 'info');
-  } else {
-    labels.forEach(function(el) { el.style.display = 'flex'; });
-    fpEls.forEach(function(el) { el.style.display = 'flex'; });
-    if (currentResult && currentResult.indicator_series) {
-      applyIndicatorData(currentResult.indicator_series);
+  // Always show everything
+  labels.forEach(function(el) { el.style.display = 'flex'; });
+  fpEls.forEach(function(el) { el.style.display = 'flex'; });
+  // Re-apply active indicators (they'll recalc from new kline data)
+  ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH','AXC_VWAP'].forEach(function(name) {
+    if (activeIndicators[name] && !indicatorPaneIds[name]) {
+      addIndicatorToChart(name);
     }
+  });
+  // Mode transitions still need backend data
+  if (currentResult && currentResult.indicator_series) {
+    applyIndicatorData(currentResult.indicator_series);
   }
   _lastGatedInterval = interval;
 }
