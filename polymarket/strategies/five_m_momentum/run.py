@@ -12,6 +12,7 @@ Usage:
   PYTHONPATH=.:scripts python3 polymarket/strategies/five_m_momentum/run.py --live
 """
 
+import atexit
 import argparse
 import json
 import logging
@@ -114,6 +115,80 @@ def _log_jsonl(path: str, entry: dict):
 
 def _now_hkt() -> str:
     return datetime.now(tz=_HKT).isoformat(timespec="seconds")
+
+
+def _extract_order_id(resp: dict | None) -> str:
+    """Extract order_id from buy_shares response. Handles SDK camelCase."""
+    if not resp or not isinstance(resp, dict):
+        return ""
+    return resp.get("orderID") or resp.get("order_id") or resp.get("id") or ""
+
+
+_CANCEL_BEFORE_END_S = 30  # Cancel unfilled orders 30s before window end
+
+_client_ref = None   # Module-level ref for atexit handler
+_session_ref = None  # Module-level ref for atexit handler
+
+
+def _atexit_cancel():
+    """Last resort: cancel tracked orders on ANY exit path.
+    Does NOT use cancel_all() — that would kill other bots' orders.
+    """
+    if not _client_ref or getattr(_client_ref, 'dry_run', True):
+        return
+    if not _session_ref:
+        return
+    for _cid, _pinfo in _session_ref.pending_orders.items():
+        for _orec in _pinfo.get("orders", []):
+            _oid = _orec.get("order_id", "")
+            if _oid and not _orec.get("cancelled"):
+                try:
+                    _client_ref.cancel_order(_oid)
+                except Exception:
+                    pass
+
+
+atexit.register(_atexit_cancel)
+
+
+def _cancel_before_end(session, client, dry_run: bool):
+    """Cancel all pending orders 30s before window end."""
+    if dry_run:
+        return
+
+    now_ms = int(time.time() * 1000)
+
+    for cid, pinfo in list(session.pending_orders.items()):
+        end_ms = pinfo.get("end_ms", 0)
+        if end_ms <= 0:
+            continue
+
+        tte_s = (end_ms - now_ms) / 1000
+
+        if not (0 < tte_s <= _CANCEL_BEFORE_END_S):
+            continue
+
+        orders = pinfo.get("orders", [])
+        cancelled = 0
+        for orec in orders:
+            oid = orec.get("order_id", "")
+            if not oid or orec.get("cancelled"):
+                continue
+            try:
+                client.cancel_order(oid)
+                orec["cancelled"] = True  # Prevent repeated cancel API calls
+                log.info("CANCEL T-%.0fs %s %s %s",
+                         tte_s, cid[:8], orec.get("role", "?"), orec.get("side", "?"))
+                cancelled += 1
+            except Exception as e:
+                log.debug("Cancel skip %s: %s", oid[:12], e)
+
+        if cancelled:
+            _log_jsonl(_TRADE_LOG, {
+                "ts": _now_hkt(), "event": "cancel_before_end",
+                "cid": cid[:8], "cancelled": cancelled,
+                "tte_s": round(tte_s, 1),
+            })
 
 
 def get_poly_mid(token_id: str) -> float | None:
@@ -262,6 +337,10 @@ class SessionState:
             self.mode_a_count = state.get("mode_a_count", 0)
             self.mode_b_count = state.get("mode_b_count", 0)
             self.pending_orders = state.get("pending_orders", {})
+            # Migration: add "orders" list to old entries that don't have it
+            for _cid, _pinfo in self.pending_orders.items():
+                if "orders" not in _pinfo:
+                    _pinfo["orders"] = []
             log.info("Restored: %d cids, PnL=$%.2f, trades=%d, pending=%d",
                      len(self.entered_cids), self.pnl, self.total_trades,
                      len(self.pending_orders))
@@ -367,14 +446,16 @@ def main():
              ARB_UPPER_BPS, TAKER_ASK_CAP)
     log.info("  Stop: -$%.0f session | %d consec losses | %d trades",
              SESSION_MAX_LOSS, MAX_CONSECUTIVE_LOSSES, EXPERIMENT_TRADE_LIMIT)
+    log.warning("  PnL tracking is ESTIMATED (BTC price, not actual fills)")
     log.info("=" * 60)
 
     # ── Init client ──
     client = PolymarketClient(dry_run=dry_run)
+    global _client_ref, _session_ref
+    _client_ref = client  # For atexit handler
     if not dry_run:
         balance = client.get_usdc_balance()
         log.info("Balance: $%.2f", balance)
-        # ⚠️ RISK: no balance gate. live=True + --live = real money immediately.
 
     # ── Init Binance WS ──
     ws_binance = BinancePriceFeed()
@@ -385,6 +466,7 @@ def main():
     session.load()
     session.last_scan_s = 0.0
     session.last_save_s = 0.0
+    _session_ref = session  # For atexit handler
     watchlist: dict[str, dict] = {}
 
     log.info("Main loop starting...")
@@ -402,11 +484,30 @@ def main():
         elapsed = time.time() - loop_start
         time.sleep(max(0.1, ENTRY_CYCLE_S - elapsed))
 
-    # ── Shutdown ──
+    # ── Shutdown: cancel all open orders FIRST ──
+    log.info("Shutting down — cancelling open orders...")
+    if not dry_run:
+        # Cancel only THIS bot's tracked orders (NOT cancel_all — that kills other bots)
+        cancelled = 0
+        for pcid, pinfo in session.pending_orders.items():
+            for orec in pinfo.get("orders", []):
+                oid = orec.get("order_id", "")
+                if oid and not orec.get("cancelled"):
+                    try:
+                        client.cancel_order(oid)
+                        orec["cancelled"] = True
+                        cancelled += 1
+                        log.info("SHUTDOWN CANCEL %s %s", pcid[:8], oid[:12])
+                    except Exception:
+                        pass
+        log.info("Shutdown: cancelled %d orders", cancelled)
+
     ws_binance.stop()
+    session.save()
     log.info("=" * 60)
     log.info("  Session complete: A=%d B=%d PnL=$%.2f",
              session.mode_a_count, session.mode_b_count, session.pnl)
+    log.warning("  PnL is ESTIMATED (BTC-based, not actual fills)")
     log.info("  Logs: %s", _TRADE_LOG)
     log.info("=" * 60)
 
@@ -520,6 +621,9 @@ def _run_cycle(client, ws_binance, session: SessionState,
     for cid in to_remove:
         watchlist.pop(cid, None)
 
+    # ── Cancel orders approaching window end ──
+    _cancel_before_end(session, client, dry_run)
+
     # ── Resolution ──
     _check_resolution(session, now_ms)
 
@@ -570,21 +674,32 @@ def _execute_arb(client, session, sig, wl, up_mid, dn_mid,
     session.entered_cids.add(cid)
     session.save()
 
+    order_records = []  # Track order_ids for cancel
+
     try:
-        client.buy_shares(lean_tok,
-                          round(plan.lean_shares * plan.lean_price, 2),
-                          plan.lean_price)
+        resp = client.buy_shares(lean_tok,
+                                 round(plan.lean_shares * plan.lean_price, 2),
+                                 plan.lean_price)
+        order_records.append({
+            "order_id": _extract_order_id(resp),
+            "side": plan.lean_side, "price": plan.lean_price,
+            "shares": plan.lean_shares, "role": "lean",
+        })
     except Exception as e:
         log.warning("MODE_A lean FAIL %s: %s", cid[:8], e)
-        # Don't count as trade — zero orders submitted, don't waste experiment slot
         to_remove.append(cid)
         return
 
     hedge_ok = False
     try:
-        client.buy_shares(hedge_tok,
-                          round(plan.hedge_shares * plan.hedge_price, 2),
-                          plan.hedge_price)
+        resp = client.buy_shares(hedge_tok,
+                                 round(plan.hedge_shares * plan.hedge_price, 2),
+                                 plan.hedge_price)
+        order_records.append({
+            "order_id": _extract_order_id(resp),
+            "side": plan.hedge_side, "price": plan.hedge_price,
+            "shares": plan.hedge_shares, "role": "hedge",
+        })
         hedge_ok = True
     except Exception as e:
         log.warning("MODE_A hedge FAIL %s: %s → downgrade to mode B", cid[:8], e)
@@ -592,20 +707,20 @@ def _execute_arb(client, session, sig, wl, up_mid, dn_mid,
     session.mode_a_count += 1
 
     if hedge_ok:
-        # Both sides submitted → track as arb
         session.pending_orders[cid] = {
             "mode": "A", "coin": coin, "direction": sig.direction,
             "combined": plan.combined_cost,
             "shares": min(plan.lean_shares, plan.hedge_shares),
             "open_price": open_price, "end_ms": wl["end_ms"],
+            "orders": order_records,
         }
     else:
-        # Only lean submitted → track as directional (correct PnL at resolution)
         session.pending_orders[cid] = {
             "mode": "B", "coin": coin, "direction": sig.direction,
             "price": plan.lean_price,
             "shares": plan.lean_shares,
             "open_price": open_price, "end_ms": wl["end_ms"],
+            "orders": order_records,
         }
     session.save()
     to_remove.append(cid)
@@ -654,14 +769,20 @@ def _execute_directional(client, session, sig, wl, up_mid, dn_mid,
     session.entered_cids.add(cid)
     session.save()
 
+    order_records = []
+
     lean_tok = wl["up_tok"] if sig.direction == "UP" else wl["dn_tok"]
     try:
-        client.buy_shares(lean_tok,
-                          round(plan.lean_shares * plan.lean_price, 2),
-                          plan.lean_price)
+        resp = client.buy_shares(lean_tok,
+                                 round(plan.lean_shares * plan.lean_price, 2),
+                                 plan.lean_price)
+        order_records.append({
+            "order_id": _extract_order_id(resp),
+            "side": plan.lean_side, "price": plan.lean_price,
+            "shares": plan.lean_shares, "role": "lean",
+        })
     except Exception as e:
         log.warning("MODE_B lean FAIL %s: %s", cid[:8], e)
-        # Don't count as trade — zero orders submitted
         to_remove.append(cid)
         return
 
@@ -674,7 +795,12 @@ def _execute_directional(client, session, sig, wl, up_mid, dn_mid,
         if h:
             hedge_tok = wl["dn_tok"] if sig.direction == "UP" else wl["up_tok"]
             try:
-                client.buy_shares(hedge_tok, round(h.shares * h.price, 2), h.price)
+                resp = client.buy_shares(hedge_tok, round(h.shares * h.price, 2), h.price)
+                order_records.append({
+                    "order_id": _extract_order_id(resp),
+                    "side": h.side, "price": h.price,
+                    "shares": h.shares, "role": "hedge",
+                })
                 log.info("  HEDGE %s @$%.2f×%d", h.side, h.price, h.shares)
             except Exception as e:
                 log.warning("  HEDGE FAIL %s: %s", cid[:8], e)
@@ -684,6 +810,7 @@ def _execute_directional(client, session, sig, wl, up_mid, dn_mid,
         "mode": "B", "coin": coin, "direction": sig.direction,
         "price": plan.lean_price, "shares": plan.lean_shares,
         "open_price": open_price, "end_ms": wl["end_ms"],
+        "orders": order_records,
     }
     session.save()
     to_remove.append(cid)
