@@ -1915,8 +1915,8 @@ function _tryRestoreFromCache(symbol, interval) {
 
 function applyFootprintFeature(feature) {
   if (feature === 'large') {
-    if (fpActive.large) drawLargeTradeMarkers();
-    else clearLargeTradeMarkers();
+    if (fpActive.large) addIndicatorToChart('AXC_WHALE');
+    else removeIndicatorFromChart('AXC_WHALE');
   } else if (feature === 'delta') {
     if (fpActive.delta) addIndicatorToChart('AXC_DELTA');
     else removeIndicatorFromChart('AXC_DELTA');
@@ -1933,66 +1933,8 @@ function applyFootprintFeature(feature) {
 }
 
 function drawLargeTradeMarkers() {
+  // No-op: whale trades now rendered via AXC_WHALE custom indicator (canvas draw, zero overlap)
   clearLargeTradeMarkers();
-  if (!mainChart || !footprintData.large_trades.length) return;
-
-  // ── Aggregate per candle: group trades by candle timestamp ──
-  // Instead of 500 individual labels, show 1 marker per candle
-  var klines = mainChart.getDataList();
-  if (!klines || !klines.length) return;
-
-  var intervalMs = 0;
-  if (klines.length >= 2) intervalMs = klines[1].timestamp - klines[0].timestamp;
-  if (intervalMs <= 0) intervalMs = 3600000; // fallback 1h
-
-  // Build candle buckets
-  var buckets = {};  // { candleTs: { buyUsd, sellUsd, count, avgPrice, trades[] } }
-  footprintData.large_trades.forEach(function(t) {
-    // Find which candle this trade belongs to
-    var candleTs = Math.floor(t.timestamp / intervalMs) * intervalMs;
-    if (!buckets[candleTs]) {
-      buckets[candleTs] = { buyUsd: 0, sellUsd: 0, count: 0, priceSum: 0, trades: [] };
-    }
-    var b = buckets[candleTs];
-    if (t.side === 'BUY') b.buyUsd += t.usd_value;
-    else b.sellUsd += t.usd_value;
-    b.count++;
-    b.priceSum += t.price;
-    if (b.trades.length < 5) b.trades.push(t);  // keep top 5 for tooltip
-  });
-
-  // Draw one marker per candle
-  Object.keys(buckets).forEach(function(tsStr) {
-    var ts = parseInt(tsStr);
-    var b = buckets[tsStr];
-    var totalUsd = b.buyUsd + b.sellUsd;
-    var netBuy = b.buyUsd > b.sellUsd;
-    var avgPrice = b.priceSum / b.count;
-
-    // Color: green if net buy, red if net sell
-    var color = netBuy ? 'rgba(38,166,154,0.85)' : 'rgba(239,83,80,0.85)';
-    // Size: proportional to total USD (min 6, max 18)
-    var sz = Math.min(18, Math.max(6, Math.sqrt(totalUsd / 500000) * 8));
-
-    // Label: compact summary for the marker
-    var usdStr = totalUsd >= 1000000 ? '$' + (totalUsd/1000000).toFixed(1) + 'M' : '$' + Math.round(totalUsd/1000) + 'K';
-    var buyStr = b.buyUsd >= 1000000 ? (b.buyUsd/1000000).toFixed(1) + 'M' : Math.round(b.buyUsd/1000) + 'K';
-    var sellStr = b.sellUsd >= 1000000 ? (b.sellUsd/1000000).toFixed(1) + 'M' : Math.round(b.sellUsd/1000) + 'K';
-    var label = usdStr + '(' + b.count + ') 買$' + buyStr + ' 賣$' + sellStr;
-
-    try {
-      var id = mainChart.createOverlay({
-        name: 'simpleAnnotation',
-        extendData: label,
-        points: [{ timestamp: ts, value: avgPrice }],
-        styles: {
-          symbol: { type: 'circle', size: sz, color: color, activeSize: sz + 3, activeColor: color },
-          text: { color: '#d1d4dc', size: 10 }
-        }
-      });
-      if (id) largeTradeOverlays.push(id);
-    } catch(e) {}
-  });
 }
 
 function clearLargeTradeMarkers() {
@@ -2018,7 +1960,7 @@ function resetFootprintData() {
   }
 
   clearLargeTradeMarkers();
-  ['AXC_DELTA','AXC_VP','AXC_HEATMAP','AXC_CVD'].forEach(function(name) {
+  ['AXC_DELTA','AXC_VP','AXC_HEATMAP','AXC_CVD','AXC_WHALE'].forEach(function(name) {
     if (indicatorPaneIds[name]) removeIndicatorFromChart(name);
   });
   footprintData = { large_trades: [], delta_volume: {}, volume_profile: [], heatmap: {}, cvd: {} };
@@ -2089,7 +2031,7 @@ function activateVolPreset() {
 
 function clearAllFlowPanes() {
   // Remove all flow indicators + their sub-panes
-  var flowNames = ['AXC_DELTA', 'AXC_VP', 'AXC_HEATMAP', 'AXC_CVD'];
+  var flowNames = ['AXC_DELTA', 'AXC_VP', 'AXC_HEATMAP', 'AXC_CVD', 'AXC_WHALE'];
   flowNames.forEach(function(name) {
     try { removeIndicatorFromChart(name); } catch(e) {}
   });
@@ -2405,6 +2347,107 @@ function registerBackendIndicators() {
         { style: 'solid', smooth: false, size: 1, color: '#AB47BC' },
         { style: 'dashed', smooth: false, size: 1, dashedValue: [3, 3], color: '#42A5F5' }
       ]
+    }
+  });
+
+  // ── Whale Trades (main pane overlay — diamonds on candle high/low) ──
+  // Design: NO TEXT. Just colored diamonds above/below candles.
+  //   Green diamond above candle = net buy whale activity
+  //   Red diamond below candle = net sell whale activity
+  //   Diamond size = proportional to total USD
+  //   Hover crosshair shows details via calc data tooltip
+  klinecharts.registerIndicator({
+    name: 'AXC_WHALE',
+    shortName: '',
+    figures: [],
+    calc: function(dataList) { return dataList.map(function() { return {}; }); },
+    draw: function(params) {
+      var ctx = params.ctx;
+      var xAxis = params.xAxis;
+      var yAxis = params.yAxis;
+      var visibleRange = params.visibleRange;
+      var dataList = params.dataList;
+      var trades = footprintData.large_trades;
+      if (!trades || !trades.length || !dataList || !dataList.length) return false;
+      if (!visibleRange) return false;
+
+      var from = Math.max(0, visibleRange.from || 0);
+      var to = Math.min(dataList.length, visibleRange.to || dataList.length);
+
+      // Determine interval
+      var intervalMs = 3600000;
+      if (dataList.length >= 2 && dataList[0] && dataList[1]) {
+        intervalMs = dataList[1].timestamp - dataList[0].timestamp;
+      }
+      if (intervalMs <= 0) intervalMs = 3600000;
+
+      // Aggregate per candle (same logic as before but inline)
+      var buckets = {};
+      trades.forEach(function(t) {
+        var cTs = Math.floor(t.timestamp / intervalMs) * intervalMs;
+        if (!buckets[cTs]) buckets[cTs] = { buy: 0, sell: 0 };
+        if (t.side === 'BUY') buckets[cTs].buy += t.usd_value;
+        else buckets[cTs].sell += t.usd_value;
+      });
+
+      // Find max for scaling
+      var maxUsd = 0;
+      for (var k in buckets) {
+        var tot = buckets[k].buy + buckets[k].sell;
+        if (tot > maxUsd) maxUsd = tot;
+      }
+      if (maxUsd === 0) return false;
+
+      ctx.save();
+      for (var j = from; j < to; j++) {
+        var dd = dataList[j];
+        if (!dd) continue;
+        var b = buckets[String(dd.timestamp)];
+        if (!b) continue;
+
+        var cx = xAxis.convertToPixel(j);
+        if (cx == null || isNaN(cx)) continue;
+
+        var totalUsd = b.buy + b.sell;
+        var netBuy = b.buy > b.sell;
+        // Diamond size: 4-12px radius based on relative size
+        var ratio = totalUsd / maxUsd;
+        var r = Math.max(4, Math.min(12, ratio * 12));
+
+        // Position: above candle high (buy) or below candle low (sell)
+        var py;
+        if (netBuy) {
+          py = yAxis.convertToPixel(dd.high);
+          if (py != null && !isNaN(py)) py -= r - 2;  // above high
+        } else {
+          py = yAxis.convertToPixel(dd.low);
+          if (py != null && !isNaN(py)) py += r + 2;  // below low
+        }
+        if (py == null || isNaN(py)) continue;
+
+        // Draw diamond
+        var color = netBuy ? 'rgba(38,166,154,0.8)' : 'rgba(239,83,80,0.8)';
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(cx, py - r);       // top
+        ctx.lineTo(cx + r * 0.6, py); // right
+        ctx.lineTo(cx, py + r);       // bottom
+        ctx.lineTo(cx - r * 0.6, py); // left
+        ctx.closePath();
+        ctx.fill();
+
+        // Only show USD text on large diamonds (ratio > 50%)
+        if (ratio > 0.5 && r > 8) {
+          ctx.font = 'bold 8px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = netBuy ? 'bottom' : 'top';
+          ctx.fillStyle = '#d1d4dc';
+          var usdStr = totalUsd >= 1e6 ? (totalUsd / 1e6).toFixed(0) + 'M' : Math.round(totalUsd / 1e3) + 'K';
+          ctx.fillText(usdStr, cx, netBuy ? py - r - 1 : py + r + 1);
+        }
+      }
+      ctx.restore();
+      return false;
     }
   });
 
