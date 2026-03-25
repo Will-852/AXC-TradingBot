@@ -1936,17 +1936,63 @@ function drawLargeTradeMarkers() {
   clearLargeTradeMarkers();
   if (!mainChart || !footprintData.large_trades.length) return;
 
+  // ── Aggregate per candle: group trades by candle timestamp ──
+  // Instead of 500 individual labels, show 1 marker per candle
+  var klines = mainChart.getDataList();
+  if (!klines || !klines.length) return;
+
+  var intervalMs = 0;
+  if (klines.length >= 2) intervalMs = klines[1].timestamp - klines[0].timestamp;
+  if (intervalMs <= 0) intervalMs = 3600000; // fallback 1h
+
+  // Build candle buckets
+  var buckets = {};  // { candleTs: { buyUsd, sellUsd, count, avgPrice, trades[] } }
   footprintData.large_trades.forEach(function(t) {
-    var color = t.side === 'BUY' ? '#26a69a' : '#ef5350';
-    var sz = Math.min(14, Math.max(6, Math.sqrt(t.usd_value / 100000) * 6));
-    var label = t.side + ' $' + (t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1)+'M' : Math.round(t.usd_value/1000)+'K') + ' @ ' + t.price;
+    // Find which candle this trade belongs to
+    var candleTs = Math.floor(t.timestamp / intervalMs) * intervalMs;
+    if (!buckets[candleTs]) {
+      buckets[candleTs] = { buyUsd: 0, sellUsd: 0, count: 0, priceSum: 0, trades: [] };
+    }
+    var b = buckets[candleTs];
+    if (t.side === 'BUY') b.buyUsd += t.usd_value;
+    else b.sellUsd += t.usd_value;
+    b.count++;
+    b.priceSum += t.price;
+    if (b.trades.length < 5) b.trades.push(t);  // keep top 5 for tooltip
+  });
+
+  // Draw one marker per candle
+  Object.keys(buckets).forEach(function(tsStr) {
+    var ts = parseInt(tsStr);
+    var b = buckets[tsStr];
+    var totalUsd = b.buyUsd + b.sellUsd;
+    var netBuy = b.buyUsd > b.sellUsd;
+    var avgPrice = b.priceSum / b.count;
+
+    // Color: green if net buy, red if net sell
+    var color = netBuy ? 'rgba(38,166,154,0.85)' : 'rgba(239,83,80,0.85)';
+    // Size: proportional to total USD (min 6, max 18)
+    var sz = Math.min(18, Math.max(6, Math.sqrt(totalUsd / 500000) * 8));
+
+    // Short label: total USD + count
+    var usdStr = totalUsd >= 1000000 ? '$' + (totalUsd/1000000).toFixed(1) + 'M' : '$' + Math.round(totalUsd/1000) + 'K';
+    var label = usdStr + ' (' + b.count + '筆)';
+
+    // Detailed tooltip (top 5 trades)
+    var tip = b.trades.map(function(t) {
+      var tUsd = t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1) + 'M' : Math.round(t.usd_value/1000) + 'K';
+      return (t.side === 'BUY' ? '買 ' : '賣 ') + '$' + tUsd + ' @ ' + t.price;
+    }).join('\n');
+    if (b.count > 5) tip += '\n… 共 ' + b.count + ' 筆';
+
     try {
       var id = mainChart.createOverlay({
         name: 'simpleAnnotation',
         extendData: label,
-        points: [{ timestamp: t.timestamp, value: t.price }],
+        points: [{ timestamp: ts, value: avgPrice }],
         styles: {
-          symbol: { type: 'circle', size: sz, color: color, activeSize: sz + 2, activeColor: color }
+          symbol: { type: 'circle', size: sz, color: color, activeSize: sz + 3, activeColor: color },
+          text: { color: '#d1d4dc', size: 10 }
         }
       });
       if (id) largeTradeOverlays.push(id);
@@ -4538,14 +4584,14 @@ function handleOFMessage(evt) {
 
 function drawSingleLargeTradeMarker(t) {
   if (!mainChart) return;
-  var color = t.side === 'BUY' ? '#26a69a' : '#ef5350';
+  var color = t.side === 'BUY' ? 'rgba(38,166,154,0.85)' : 'rgba(239,83,80,0.85)';
   var sz = Math.min(14, Math.max(6, Math.sqrt(t.usd_value / 100000) * 6));
-  var label = t.side + ' $' + (t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1)+'M' : Math.round(t.usd_value/1000)+'K') + ' @ ' + t.price;
+  var usd = t.usd_value >= 1000000 ? '$' + (t.usd_value/1000000).toFixed(1) + 'M' : '$' + Math.round(t.usd_value/1000) + 'K';
   try {
     var id = mainChart.createOverlay({
       name: 'simpleAnnotation',
-      extendData: label,
-      styles: { symbol: { type: 'circle', size: sz, color: color, activeColor: color }, text: { color: '#ccc' } },
+      extendData: (t.side === 'BUY' ? '買 ' : '賣 ') + usd,
+      styles: { symbol: { type: 'circle', size: sz, color: color, activeColor: color }, text: { color: '#d1d4dc', size: 10 } },
       points: [{ timestamp: t.timestamp, value: t.price }]
     });
     largeTradeOverlays.push(id);
