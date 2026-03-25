@@ -81,23 +81,57 @@ polymarket/
 
 ---
 
-## Phase 4: run_5m_live.py (1,660 → ~250 orchestrator + 5 modules) — `pending`
+## Phase 4: run_5m_live.py (1,660 → ~300 orchestrator + 5 modules) — `in_progress`
 
 ```
 polymarket/
-├── run_5m_live.py           ← thin orchestrator (~250 lines)
+├── run_5m_live.py           ← thin orchestrator (~300 lines)
 ├── mom_5m/
 │   ├── __init__.py
-│   ├── config.py            ← CoinConfig + constants + _tier_lean_ratio (~80 lines) 🟢
-│   ├── data.py              ← price caches + coin_price/open_at/vol_1m/taker_ratio/midpoint (~150 lines) 🟡
+│   ├── config.py            ← CoinConfig + COIN_CONFIG + constants + _tier_lean_ratio + TG (~115 lines) 🟢
+│   ├── data.py              ← _get_json + coin_price/open_at/vol_1m/taker_ratio/midpoint + 4 caches (~120 lines) 🟡
 │   ├── signal.py            ← w4_signal + discover_5m (~100 lines) 🟡
-│   ├── execution.py         ← w4_entry/execute_order/check_fills/cancel_before_end/check_profit_lock (~400 lines) 🔴
-│   └── state.py             ← load/save/to_dict/from_dict/log_trade/log_order/bump_fill/kill_switches/resolutions (~250 lines) 🟡
+│   ├── execution.py         ← w4_entry(200L)/execute_order/check_fills/cancel_before_end/check_profit_lock (~500 lines) 🔴
+│   └── state.py             ← load/save/to_dict/from_dict/log_trade/log_order/bump_fill/kill_switches/check_resolutions (~200 lines) 🟡
 ```
 
-### Step 4.1-4.6: 同 Phase 3 pattern
-- ⚠️ **DOWNSTREAM**：`_w4_entry` (~200 lines) 包含完整 entry 邏輯（signal → sizing → order），搬時要特別小心
-- 🔴 `_check_profit_lock`：mid ≥ 99¢ 賣出（同 mm 嘅 96¢、1H 嘅 95¢ 唔同 — 有意）
+### Step 4.1: config.py — 🟢 SAFE
+- CoinConfig dataclass + COIN_CONFIG dict + _LEAN_TIERS + _tier_lean_ratio
+- All path/URL/timing constants + _FILL_STATS_DEFAULT
+- TG credential loader + _tg_alert
+- _HKT timezone, _COIN_SYMBOLS
+
+### Step 4.2: data.py — 🟡 VERIFY
+- `_get_json`, `_coin_price`, `_open_at`, `_vol_1m`, `_binance_taker_ratio`, `_poly_midpoint`
+- 4 mutable caches: _price_cache, _vol_cache, _open_cache, _taker_cache
+- ⚠️ `_coin_price` + `_poly_midpoint` use WS globals (`_ws_binance`/`_ws_poly`)
+  Decision: pass WS as optional param (same pattern as conv_1h/data_feeds.py)
+
+### Step 4.3: signal.py — 🟡 VERIFY
+- `_w4_signal` (37L): calls _open_at, _coin_price from data.py
+- `_discover_5m` (59L): calls _get_json from data.py + GammaClient
+
+### Step 4.4: execution.py — 🔴 2CHECK
+- `_w4_entry` (200L) — calls signal + data + execution functions
+  ⚠️ Returns Union[None, "EXPIRED", "ABORT", "VETO", "DEAD_HOUR", list[dict]] — implicit protocol
+- `_execute_order` (53L) — direct order placement
+- `_check_fills` (93L) — fill confirmation
+- `_cancel_before_end` (34L) — cancel near window end
+- `_check_profit_lock` (107L) — mid ≥ 99¢ sell
+  🔴 `_PROFIT_LOCK_MID = 0.99` (5M) vs 0.96 (mm) vs 0.95 (1H) — intentional
+
+### Step 4.5: state.py — 🟡 VERIFY
+- `_bump_fill`, `_load`, `_default_state`, `_save`, `_to_dict`, `_from_dict`
+- `_log_trade`, `_log_order` — CHECK: per-coin paths like conv_1h
+- `_check_kill_switches` (26L) — daily loss / consecutive loss / cooldown
+- `_check_resolutions` (111L) — straddles state+data (calls _get_json + resolve_market)
+  Decision: keep in state.py, import _get_json from data.py
+
+### Step 4.6: Slim run_5m_live.py — 🟡 VERIFY
+- `run_cycle` (195L), `_status` (49L), `main` (206L), `_shutdown` (4L)
+- import-as aliases (same pattern as Phase 3 conv_1h)
+
+### Step 4.7: Test — 🔴 2CHECK
 
 ---
 
@@ -126,3 +160,5 @@ polymarket/
 | 2 | 每個 bot 獨立 subfolder | 唔互相污染 |
 | 3 | 保留唔同 exit thresholds | 各 bot 有意用唔同值（0.95/0.96/0.99） |
 | 4 | Reprice 邏輯唔 share | 1H conviction vs mm OB drift，根本唔同 |
+| 5 | WS globals → optional params | _ws_binance/_ws_poly 由 orchestrator 注入，module 唔 own global |
+| 6 | _check_resolutions 放 state.py | 雖然 call data layer，但主要 mutate state；import _get_json from data |

@@ -57,6 +57,7 @@ from polymarket.conv_1h.data_feeds import (
     holder_imbalance as _holder_imbalance,
     poly_midpoint as _poly_midpoint,
     poly_ob as _poly_ob,
+    set_ws_feeds as _set_ws_feeds,
     vol_1m as _vol_1m,
     vol_imbalance as _vol_imbalance,
 )
@@ -300,6 +301,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             vol_1m=_coin_vols.get(coin, cached_vol), sig=sig,
             vol_dir=_vol_imbalance(coin, start_ms) if sig.action in ("ENTER", "ADD") else None,
             h_imbal=0,  # populated at entry time only
+            poly_midpoint_fn=_poly_midpoint,
         )
 
         # ── Observe-only coins: log signal but don't trade ──
@@ -594,6 +596,9 @@ def main():
         print("  WS OB: Polymarket book feed started")
     except Exception as e:
         logger.warning("WS OB feed failed to start: %s — using REST fallback", e)
+
+    # Inject WS feeds into data_feeds module so all price/OB calls use WS
+    _set_ws_feeds(ws_binance=_ws_binance, ws_poly=_ws_poly)
 
     gamma = GammaClient()
     client = None

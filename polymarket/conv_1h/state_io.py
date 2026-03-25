@@ -85,6 +85,10 @@ def _order_path(coin: str) -> str:
     return os.path.join(_LOG_DIR, f"mm_order_log_1h_{coin}.jsonl")
 
 
+def _signal_path(coin: str) -> str:
+    return os.path.join(_LOG_DIR, f"signal_tape_1h_{coin}.jsonl")
+
+
 def log_trade(record: dict, coin: str = "BTC"):
     os.makedirs(_LOG_DIR, exist_ok=True)
     with open(_trade_path(coin), "a") as f:
@@ -156,7 +160,8 @@ def record_signal_tape(coin: str, cid: str, up_tok: str, dn_tok: str,
         "h_imbal": round(h_imbal, 3),
     }
     try:
-        with open(_SIGNAL_TAPE_1H, "a") as f:
+        path = _signal_path(coin)
+        with open(path, "a") as f:
             f.write(json.dumps(record) + "\n")
     except Exception:
         pass

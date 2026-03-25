@@ -65,4 +65,36 @@
   - ✅ No orphaned function definitions (grep: 4 `def` only)
   - ✅ All exports accessible
 
-**Phase 3 COMPLETE.** Next: Phase 4 (run_5m_live.py split) or dead code archive.
+**Phase 3 COMPLETE.**
+
+## Session 3 — Phase 4: run_5m_live.py split
+
+### Round 5: Audit + Plan (completed)
+- Scout: run_5m_live.py = 1,660 lines, 28 functions, 5-module split planned
+- mom_5m/ directory does NOT exist yet
+- Key risks: _w4_entry implicit Union return, WS global injection, cross-layer _check_resolutions
+
+### Execution order (🟢 first, 🔴 last):
+1. ⬜ 4.1 config.py 🟢 — CoinConfig + all constants + TG (~115 lines)
+2. ⬜ 4.2 data.py 🟡 — 6 functions + 4 caches (~120 lines)
+3. ⬜ 4.3 signal.py 🟡 — w4_signal + discover_5m (~100 lines)
+4. ⬜ 4.5 state.py 🟡 — 10 functions incl check_resolutions (~200 lines)
+5. ⬜ 4.4 execution.py 🔴 — 5 functions incl w4_entry(200L) (~500 lines)
+6. ⬜ 4.6 slim run_5m_live.py — orchestrator (~300 lines)
+7. ⬜ 4.7 test
+
+### Round 6: Phase 4 Steps 4.1-4.7 (completed)
+- 4.1 config.py 🟢 — 128 lines (CoinConfig + all constants + TG + _tier_lean_ratio)
+- 4.2 data.py 🟡 — 150 lines (6 functions + 4 caches + set_ws_feeds)
+- 4.3 signal.py 🟡 — 113 lines (w4_signal + discover_5m)
+- 4.5 state.py 🟡 — 263 lines (state IO + kill switches + check_resolutions)
+- 4.4 execution.py 🔴 — 535 lines (w4_entry + execute_order + check_fills + cancel + profit_lock)
+- 4.6 slim run_5m_live.py — 1,660 → 546 lines (-67%)
+- 4.7 test — all passed:
+  - ✅ import + py_compile OK
+  - ✅ --status mode (reads real state, shows 206 markets traded)
+  - ✅ --dry-run --cycle (20 markets discovered, W4 signals firing, 0 errors)
+  - ✅ Only 4 `def` in orchestrator (_shutdown, run_cycle, _status, main)
+  - ✅ WS connected (Binance + Polymarket)
+
+**Phase 4 COMPLETE.** Both Phase 3 + Phase 4 done. Next: dead code archive + handin.

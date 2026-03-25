@@ -24,6 +24,17 @@ _holder_cache: dict = {}     # {cid: (ts, imbalance)}
 _price_cache: dict = {}      # {coin: (ts, price)}
 _vol_imbal_cache: dict = {}  # {key: (ts, direction_or_none)}
 
+# ─── WS feed references (set by orchestrator via set_ws_feeds) ───
+_ws_binance = None  # BinancePriceFeed instance
+_ws_poly = None     # PolymarketBookFeed instance
+
+
+def set_ws_feeds(ws_binance=None, ws_poly=None):
+    """Called by orchestrator after WS init to inject feed references."""
+    global _ws_binance, _ws_poly
+    _ws_binance = ws_binance
+    _ws_poly = ws_poly
+
 
 def _get_json(url: str, timeout: int = 10):
     try:
@@ -68,6 +79,8 @@ def holder_imbalance(cid: str) -> float:
 
 def btc_price(coin: str = "BTC", ws_binance=None) -> float:
     """Get latest price with 3s cache. WS first, REST fallback."""
+    if ws_binance is None:
+        ws_binance = _ws_binance
     now = time.time()
     if coin in _price_cache and now - _price_cache[coin][0] < 3:
         return _price_cache[coin][1]
@@ -147,6 +160,8 @@ def vol_1m(coin: str = "BTC") -> float:
 
 def poly_midpoint(token_id: str, ws_poly=None) -> float | None:
     """Polymarket midpoint. WS first, REST fallback."""
+    if ws_poly is None:
+        ws_poly = _ws_poly
     if ws_poly:
         ws_mid = ws_poly.get_midpoint(token_id)
         if ws_mid is not None:
@@ -164,6 +179,8 @@ def poly_ob(token_id: str, ws_poly=None):
     """Fetch OB and return OBState for conviction engine. WS first, REST fallback."""
     from polymarket.strategy.hourly_engine import OBState
 
+    if ws_poly is None:
+        ws_poly = _ws_poly
     if ws_poly:
         ws_state = ws_poly.get_book_state(token_id)
         if ws_state is not None:
