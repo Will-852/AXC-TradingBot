@@ -1135,42 +1135,52 @@
       </div>
       <span class="sep"></span>
       <span class="ind-group-label">疊加指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="📊 布林帶 BB 即時
-• 價格波動範圍（上下 2 個標準差）
-• 碰上軌 → 可能過熱
-• 碰下軌 → 可能超賣
-• 帶收窄 → 即將大突破（squeeze）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label data-tip="📈 EMA 快慢線 即時
-• 短期 vs 長期趨勢方向
-• 快線穿上慢線 → 金叉（睇升）
-• 快線穿落慢線 → 死叉（睇跌）
-• 價企穩 EMA 上方 → 趨勢向上"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
-      <label data-tip="📏 MA 50/200 即時
-• 長期趨勢（50日 + 200日均線）
-• MA50 > MA200 → 牛市
-• MA50 < MA200 → 熊市（死亡交叉）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
-      <label data-tip="⚖️ VWAP 成交量加權均價 即時
-• 當日嘅「公平價」
+      <label data-tip="📊 布林帶 BB
+• 帶寬 3-8% = 正常 / <3% = squeeze⚡ / >15% = 爆發
+• %B 0.2-0.8 = 正常區間
+• 碰上軌(%B>1) → 過熱 / 碰下軌(%B<0) → 超賣
+• 帶收窄 → 即將大突破（70% 向上）
+• 最佳 TF：1H-4H"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
+      <label data-tip="📈 EMA 快(12)慢(26)線
+• 差距 ±0.5% = 震盪 / ±1.5% = 正常趨勢
+• 差距 >3% = 過度延伸（可能回調⚠️）
+• 金叉（快穿上慢）→ 睇升
+• 死叉（快穿落慢）→ 睇跌
+• 同 MACD 本質相同，揀一個開就夠"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label data-tip="📏 MA 50/200 長期趨勢
+• MA50 > MA200 → 牛市（BTC 65% 時間如此）
+• MA50 < MA200 → 死亡交叉（但 BTC 常見假信號）
+• 200MA = 超強支撐（跌穿極罕見）
+• ⚠️ 嚴重滯後 — 信號出時已走咗 20-40%
+• 只適合做大方向確認，唔好做入場依據"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <label data-tip="⚖️ VWAP 成交量加權均價
+• 偏差 ±0.5% = 正常 / ±2% = 留意 / >5% = 極端
 • 價格 > VWAP → 買方主導
 • 價格 < VWAP → 賣方主導
-• 機構常用做基準"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
+• 機構用 VWAP 做基準：>2% 傾向賣出 / <2% 傾向買入
+• BTC 24/7 冇 session，每日 UTC 0:00 reset"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
       <span class="ind-group-label">震盪指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="💪 RSI 相對強弱 即時
-• 0-100 強弱度
-• > 70 → 超買（可能回調）
-• < 30 → 超賣（可能反彈）
-• 50 附近 → 無方向"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label data-tip="🔄 MACD 趨勢動量 即時
-• 快慢 EMA 差值
-• 柱狀圖翻綠 → 動量轉強
-• 柱狀圖翻紅 → 動量轉弱
-• 金叉死叉同 EMA 類似但更靈敏"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
-      <label data-tip="🎲 Stoch 隨機指標 即時
-• K 線同 D 線（0-100）
-• > 80 → 超買
-• < 20 → 超賣
-• K 穿上 D → 短線買入信號"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+      <label data-tip="💪 RSI 14（BTC 校準版）
+• 🐂 牛市：正常 45-80 / floor 40 / ceiling 90
+• 🐻 熊市：正常 25-55 / floor 20 / ceiling 60
+• 📊 震盪：正常 40-65（60% 時間）
+• <25 日線 = 世紀抄底（歷史上只出現 5 次）
+• >85 日線 = 2-4 週內大跌 15-30%
+• 最佳 TF：1H-4H（15M 太嘈）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label data-tip="🔄 MACD (12,26,9)
+• Histogram% <0.05% = 噪音（忽略）
+• 0.2-0.5% = 正常信號 / >1.5% = 極端
+• 柱翻綠 → 動量轉強 / 柱翻紅 → 動量轉弱
+• 柱頂回落 = 最早嘅反轉警號（唔係零線交叉）
+• ⚠️ 同 EMA 12/26 本質相同，揀一個就夠
+• 最佳 TF：4H-日線"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+      <label data-tip="🎲 Stoch (14,3) ⚠️ BTC 最弱指標
+• >80 超買 / <20 超賣
+• 但 BTC 牛市可以釘 >80 幾日（假信號多）
+• ⚠️ 同 RSI 高度重複
+• 只適合震盪市（ADX<20）
+• 建議：日常唔開，只喺確認震盪市時先用"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
       <label data-tip="🔀 市場模式 Mode 即時
 • 自動判斷：趨勢 / 震盪 / 突破
@@ -1185,10 +1195,11 @@
 • 菱形越大 → 金額越大
 • 大單方向通常係短期趨勢" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
       <label data-tip="⚡ 淨量 Delta = 呢一刻邊邊更急
-• 🟢 綠 bar → 買方急（主動買 > 賣）
-• 🔴 紅 bar → 賣方急（主動賣 > 買）
-• 大綠 bar → 有人急住買，短線向上
-• 價升但 delta 縮 → 動力減弱（背離⚠️）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
+• 🟢 綠 bar → 買方急 / 🔴 紅 bar → 賣方急
+• 1H 正常 <$50M / 留意 $50-150M / 極端 >$500M
+• 大 delta + 價唔動 = 吸收（有人頂住）
+• 價升但 delta 縮 → 動力減弱（背離⚠️）
+• 最佳 TF：15M-1H" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
       <label data-tip="📊 價位分佈 VP（右邊柱狀圖）
 • 🔵 藍 = 買量  🟡 黃 = 賣量
 • POC = 最多成交價位（磁石🧲）
