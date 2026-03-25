@@ -360,6 +360,13 @@ def _check_resolution(session: SessionState, now_ms: int):
         if now_ms <= pinfo["end_ms"] + 90_000:
             continue
 
+        # Skip if ALL orders were cancelled (no position exists)
+        orders = pinfo.get("orders", [])
+        if orders and all(o.get("cancelled") for o in orders):
+            log.info("RESOLVE SKIP %s: all orders cancelled (no position)", pcid[:8])
+            resolved.append(pcid)
+            continue
+
         # Fetch BTC close price at window end
         end_ms = pinfo["end_ms"]
         kline = _get_json(
