@@ -50,7 +50,7 @@ from polymarket.strategies.five_m_momentum.config import (
     # Coins + experiment
     COINS, EXPERIMENT_TRADE_LIMIT,
 )
-from polymarket.strategies.five_m_momentum.signal import compute_signal, Mode
+from polymarket.strategies.five_m_momentum.momentum_signal import compute_signal, Mode
 from polymarket.strategies.five_m_momentum.modes.maker_arb import plan_maker_arb
 from polymarket.strategies.five_m_momentum.modes.single_side import (
     plan_taker_directional, plan_hedge,

@@ -16,7 +16,7 @@ higher WR (~58%) because lean fills guaranteed, but UNVERIFIED.
 from dataclasses import dataclass
 from typing import Optional
 
-from ..signal import Signal
+from ..momentum_signal import Signal
 
 
 @dataclass

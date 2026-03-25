@@ -15,7 +15,7 @@ This mode captures that wider spread at low momentum (8-15bps).
 from dataclasses import dataclass
 from typing import Optional
 
-from ..signal import Signal
+from ..momentum_signal import Signal
 
 
 @dataclass
