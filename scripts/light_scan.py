@@ -46,7 +46,7 @@ FUNDING_TRIGGER_PCT = 0.18    # >0.18% funding delta
 SR_ZONE_CHECK = True          # Check S/R zones
 
 # Telegram
-TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "")  # moved to secrets/.env (2026-03-26)
 TG_CHAT_ID = "2060972655"
 SILENT_REPORT_INTERVAL = 20   # Every 20 scans in silent mode
 

@@ -31,7 +31,25 @@ _scripts = os.path.join(AXC_HOME, "scripts")
 if _scripts not in sys.path:
     sys.path.insert(0, _scripts)
 
-from indicator_calc import calc_indicators, TIMEFRAME_PARAMS, PRODUCT_OVERRIDES
+# ─── Facade: re-export all public symbols from engine_types.py ───
+# 17 import sites depend on these — DO NOT remove any.
+from backtest.engine_types import (  # noqa: F401
+    BTPosition, BTTrade, _PendingSignal, _get_size_tier,
+    WARMUP_CANDLES, COMMISSION_RATE, SL_SLIPPAGE_PCT,
+    CLUSTER_GAP_HOURS, MAX_RISK_PCT, PERSISTENCE_THRESHOLD,
+    _VOL_PROFILE_MAP, _VOL_DOWNGRADE, _PROFILE_RISK,
+    MIN_RISK_FLOOR, TRADE_COOLDOWN_CANDLES,
+    REGIME_ADJUST_ENABLED, REGIME_ATR_EXPAND_THRESHOLD,
+    REGIME_ATR_CONTRACT_THRESHOLD,
+    _KELLY_MIN_TRADES, _STRATEGY_CONF_GATE,
+    _MODE_AFFINITY, _MODE_DEFAULT_PENALTY,
+    # Pass-through re-exports (originally imported here, now in engine_types)
+    calc_indicators, TIMEFRAME_PARAMS, PRODUCT_OVERRIDES,
+    MAX_CRYPTO_POSITIONS,
+    KELLY_WINDOW_N, KELLY_MIN_RISK, KELLY_MAX_RISK, KELLY_NO_EDGE,
+    KELLY_MIN_TRADES_RANGE, KELLY_MIN_TRADES_TREND, KELLY_MIN_TRADES_CRASH,
+)
+
 from trader_cycle.strategies.mode_detector import detect_mode_for_pair
 from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
@@ -44,7 +62,6 @@ from trader_cycle.core.context import CycleContext
 from config.params import get_regime_rule
 from trader_cycle.config.settings import (
     MODE_CONFIRMATION_REQUIRED,
-    MAX_CRYPTO_POSITIONS,
     HMM_ENABLED, HMM_N_STATES, HMM_WINDOW,
     HMM_REFIT_INTERVAL, HMM_MIN_SAMPLES, HMM_CRASH_THRESHOLD,
     REGIME_ENGINE,
@@ -52,158 +69,9 @@ from trader_cycle.config.settings import (
     BOCPD_MIN_SAMPLES, BOCPD_CHANGEPOINT_THRESHOLD,
     CP_ENABLED, CP_ALPHA, CP_MIN_SCORES, CP_MAX_SCORES,
     CP_INFLATION_FACTOR, CP_FALLBACK_MULT,
-    KELLY_WINDOW_N, KELLY_MIN_RISK, KELLY_MAX_RISK, KELLY_NO_EDGE,
-    KELLY_MIN_TRADES_RANGE, KELLY_MIN_TRADES_TREND, KELLY_MIN_TRADES_CRASH,
 )
 
 log = logging.getLogger(__name__)
-
-WARMUP_CANDLES = 200
-COMMISSION_RATE = 0.0005   # 0.05% per side
-SL_SLIPPAGE_PCT = 0.0002   # 0.02% adverse slippage on SL (market order)
-CLUSTER_GAP_HOURS = 4      # trades < N hours apart = same cluster
-MAX_RISK_PCT = 0.05        # hard cap: never risk >5% per trade (防止 optimizer 「全部加大注碼」)
-
-# Persistence threshold: signal must appear N consecutive candles before acknowledged.
-# Different from signal_delay (delays execution of an already-acknowledged signal).
-# Per-strategy: crash=0 (immediate), range/trend=2 (need 2 consecutive same-direction signals).
-PERSISTENCE_THRESHOLD = {"range": 3, "trend": 4, "crash": 1, "burst": 1, "newarch": 1}
-
-# ─── New architecture: volatility regime → risk profile ───
-_VOL_PROFILE_MAP = {"LOW": "balanced", "NORMAL": "balanced", "HIGH": "conservative"}
-_VOL_DOWNGRADE = {"LOW": "NORMAL", "NORMAL": "HIGH", "HIGH": "HIGH"}
-_PROFILE_RISK = {"aggressive": 0.03, "balanced": 0.02, "conservative": 0.01}
-MIN_RISK_FLOOR = 0.005  # 0.5% absolute minimum risk
-TRADE_COOLDOWN_CANDLES = 8  # wait 8 candles (8h) after closing a position before entering another
-
-# ─── Regime SL/TP adjustment: recalibrate on vol regime change ───
-REGIME_ADJUST_ENABLED = True
-REGIME_ATR_EXPAND_THRESHOLD = 1.3   # ATR ratio > 1.3 = vol expanding >30%
-REGIME_ATR_CONTRACT_THRESHOLD = 0.7  # ATR ratio < 0.7 = vol contracting >30%
-
-# ─── Kelly: per-strategy min trade thresholds ───
-_KELLY_MIN_TRADES = {
-    "range": KELLY_MIN_TRADES_RANGE,
-    "trend": KELLY_MIN_TRADES_TREND,
-    "crash": KELLY_MIN_TRADES_CRASH,
-}
-
-# Per-strategy confidence gates
-_STRATEGY_CONF_GATE = {"range": 0.50, "trend": 0.50, "crash": 0.50, "burst": 0.35, "newarch": 0.50}
-
-# Soft mode penalty: when mode doesn't match strategy affinity, penalize confidence
-# Strong penalty for trend (most false-positive prone) to approximate mode gate filtering
-_MODE_AFFINITY = {
-    "TREND": {"trend": 0.0, "range": -0.20, "crash": 0.0, "burst": -0.05, "newarch": 0.0},
-    "RANGE": {"range": 0.0, "trend": -0.30, "crash": 0.0, "burst": -0.05, "newarch": 0.0},
-    "CRASH": {"crash": 0.0, "trend": -0.20, "range": -0.30, "burst": -0.15, "newarch": 0.0},
-}
-_MODE_DEFAULT_PENALTY = {"trend": -0.25, "range": -0.10, "crash": 0.0, "burst": -0.05, "newarch": 0.0}
-
-
-def _get_size_tier(confidence: float) -> float:
-    """Map confidence to position size tier (matches production position_sizer.py)."""
-    if confidence >= 0.7:
-        return 1.0
-    elif confidence >= 0.5:
-        return 0.7
-    else:
-        return 0.5
-
-
-@dataclass
-class BTPosition:
-    """Backtest position tracker."""
-    direction: str      # "LONG" or "SHORT"
-    entry_price: float
-    sl_price: float
-    tp_price: float
-    notional: float     # position size in USDT
-    entry_time: str
-    strategy: str       # "range", "trend", "crash", "burst", or "newarch"
-    vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
-    market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
-    confidence: float = 0.0      # signal confidence at entry
-    tp_source: str = "min_rr"    # TP calculation method: "bb_mid" / "atr_3.5" / "min_rr"
-    atr_at_entry: float = 0.0   # ATR at entry time (for newarch trailing stop)
-    regime_adjusted: bool = False  # one-shot flag: SL/TP recalibrated on regime change
-    hfe: float = 0.0            # highest favorable excursion in price units
-
-
-@dataclass
-class BTTrade:
-    """Completed trade record (compatible with metrics.py _load_trades())."""
-    symbol: str
-    side: str           # "LONG" or "SHORT"
-    entry: float
-    exit: float
-    pnl: float
-    sl_price: float
-    tp_price: float
-    entry_time: str
-    exit_time: str
-    exit_reason: str    # "SL", "TP", or "END"
-    strategy: str
-    vol_regime: str = "NORMAL"   # LOW / NORMAL / HIGH at entry
-    market_mode: str = "UNKNOWN" # RANGE / TREND / CRASH at entry
-    confidence: float = 0.0      # signal confidence at entry
-    tp_source: str = "min_rr"    # TP calculation method: "bb_mid" / "atr_3.5" / "min_rr"
-
-    def to_dict(self) -> dict:
-        """Serialize all fields for dashboard API and analysis."""
-        return {
-            "symbol": self.symbol,
-            "side": self.side,
-            "entry": round(self.entry, 6),
-            "exit": round(self.exit, 6),
-            "pnl": round(self.pnl, 2),
-            "sl_price": round(self.sl_price, 6),
-            "tp_price": round(self.tp_price, 6),
-            "entry_time": self.entry_time,
-            "exit_time": self.exit_time,
-            "exit_reason": self.exit_reason,
-            "strategy": self.strategy,
-            "vol_regime": self.vol_regime,
-            "market_mode": self.market_mode,
-            "confidence": round(self.confidence, 4),
-            "tp_source": self.tp_source,
-        }
-
-    def to_jsonl(self) -> str:
-        """Format for analysis: full trade record including regime context."""
-        return json.dumps({
-            "symbol": self.symbol,
-            "side": self.side,
-            "entry": round(self.entry, 6),
-            "exit": round(self.exit, 6),
-            "pnl": round(self.pnl, 2),
-            "sl_price": round(self.sl_price, 6),
-            "tp_price": round(self.tp_price, 6),
-            "entry_time": self.entry_time,
-            "exit_time": self.exit_time,
-            "exit_reason": self.exit_reason,
-            "strategy": self.strategy,
-            "vol_regime": self.vol_regime,
-            "market_mode": self.market_mode,
-            "confidence": round(self.confidence, 4),
-            "tp_source": self.tp_source,
-            "ts": self.entry_time,
-            "closed": True,
-        }, ensure_ascii=False)
-
-
-@dataclass
-class _PendingSignal:
-    """Signal generated at candle i, to be executed after signal_delay candles."""
-    direction: str
-    strategy: str
-    atr: float
-    signal_time: str
-    score: float = 0.0        # signal score for confidence-based sizing + filtering
-    confidence: float = 0.0   # signal confidence (0-1) for size_tier calculation
-    remaining_delay: int = 1  # candles until execution (1 = next candle = default)
-    bb_basis: float = 0.0     # 1H BB mid for Range TP (captured at signal time)
-    atr_4h: float = 0.0       # 4H ATR for Crash TP (captured at signal time)
 
 
 class BacktestEngine:

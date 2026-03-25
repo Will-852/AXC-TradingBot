@@ -38,13 +38,13 @@ PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "POLUSDT", "XAGUSDT", "XAUU
 PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "SOLUSDT": "SOL", "POLUSDT": "POL", "XAGUSDT": "XAG", "XAUUSDT": "XAU"}
 
 # ─── Mode Detection (4H, 5 indicators) ───
-MODE_RSI_TREND_LOW = 32          # RSI < 32 = trend signal
-MODE_RSI_TREND_HIGH = 68         # RSI > 68 = trend signal
+MODE_RSI_TREND_LOW = 34          # RSI < 34 = trend signal (synced with params.py 2026-03-26)
+MODE_RSI_TREND_HIGH = 69         # RSI > 69 = trend signal (synced with params.py 2026-03-26)
 MODE_MACD_EXPANDING_THRESHOLD = 0.0  # histogram magnitude increasing
 MODE_VOLUME_LOW = 0.50           # <50% of avg = trend signal
 MODE_VOLUME_HIGH = 1.50          # >150% of avg = trend signal
 MODE_FUNDING_THRESHOLD = 0.0007  # ±0.07%
-MODE_CONFIRMATION_REQUIRED = 2   # consecutive same-mode before switch
+MODE_CONFIRMATION_REQUIRED = 1   # consecutive same-mode before switch (synced with params.py 2026-03-26)
 
 # ─── Risk — Circuit Breakers (Non-negotiable) ───
 CIRCUIT_BREAKER_SINGLE = 0.25    # 25% single position loss → immediate close
@@ -166,7 +166,7 @@ REENTRY_COOLDOWN_CYCLES = 3        # DEPRECATED — kept for profile loader comp
 REENTRY_COOLDOWN_SEC = 5400        # 1.5h wall-clock (replaces cycle-based cooldown)
 
 # ─── Telegram ───
-TG_BOT_TOKEN = "8373819624:AAFH-SVTqqYlU22JnuiiBpB2uZytvw_pN30"
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "")  # moved to secrets/.env (2026-03-26)
 TG_CHAT_ID = "2060972655"
 
 # ─── Silent Mode ───
@@ -237,11 +237,11 @@ CRASH_RISK_PCT = 0.01
 CRASH_LEVERAGE = 5
 CRASH_SL_ATR_MULT = 2.0
 CRASH_MIN_RR = 1.5
-CRASH_RSI_ENTRY = 75
-CRASH_VOLUME_MIN = 2.0
+CRASH_RSI_ENTRY = 60             # synced with params.py 2026-03-26 (was 75)
+CRASH_VOLUME_MIN = 1.5           # synced with params.py 2026-03-26 (was 2.0)
 
 # ─── Scan Log ───
-SCAN_LOG_MAX_LINES = 200
+SCAN_LOG_MAX_LINES = 500          # synced with params.py 2026-03-26 (was 200)
 
 # ─── Phase 3: Live Trading ───
 SECRETS_PATH = os.path.join(AXC_HOME, "secrets", ".env")
