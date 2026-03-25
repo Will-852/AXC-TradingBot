@@ -1130,6 +1130,7 @@
         <button class="itab" data-val="15m" onclick="setInterval_(this)">15m</button>
         <button class="itab active" data-val="1h" onclick="setInterval_(this)">1H</button>
         <button class="itab" data-val="4h" onclick="setInterval_(this)">4H</button>
+        <span id="mtf-badges" style="display:inline-flex;gap:3px;margin-left:6px;font-size:.6rem"></span>
         <button class="itab" data-val="1d" onclick="setInterval_(this)">1D</button>
       </div>
       <span class="sep"></span>
@@ -1221,14 +1222,17 @@
     <!-- Drawing toolbar — horizontal strip above chart (TradingView style) -->
     <div class="draw-toolbar" id="draw-toolbar">
       <span style="font-size:.6rem;color:var(--text-3);font-weight:600;letter-spacing:.03em;margin-right:4px">DRAW</span>
-      <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線 H-Line">&#x2194;</button>
-      <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線 Trend">&#x2571;</button>
-      <button class="draw-btn" onclick="setDrawingMode('rect', this)" title="矩形 Rect" style="font-size:11px">&#x25AD;</button>
-      <button class="draw-btn" onclick="setDrawingMode('axc_arrow', this)" title="箭頭 Arrow">&#x2B07;</button>
-      <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci">Fib</button>
-      <button class="draw-btn" onclick="setDrawingMode('parallelStraightLine', this)" title="平行通道 Parallel">&#x2225;</button>
+      <button class="draw-btn" onclick="setDrawingMode('horizontalStraightLine', this)" title="水平線">&#x2194;</button>
+      <button class="draw-btn" onclick="setDrawingMode('verticalStraightLine', this)" title="垂直線">&#x2195;</button>
+      <button class="draw-btn" onclick="setDrawingMode('segment', this)" title="趨勢線">&#x2571;</button>
+      <button class="draw-btn" onclick="setDrawingMode('straightLine', this)" title="無限延伸線">&#x2572;</button>
+      <button class="draw-btn" onclick="setDrawingMode('axc_arrow', this)" title="箭頭">&#x2B07;</button>
+      <button class="draw-btn" onclick="setDrawingMode('fibonacciLine', this)" title="Fibonacci 回調">Fib</button>
+      <button class="draw-btn" onclick="setDrawingMode('parallelStraightLine', this)" title="平行通道">&#x2225;</button>
+      <button class="draw-btn" onclick="setDrawingMode('priceLine', this)" title="價格標記線（附價格 label）">$</button>
       <div class="draw-sep"></div>
-      <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線 Clear">&#x1F5D1;</button>
+      <button class="draw-btn" onclick="addPriceAlert()" title="設定到價提醒 🔔">&#x1F514;</button>
+      <button class="draw-btn" onclick="clearDrawings()" title="清除所有畫線">&#x1F5D1;</button>
       <div style="flex:1"></div>
       <button class="btn-expand" onclick="toggleExpand()" id="btn-expand" title="展開/縮小圖表 (F)" style="width:28px;height:28px;border:none;border-radius:4px;background:transparent;cursor:pointer;font-size:.82rem;color:#787b86;display:flex;align-items:center;justify-content:center">&#x26F6;</button>
     </div>
@@ -3227,6 +3231,7 @@ function loadKlines(symbol, days, cb, interval, errCb) {
       _tryRestoreFromCache(symbol, interval);
       // Gate indicators for non-1h intervals
       gateIndicators(interval);
+      updateMTFHints();
       if (cb) cb(candles);
     })
     .catch(function(e) {
@@ -3385,7 +3390,99 @@ function clearDrawings() {
   if (selectedTradeIdx >= 0) showSlTp(selectedTradeIdx);
   if (activeIndicators.AXC_MODE && currentResult && currentResult.indicator_series)
     drawModeTransitions(currentResult.indicator_series);
-  showToast('Drawings cleared', 'info');
+  // Re-render price alerts (they're overlays too)
+  _renderAlertOverlays();
+  showToast('畫線已清除（提醒保留）', 'info');
+}
+
+// ══════════════════════════════════════════════════
+//  Price Alert System — set price → alert when crossed
+// ══════════════════════════════════════════════════
+var _priceAlerts = JSON.parse(localStorage.getItem('axc_alerts') || '[]');
+var _alertOverlayIds = [];
+var _alertAudioCtx = null;
+
+function _playAlertBeep() {
+  try {
+    if (!_alertAudioCtx) _alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = _alertAudioCtx.createOscillator();
+    var gain = _alertAudioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, _alertAudioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, _alertAudioCtx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(_alertAudioCtx.destination);
+    osc.start();
+    osc.stop(_alertAudioCtx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+function addPriceAlert() {
+  var klines = mainChart ? mainChart.getDataList() : [];
+  var lastPrice = klines.length ? klines[klines.length - 1].close : 0;
+  var input = prompt('到價提醒（輸入價格）:', lastPrice ? lastPrice.toFixed(1) : '');
+  if (!input || isNaN(+input)) return;
+  var price = parseFloat(input);
+
+  _priceAlerts.push({ price: price, triggered: false, ts: Date.now() });
+  localStorage.setItem('axc_alerts', JSON.stringify(_priceAlerts));
+  _renderAlertOverlays();
+  showToast('已設定提醒 $' + price.toFixed(1), 'success');
+}
+
+function _renderAlertOverlays() {
+  // Remove old alert overlays
+  _alertOverlayIds.forEach(function(id) { try { mainChart.removeOverlay(id); } catch(e) {} });
+  _alertOverlayIds = [];
+  if (!mainChart) return;
+
+  _priceAlerts.forEach(function(a, i) {
+    var color = a.triggered ? '#ef4444' : '#f59e0b';
+    var style = a.triggered ? 'solid' : 'dashed';
+    try {
+      var id = mainChart.createOverlay({
+        name: 'priceLine',
+        points: [{ value: a.price }],
+        styles: {
+          line: { style: style, color: color, size: 1, dashedValue: [6, 4] },
+          text: { color: '#fff', backgroundColor: color, size: 10, paddingLeft: 4, paddingRight: 4 }
+        },
+        lock: true,
+        extendData: '🔔 ' + a.price.toFixed(1)
+      });
+      if (id) _alertOverlayIds.push(id);
+    } catch(e) {}
+  });
+}
+
+function _checkPriceAlerts() {
+  if (!mainChart || !_priceAlerts.length) return;
+  var klines = mainChart.getDataList();
+  if (!klines || !klines.length) return;
+  var last = klines[klines.length - 1];
+  var changed = false;
+  _priceAlerts.forEach(function(a) {
+    if (a.triggered) return;
+    // Check if current candle's range crosses the alert price
+    if (last.low <= a.price && last.high >= a.price) {
+      a.triggered = true;
+      changed = true;
+      showToast('🔔 到價提醒：$' + a.price.toFixed(1) + ' 已觸發！', 'warning');
+      _playAlertBeep();
+    }
+  });
+  if (changed) {
+    localStorage.setItem('axc_alerts', JSON.stringify(_priceAlerts));
+    _renderAlertOverlays();
+  }
+}
+
+function clearTriggeredAlerts() {
+  _priceAlerts = _priceAlerts.filter(function(a) { return !a.triggered; });
+  localStorage.setItem('axc_alerts', JSON.stringify(_priceAlerts));
+  _renderAlertOverlays();
+  showToast('已清除已觸發嘅提醒', 'info');
 }
 
 // ── Draw equity curve ──
@@ -4183,6 +4280,58 @@ function gateIndicators(interval) {
     applyIndicatorData(currentResult.indicator_series);
   }
   _lastGatedInterval = interval;
+}
+
+// ══════════════════════════════════════════════════
+//  Multi-TF Hints — show higher TF trend direction as badges
+// ══════════════════════════════════════════════════
+var _intervalMs = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+var _higherTFs = { '1m': ['5m','1h'], '5m': ['15m','1h'], '15m': ['1h','4h'], '1h': ['4h'], '4h': ['1d'], '1d': [] };
+
+function updateMTFHints() {
+  var el = document.getElementById('mtf-badges');
+  if (!el || !mainChart) { if (el) el.innerHTML = ''; return; }
+  var dataList = mainChart.getDataList();
+  if (!dataList || dataList.length < 20) { el.innerHTML = ''; return; }
+
+  var htfs = _higherTFs[currentInterval] || [];
+  if (!htfs.length) { el.innerHTML = ''; return; }
+  var fromMs = _intervalMs[currentInterval] || 3600000;
+
+  var html = '';
+  htfs.forEach(function(htf) {
+    var toMs = _intervalMs[htf] || 3600000;
+    var ratio = Math.round(toMs / fromMs);
+    if (ratio < 2) return;
+
+    // Aggregate last candles into higher TF
+    var aggCandles = [];
+    for (var i = 0; i < dataList.length; i += ratio) {
+      var group = dataList.slice(i, Math.min(i + ratio, dataList.length));
+      if (!group.length) continue;
+      aggCandles.push({
+        open: group[0].open,
+        close: group[group.length - 1].close,
+        high: Math.max.apply(null, group.map(function(g) { return g.high; })),
+        low: Math.min.apply(null, group.map(function(g) { return g.low; }))
+      });
+    }
+
+    // Trend: EMA(5) vs EMA(13) of close prices
+    if (aggCandles.length < 13) return;
+    var kF = 2 / 6, kS = 2 / 14;
+    var emaF = aggCandles[0].close, emaS = aggCandles[0].close;
+    for (var j = 1; j < aggCandles.length; j++) {
+      var c = aggCandles[j].close;
+      emaF = c * kF + emaF * (1 - kF);
+      emaS = c * kS + emaS * (1 - kS);
+    }
+    var trend = emaF > emaS * 1.001 ? 'up' : emaF < emaS * 0.999 ? 'down' : 'flat';
+    var arrow = trend === 'up' ? '▲' : trend === 'down' ? '▼' : '—';
+    var color = trend === 'up' ? '#26a69a' : trend === 'down' ? '#ef5350' : '#787b86';
+    html += '<span style="color:' + color + ';font-weight:600;padding:1px 4px;border:1px solid ' + color + '33;border-radius:3px" title="' + htf.toUpperCase() + ' 趨勢：EMA5 vs EMA13">' + htf.toUpperCase() + ' ' + arrow + '</span>';
+  });
+  el.innerHTML = html;
 }
 
 // ── Param panel toggle ──
@@ -5151,6 +5300,9 @@ window.addEventListener('DOMContentLoaded', function() {
   setTimeout(showOnboarding, 1000);
   // Cleanup expired IndexedDB cache entries
   FPCache.cleanup();
+  // Render saved price alerts + start check interval
+  setTimeout(function() { _renderAlertOverlays(); }, 2000);
+  setInterval(_checkPriceAlerts, 5000);  // check every 5s
 });
 
 // ── Resize handling ──
@@ -5646,6 +5798,21 @@ function loadTemplate(name) {
     });
   }
   if (t.fpMode && t.fpMode !== fpMode) toggleFpMode();
+  // Sync checkbox DOM state with activeIndicators
+  document.querySelectorAll('#ind-toolbar label input[type=checkbox]').forEach(function(el) {
+    var onChange = el.getAttribute('onchange') || '';
+    var m = onChange.match(/'(AXC_\w+)'/);
+    if (m) el.checked = !!activeIndicators[m[1]];
+  });
+  document.querySelectorAll('.fp-toggle input[type=checkbox]').forEach(function(el) {
+    var onChange = el.getAttribute('onchange') || '';
+    var m = onChange.match(/'(\w+)'/);
+    if (m) el.checked = !!fpActive[m[1]];
+  });
+  _syncFpToggleStyle();
+  // Close template menu
+  var menu = document.getElementById('template-menu');
+  if (menu) menu.style.display = 'none';
   showToast('Template "' + name + '" loaded', 'success');
 }
 
@@ -5670,8 +5837,8 @@ function renderTemplateMenu() {
   } else {
     names.forEach(function(n) {
       html += '<div style="display:flex;align-items:center;gap:4px;padding:2px 6px">' +
-        '<span onclick="loadTemplate(\'' + n.replace(/'/g, "\\'") + '\')" style="flex:1;cursor:pointer;font-size:.68rem;color:var(--text-1)">' + n + '</span>' +
-        '<span onclick="deleteTemplate(\'' + n.replace(/'/g, "\\'") + '\')" style="cursor:pointer;font-size:.6rem;color:var(--neg)" title="Delete">✕</span>' +
+        '<span onclick="loadTemplate(\'' + n.replace(/'/g, "\\'").replace(/</g, '&lt;') + '\')" style="flex:1;cursor:pointer;font-size:.68rem;color:var(--text-1)">' + (typeof esc === 'function' ? esc(n) : n.replace(/</g, '&lt;')) + '</span>' +
+        '<span onclick="deleteTemplate(\'' + n.replace(/'/g, "\\'").replace(/</g, '&lt;') + '\')" style="cursor:pointer;font-size:.6rem;color:var(--neg)" title="Delete">✕</span>' +
         '</div>';
     });
   }
