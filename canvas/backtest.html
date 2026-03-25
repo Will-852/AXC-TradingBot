@@ -1118,18 +1118,18 @@
         <button class="itab" data-val="1d" onclick="setInterval_(this)">1D</button>
       </div>
       <span class="sep"></span>
-      <span class="ind-group-label">疊加指標</span>
-      <label title="布林帶 Bollinger Bands（價格波動範圍）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label title="指數移動平均 EMA（快/慢趨勢線）"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
-      <label title="移動平均 MA 50/200（長期趨勢）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
-      <label title="成交量加權平均價 VWAP（當日公平價）"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
+      <span class="ind-group-label" title="需要先執行回測才有數據">疊加指標 <small style="color:#64748b">⚡回測</small></span>
+      <label title="布林帶 Bollinger Bands（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
+      <label title="指數移動平均 EMA（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label title="移動平均 MA 50/200（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <label title="成交量加權平均價 VWAP（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
-      <span class="ind-group-label">震盪指標</span>
-      <label title="相對強弱指標 RSI（超買/超賣）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label title="MACD（趨勢動量）"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
-      <label title="隨機指標 Stochastic（動量超買超賣）"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+      <span class="ind-group-label" title="需要先執行回測才有數據">震盪指標 <small style="color:#64748b">⚡回測</small></span>
+      <label title="相對強弱指標 RSI（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label title="MACD（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+      <label title="隨機指標 Stochastic（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
-      <label title="市場模式 Mode（趨勢/震盪/突破）"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
+      <label title="市場模式 Mode（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
       <span class="sep"></span>
       <span class="fp-group-label">資金流</span>
       <label title="大額成交 Whale（$100K+ 嘅大單）" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
@@ -2903,6 +2903,12 @@ function removeIndicatorFromChart(name) {
 
 function toggleIndicator(name) {
   activeIndicators[name] = !activeIndicators[name];
+
+  // Indicators need backtest data — warn if not available
+  if (activeIndicators[name] && !currentResult) {
+    showToast('請先按「執行回測」— 技術指標需要回測數據', 'warning');
+  }
+
   if (name === 'AXC_MODE') {
     if (activeIndicators[name] && currentResult && currentResult.indicator_series) {
       drawModeTransitions(currentResult.indicator_series);
