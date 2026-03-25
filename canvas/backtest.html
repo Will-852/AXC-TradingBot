@@ -1138,7 +1138,8 @@
       <label title="Footprint Heatmap（蠟燭成交熱力圖）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> FP</label>
       <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" title="切換 Block/Bubble 模式">Blk</button>
       <label title="Cumulative Volume Delta" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> CVD</label>
-      <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵啟用 VP+FP+CVD+VWAP">Vol</button>
+      <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵啟用 VP+FP+CVD">Vol</button>
+      <button class="vol-preset-btn" onclick="clearAllFlowPanes()" title="清除所有 Flow 指標" style="color:#ef5350">✕</button>
       <span class="sep"></span>
       <div style="position:relative;display:inline-block">
         <button class="vol-preset-btn" onclick="var m=document.getElementById('template-menu');m.style.display=m.style.display==='block'?'none':'block'" title="Save/Load chart templates">Tpl ▾</button>
@@ -1599,7 +1600,10 @@ function initChart() {
         tickLine: { color: '#2a2e39' },
         tickText: { color: '#787b86' }
       },
-      separator: { color: '#2a2e39' },
+      separator: {
+        color: '#2a2e39',
+        activeBackgroundColor: 'rgba(42,46,57,0.5)',
+      },
       crosshair: {
         horizontal: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } },
         vertical: { line: { color: '#505460' }, text: { backgroundColor: '#373a46', color: '#d1d4dc' } }
@@ -2040,6 +2044,40 @@ function activateVolPreset() {
   if (turnOn && !fpFetched && !fpLoading) {
     fetchFootprintData();
   }
+}
+
+function clearAllFlowPanes() {
+  // Remove all flow indicators + their sub-panes
+  var flowNames = ['AXC_DELTA', 'AXC_VP', 'AXC_HEATMAP', 'AXC_CVD'];
+  flowNames.forEach(function(name) {
+    try { removeIndicatorFromChart(name); } catch(e) {}
+  });
+  clearLargeTradeMarkers();
+
+  // Also remove any orphan panes not tracked in indicatorPaneIds
+  // KLineChart stores pane IDs internally — brute-force remove known flow pane patterns
+  if (mainChart && mainChart.getPaneList) {
+    try {
+      var panes = mainChart.getPaneList();
+      panes.forEach(function(p) {
+        if (p.id && p.id !== 'candle_pane' && p.id !== indicatorPaneIds['AXC_VOL']) {
+          // Check if this pane has any of our flow indicators
+          var isVol = (p.id === indicatorPaneIds['AXC_VOL']);
+          if (!isVol) {
+            try { mainChart.removeIndicator(p.id); } catch(e2) {}
+          }
+        }
+      });
+    } catch(e) {}
+  }
+
+  // Reset state
+  fpActive = { large: false, delta: false, profile: false, heatmap: false, cvd: false };
+  _syncFpToggleStyle();
+  document.querySelectorAll('.fp-toggle input').forEach(function(el) { el.checked = false; });
+  var volBtn = document.querySelector('.vol-preset-btn');
+  if (volBtn) volBtn.classList.remove('active');
+  showToast('已清除所有 Flow 指標', 'info');
 }
 
 // ══════════════════════════════════════════════════
