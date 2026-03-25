@@ -3398,7 +3398,9 @@ function clearDrawings() {
 // ══════════════════════════════════════════════════
 //  Price Alert System — set price → alert when crossed
 // ══════════════════════════════════════════════════
-var _priceAlerts = JSON.parse(localStorage.getItem('axc_alerts') || '[]');
+var _priceAlerts = [];
+try { _priceAlerts = JSON.parse(localStorage.getItem('axc_alerts') || '[]'); }
+catch(e) { console.warn('[Alert] corrupt localStorage, reset'); localStorage.removeItem('axc_alerts'); }
 var _alertOverlayIds = [];
 var _alertAudioCtx = null;
 
@@ -5298,8 +5300,8 @@ window.addEventListener('DOMContentLoaded', function() {
   checkConnection();
   renderTemplateMenu();
   setTimeout(showOnboarding, 1000);
-  // Cleanup expired IndexedDB cache entries
-  FPCache.cleanup();
+  // Cleanup expired IndexedDB cache entries (guard: script may still be loading)
+  if (typeof FPCache !== 'undefined') FPCache.cleanup();
   // Render saved price alerts + start check interval
   setTimeout(function() { _renderAlertOverlays(); }, 2000);
   setInterval(_checkPriceAlerts, 5000);  // check every 5s
