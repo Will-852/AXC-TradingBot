@@ -1,76 +1,90 @@
-# Task: AXC Dashboard — Flow/Vol 優化 + 數據持久化 + 價錢 Label 修正
+# Task: Polymarket 5M Momentum — Taker Lean + Maker Hedge Implementation
 
 ## Goal
-解決 3 個核心問題：
-1. Flow/Vol 數據轉 TF 後消失（無 cache）
-2. Flow worker interval change bug（唔 restart）
-3. 價錢 label 被 OB 遮住
+改造 `strategies/five_m_momentum/` 實現三層 decision tree：
+- < 8bps → SKIP
+- 8-15bps → MAKER 兩邊 (arb, combined < $0.98)
+- > 15bps → TAKER lean (aggressive GTC limit) + MAKER hedge (optional)
 
-## 架構決定
-- 用 IndexedDB（via vanilla wrapper，唔加 Dexie 因為單一 use case）儲存 footprint data per symbol:interval
-- Cache key: `${symbol}:${interval}`，TTL 30 min（live 數據），歷史數據無 TTL
-- 轉 TF 時：cache hit → 即顯示 → 背景 refresh；cache miss → 正常 fetch
-- Price label：移到左 y-axis（KLineChart 支援 `yAxis.type: 'normal'` on left）
+解決 12h live data 嘅核心問題：maker both-sides WR 35.1% (momentum paradox)。
+
+## Key Constraints
+- Bankroll: >$200, max loss 30% ($60)
+- Min bet: $5/trade (Polymarket minimum)
+- 5M spreads wider than 15M (combined 0.80-0.98 from Uncommon-Oat data)
+- FOK 唔係真 market order → 用 aggressive GTC limit (ask+2¢, cap $0.55)
+- Fee: 1.53% taker (唔係 0.55%)
+- 每個 Phase 完成後由 opus subagent line-by-line audit
 
 ## Phases
 
-### Phase 0: 偵察 + 確認改動範圍 `status: complete`
-- 已完成：探索 vol/flow 完整 data pipeline
-- 已完成：確認 bugs（interval change 唔 restart worker、fetch overwrite live data）
-- 已完成：確認 KLineChart API for price mark positioning
+### Phase 1: config.py 重寫 `status: complete`
+- 三層 threshold (SKIP / ARB / DIRECTIONAL)
+- Taker lean params (ASK_BUFFER=0.02, ASK_CAP=0.55)
+- Session risk (MAX_LOSS=60, CONSECUTIVE_STOP=5)
+- 5M-specific: σ_5m = 0.16% (vs 15M 0.28%)
+- **Audit**: opus subagent 逐行 review
 
-### Phase 1: IndexedDB Cache Layer `status: complete`
-- 新文件：`canvas/fp-cache.js` — IndexedDB wrapper for footprint data
-- 修改：`backtest.html` — fetchFootprintData() 加 cache read/write
-- 修改：`backtest.html` — onIntervalChange() 先查 cache
-- 修改：`backtest.html` — handleOFMessage() live data 寫入 cache
-- Cache schema: store `fpCache` with key `[symbol, interval]`, value `{delta_volume, large_trades, volume_profile, heatmap, cvd, timestamp}`
-- 自動清理：startup 時刪 >24h entries
+### Phase 2: signal.py 重寫 `status: complete`
+- 三個 Mode: SKIP / MAKER_ARB / TAKER_DIRECTIONAL
+- Confidence = momentum magnitude → controls mode selection
+- 8-15bps → MAKER_ARB
+- > 15bps → TAKER_DIRECTIONAL
+- AXC indicator integration point 保留
+- **Audit**: opus subagent 逐行 review
 
-### Phase 2: Flow Worker Bug Fixes `status: complete`
-- Bug 1: `onIntervalChange()` 加 `if (liveOFActive) startLiveOFWorker()`（~line 3684）
-- Bug 2: `fetchFootprintData()` 完成後，如果 live active → merge 而唔係 overwrite
-- 防禦：resetFootprintData() 唔清 cache，只清 in-memory state
+### Phase 3: modes/ 重寫 `status: complete`
+- `maker_arb.py` — 低信心 arb mode (combined < $0.98, 5+5 maker both sides)
+- `taker_directional.py` — 高信心 mode (aggressive GTC lean + optional maker hedge)
+- `skip.py` — 保留 + 加 vol regime filter
+- **Key**: taker lean 用 GTC at ask+2¢ 唔係 FOK
+- **Audit**: opus subagent 逐行 review
 
-### Phase 3: 價錢 Label 重新定位 `status: complete`
-- KLineChart `priceMark.last` 移到左 y-axis
-- 或者用 custom overlay 畫 floating badge（停喺 OB panel 左邊）
-- 測試：OB 開/關兩個狀態都要正常顯示
+### Phase 4: run.py 重寫 `status: in_progress`
 
-### Phase 4: 2check + Audit `status: complete`
-- Subagent audit：cross-check 所有改動
-- 確認 cache 唔會 corrupt data
-- 確認 live/historical merge 正確
-- 確認 price label 喺所有 TF + OB 狀態下正常
+**Sub-steps (each audited separately):**
 
-### Phase 5: Delta-colored VOL bars `status: complete`
-- VOL sub-pane bars 改用 delta 上色（正 delta = teal, 負 = red），取代 candle direction
-- 需要 footprintData.delta_volume 有數據時才用 delta 色，否則 fallback 到原本行為
-- 修改 VOL indicator override 或用 custom draw
+4A: Imports + config wiring (kill all hardcodes, use config params)  `status: complete`
+4B: Three-tier decision tree (SKIP / MAKER_ARB / TAKER_DIRECTIONAL)  `status: complete`
+4C: Fill tracking + resolution (BTC price at window close → PnL)     `status: complete`
+4D: State persistence + session risk (crash recovery, loss caps)      `status: complete`
 
-### Phase 6: VP 移到右邊 + 加寬 `status: complete`
-- y-axis 已移左，VP 左邊會撞 → 移到 chart 右邊
-- maxBarWidth 15% → 25%
-- bars 從右邊畫回去（right-aligned）
+- **Audit**: opus subagent after EACH sub-step
 
-### Phase 7: POC/VA 視覺加強 `status: complete`
-- POC: dashed → solid, lineWidth 1→2, opacity 0.50→0.75, label 加大
-- VA band: opacity 0.06→0.12
-- VA border: opacity 0.25→0.40
+### Phase 5: Integration test `status: complete`
+- Unit tests for signal computation
+- Unit tests for order planning (all three modes)
+- Dry-run smoke test (connect to real Gamma/Binance, paper orders)
+- Verify state save/load cycle
+- **Audit**: opus subagent full integration review
 
-### Phase 8: 2check UI changes `status: complete`
-- Subagent audit all visual changes
-- 確認 delta-colored bars 喺冇 footprint data 時 graceful fallback
-- 確認 VP right-side 唔同 OB panel 撞
+### Phase 6: 2check + Final audit `status: complete`
+- 角色 0-3 full 2check
+- Cross-file consistency (config ↔ signal ↔ modes ↔ run)
+- Live safety: crash recovery, double submit prevention, max loss enforcement
+- **Audit**: opus subagent final sign-off
 
 ## Errors
 | Phase | 錯誤 | 解法 | 狀態 |
 |-------|------|------|------|
 
+## Key Data Points (from 12h live + 30-day backtest)
+- Momentum WR (T+45s): 8bps=76%, 15bps=83.2%, 20bps=83.6%
+- Lean accuracy (live): 58.1% (191 trades)
+- Trade WR (live): 35.1% ← momentum paradox, maker both-sides
+- Fill rate: 83% orders filled, but only 28% signals → orders
+- Combined cost: median $1.02 (85% > $1.00)
+- 5M spread: wider than 15M (combined 0.80-0.98)
+- Taker fee: 1.53% (not 0.55%)
+- Break-even single-side: ~55.8% WR
+
 ## Verification
-- 轉 TF 後 flow data 即顯示（<1s）
-- Live flow + historical fetch 共存無 data loss
-- 價錢 label 喺 OB 開啟時清楚可見
-- VOL bars 即時反映 delta（teal/red）
-- VP 喺右邊清楚可見，唔同 OB 撞
-- POC line 一眼就見到
+- [ ] config.py 所有 param 有 docstring + 來源 reference
+- [ ] signal.py 三個 mode 邊界正確 (8/15 bps)
+- [ ] maker_arb combined < $0.98 hard enforced
+- [ ] taker_directional 用 GTC (唔係 FOK), ask+2¢, cap $0.55
+- [ ] run.py lean→hedge sequential with fill guard
+- [ ] Session stop at -$60 cumulative
+- [ ] State file atomic write + crash recovery
+- [ ] No double submit after crash
+- [ ] Dry-run mode works end-to-end

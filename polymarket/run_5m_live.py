@@ -110,23 +110,43 @@ class CoinConfig:
     live: bool = False          # True = execute orders, False = paper only
     delay_s: int = 15           # seconds after window open before entry
     threshold_bps: int = 5      # minimum |log_return| to trigger signal
-    lean_ratio: float = 12.5    # lean:hedge ratio (W4 avg = 12.5:1)
     contrarian: bool = False    # True = bet AGAINST momentum (SOL pattern)
     symbol: str = "BTCUSDT"     # Binance symbol
     slug_prefix: str = "btc"    # Polymarket slug prefix
     min_order_size: float = 5.0 # CLOB minimum shares per order
 
 
-# v4 port: R=1.0 pure arb (lean killed). All dry-run.
+# ═══════════════════════════════════════
+#  Confidence-Tiered Lean Ratios
+#  Data-validated: 153 trades, corrected WR = 81.0%
+#  T1(5-10bps)=77.3% WR, T2(10-20bps)=87.9%, T3(>20bps)=100%
+# ═══════════════════════════════════════
+
+_LEAN_TIERS = [
+    # (min_bps, lean_ratio, tier_name)
+    (20, 8.0, "T3"),   # >20bps: 100% WR, aggressive lean
+    (10, 5.0, "T2"),   # 10-20bps: 87.9% WR, strong lean
+    (5,  2.0, "T1"),   # 5-10bps: 77.3% WR, conservative lean
+]
+
+
+def _tier_lean_ratio(mag_bps: float) -> tuple[float, str]:
+    """Select lean ratio by signal magnitude. Returns (ratio, tier_name)."""
+    for min_bps, ratio, name in _LEAN_TIERS:
+        if mag_bps >= min_bps:
+            return ratio, name
+    return 1.0, "T0"  # below threshold — should not reach here (filtered earlier)
+
+
 COIN_CONFIG = {
-    "btc": CoinConfig(live=False, symbol="BTCUSDT", slug_prefix="btc",
-                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+    "btc": CoinConfig(live=True, symbol="BTCUSDT", slug_prefix="btc",
+                      delay_s=60, threshold_bps=8),
     "eth": CoinConfig(live=False, symbol="ETHUSDT", slug_prefix="eth",
-                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+                      delay_s=60, threshold_bps=5),
     "sol": CoinConfig(live=False, symbol="SOLUSDT", slug_prefix="sol",
-                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+                      delay_s=60, threshold_bps=5),
     "xrp": CoinConfig(live=False, symbol="XRPUSDT", slug_prefix="xrp",
-                      delay_s=15, threshold_bps=5, lean_ratio=1.0),
+                      delay_s=60, threshold_bps=5),
 }
 
 # Binance symbol map for price lookups (matches 1H bot pattern)
@@ -242,6 +262,44 @@ def _vol_1m(coin: str) -> float:
     vol = max(0.0001, vol)
     _vol_cache[sym] = (now, vol)
     return vol
+
+
+_taker_cache: dict = {}   # {symbol: (ts, ratio)}
+
+
+def _binance_taker_ratio(coin: str, lookback_s: int = 120) -> float | None:
+    """Binance futures taker buy ratio over last `lookback_s` seconds.
+
+    Returns buy_qty / total_qty in [0, 1]. >0.5 = buyers dominant.
+    Uses futures aggTrades API. Cached 10s per symbol.
+    Returns None on failure (caller should skip veto, not block entry).
+    """
+    sym = _COIN_SYMBOLS.get(coin, "BTCUSDT")
+    now = time.time()
+    if sym in _taker_cache and now - _taker_cache[sym][0] < 10:
+        return _taker_cache[sym][1]
+
+    start_ms = int((now - lookback_s) * 1000)
+    url = (f"{_BINANCE_FUTURES}/fapi/v1/aggTrades"
+           f"?symbol={sym}&startTime={start_ms}&limit=1000")
+    data = _get_json(url, timeout=5)
+    if not data or not isinstance(data, list) or len(data) < 5:
+        return None
+
+    buy_qty = 0.0
+    total_qty = 0.0
+    for t in data:
+        qty = float(t.get("q", 0))
+        total_qty += qty
+        if not t.get("m", True):  # m=False → buyer is maker → taker buy
+            buy_qty += qty
+
+    if total_qty <= 0:
+        return None
+
+    ratio = buy_qty / total_qty
+    _taker_cache[sym] = (now, ratio)
+    return ratio
 
 
 def _poly_midpoint(token_id: str) -> float | None:
@@ -391,10 +449,10 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
         logger.debug("W4 DUP %s: already in markets, skip", cid[:8])
         return None
 
-    # v4 port: Dead hours skip (HKT 22-06 = low liquidity)
-    _hkt_hour = datetime.now(tz=_HKT).hour
-    if _hkt_hour >= 22 or _hkt_hour < 6:
-        return "DEAD_HOUR"
+    # Dead hours disabled — 5M markets run 24/7, collect data all hours
+    # _hkt_hour = datetime.now(tz=_HKT).hour
+    # if _hkt_hour >= 22 or _hkt_hour < 6:
+    #     return "DEAD_HOUR"
 
     # Signal check
     w4_dir, w4_mag, w4_ret = _w4_signal(wl["start_ms"], coin, cfg)
@@ -409,8 +467,42 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
             return "EXPIRED"  # caller removes from watchlist
         return None  # wait longer
 
-    logger.info("W4 SIGNAL %s %s: %s %+.1f bps (ret=%+.5f)",
-                coin, cid[:8], w4_dir, w4_mag, w4_ret)
+    # ── Confidence tier → lean ratio ──
+    _lean_ratio, _tier = _tier_lean_ratio(w4_mag)
+
+    # ── Taker flow veto: skip if exchange flow disagrees with momentum ──
+    # Data-validated: disagree = -500bps WR drag. Agree = +60bps.
+    # Uses 2min lookback (includes pre-window data for T+15s entry).
+    _taker_r = _binance_taker_ratio(coin, lookback_s=120)
+    _taker_veto = False
+    if _taker_r is not None:
+        if w4_dir == "UP" and _taker_r < 0.45:
+            _taker_veto = True
+        elif w4_dir == "DOWN" and _taker_r > 0.55:
+            _taker_veto = True
+
+    if _taker_veto:
+        logger.info("W4 VETO %s %s: %s but taker_ratio=%.3f (disagrees) → skip",
+                     coin, cid[:8], w4_dir, _taker_r)
+        # Log vetoed entry for analysis
+        try:
+            with open(_W4_LOG, "a") as f:
+                f.write(json.dumps({
+                    "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
+                    "event": "w4_veto",
+                    "cid": cid[:8], "coin": coin,
+                    "lean_dir": w4_dir, "tier": _tier,
+                    "w4_mag_bps": round(w4_mag, 1),
+                    "taker_ratio": round(_taker_r, 4),
+                    "reason": "taker_disagree",
+                }) + "\n")
+        except Exception:
+            pass
+        return "VETO"
+
+    logger.info("W4 SIGNAL %s %s: %s %+.1f bps %s (lean=%.1f, taker=%.3f)",
+                coin, cid[:8], w4_dir, w4_mag, _tier, _lean_ratio,
+                _taker_r if _taker_r is not None else -1)
 
     # ── OB mid pricing -- fetch real Poly OB mid for entry price ──
     # 🔴 2CHECK: W4 sweeps book = buy at ASK (taker), not BID (maker)
@@ -432,20 +524,21 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
     _dn_ask = round(min(0.95, _dn_mid + _TICK), 2)
     _bs_combined = round(_up_ask + _dn_ask, 4)
 
-    # v4: combined gate — arb requires combined < $1.00. $0.99 = thin margin.
-    if _bs_combined >= 0.99:
-        logger.info("W4 SKIP %s %s: combined $%.4f >= $0.99 (arb spread too thin)",
-                     coin, cid[:8], _bs_combined)
+    # Combined gate: directional lean mode, not pure arb.
+    # Data shows median combined = $1.02. Gate at $1.06 = reject only extreme spreads.
+    _COMBINED_MAX = 1.06
+    if _bs_combined >= _COMBINED_MAX:
+        logger.info("W4 SKIP %s %s: combined $%.4f >= $%.2f (spread too wide)",
+                     coin, cid[:8], _bs_combined, _COMBINED_MAX)
         return "ABORT"
 
-    # ── Sizing: W4 lean = SHARE COUNT ratio (not budget ratio) ──
-    # FIX: budget fraction / price → cheap side gets MORE shares. Must use share fraction.
+    # ── Sizing: share count ratio from tiered lean ──
     _budget = bankroll * bet_pct
     _avg_price = (_up_ask + _dn_ask) / 2
     _total_shares = max(10, _budget / _avg_price)
 
-    _lean_share_frac = cfg.lean_ratio / (cfg.lean_ratio + 1)  # 0.926 at 12.5:1
-    _hedge_share_frac = 1.0 / (cfg.lean_ratio + 1)            # 0.074 at 12.5:1
+    _lean_share_frac = _lean_ratio / (_lean_ratio + 1)
+    _hedge_share_frac = 1.0 / (_lean_ratio + 1)
 
     if w4_dir == "UP":
         _up_shares = max(cfg.min_order_size, round(_total_shares * _lean_share_frac, 1))
@@ -481,10 +574,11 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "event": "w4_entry",
         "cid": cid[:8], "coin": coin,
-        "lean_dir": w4_dir, "lean_ratio": cfg.lean_ratio,
+        "lean_dir": w4_dir, "lean_ratio": _lean_ratio, "tier": _tier,
         "contrarian": cfg.contrarian,
         "w4_mag_bps": round(w4_mag, 1),
         "w4_ret": round(w4_ret, 6),
+        "taker_ratio": round(_taker_r, 4) if _taker_r is not None else None,
         "up_mid": round(_up_mid, 4), "dn_mid": round(_dn_mid, 4),
         "up_ask": _up_ask, "dn_ask": _dn_ask,
         "combined": _bs_combined,
@@ -513,12 +607,26 @@ def _w4_entry(coin: str, cfg: CoinConfig, wl: dict,
     ]
 
     results = []
-    for o in orders:
+    for i, o in enumerate(orders):
+        # Safety: if first order failed, abort second to prevent naked position
+        if i > 0 and results and not results[0].get("submitted"):
+            logger.warning("W4 ABORT 2nd order %s: first order failed → skip to avoid naked position",
+                           o["outcome"])
+            results.append({"outcome": o["outcome"], "submitted": False, "reason": "first_failed"})
+            continue
+
         result = _execute_order(
             client, o["token_id"], o["outcome"],
             o["price"], o["size"], dry_run=(not is_live),
             coin=coin, cid=cid)
         results.append(result)
+
+    # Attach entry metadata to results for caller (market state creation)
+    for r in results:
+        r["_w4_dir"] = w4_dir
+        r["_w4_mag_bps"] = round(w4_mag, 1)
+        r["_w4_tier"] = _tier
+        r["_w4_lean_ratio"] = _lean_ratio
 
     return results
 
@@ -721,6 +829,123 @@ def _cancel_before_end(state: dict, client, dry_run: bool):
 
 
 # ═══════════════════════════════════════
+#  Profit Lock — sell lean side when mid >= threshold
+# ═══════════════════════════════════════
+
+_PROFIT_LOCK_MID = 0.99    # sell when winning side mid >= 99¢
+_PROFIT_LOCK_BID_DISCOUNT = 0.01  # sell at mid - 1¢
+
+
+def _check_profit_lock(state: dict, client, dry_run: bool):
+    """Sell lean shares when lean side price reaches 96¢+.
+
+    Rationale: at 96¢+, resolution is ~96% likely in our favor.
+    Selling at 94¢ bid locks ~$0.94/share guaranteed instead of risking
+    a last-minute reversal where lean payout = $0.
+
+    With lean 5:1, a reversal from 99¢→1¢ = catastrophic loss.
+    Selling at 96¢ sacrifices ~4¢/share for certainty.
+    """
+    for cid, mkt in list(state["markets"].items()):
+        if mkt.get("phase") != "OPEN":
+            continue
+        if mkt.get("_profit_locked"):
+            continue
+
+        # Check BOTH sides — sell whichever hits 96¢+
+        for side in ("UP", "DOWN"):
+            if side == "UP":
+                tok = mkt.get("up_token_id", "")
+                shares = mkt.get("up_shares", 0)
+            else:
+                tok = mkt.get("down_token_id", "")
+                shares = mkt.get("down_shares", 0)
+
+            if shares <= 0 or not tok:
+                continue
+
+            mid = _poly_midpoint(tok)
+            if mid is None or mid < _PROFIT_LOCK_MID:
+                continue
+
+            # ── PROFIT LOCK TRIGGERED — sell winning side ──
+            lean_dir = side  # the side we're selling
+            lean_tok = tok
+            lean_shares = shares
+            lean_mid = mid
+            break
+        else:
+            continue  # neither side hit threshold
+
+        sell_price = round(lean_mid - _PROFIT_LOCK_BID_DISCOUNT, 2)
+        sell_price = max(0.01, sell_price)
+
+        coin = mkt.get("coin", "?")
+        logger.info("PROFIT LOCK %s %s: lean=%s mid=$%.2f → sell %.0f shares @ $%.2f",
+                     coin, cid[:8], lean_dir, lean_mid, lean_shares, sell_price)
+
+        # Check if this coin is actually live (not paper)
+        _coin_cfg = COIN_CONFIG.get(coin)
+        _is_paper = dry_run or not client or (_coin_cfg and not _coin_cfg.live)
+
+        if _is_paper:
+            # Paper: simulate sell
+            revenue = lean_shares * sell_price
+            mkt["payout"] += revenue
+            if lean_dir == "UP":
+                mkt["up_shares"] = 0
+            else:
+                mkt["down_shares"] = 0
+            mkt["_profit_locked"] = True
+            logger.info("PROFIT LOCK DRY %s: sold %.0f shares @ $%.2f = $%.2f",
+                         coin, lean_shares, sell_price, revenue)
+        else:
+            # Live: submit sell order
+            try:
+                sell_amount = round(lean_shares * sell_price, 2)
+                r = client.sell_shares(lean_tok, sell_amount, price=sell_price)
+                status = r.get("status", "") if isinstance(r, dict) else ""
+                logger.info("PROFIT LOCK LIVE %s: sell %.0f @ $%.2f → %s",
+                             coin, lean_shares, sell_price, status)
+                if status == "matched":
+                    revenue = lean_shares * sell_price
+                    mkt["payout"] += revenue
+                    if lean_dir == "UP":
+                        mkt["up_shares"] = 0
+                    else:
+                        mkt["down_shares"] = 0
+                    mkt["_profit_locked"] = True
+                else:
+                    # Order pending — track for later
+                    mkt["_profit_lock_pending"] = {
+                        "order_id": r.get("orderID", "") if isinstance(r, dict) else "",
+                        "sell_price": sell_price,
+                        "shares": lean_shares,
+                        "token_id": lean_tok,
+                    }
+                    mkt["_profit_locked"] = True  # don't retry
+            except Exception as e:
+                logger.error("PROFIT LOCK FAILED %s: %s", coin, e)
+                mkt["_profit_locked"] = True  # don't retry on error
+
+        # Log to W4 log
+        try:
+            with open(_W4_LOG, "a") as f:
+                f.write(json.dumps({
+                    "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
+                    "event": "profit_lock",
+                    "cid": cid[:8], "coin": coin,
+                    "lean_dir": lean_dir,
+                    "lean_mid": round(lean_mid, 4),
+                    "sell_price": sell_price,
+                    "shares": lean_shares,
+                    "dry_run": dry_run,
+                }) + "\n")
+        except Exception:
+            pass
+
+
+# ═══════════════════════════════════════
 #  Resolution (Binance 5m OHLC)
 # ═══════════════════════════════════════
 
@@ -769,20 +994,27 @@ def _check_resolutions(state: dict):
                 resolved_dict[_rk] = md[_rk]
         state["markets"][cid] = resolved_dict
 
-        state["daily_pnl"] += pnl
-        state["total_pnl"] += pnl
+        # Only count PnL for live coins (paper trades don't affect bankroll)
+        _res_coin = md.get("coin", "?")
+        _res_cfg = COIN_CONFIG.get(_res_coin)
+        _is_live_coin = _res_cfg and _res_cfg.live
+
+        if _is_live_coin:
+            state["daily_pnl"] += pnl
+            state["total_pnl"] += pnl
         state["total_markets"] = state.get("total_markets", 0) + 1
 
-        # Consecutive loss tracking
-        if pnl < 0:
-            state["consecutive_losses"] = state.get("consecutive_losses", 0) + 1
-            if state["consecutive_losses"] >= 8:
-                cd = (datetime.now(tz=_HKT) + timedelta(hours=4)).isoformat(timespec="seconds")
-                state["cooldown_until"] = cd
-                logger.warning("8 consecutive losses -> COOLDOWN until %s", cd)
-                _tg_alert(f"<b>5M BOT</b> 8 consecutive losses -> cooldown 4h")
-        else:
-            state["consecutive_losses"] = 0
+        # Consecutive loss tracking (live only)
+        if _is_live_coin:
+            if pnl < 0:
+                state["consecutive_losses"] = state.get("consecutive_losses", 0) + 1
+                if state["consecutive_losses"] >= 8:
+                    cd = (datetime.now(tz=_HKT) + timedelta(hours=4)).isoformat(timespec="seconds")
+                    state["cooldown_until"] = cd
+                    logger.warning("8 consecutive losses -> COOLDOWN until %s", cd)
+                    _tg_alert(f"<b>5M BOT</b> 8 consecutive losses -> cooldown 4h")
+            else:
+                state["consecutive_losses"] = 0
 
         # Both-sides resolution log
         _bs_res = {
@@ -817,6 +1049,16 @@ def _check_resolutions(state: dict):
         d = "^" if result == "UP" else "v"
         print(f"  RESOLVED {cid[:8]} {md.get('coin', '?')} {d} | "
               f"PnL ${pnl:+.2f} | Total ${state['total_pnl']:.2f}")
+
+    # ── Cleanup: remove RESOLVED markets older than 1h to prevent unbounded growth ──
+    _cleanup_cutoff = now_ms - 3600_000  # 1 hour ago
+    stale = [cid for cid, md in state["markets"].items()
+             if md.get("phase") == "RESOLVED"
+             and md.get("window_end_ms", 0) < _cleanup_cutoff]
+    for cid in stale:
+        del state["markets"][cid]
+    if stale:
+        logger.debug("Cleaned up %d resolved markets", len(stale))
 
 
 # ═══════════════════════════════════════
@@ -975,9 +1217,10 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if _check_kill_switches(state):
         return state, cached_markets
 
-    # ── Fast ops (every cycle): cancel defense, fill check, resolution ──
+    # ── Fast ops (every cycle): cancel defense, fill check, profit lock, resolution ──
     _cancel_before_end(state, client, dry_run)
     _check_fills(state, client)
+    _check_profit_lock(state, client, dry_run)
     _check_resolutions(state)
 
     # ── Heavy ops (every 10s) ──
@@ -1073,6 +1316,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             del state["watchlist"][cid]
             continue
 
+        if result == "VETO":
+            # Taker veto: don't remove from watchlist (signal may change)
+            # but mark as vetoed to avoid re-checking this cycle
+            wl["_vetoed_ts"] = time.time()
+            continue
+
+        if result == "DEAD_HOUR":
+            continue
+
         if isinstance(result, list):
             # Orders submitted -- create market state
             _bump_fill(state, "submitted", sum(1 for r in result if r.get("submitted")))
@@ -1096,9 +1348,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 "pending_orders": [r for r in result if r.get("submitted")],
                 "fills_confirmed": False,
                 # W4-specific metadata
-                "w4_lean_dir": result[0].get("outcome", "") if result else "",
+                "w4_lean_dir": result[0].get("_w4_dir", "?") if result else "?",
                 "w4_combined": 0,
-                "w4_mag_bps": 0,
+                "w4_mag_bps": result[0].get("_w4_mag_bps", 0) if result else 0,
             }
 
             # Extract W4 metadata from order results
@@ -1163,7 +1415,7 @@ def _status(state: dict):
     for coin, cfg in COIN_CONFIG.items():
         live_str = "LIVE" if cfg.live else "paper"
         print(f"    {coin.upper()}: {live_str} | delay={cfg.delay_s}s | "
-              f"threshold={cfg.threshold_bps}bps | lean={cfg.lean_ratio}:1"
+              f"threshold={cfg.threshold_bps}bps | lean=tiered(T1=2:1,T2=5:1,T3=8:1)"
               f"{' (contrarian)' if cfg.contrarian else ''}")
 
     # Open positions
