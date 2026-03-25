@@ -302,7 +302,8 @@ def _check_resolution(session: SessionState, now_ms: int):
             continue
 
         # Determine outcome
-        outcome = "UP" if close_price > open_price else "DOWN"
+        # Polymarket 5M: "Up if price >= open". Flat = UP.
+        outcome = "UP" if close_price >= open_price else "DOWN"
 
         # Compute PnL based on mode
         mode = pinfo.get("mode", "?")
@@ -576,7 +577,7 @@ def _execute_arb(client, session, sig, wl, up_mid, dn_mid,
                           plan.lean_price)
     except Exception as e:
         log.warning("MODE_A lean FAIL %s: %s", cid[:8], e)
-        session.mode_a_count += 1
+        # Don't count as trade — zero orders submitted, don't waste experiment slot
         to_remove.append(cid)
         return
 
@@ -661,7 +662,7 @@ def _execute_directional(client, session, sig, wl, up_mid, dn_mid,
                           plan.lean_price)
     except Exception as e:
         log.warning("MODE_B lean FAIL %s: %s", cid[:8], e)
-        session.mode_b_count += 1
+        # Don't count as trade — zero orders submitted
         to_remove.append(cid)
         return
 
