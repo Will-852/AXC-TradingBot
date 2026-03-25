@@ -1135,52 +1135,147 @@
       </div>
       <span class="sep"></span>
       <span class="ind-group-label">疊加指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="📊 布林帶 BB
-• 帶寬 3-8% = 正常 / <3% = squeeze⚡ / >15% = 爆發
-• %B 0.2-0.8 = 正常區間
-• 碰上軌(%B>1) → 過熱 / 碰下軌(%B<0) → 超賣
-• 帶收窄 → 即將大突破（70% 向上）
-• 最佳 TF：1H-4H"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label data-tip="📈 EMA 快(12)慢(26)線
-• 差距 ±0.5% = 震盪 / ±1.5% = 正常趨勢
-• 差距 >3% = 過度延伸（可能回調⚠️）
-• 金叉（快穿上慢）→ 睇升
-• 死叉（快穿落慢）→ 睇跌
-• 同 MACD 本質相同，揀一個開就夠"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label data-tip="📊 布林帶 BB（最佳 TF：1H-4H）
+
+📐 正常範圍
+• 帶寬 3-8% = 正常波動
+• %B 0.2-0.8 = 價格喺帶內（89% 時間）
+
+⚠️ 異常信號
+• 帶寬 <3% = squeeze — 即將大突破（70% 向上）
+• 帶寬 >15% = 爆發後嘅極端波動
+• %B >1 = 破上軌（過熱） / %B <0 = 破下軌（超賣）
+
+🎯 實戰用法
+• Squeeze + RSI 中性(40-60) → 等突破方向確認再入場
+• 破上軌 + volume spike → 可能係趨勢開始，唔好急住做空
+• 破下軌 + delta 大紅 → 恐慌性賣出，可能見底
+
+💡 同其他指標配合
+• BB squeeze + RSI + Delta = 最強組合
+• BB 寬度用百分位數比絕對值更準（因為 BTC 平均波動隨時間變化）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
+      <label data-tip="📈 EMA 快(12) 慢(26)
+
+📐 正常範圍
+• 差距 ±0.5% = 震盪中（冇方向）
+• 差距 0.5-1.5% = 正常趨勢
+• 差距 >3% = 過度延伸⚠️（回調機會大）
+
+⚠️ 異常信號
+• 15M 差距 >1% = 短線過熱
+• 4H 差距 >3% = 大趨勢可能見頂/見底
+
+🎯 實戰用法
+• 金叉（快穿上慢）→ 做多信號
+• 死叉（快穿落慢）→ 做空信號
+• 價格企穩 EMA 上方 → 趨勢健康，回踩 EMA 係買入機會
+• 價格喺兩條 EMA 之間震盪 → 觀望
+
+⚠️ 注意：EMA 12/26 差值 = MACD line
+同 MACD 本質相同，日常揀一個開就夠"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
       <label data-tip="📏 MA 50/200 長期趨勢
-• MA50 > MA200 → 牛市（BTC 65% 時間如此）
-• MA50 < MA200 → 死亡交叉（但 BTC 常見假信號）
-• 200MA = 超強支撐（跌穿極罕見）
-• ⚠️ 嚴重滯後 — 信號出時已走咗 20-40%
-• 只適合做大方向確認，唔好做入場依據"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+
+📐 正常狀態
+• BTC 65% 時間 MA50 > MA200（結構性向上）
+• 牛市 80-85% 時間喺 200MA 上方
+• 熊市 70-80% 時間喺 200MA 下方
+
+⚠️ 重要信號
+• MA50 穿上 MA200 = 金叉（牛市確認）
+• MA50 穿落 MA200 = 死亡交叉
+• 但 BTC 死叉常見假信號 — 3 次中有 3 次係底部⚠️
+• 200 週線從未被跌穿（終極支撐）
+
+🎯 實戰用法
+• 只做大方向確認，唔好做入場依據
+• 嚴重滯後 — 信號出時已走咗 20-40%
+• 價格企穩 200MA + RSI <35 = 高信心抄底"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
       <label data-tip="⚖️ VWAP 成交量加權均價
-• 偏差 ±0.5% = 正常 / ±2% = 留意 / >5% = 極端
-• 價格 > VWAP → 買方主導
-• 價格 < VWAP → 賣方主導
-• 機構用 VWAP 做基準：>2% 傾向賣出 / <2% 傾向買入
-• BTC 24/7 冇 session，每日 UTC 0:00 reset"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
+
+📐 正常範圍
+• 偏差 ±0.5% = 貼近公平價
+• 偏差 ±0.5-2% = 正常日內波動
+• 偏差 >5% = 極端（機構級活動 / 清算瀑布）
+
+⚠️ 機構行為
+• 價格 >2% above VWAP → 機構傾向賣出（唔追高）
+• 價格 >2% below VWAP → 機構傾向買入（吸貨）
+• VWAP = 大戶衡量入場好唔好嘅基準線
+
+🎯 實戰用法
+• 價格 > VWAP → 短線偏多
+• 價格 < VWAP → 短線偏空
+• 價格觸碰 VWAP 後反彈 → VWAP 做支撐
+• BTC 24/7，每日 HKT 08:00 (UTC 0:00) reset
+
+💡 同 VP 配合
+• VWAP = 動態公平價 / VP POC = 靜態公平價
+• 兩者重疊 = 超強支撐/阻力"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
       <span class="ind-group-label">震盪指標 <small style="color:#64748b">即時</small></span>
-      <label data-tip="💪 RSI 14（BTC 校準版）
+      <label data-tip="💪 RSI 14（BTC 校準版，最佳 TF：1H-4H）
+
+📐 BTC 正常範圍（同股票唔同！）
 • 🐂 牛市：正常 45-80 / floor 40 / ceiling 90
 • 🐻 熊市：正常 25-55 / floor 20 / ceiling 60
-• 📊 震盪：正常 40-65（60% 時間）
-• <25 日線 = 世紀抄底（歷史上只出現 5 次）
-• >85 日線 = 2-4 週內大跌 15-30%
-• 最佳 TF：1H-4H（15M 太嘈）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label data-tip="🔄 MACD (12,26,9)
-• Histogram% <0.05% = 噪音（忽略）
-• 0.2-0.5% = 正常信號 / >1.5% = 極端
-• 柱翻綠 → 動量轉強 / 柱翻紅 → 動量轉弱
-• 柱頂回落 = 最早嘅反轉警號（唔係零線交叉）
-• ⚠️ 同 EMA 12/26 本質相同，揀一個就夠
-• 最佳 TF：4H-日線"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+• 📊 震盪：正常 40-65（60% 時間在此）
+
+🔴 極端信號（歷史驗證）
+• 日線 RSI <25 = 世紀抄底（2015年至今只出現 5 次）
+• 日線 RSI >85 = 2-4 週內大跌 15-30%
+• 4H RSI <30 或 >70 罕見但有意義
+
+⚠️ 唔同 TF 表現
+• 15M：20-80 不停震，noise 太多，唔建議單獨用
+• 1H：最佳日內 TF，40-65 常態
+• 4H：swing trading 甜蜜點
+• 日線：極端值（<30 或 >80）每年只出幾次
+
+🎯 實戰用法
+• RSI <35 + BB 下軌 + 大單出現 = 高信心抄底
+• RSI >75 + EMA 差距 >2% = 高信心減倉
+• RSI 50 附近 = 冇方向，觀望
+• RSI 背離（價新高但 RSI 唔新高）= 早期反轉信號"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label data-tip="🔄 MACD (12,26,9)（最佳 TF：4H-日線）
+
+📐 正常範圍（Histogram 佔價格 %）
+• <0.05% = 噪音，忽略
+• 0.05-0.2% = 正常信號
+• 0.2-0.5% = 強信號
+• >1.5% = 極端（可能見頂/見底）
+
+⚠️ 異常信號
+• Histogram 柱頂回落 = 最早嘅反轉警號
+  （比零線交叉早 2-5 根 candle）
+• 零線以上持續縮柱 = 牛力衰竭
+• 零線以下持續放大 = 仲未見底
+
+🎯 實戰用法
+• MACD 金叉 + volume 放大 → 強做多
+• MACD 柱翻紅 + RSI >70 → 減倉信號
+• MACD 同價格背離 = 反轉先兆
+
+⚠️ 同 EMA 12/26 差值本質相同
+揀 EMA 或 MACD 其中一個就夠，同時開係重複資訊"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
       <label data-tip="🎲 Stoch (14,3) ⚠️ BTC 最弱指標
-• >80 超買 / <20 超賣
-• 但 BTC 牛市可以釘 >80 幾日（假信號多）
-• ⚠️ 同 RSI 高度重複
-• 只適合震盪市（ADX<20）
-• 建議：日常唔開，只喺確認震盪市時先用"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+
+📐 範圍
+• >80 = 超買 / <20 = 超賣
+• K 穿上 D = 買入信號 / K 穿落 D = 賣出信號
+
+🔴 BTC 嘅問題（點解弱）
+• 牛市可以釘 >80 連續幾日 → 不停發假賣出信號
+• 同 RSI 高度重複（兩個都量度動量）
+• 強趨勢中完全失效
+
+✅ 唯一有用嘅場景
+• 確認係震盪市（ADX <20）時：
+  Stoch <20 + RSI <35 + BB %B <0.1 = 高信心超賣
+• 除此之外，日常唔建議開
+
+💡 建議
+• 日常組合：BB + EMA + RSI + Delta = 4 個就夠
+• Stoch 只喺你確認市場震盪時先開"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
       <label data-tip="🔀 市場模式 Mode 即時
 • 自動判斷：趨勢 / 震盪 / 突破
@@ -1189,37 +1284,116 @@
 • 突破模式 → 等確認"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
       <span class="sep"></span>
       <span class="fp-group-label">資金流</span>
-      <label data-tip="🐋 大額成交 ≥$100K
-• 🟢 綠菱形 → 買方主導嘅大單
-• 🔴 紅菱形 → 賣方主導嘅大單
-• 菱形越大 → 金額越大
-• 大單方向通常係短期趨勢" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
-      <label data-tip="⚡ 淨量 Delta = 呢一刻邊邊更急
-• 🟢 綠 bar → 買方急 / 🔴 紅 bar → 賣方急
-• 1H 正常 <$50M / 留意 $50-150M / 極端 >$500M
-• 大 delta + 價唔動 = 吸收（有人頂住）
-• 價升但 delta 縮 → 動力減弱（背離⚠️）
-• 最佳 TF：15M-1H" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
+      <label data-tip="🐋 大額成交 ≥$100K（大單追蹤）
+
+📐 顯示
+• 🟢 綠菱形 = 該 candle 內買方大單主導
+• 🔴 紅菱形 = 該 candle 內賣方大單主導
+• 菱形越大 = 總金額越大
+
+🎯 實戰用法
+• 大量綠菱形連續出現 → 機構正在建倉（睇升）
+• 突然出現巨大紅菱形 → 大戶出貨（短線危險）
+• 大單出現喺支撐位 → 支撐可信度高
+• 大單出現喺阻力位 → 阻力可信度高
+
+💡 配合其他指標
+• 大單 + Delta 同方向 = 強確認
+• 大單 + Delta 反方向 = 吸收/派發" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
+      <label data-tip="⚡ 淨量 Delta = 呢一刻邊邊更急（最佳 TF：15M-1H）
+
+📐 BTC 1H 正常範圍
+• <$50M = 正常（冇特別）
+• $50-150M = 留意（有方向性）
+• $150-500M = 顯著（大戶活動）
+• >$500M = 極端（可能係清算瀑布或機構入場）
+
+⚠️ 異常信號
+• 大 delta + 價唔動 = 吸收（有人頂住，即將反向）
+• 價升 + delta 縮 = 上升動力衰減（背離）
+• 價跌 + delta 由負轉正 = 有人抄底
+
+🎯 實戰用法
+• 大綠 bar → 有人急住買，短線偏多
+• 大紅 bar → 有人急住賣，短線偏空
+• delta 持續同方向 3+ bar → 趨勢確認
+• delta 突然反向 → 可能係轉折點
+
+💡 同 VOL 嘅分別
+• VOL = 總成交量（唔分買賣）
+• Delta = 買 - 賣 嘅淨量（分方向）
+• VOL 大 + Delta 細 = 雙方激烈交戰（震盪）
+• VOL 大 + Delta 大 = 一方壓倒性勝出（趨勢）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
       <label data-tip="📊 價位分佈 VP（右邊柱狀圖）
-• 🔵 藍 = 買量  🟡 黃 = 賣量
-• POC = 最多成交價位（磁石🧲）
-• VA = 70% 成交集中區
-• 價格會被 POC 吸引
-• 價格出咗 VA → 突破" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
-      <label data-tip="🔥 熱力圖 FP（每支蠟燭內嘅分佈）
+
+📐 組成部分
+• 🔵 藍 = 買量（主動買入）
+• 🟡 黃 = 賣量（主動賣出）
+• 🔴 POC = 最多成交嘅價位（紅色實線 + label）
+• 🟡 VA = 70% 成交集中區（黃色虛線 VAH/VAL）
+• HVN = 高成交節點（背景色帶）
+
+⚠️ 強 POC vs 弱 POC
+• 強：>15% session 成交 + 窄 VA (<2%) = 超強磁石
+• 弱：<5% + 寬 VA (>5%) = 價格易穿透
+• 圓數 POC（$70,000, $80,000）= 極強 S/R
+
+🎯 實戰用法
+• 價格接近 POC → 大概率被吸引住（唔好追）
+• 價格突破 VAH → 可能開始向上趨勢
+• 價格跌穿 VAL → 可能開始向下趨勢
+• LVN（低成交空間）→ 價格會快速穿過
+
+💡 同 VWAP 配合
+• VWAP = 動態公平價 / POC = 靜態公平價
+• 兩者重疊 = 超級支撐/阻力" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
+      <label data-tip="🔥 熱力圖 FP（每支蠟燭內嘅買賣分佈）
+
+📐 顯示
 • 色塊深淺 = 成交量大小
-• Zoom 入 < 30 支 candle 先見數字
-• 同一價位 買>>賣 → 吸收（支撐💪）
-• 同一價位 賣>>買 → 派發（阻力🧱）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
-      <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" data-tip="切換色塊/氣泡顯示模式">Blk</button>
-      <label data-tip="📈 累積淨量 CVD = 由頭到而家邊邊一直更急
-• 持續升 → 買方一直主導
-• 持續跌 → 賣方一直主導
+• 左半 = 賣量（紅色系）/ 右半 = 買量（綠色系）
+• 白色邊框 = 該 candle 嘅 POC（最多成交價位）
+• Zoom 入 <30 支 candle 先見數字
+
+⚠️ 關鍵 pattern
+• 吸收：某價位買量 >> 賣量（3:1+）但價唔升
+  → 有人喺度靜靜買，可能係支撐💪
+• 派發：某價位賣量 >> 買量 但價唔跌
+  → 有人喺度靜靜賣，可能係阻力🧱
+• 失敗拍賣：某價位只有單邊交易
+  → 價格可能重返完成拍賣
+
+🎯 實戰用法
+• 3+ 連續 price level 嘅買方 imbalance = 強支撐帶
+• 3+ 連續 price level 嘅賣方 imbalance = 強阻力帶
+• Candle 底部有大買量 → 抄底有人接" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
+      <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" data-tip="切換色塊/氣泡顯示模式
+• Blk = 色塊模式（標準 footprint）
+• Bbl = 氣泡模式（圓形大小 = 成交量）">Blk</button>
+      <label data-tip="📈 累積淨量 CVD = 由頭到而家邊邊一直更急（最佳 TF：1H-4H）
+
+📐 解讀
+• 持續升 → 買方一直主導（累積買壓）
+• 持續跌 → 賣方一直主導（累積賣壓）
+• 平穩 → 買賣平衡
+
+⚠️ 背離信號（最有價值嘅用法）
 • 價跌但 CVD 升 → 有人偷偷吸貨（睇升🟢）
+  即係有大戶趁低買，只係未推高價格
 • 價升但 CVD 跌 → 有人偷偷出貨（睇跌🔴）
-• Delta + CVD 配合：
-  Delta 大綠 + CVD 升 = 強買入
-  Delta 大綠 + CVD 跌 = 假突破⚠️" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
+  即係有大戶趁高賣，價格遲早跟跌
+• 背離持續 8-16 bar = 強信號
+
+🎯 Delta + CVD 組合判斷
+• Delta 大綠 + CVD 升 = 強確認買入
+• Delta 大綠 + CVD 跌 = 假突破⚠️（有人趁高出）
+• Delta 持續紅 + CVD 跌 = 空方壓倒
+• Delta 轉綠 + CVD 止跌 = 可能見底
+
+💡 同 Delta 嘅分別
+• Delta = 呢一刻嘅快照（即時）
+• CVD = 由頭累積到而家（趨勢）
+• Delta 好似心跳，CVD 好似血壓" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
       <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵開/關：價位+熱圖+累積">全開</button>
       <button class="vol-preset-btn" onclick="clearAllFlowPanes()" title="清除所有資金流指標" style="color:#ef5350">清除</button>
       <span class="sep"></span>
