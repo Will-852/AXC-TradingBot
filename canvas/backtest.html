@@ -1974,16 +1974,11 @@ function drawLargeTradeMarkers() {
     // Size: proportional to total USD (min 6, max 18)
     var sz = Math.min(18, Math.max(6, Math.sqrt(totalUsd / 500000) * 8));
 
-    // Short label: total USD + count
+    // Label: compact summary for the marker
     var usdStr = totalUsd >= 1000000 ? '$' + (totalUsd/1000000).toFixed(1) + 'M' : '$' + Math.round(totalUsd/1000) + 'K';
-    var label = usdStr + ' (' + b.count + '筆)';
-
-    // Detailed tooltip (top 5 trades)
-    var tip = b.trades.map(function(t) {
-      var tUsd = t.usd_value >= 1000000 ? (t.usd_value/1000000).toFixed(1) + 'M' : Math.round(t.usd_value/1000) + 'K';
-      return (t.side === 'BUY' ? '買 ' : '賣 ') + '$' + tUsd + ' @ ' + t.price;
-    }).join('\n');
-    if (b.count > 5) tip += '\n… 共 ' + b.count + ' 筆';
+    var buyStr = b.buyUsd >= 1000000 ? (b.buyUsd/1000000).toFixed(1) + 'M' : Math.round(b.buyUsd/1000) + 'K';
+    var sellStr = b.sellUsd >= 1000000 ? (b.sellUsd/1000000).toFixed(1) + 'M' : Math.round(b.sellUsd/1000) + 'K';
+    var label = usdStr + '(' + b.count + ') 買$' + buyStr + ' 賣$' + sellStr;
 
     try {
       var id = mainChart.createOverlay({
