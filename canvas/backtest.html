@@ -1689,20 +1689,26 @@ function _showFpLoading(show, msg) {
 
 function toggleFootprint(feature) {
   fpActive[feature] = !fpActive[feature];
+  console.log('[FP] toggle', feature, '→', fpActive[feature], 'fpFetched:', fpFetched, 'fpLoading:', fpLoading);
   _syncFpToggleStyle();
   updateVolPresetButtonState();
 
   // Already have data → apply immediately
   if (fpFetched) {
+    console.log('[FP] Applying feature:', feature);
     applyFootprintFeature(feature);
     return;
   }
 
   // Currently loading → just toggle state, will be applied when fetch completes
-  if (fpLoading) return;
+  if (fpLoading) {
+    console.log('[FP] Loading in progress, toggle state saved');
+    return;
+  }
 
   // First time any feature toggled on → fetch all data (checkboxes stay enabled)
   if (fpActive.large || fpActive.delta || fpActive.profile || fpActive.heatmap || fpActive.cvd) {
+    console.log('[FP] Triggering fetchFootprintData()');
     fetchFootprintData();
   }
 }
