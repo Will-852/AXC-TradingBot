@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$LOG_DIR" || exit 1
 
 # ── 時間制截斷（保留 12 小時）──
-/opt/homebrew/bin/python3 "${SCRIPT_DIR}/_log_trim.py" "$LOG_DIR" 12
+${PYTHON3:-$(which python3)} "${SCRIPT_DIR}/_log_trim.py" "$LOG_DIR" 12
 
 # ── 刪除已知廢棄文件 ──
 for stale in cache-trace.jsonl config-audit.jsonl newsagent.log tg_bot.log strategyreview.log; do

@@ -22,7 +22,7 @@ echo "════════════════════════�
 echo ""
 
 # ── Test 1: python3 路徑 + 版本 ──────────────
-PYTHON="/opt/homebrew/bin/python3"
+PYTHON="${PYTHON3:-python3}"
 if [ -x "$PYTHON" ]; then
     VER=$("$PYTHON" --version 2>&1)
     ok "python3 存在且可執行 ($VER)"

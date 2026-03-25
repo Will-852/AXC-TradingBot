@@ -156,7 +156,7 @@ def _fetch_15m_indicators(symbol: str) -> dict | None:
 
     try:
         result = subprocess.run(
-            ["/opt/homebrew/bin/python3.11",
+            [os.environ.get("PYTHON3", "python3"),
              script_path,
              "--symbol", symbol,
              "--interval", "15m",
@@ -169,7 +169,7 @@ def _fetch_15m_indicators(symbol: str) -> dict | None:
         logger.warning("indicator_calc.py timed out for %s 15m", symbol)
         return None
     except FileNotFoundError:
-        logger.warning("python3.11 not found at /opt/homebrew/bin/python3.11")
+        logger.warning("python3 not found (set PYTHON3 env or ensure 'python3' in PATH)")
         return None
 
     if result.returncode != 0:

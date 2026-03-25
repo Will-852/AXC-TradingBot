@@ -28,7 +28,7 @@ from datetime import datetime, timezone, timedelta
 
 # ─── Config ───
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-PYTHON = "/opt/homebrew/bin/python3.11"
+PYTHON = os.environ.get("PYTHON3", "python3")  # 2026-03-26: removed hardcoded path
 
 LIGHT_SCAN = os.path.join(SCRIPTS_DIR, "light_scan.py")
 TRADER_CYCLE = os.path.join(SCRIPTS_DIR, "trader_cycle", "main.py")
