@@ -372,8 +372,7 @@ def main():
     # ── Init client ──
     client = PolymarketClient(dry_run=dry_run)
     if not dry_run:
-        client.authenticate()
-        balance = client.get_balance()
+        balance = client.get_usdc_balance()
         log.info("Balance: $%.2f", balance)
         # ⚠️ RISK: no balance gate. live=True + --live = real money immediately.
 
