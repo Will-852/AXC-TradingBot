@@ -2892,7 +2892,9 @@ function loadKlines(symbol, days, cb, interval, errCb) {
       // ⚠️ 2CHECK: AXC_VOL 用 footprintData.delta_volume 做色，
       //    初始冇 footprint data 時 fallback 到 candle direction。
       //    Cache restore / fetch 完成後 VOL bars 會自動更新（因為 calc 每次 repaint 都讀 footprintData）。
-      if (!indicatorPaneIds['VOL']) {
+      // Use 'AXC_VOL' as key — must match registered indicator name
+      // so removeIndicatorFromChart can find and delete it correctly.
+      if (!indicatorPaneIds['AXC_VOL']) {
         try {
           var volPaneId = mainChart.createIndicator('AXC_VOL', false, {
             height: 80,
@@ -2901,7 +2903,7 @@ function loadKlines(symbol, days, cb, interval, errCb) {
             gap: { top: 0.2, bottom: 0.1 }
           });
           if (volPaneId) {
-            indicatorPaneIds['VOL'] = volPaneId;
+            indicatorPaneIds['AXC_VOL'] = volPaneId;
           }
         } catch(e) { console.warn('VOL indicator failed:', e); }
       }
