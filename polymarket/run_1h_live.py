@@ -923,6 +923,275 @@ def _check_fills(state: dict, client) -> None:
 
 
 # ═══════════════════════════════════════
+#  Repricing — Conviction-Driven (cheap zone only)
+#  ⚠️ BMD markers: [CANCEL-SAFETY] [REPRICE-LOCK] [WR-ASSUMPTION]
+# ═══════════════════════════════════════
+
+# ── Config ──
+_1H_REPRICE_ENABLED = True
+_1H_REPRICE_THRESHOLD = 0.02       # 2¢ min drift to trigger reprice
+_1H_REPRICE_MAX_PER_ORDER = 5      # max reprices per order lifetime
+_1H_REPRICE_STOP_BEFORE_END_S = 600  # stop repricing 10 min before window end
+_1H_REPRICE_MIN_AGE_S = 60         # don't reprice orders younger than 60s
+_1H_REPRICE_COOLDOWN_S = 20        # min 20s between reprices per market
+
+# ⚠️ [REPRICE-LOCK] Global flag: prevents one-order guard from allowing
+# new ENTER while a reprice cancel→submit is in progress.
+_repricing_cid: str = ""  # "" = idle, non-empty = repricing this market
+
+
+def _reprice_1h(state: dict, client, config, cached_markets: list,
+                dry_run: bool, coin_vols: dict | None = None) -> None:
+    """Mild repricing: re-evaluate conviction → bump price within cheap zone.
+
+    ⚠️ [WR-ASSUMPTION] This may reduce WR from 72% toward 55-65%.
+    The positive selection bias of cheap fills is partially traded for
+    higher fill rate. Paper test must verify repriced-fill WR > 55%.
+    """
+    global _repricing_cid
+
+    if not _1H_REPRICE_ENABLED or not client or dry_run:
+        return
+
+    now = time.time()
+    now_ms = int(now * 1000)
+
+    for cid, mkt in list(state.get("markets", {}).items()):
+        if mkt.get("phase") != "OPEN" or mkt.get("fills_confirmed"):
+            continue
+        pending = mkt.get("pending_orders", [])
+        if not pending:
+            continue
+
+        end_ms = mkt.get("window_end_ms", 0)
+        start_ms = mkt.get("window_start_ms", 0)
+
+        # Don't reprice near window end
+        if end_ms > 0 and now_ms > end_ms - _1H_REPRICE_STOP_BEFORE_END_S * 1000:
+            continue
+
+        # Per-market cooldown
+        if now - mkt.get("_last_reprice_ts", 0) < _1H_REPRICE_COOLDOWN_S:
+            continue
+
+        # Find matching market info for token IDs
+        mkt_info = None
+        for m in cached_markets:
+            if m["cid"] == cid:
+                mkt_info = m
+                break
+        if not mkt_info:
+            continue
+
+        coin = mkt_info["coin"]
+        btc_open = mkt.get("btc_open_price", 0)
+        if btc_open <= 0:
+            continue
+
+        current_price = _btc_price(coin)
+        if current_price <= 0:
+            continue
+
+        t_elapsed = (now_ms - start_ms) / 60_000  # minutes
+        up_tok = mkt_info["up_tok"]
+        ob = _poly_ob(up_tok)
+
+        # Recompute conviction with current data
+        # ⚠️ [WR-ASSUMPTION] new_sig.entry_price will be higher than original
+        # because time_trust has increased. This is conviction-driven, not market-chasing.
+        _filled_cost = mkt.get("entry_cost", 0)
+        _pending_cost = sum(
+            o.get("size", 0) * o.get("price", 0)
+            for o in pending if o.get("submitted")
+        )
+        budget_spent = _filled_cost + _pending_cost
+        window_budget = state["bankroll"] * config.max_size_fraction
+        budget_remaining_frac = max(0, (window_budget - budget_spent) / window_budget) if window_budget > 0 else 0
+
+        new_sig = conviction_signal(
+            t_elapsed=t_elapsed,
+            btc_current=current_price,
+            btc_open=btc_open,
+            vol_1m=(coin_vols or {}).get(coin, 0.01),  # use cached vol from heavy cycle
+            ob=ob, config=config,
+            bankroll=state["bankroll"],
+            budget_remaining_frac=budget_remaining_frac,
+            current_position=None,  # repricing is for unfilled orders
+        )
+
+        if new_sig.action not in ("ENTER", "ADD"):
+            continue  # signal says WAIT/EXIT → don't reprice, let order sit
+
+        # Safety: if signal direction flipped, don't reprice (let order sit or expire)
+        _pending_dir = pending[0].get("outcome", "")
+        if _pending_dir and new_sig.direction != _pending_dir:
+            logger.debug("REPRICE SKIP %s: direction flipped (%s → %s)", cid[:8], _pending_dir, new_sig.direction)
+            continue
+
+        # Check each pending order
+        _repriced_any = False
+        _new_pending = []
+
+        for po in pending:
+            old_price = po.get("price", 0)
+            order_age_s = now - po.get("order_ts", now)
+            reprice_count = po.get("_reprice_count", 0)
+
+            # Guard: too young, too many reprices, or price hasn't moved enough
+            if order_age_s < _1H_REPRICE_MIN_AGE_S:
+                _new_pending.append(po)
+                continue
+            if reprice_count >= _1H_REPRICE_MAX_PER_ORDER:
+                _new_pending.append(po)
+                continue
+
+            new_price = new_sig.entry_price
+            # ⚠️ [BOOK-DEPTH] Only bump UP, never down. If conviction drops, keep old order.
+            if new_price <= old_price + _1H_REPRICE_THRESHOLD:
+                _new_pending.append(po)
+                continue
+
+            _oid = po.get("order_id", "")
+            if not _oid:
+                _new_pending.append(po)
+                continue
+
+            # ═══ REPRICE CYCLE ═══
+            # ⚠️ [REPRICE-LOCK] Set lock to prevent one-order guard from creating duplicates
+            _repricing_cid = cid
+
+            # ⚠️ [CANCEL-SAFETY] Step 1: REST double-check before cancel
+            # Pattern: get_trades → confirm not filled → proceed
+            try:
+                _pre_trades = client.get_trades(market=cid) if hasattr(client, "get_trades") else []
+                _pre_trade_ids = set()
+                for _t in (_pre_trades or []):
+                    _tid = _t.get("taker_order_id", "")
+                    if _tid:
+                        _pre_trade_ids.add(_tid)
+                    for _mo in _t.get("maker_orders", []):
+                        _mid = _mo.get("order_id", "") if isinstance(_mo, dict) else ""
+                        if _mid:
+                            _pre_trade_ids.add(_mid)
+                if _oid in _pre_trade_ids:
+                    logger.warning("REPRICE ABORT %s: order %s ALREADY FILLED (pre-cancel check)",
+                                   cid[:8], _oid[:12])
+                    _repricing_cid = ""
+                    _new_pending.append(po)  # keep — fill check will process it
+                    continue
+            except Exception as e:
+                logger.warning("REPRICE pre-check failed %s: %s — keeping order", cid[:8], e)
+                _repricing_cid = ""
+                _new_pending.append(po)
+                continue
+
+            # Step 2: Cancel old order
+            try:
+                client.client.cancel(order_id=_oid)
+            except Exception as e:
+                logger.warning("REPRICE CANCEL FAILED %s: %s — keeping order", cid[:8], e)
+                _repricing_cid = ""
+                _new_pending.append(po)
+                continue
+
+            # ⚠️ [CANCEL-SAFETY] Step 3: REST double-check AFTER cancel (500ms gap)
+            time.sleep(0.5)
+            try:
+                _post_trades = client.get_trades(market=cid) if hasattr(client, "get_trades") else []
+                _post_trade_ids = set()
+                for _t in (_post_trades or []):
+                    _tid = _t.get("taker_order_id", "")
+                    if _tid:
+                        _post_trade_ids.add(_tid)
+                    for _mo in _t.get("maker_orders", []):
+                        _mid = _mo.get("order_id", "") if isinstance(_mo, dict) else ""
+                        if _mid:
+                            _post_trade_ids.add(_mid)
+                if _oid in _post_trade_ids:
+                    # Phantom fill: order matched during cancel RTT
+                    logger.warning("REPRICE ABORT (post-cancel) %s: order %s FILLED during cancel — "
+                                   "phantom fill, NO replacement", cid[:8], _oid[:12])
+                    # Account for the fill (will be picked up by _check_fills next cycle)
+                    _repricing_cid = ""
+                    # Don't add to _new_pending — _check_fills will handle it
+                    _repriced_any = True
+                    continue
+            except Exception as e:
+                logger.warning("REPRICE post-check failed %s: %s — order cancelled, "
+                               "NOT re-placing (safety)", cid[:8], e)
+                _repricing_cid = ""
+                _repriced_any = True
+                _log_order("reprice_lost", _oid, cid,
+                           outcome=po.get("outcome", ""), old_price=old_price)
+                continue
+
+            # Step 4: Submit replacement at new price
+            try:
+                _amount = round(po["size"] * new_price, 2)
+                _r = client.buy_shares(po["token_id"], _amount, price=new_price)
+                _new_oid = ""
+                _new_status = ""
+                if isinstance(_r, dict):
+                    _new_oid = _r.get("orderID", _r.get("id", ""))
+                    _new_status = _r.get("status", "")
+
+                _new_po = dict(po)
+                _new_po["order_id"] = _new_oid
+                _new_po["price"] = new_price
+                _new_po["_reprice_count"] = reprice_count + 1
+                _new_po["order_ts"] = time.time()
+                # ⚠️ [WR-ASSUMPTION] Track repriced fills separately for WR analysis
+                _new_po["_repriced"] = True
+
+                if _new_status == "matched":
+                    # Instant fill — update market state directly (won't go through _check_fills)
+                    _fill_outcome = po.get("outcome", "")
+                    _fill_size = po["size"]
+                    if _fill_outcome == "UP":
+                        _old_val = mkt["up_shares"] * mkt["up_avg_price"]
+                        mkt["up_shares"] += _fill_size
+                        mkt["up_avg_price"] = (_old_val + _fill_size * new_price) / mkt["up_shares"] if mkt["up_shares"] > 0 else new_price
+                    elif _fill_outcome == "DOWN":
+                        _old_val = mkt["down_shares"] * mkt["down_avg_price"]
+                        mkt["down_shares"] += _fill_size
+                        mkt["down_avg_price"] = (_old_val + _fill_size * new_price) / mkt["down_shares"] if mkt["down_shares"] > 0 else new_price
+                    mkt["entry_cost"] += _fill_size * new_price
+                    logger.info("REPRICE+FILL %s %s: $%.3f → $%.3f (%.0f shares)",
+                                cid[:8], _fill_outcome, old_price, new_price, _fill_size)
+                    _bump_fill(state, "filled")
+                else:
+                    _new_pending.append(_new_po)
+                    logger.info("REPRICE %s %s: $%.3f → $%.3f (#%d)",
+                                cid[:8], po.get("outcome", ""), old_price,
+                                new_price, _new_po["_reprice_count"])
+
+                _log_order("reprice", _new_oid or _oid, cid,
+                           outcome=po.get("outcome", ""),
+                           old_price=old_price, new_price=new_price,
+                           reprice_count=_new_po["_reprice_count"])
+                _repriced_any = True
+
+            except Exception as e:
+                # Cancel succeeded but buy failed → order LOST from CLOB
+                logger.error("REPRICE BUY FAILED %s: cancel OK but buy failed: %s — order LOST",
+                             cid[:8], e)
+                _log_order("reprice_lost", _oid, cid,
+                           outcome=po.get("outcome", ""),
+                           old_price=old_price, new_price=new_price)
+                _repriced_any = True
+                # ⚠️ [REPRICE-LOCK] Release lock (was missing — would deadlock this market)
+                _repricing_cid = ""
+                continue
+
+            # ⚠️ [REPRICE-LOCK] Release lock (normal path)
+            _repricing_cid = ""
+
+        if _repriced_any:
+            mkt["pending_orders"] = _new_pending
+            mkt["_last_reprice_ts"] = now
+
+
+# ═══════════════════════════════════════
 #  Resolution (Binance 1H OHLC)
 # ═══════════════════════════════════════
 
@@ -1186,6 +1455,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 pass
     logger.debug("Pre-fetch: %d markets in %.1fs", len(_pf_active), time.time() - _pf_t0)
 
+    # ── Repricing: bump unfilled orders if conviction grew ──
+    _reprice_1h(state, client, config, cached_markets, dry_run, coin_vols=_coin_vols)
+
     # ── Evaluate each active market ──
     _heavy_loop_t0 = time.time()
     _heavy_loop_n = len(cached_markets)
@@ -1326,8 +1598,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             # Prevents re-submission loop: CLOB cancels (no balance) → budget freed
             # → bot re-submits → cancelled again → 27 orders/28 min.
             # Rule: max 1 active (unfilled) order per market. ADD only after fill.
+            # ⚠️ [REPRICE-LOCK] Also block if repricing is in progress for this market
             _has_pending = bool(existing.get("pending_orders"))
             _has_fill = existing.get("entry_cost", 0) > 0
+            if _repricing_cid == cid:
+                logger.debug("DEDUP %s: repricing in progress, skipping", coin)
+                continue
             if sig.action == "ENTER" and _has_pending:
                 logger.debug("DEDUP %s: already has pending order, skipping", coin)
                 continue

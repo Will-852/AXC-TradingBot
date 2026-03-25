@@ -165,6 +165,36 @@ TG_CHAT_ID = ""    # loaded from settings at runtime
 POLY_PAPER_GATE_HOURS = 48
 POLY_PAPER_GATE_FILE = os.path.join(LOG_DIR, "poly_paper_gate_start.txt")
 
+# ─── Goldsky On-Chain Subgraphs (public, no auth) ───
+# Discovered 2026-03-25: 21 wallets analyzed, ALL top wallets = MB→TS spread capture.
+# Phase 4: use for enhanced holder imbalance (filter spread-capture bots from directional holders)
+#
+# ⚠️ [VERIFY-LATER] Endpoints may change. Re-check if 404/timeout.
+# ⚠️ [VERIFY-LATER] Subgraph versions (0.0.7, 0.0.14) may update — check Goldsky dashboard.
+# ⚠️ [VERIFY-LATER] Rate limits unknown — start with 1 req/5s, adjust based on 429 responses.
+_GOLDSKY_BASE = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs"
+GOLDSKY_ORDERBOOK_URL = f"{_GOLDSKY_BASE}/orderbook-subgraph/prod/gn"     # trades: maker/taker split
+GOLDSKY_POSITIONS_URL = f"{_GOLDSKY_BASE}/positions-subgraph/0.0.7/gn"    # per-wallet positions
+GOLDSKY_PNL_URL = f"{_GOLDSKY_BASE}/pnl-subgraph/0.0.14/gn"              # realized PnL per wallet
+# Usage: POST with GraphQL body. See analysis/goldsky_wallet_query.py for query examples.
+# Key fields:
+#   orderbook: makerAddress, side (BUY/SELL), orderType (GTC/FOK), price, size, timestamp
+#   positions: user, tokenId, shares, avgPrice
+#   pnl: user, realizedPnl, grossProfit, grossLoss, numWins, numLosses
+
+# Known whale addresses (for holder imbalance signal enhancement)
+# ⚠️ [VERIFY-LATER] Wallets may rotate addresses. Cross-check with Goldsky if PnL drops.
+GOLDSKY_TRACKED_WHALES = {
+    "swisstony": "0x204f72f35326db932158cba6adff0b9a1da95e14",     # +$348K, MB→TS
+    "Uncommon-Oat": "0xd0d6053c3c37e727402d84c14069780d360993aa",   # +$123K, Pure MB
+    "blue-walnut": "0xe38b7a6553cbcac3bf6d9e22c83cdce092951fdc",    # +$86K, MB→TS
+    "blankandyellow": "0x56bad0e7a00913c6e35c00dce3ec7f7cd6a311d7", # +$30K, MB→TS
+    "BoneReader": "0xd84c2b6d65dc596f49c7b6aadd6d74ca91e407b9",     # +$874K volume, multi-TF
+    # ⚠️ [VERIFY-LATER] Decent-Dune actually -$35K (profile showed +$426K = unrealized).
+    # Keep for tracking but do NOT follow their signals.
+    "Decent-Dune": "0x818f214c7f3e479cce1d964d53fe3db7297558cb",    # -$35K actual
+}
+
 # ─── Load user params override ───
 import logging as _logging
 _log = _logging.getLogger(__name__)

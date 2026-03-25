@@ -436,7 +436,7 @@ _W4_T2_DELAY_S = 480       # T2 confirmation at 8 min into window
 _W4_T1_PCT = 0.60          # T1 gets 60% of budget
 _W4_T2_PCT = 0.40          # T2 gets 40% (if direction confirmed)
 # ── W4 Order Repricing ──
-_REPRICE_COOLDOWN_S = 30    # max 1 reprice per 30s per market
+_REPRICE_COOLDOWN_S = 5     # max 1 reprice per 5s per market (was 30s, reduced 2026-03-25)
 _REPRICE_THRESHOLD = 0.02   # 2¢ drift triggers reprice
 _REPRICE_MAX_PER_ORDER = 3  # max 3 reprices per order lifetime
 # ── W4 Lean-Unfilled Protection (Door B) ──
