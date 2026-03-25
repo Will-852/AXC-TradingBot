@@ -580,20 +580,33 @@ def _execute_arb(client, session, sig, wl, up_mid, dn_mid,
         to_remove.append(cid)
         return
 
+    hedge_ok = False
     try:
         client.buy_shares(hedge_tok,
                           round(plan.hedge_shares * plan.hedge_price, 2),
                           plan.hedge_price)
+        hedge_ok = True
     except Exception as e:
-        log.warning("MODE_A hedge FAIL %s: %s (lean OK)", cid[:8], e)
+        log.warning("MODE_A hedge FAIL %s: %s → downgrade to mode B", cid[:8], e)
 
     session.mode_a_count += 1
-    session.pending_orders[cid] = {
-        "mode": "A", "coin": coin, "direction": sig.direction,
-        "combined": plan.combined_cost,
-        "shares": min(plan.lean_shares, plan.hedge_shares),
-        "open_price": open_price, "end_ms": wl["end_ms"],
-    }
+
+    if hedge_ok:
+        # Both sides submitted → track as arb
+        session.pending_orders[cid] = {
+            "mode": "A", "coin": coin, "direction": sig.direction,
+            "combined": plan.combined_cost,
+            "shares": min(plan.lean_shares, plan.hedge_shares),
+            "open_price": open_price, "end_ms": wl["end_ms"],
+        }
+    else:
+        # Only lean submitted → track as directional (correct PnL at resolution)
+        session.pending_orders[cid] = {
+            "mode": "B", "coin": coin, "direction": sig.direction,
+            "price": plan.lean_price,
+            "shares": plan.lean_shares,
+            "open_price": open_price, "end_ms": wl["end_ms"],
+        }
     session.save()
     to_remove.append(cid)
 

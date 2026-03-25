@@ -72,6 +72,8 @@ def plan_maker_arb(
 
     # Size allocation with lean ratio
     R = signal.lean_ratio
+    if R <= 0 or R != R or R == float("inf"):  # guard: nan, inf, negative
+        R = 1.0
     total_budget = bet_size_usd
 
     lean_budget = total_budget * R / (R + 1)
