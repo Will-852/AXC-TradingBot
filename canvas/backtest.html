@@ -1119,25 +1119,25 @@
       </div>
       <span class="sep"></span>
       <span class="ind-group-label" title="需要先執行回測才有數據">疊加指標 <small style="color:#64748b">⚡回測</small></span>
-      <label title="布林帶 Bollinger Bands（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
-      <label title="指數移動平均 EMA（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
-      <label title="移動平均 MA 50/200（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
-      <label title="成交量加權平均價 VWAP（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
+      <label title="布林帶 BB｜價格波動範圍（2個標準差）｜⚡需要回測｜用法：碰上軌=可能過熱 / 碰下軌=可能超賣 / 帶收窄=即將突破（squeeze）" ><input type="checkbox" checked onchange="toggleIndicator('AXC_BB')"> 布林</label>
+      <label title="EMA 快慢線｜短期 vs 長期趨勢方向｜⚡需要回測｜用法：快線穿上慢線=金叉（睇升）/ 快線穿落=死叉（睇跌）/ 價格企穩 EMA 上方=趨勢向上"><input type="checkbox" checked onchange="toggleIndicator('AXC_EMA')"> EMA</label>
+      <label title="MA 50/200｜長期趨勢（50日+200日均線）｜⚡需要回測｜用法：MA50>MA200=牛市 / MA50<MA200=熊市（死亡交叉）"><input type="checkbox" onchange="toggleIndicator('AXC_MA')"> MA</label>
+      <label title="VWAP 成交量加權平均價｜當日嘅「公平價」｜⚡需要回測｜用法：價格>VWAP=買方主導 / 價格<VWAP=賣方主導 / 常被機構用做基準"><input type="checkbox" onchange="toggleIndicator('AXC_VWAP')"> VWAP</label>
       <span class="sep"></span>
       <span class="ind-group-label" title="需要先執行回測才有數據">震盪指標 <small style="color:#64748b">⚡回測</small></span>
-      <label title="相對強弱指標 RSI（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
-      <label title="MACD（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
-      <label title="隨機指標 Stochastic（需要執行回測）"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+      <label title="RSI 相對強弱｜0-100 強弱度｜⚡需要回測｜用法：>70=超買（可能回調）/ <30=超賣（可能反彈）/ 50 附近=無方向"><input type="checkbox" onchange="toggleIndicator('AXC_RSI')"> RSI</label>
+      <label title="MACD 趨勢動量｜快慢EMA差值｜⚡需要回測｜用法：柱狀圖翻綠=動量轉強 / 翻紅=動量轉弱 / 金叉死叉同EMA類似但更靈敏"><input type="checkbox" onchange="toggleIndicator('AXC_MACD')"> MACD</label>
+      <label title="Stoch 隨機指標｜K線同D線（0-100）｜⚡需要回測｜用法：>80=超買 / <20=超賣 / K穿上D=短線買入信號"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
       <span class="sep"></span>
-      <label title="市場模式 Mode（需要執行回測）"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
+      <label title="市場模式 Mode｜自動判斷趨勢/震盪/突破｜⚡需要回測｜用法：趨勢模式=追 / 震盪模式=高拋低吸 / 突破模式=等確認"><input type="checkbox" checked onchange="toggleIndicator('AXC_MODE')"> 模式</label>
       <span class="sep"></span>
       <span class="fp-group-label">資金流</span>
-      <label title="大額成交 Whale（$100K+ 嘅大單）" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
-      <label title="買賣淨量 Delta（買 - 賣 = 淨流入/流出）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
-      <label title="價位分佈 VP（每個價位嘅成交量，右邊柱狀圖）" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
-      <label title="成交熱力圖 FP（每支蠟燭內嘅買賣分佈）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
+      <label title="大額成交 ≥$100K｜綠菱形=買方主導 紅菱形=賣方主導｜大嘅=金額大｜用法：大單出現方向通常係短期趨勢" class="fp-toggle" id="fp-large"><input type="checkbox" onchange="toggleFootprint('large')"> 大單</label>
+      <label title="淨量 Delta = 呢一刻邊邊更急｜綠bar=買方急（主動買多過賣）紅bar=賣方急｜用法：大綠bar=有人急住買→短線向上 / 價升但delta縮=動力減弱（背離）" class="fp-toggle" id="fp-delta"><input type="checkbox" onchange="toggleFootprint('delta')"> 淨量</label>
+      <label title="價位分佈 VP｜右邊柱狀圖：每個價位有幾多成交量｜藍=買 黃=賣｜POC=最多成交嘅價位（磁石）VA=70%成交集中區｜用法：價格會被POC吸引 / 出咗VA=突破" class="fp-toggle" id="fp-profile"><input type="checkbox" onchange="toggleFootprint('profile')"> 價位</label>
+      <label title="熱力圖 FP｜每支蠟燭入面嘅買賣分佈（色塊深淺=量）｜zoom入<30支candle先見數字｜用法：同一價位買>>賣=吸收（支撐）/ 賣>>買=派發（阻力）" class="fp-toggle" id="fp-heatmap"><input type="checkbox" onchange="toggleFootprint('heatmap')"> 熱圖</label>
       <button class="fp-mode-btn" id="fp-mode-btn" onclick="toggleFpMode()" title="切換色塊/氣泡模式">Blk</button>
-      <label title="累積淨量 CVD（買賣淨量嘅持續加總，升=買方主導）" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
+      <label title="累積淨量 CVD = 由頭到而家邊邊一直更急｜持續升=買方一直主導 持續跌=賣方一直主導｜用法：價跌但CVD升=有人偷偷吸貨（睇升）/ 價升但CVD跌=有人偷偷出貨（睇跌）" class="fp-toggle" id="fp-cvd"><input type="checkbox" onchange="toggleFootprint('cvd')"> 累積</label>
       <button class="vol-preset-btn" onclick="activateVolPreset()" title="一鍵開/關：價位+熱圖+累積">全開</button>
       <button class="vol-preset-btn" onclick="clearAllFlowPanes()" title="清除所有資金流指標" style="color:#ef5350">清除</button>
       <span class="sep"></span>
