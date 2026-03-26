@@ -211,7 +211,7 @@ class RangeStrategy(StrategyBase):
             pass
         rsi_long = tf_params.get("rsi_long", 40.0)       # 1h default
         rsi_short = tf_params.get("rsi_short", 60.0)    # 1h default
-        bb_touch_tol = tf_params.get("bb_touch_tol", 0.009)  # 2026-03-26: was 0.006
+        bb_touch_tol = tf_params.get("bb_touch_tol", 0.006)  # default
 
         # ─── Sub-scores ───
         bb_score, direction = _score_bb_touch(price, bb_upper, bb_lower, bb_touch_tol)
