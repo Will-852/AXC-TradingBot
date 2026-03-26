@@ -729,7 +729,7 @@ def execute_order(order: dict) -> dict:
 
         # Set margin + leverage
         try:
-            client.set_margin_mode(symbol, "ISOLATED")
+            client.set_margin_mode(symbol, "CROSSED")
         except Exception:
             pass  # may already be set
         client.set_leverage(symbol, leverage)

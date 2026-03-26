@@ -395,7 +395,7 @@ def handle_cancel_order(body):
 def handle_place_order(body):
     """POST /api/place-order — open a new position from dashboard trade modal.
     Execution sequence:
-      ① set_margin_mode ISOLATED
+      ① set_margin_mode CROSSED
       ② set_leverage
       ③ market/limit entry
       ④ SL (critical — failure triggers emergency close; skipped for pending limit)
@@ -476,7 +476,7 @@ def handle_place_order(body):
     try:
         # ① Margin mode
         try:
-            client.set_margin_mode(symbol, "ISOLATED")
+            client.set_margin_mode(symbol, "CROSSED")
         except Exception:
             pass  # may already be set
 
