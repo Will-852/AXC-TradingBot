@@ -95,7 +95,7 @@ _COIN_SYMBOLS = {
     "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT",
 }
 # BTC paper-only. Others observe (collect signals, no execution).
-_LIVE_COINS = set()  # empty = all dry-run for now
+_LIVE_COINS = {"BTC", "SOL"}  # BTC+SOL live, ETH observe-only
 
 _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0}
 
@@ -396,6 +396,10 @@ def _execute_order(client, token_id: str, outcome: str,
                    coin: str = "BTC", cid: str = "") -> dict:
     """Submit a single limit order. dry_run = hard block on real orders."""
     shares = size_usd / price if price > 0 else 0
+    # Hard cap: 10 shares max (testing phase)
+    if shares > 10:
+        shares = 10
+        size_usd = shares * price
     if shares < 5:
         min_cost = 5 * price
         if min_cost <= size_usd * 2:
@@ -626,7 +630,8 @@ def _check_resolutions(state: dict) -> None:
         mkt["phase"] = "RESOLVED"
         mkt["result"] = result
         mkt["payout"] = round(payout, 2)
-        mkt["realized_pnl"] = round(pnl, 2)
+        # += not = : profit lock may have already added partial PnL
+        mkt["realized_pnl"] = round(mkt.get("realized_pnl", 0) + pnl, 2)
         mkt["resolve_ts"] = datetime.now(tz=_HKT).isoformat(timespec="seconds")
 
         state["daily_pnl"] = state.get("daily_pnl", 0) + pnl
@@ -676,10 +681,14 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
             tok = mkt.get("up_token_id", "")
             side = "UP"
             shares = up_s
+            avg_price = mkt.get("up_avg_price", 0)
+            shares_key = "up_shares"
         else:
             tok = mkt.get("down_token_id", "")
             side = "DOWN"
             shares = dn_s
+            avg_price = mkt.get("down_avg_price", 0)
+            shares_key = "down_shares"
 
         mid = _poly_midpoint(tok) if tok else None
         if mid is None or mid < _PROFIT_LOCK_MID:
@@ -690,16 +699,22 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
             continue
 
         try:
-            sell_price = round(mid * 0.97, 2)  # slightly below mid for fast fill
-            r = client.buy_shares(tok, round(sell_shares * sell_price, 2), price=sell_price)
-            # Note: selling = buying the opposite side, or using sell_shares API
-            # For simplicity, log the intent
-            logger.info("PROFIT LOCK %s %s: sell %d/%d shares @ $%.2f (mid=$%.2f)",
-                        cid[:8], side, sell_shares, int(shares), sell_price, mid)
+            sell_price = 0.99  # limit sell near max — let buyers come to us
+            client.sell_shares(tok, sell_shares, price=sell_price)
+            pnl = sell_shares * (sell_price - avg_price)
+            mkt[shares_key] = shares - sell_shares
+            # Reduce entry_cost proportionally so resolution PnL is correct
+            sold_cost = sell_shares * avg_price
+            mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - sold_cost)
+            mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + pnl
+            state["daily_pnl"] = state.get("daily_pnl", 0) + pnl
+            state["total_pnl"] = state.get("total_pnl", 0) + pnl
+            logger.info("PROFIT LOCK %s %s: sell %d/%d @ $%.2f (mid=$%.2f) pnl=$%.2f",
+                        cid[:8], side, sell_shares, int(shares), sell_price, mid, pnl)
             _log_order("profit_lock", "", cid,
                        coin=mkt.get("coin", _coin_from_title(mkt.get("title", ""))),
                        side=side, mid=round(mid, 3),
-                       sell_shares=sell_shares, sell_price=sell_price)
+                       sell_shares=sell_shares, sell_price=sell_price, pnl=round(pnl, 2))
         except Exception as e:
             logger.warning("PROFIT LOCK FAILED %s: %s", cid[:8], e)
 
@@ -768,6 +783,7 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
     if state.get("daily_pnl_date") != today:
         state["daily_pnl"] = 0.0
         state["daily_pnl_date"] = today
+        state["daily_entries"] = 0
 
     # ── Fast ops (every cycle) ──
     if dry_run:
@@ -875,6 +891,13 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
             logger.debug("SKIP %s: market mid $%.2f too low (disagrees)", coin, market_mid)
             continue
 
+        # ── Daily entry cap (testing phase) ──
+        _MAX_DAILY_ENTRIES = 2
+        if state.get("daily_entries", 0) >= _MAX_DAILY_ENTRIES:
+            logger.info("DAILY CAP %s: %d/%d entries today — skip",
+                        coin, state["daily_entries"], _MAX_DAILY_ENTRIES)
+            continue
+
         # ── Execute ──
         token_id = our_tok
         result = _execute_order(client, token_id, sig["direction"],
@@ -883,6 +906,7 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
 
         if result.get("submitted"):
             _bump_fill(state, "submitted")
+            state["daily_entries"] = state.get("daily_entries", 0) + 1
 
             if cid not in state["markets"]:
                 state["markets"][cid] = {

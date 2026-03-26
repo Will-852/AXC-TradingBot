@@ -60,7 +60,7 @@ def _try_sell_partial(client, state: dict, cid: str, mkt: dict,
         # Calculate shares to sell
         _sell_shares = max(1, int(shares * sell_pct))
         _keep = shares - _sell_shares
-        sell_price = round(max(0.01, mid * 0.96), 2)  # 4% slippage (1H OB thinner)
+        sell_price = 0.99  # limit sell near max — let buyers come to us
         try:
             client.sell_shares(tok, _sell_shares, price=sell_price)
             pnl = _sell_shares * (sell_price - avg)

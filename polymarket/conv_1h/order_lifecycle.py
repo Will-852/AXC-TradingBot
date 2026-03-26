@@ -50,6 +50,10 @@ def _execute_order(client, token_id: str, outcome: str,
                    coin: str = "BTC", cid: str = "") -> dict:
     """Submit a single limit order."""
     shares = size_usd / price if price > 0 else 0
+    # Hard cap: 10 shares max (testing phase)
+    if shares > 10:
+        shares = 10
+        size_usd = shares * price
     if shares < 5:
         # Bump to minimum 5 shares if budget allows
         min_cost = 5 * price

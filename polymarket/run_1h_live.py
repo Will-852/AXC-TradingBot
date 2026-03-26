@@ -121,6 +121,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     if state.get("daily_pnl_date") != today:
         state["daily_pnl"] = 0.0
         state["daily_pnl_date"] = today
+        state["daily_entries"] = 0
 
     # ── Kill switches ──
     cooldown = state.get("cooldown_until", "")
@@ -425,12 +426,20 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 continue
             size_usd = max(2.50, min(size_usd, budget_left))
 
+            # ── Daily entry cap (testing phase) ──
+            _MAX_DAILY_ENTRIES = 2
+            if state.get("daily_entries", 0) >= _MAX_DAILY_ENTRIES:
+                logger.info("DAILY CAP %s: %d/%d entries today — skip",
+                            coin, state["daily_entries"], _MAX_DAILY_ENTRIES)
+                continue
+
             result = _execute_order(client, token_id, sig.direction,
                                     sig.entry_price, size_usd, dry_run,
                                     coin=coin, cid=cid)
 
             if result.get("submitted"):
                 _bump_fill(state, "submitted")
+                state["daily_entries"] = state.get("daily_entries", 0) + 1
                 # Enrich order log with holder signal for post-hoc analysis
                 _log_order("holder_signal", result.get("order_id", ""), cid, coin=coin,
                            h_imbal=round(h_imbal, 3), flip=_flip,

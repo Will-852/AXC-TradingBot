@@ -636,7 +636,7 @@ def _check_resolutions(state: dict) -> None:
         mkt["phase"] = "RESOLVED"
         mkt["result"] = result
         mkt["payout"] = round(payout, 2)
-        mkt["realized_pnl"] = round(pnl, 2)
+        mkt["realized_pnl"] = round(mkt.get("realized_pnl", 0) + pnl, 2)
         mkt["resolve_ts"] = datetime.now(tz=_HKT).isoformat(timespec="seconds")
         mkt["resolve_open"] = round(candle_open, 2)
         mkt["resolve_close"] = round(candle_close, 2)
@@ -707,7 +707,7 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
             continue
 
         try:
-            sell_price = round(max(0.01, mid * 0.96), 2)  # 4% slippage for fast fill
+            sell_price = 0.99  # limit sell near max — let buyers come to us
             client.sell_shares(tok, sell_count, price=sell_price)
             pnl = sell_count * (sell_price - avg_price)
             mkt[shares_key] = shares - sell_count
@@ -715,6 +715,8 @@ def _check_profit_lock(client, state: dict, dry_run: bool) -> None:
             sold_cost = sell_count * avg_price
             mkt["entry_cost"] = max(0, mkt.get("entry_cost", 0) - sold_cost)
             mkt["realized_pnl"] = mkt.get("realized_pnl", 0) + pnl
+            state["daily_pnl"] = state.get("daily_pnl", 0) + pnl
+            state["total_pnl"] = state.get("total_pnl", 0) + pnl
 
             logger.info("PROFIT LOCK %s %s: sell %d/%d @ $%.2f (mid=$%.2f) pnl=$%.2f",
                         cid[:8], side, sell_count, int(shares), sell_price, mid, pnl)
