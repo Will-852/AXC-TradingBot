@@ -48,7 +48,9 @@ body.body--dark { background: var(--bg) !important; }
 * { scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
 
 /* Remove NiceGUI default content padding */
+/* Sidebar is fixed 220px — offset content area to avoid overlap */
 .nicegui-content { padding: 0 !important; max-width: 100% !important; }
+.q-page-container { padding-left: 220px !important; }
 
 /* AG Grid dark override */
 .ag-theme-balham-dark {

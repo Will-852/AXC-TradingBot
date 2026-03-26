@@ -60,7 +60,7 @@ async def _show_modify_dialog(pos: dict):
             ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
             ui.button('Confirm', on_click=lambda: dialog.submit({
                 'sl': sl_input.value, 'tp': tp_input.value,
-            })).props('color=teal')
+            })).props('color=amber')
 
     try:
         result = await dialog
@@ -167,13 +167,13 @@ def _render_position_card(pos: dict):
                 ui.label(symbol.replace('USDT', '')).classes('text-base font-bold')
                 ui.badge(side, color='green' if side == 'LONG' else 'red') \
                     .classes('text-xs').props('dense')
-                ui.badge(f'{leverage}x', color='blue-grey') \
+                ui.badge(f'{leverage}x', color='grey-7') \
                     .classes('text-xs').props('dense')
                 ui.badge(platform.upper(), color='grey') \
                     .classes('text-xs').props('dense')
             with ui.row().classes('gap-1'):
                 ui.button('SL/TP', on_click=lambda p=pos: _show_modify_dialog(p)) \
-                    .props('flat dense size=sm color=teal')
+                    .props('flat dense size=sm color=amber')
                 async def _confirm_close(s=symbol, p=platform, pnl=pnl_val, mk=mark, sd=side):
                     dlg = ui.dialog().props('persistent')
                     dlg.move()
@@ -291,8 +291,8 @@ def _render_position_card(pos: dict):
                 ui.label('|').classes('text-xs text-gray-700')
             if hs and 'score' in hs:
                 sc = float(hs['score'])
-                color = ('green' if sc >= 8 else 'indigo' if sc >= 6
-                         else 'amber' if sc >= 4 else 'orange' if sc >= 2 else 'red')
+                color = ('green' if sc >= 8 else 'amber' if sc >= 6
+                         else 'amber' if sc >= 4 else 'deep-orange' if sc >= 2 else 'red')
                 factors = hs.get('factors', [])
                 badge = ui.badge(f'{sc:.1f}', color=color).classes('text-xs')
                 if factors:
@@ -319,6 +319,8 @@ def render_positions():
     ui.label('PENDING ORDERS').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
     orders_container = ui.column().classes('w-full')
 
+    _last_hash = {'pos': '', 'ord': ''}
+
     def update():
         if _pos_dialog_open['value']:
             return
@@ -326,57 +328,68 @@ def render_positions():
         positions = d.get('live_positions', [])
         orders = d.get('open_orders', [])
 
-        # Positions
-        positions_container.clear()
-        with positions_container:
-            if not positions:
-                ui.label('No open positions').classes('text-gray-600 text-sm')
-            else:
-                for pos in positions:
-                    _render_position_card(pos)
+        # Skip rebuild if data unchanged (prevents DOM flash)
+        import json
+        pos_hash = json.dumps([(p.get('symbol'), p.get('size'), p.get('pnl'), p.get('liqPrice'), p.get('holdScore')) for p in positions], separators=(',',':'))
+        if pos_hash == _last_hash['pos']:
+            pass  # positions unchanged — skip rebuild
+        else:
+            _last_hash['pos'] = pos_hash
+            positions_container.clear()
+            with positions_container:
+                if not positions:
+                    ui.label('No open positions').classes('text-gray-600 text-sm')
+                else:
+                    for pos in positions:
+                        _render_position_card(pos)
 
         # Pending orders
-        orders_container.clear()
-        with orders_container:
-            if not orders:
-                ui.label('No pending orders').classes('text-gray-600 text-sm')
-            else:
-                for order in orders:
-                    sym = order.get('symbol', '?')
-                    side = order.get('side', '?')
-                    otype = order.get('type', '?')
-                    price = order.get('price', '?')
-                    qty = order.get('qty', '?')
-                    oid = order.get('orderId', order.get('order_id', ''))
-                    platform = order.get('platform', 'aster')
+        ord_hash = json.dumps([(o.get('orderId'), o.get('status')) for o in orders], separators=(',',':'))
+        if ord_hash == _last_hash['ord']:
+            pass  # orders unchanged
+        else:
+            _last_hash['ord'] = ord_hash
+            orders_container.clear()
+            with orders_container:
+                if not orders:
+                    ui.label('No pending orders').classes('text-gray-600 text-sm')
+                else:
+                    for order in orders:
+                        sym = order.get('symbol', '?')
+                        side = order.get('side', '?')
+                        otype = order.get('type', '?')
+                        price = order.get('price', '?')
+                        qty = order.get('qty', '?')
+                        oid = order.get('orderId', order.get('order_id', ''))
+                        platform = order.get('platform', 'aster')
 
-                    with ui.row().classes('items-center gap-3 w-full py-1 border-b border-gray-800'):
-                        ui.label(sym).classes('text-sm font-bold min-w-[90px]')
-                        ui.badge(side, color='green' if side == 'BUY' else 'red').classes('text-xs')
-                        ui.label(otype).classes('text-xs text-gray-500')
-                        ui.label(f'@ {price}').classes('text-sm font-mono')
-                        ui.label(f'x {qty}').classes('text-xs text-gray-400')
+                        with ui.row().classes('items-center gap-3 w-full py-1 border-b border-gray-800'):
+                            ui.label(sym).classes('text-sm font-bold min-w-[90px]')
+                            ui.badge(side, color='green' if side == 'BUY' else 'red').classes('text-xs')
+                            ui.label(otype).classes('text-xs text-gray-500')
+                            ui.label(f'@ {price}').classes('text-sm font-mono')
+                            ui.label(f'x {qty}').classes('text-xs text-gray-400')
 
-                        async def cancel_order(s=sym, p=platform, o=oid):
-                            import json as _json
-                            try:
-                                from scripts.dashboard.handlers import handle_cancel_order
-                                payload = _json.dumps({'symbol': s, 'platform': p, 'orderId': o})
-                                result = await run.io_bound(handle_cancel_order, payload)
-                                if isinstance(result, tuple):
-                                    status, data = result
-                                    if status == 200:
+                            async def cancel_order(s=sym, p=platform, o=oid):
+                                import json as _json
+                                try:
+                                    from scripts.dashboard.handlers import handle_cancel_order
+                                    payload = _json.dumps({'symbol': s, 'platform': p, 'orderId': o})
+                                    result = await run.io_bound(handle_cancel_order, payload)
+                                    if isinstance(result, tuple):
+                                        status, data = result
+                                        if status == 200:
+                                            ui.notify(f'Cancelled {s}', type='positive')
+                                        else:
+                                            ui.notify(f'Cancel failed: {data.get("error", "unknown")}', type='negative')
+                                    elif isinstance(result, dict) and result.get('ok'):
                                         ui.notify(f'Cancelled {s}', type='positive')
                                     else:
-                                        ui.notify(f'Cancel failed: {data.get("error", "unknown")}', type='negative')
-                                elif isinstance(result, dict) and result.get('ok'):
-                                    ui.notify(f'Cancelled {s}', type='positive')
-                                else:
-                                    ui.notify(f'Cancel failed: {result}', type='negative')
-                            except Exception as e:
-                                ui.notify(f'Cancel error: {e}', type='negative')
+                                        ui.notify(f'Cancel failed: {result}', type='negative')
+                                except Exception as e:
+                                    ui.notify(f'Cancel error: {e}', type='negative')
 
-                        ui.button('Cancel', on_click=cancel_order) \
-                            .props('flat dense size=xs color=red')
+                            ui.button('Cancel', on_click=cancel_order) \
+                                .props('flat dense size=xs color=red')
 
     ui.timer(3, update)

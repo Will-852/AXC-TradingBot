@@ -11,7 +11,7 @@ def render_pnl_chart():
     ui.label('PNL HISTORY').classes(SECTION_HEADER)
 
     time_range = ui.toggle(['1H', '4H', '1D', '7D', 'ALL'], value='1D') \
-        .props('dense no-caps size=sm color=blue-grey-6')
+        .props('dense no-caps size=sm color=grey-7')
 
     chart = ui.echart({
         'darkMode': True,

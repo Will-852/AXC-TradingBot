@@ -54,7 +54,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         # ── Header ──
         with ui.row().classes('items-center justify-between w-full mb-3'):
             ui.label('New Order').classes('text-xl font-bold')
-            ui.badge('CROSS MARGIN', color='teal', outline=True).classes('text-[10px]')
+            ui.badge('CROSS MARGIN', color='amber', outline=True).classes('text-[10px]')
 
         # ── Symbol + Platform ──
         with ui.row().classes('gap-4 w-full'):
@@ -66,7 +66,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
             ).classes('w-36').props('dense outlined dark')
 
         # ── Side ──
-        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY').props('no-caps color=teal spread')
+        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY').props('no-caps color=amber spread')
 
         # ── Order type ──
         type_toggle = ui.toggle(['MARKET', 'LIMIT'], value='MARKET').props('dense no-caps color=grey-7')
@@ -95,7 +95,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         with ui.row().classes('gap-4 w-full items-end'):
             leverage_input = ui.number('Leverage', value=5, min=1, max=125, step=1) \
                 .classes('w-32').props('dense outlined dark')
-            notional_label = ui.label('').classes('text-xs text-teal-400 font-mono')
+            notional_label = ui.label('').classes('text-xs text-amber-400 font-mono')
 
         # ── SL / TP ──
         with ui.row().classes('gap-4 w-full'):
@@ -296,7 +296,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         with ui.row().classes('gap-3 justify-end w-full'):
             ui.button('Cancel', on_click=lambda: dialog.submit(None)).props('flat color=grey')
             submit_btn = ui.button('Place Order', icon='send', on_click=submit_order) \
-                .props('color=teal')
+                .props('color=amber')
 
         # ── Init ──
         async def init_dialog():

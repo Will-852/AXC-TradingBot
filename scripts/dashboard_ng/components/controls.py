@@ -82,7 +82,7 @@ def render_controls():
                     'ZONE_B': 'B · 15-18x',
                 },
                 value='ZONE_A',
-            ).props('dense no-caps color=teal')
+            ).props('dense no-caps color=amber')
 
             async def on_profile(e):
                 if syncing['active']:
@@ -113,7 +113,7 @@ def render_controls():
                     'full': 'Full',
                 },
                 value='full',
-            ).props('dense no-caps color=teal')
+            ).props('dense no-caps color=amber')
 
             async def on_regime(e):
                 if syncing['active']:
@@ -218,7 +218,7 @@ def render_service_panel():
                         await refresh_status()
 
                     ui.button(icon='refresh', on_click=on_restart).props(
-                        'flat dense round color=teal size=sm'
+                        'flat dense round color=amber size=sm'
                     ).tooltip('Restart')
 
         ui.separator()
@@ -252,7 +252,7 @@ def render_service_panel():
                 dlg.open()
 
             ui.button('Dry Run', icon='science', on_click=on_run_dry).props(
-                'dense no-caps color=blue-grey'
+                'dense no-caps color=grey-7'
             )
             ui.button('Live Run', icon='bolt', on_click=on_run_live).props(
                 'dense no-caps color=deep-orange'

@@ -165,7 +165,7 @@ def render_polymarket_page():
             # Auth badges
             ui.badge('L1 Key', color='green' if auth['key'] else 'red').classes('text-[11px]')
             ui.badge('L2 API', color='green' if auth['l2_creds'] else 'grey').classes('text-[11px]')
-            ui.badge(auth['network'], color='purple').classes('text-[11px]')
+            ui.badge(auth['network'], color='grey-7').classes('text-[11px]')
 
             # Spacer + Settings button
             ui.element('div').classes('flex-1')
@@ -392,9 +392,9 @@ def render_polymarket_page():
             else:
                 ui.notify(msg or 'No mergeable positions', type='info')
 
-        run_btn = ui.button('Run Cycle', icon='play_arrow', on_click=run_cycle).props('color=teal')
+        run_btn = ui.button('Run Cycle', icon='play_arrow', on_click=run_cycle).props('color=amber')
         scan_btn = ui.button('Force Scan', icon='search', on_click=force_scan).props('color=grey-7')
-        mode_btn = ui.button('Mode: —', icon='toggle_on', on_click=toggle_mode).props('color=orange')
+        mode_btn = ui.button('Mode: —', icon='toggle_on', on_click=toggle_mode).props('color=deep-orange')
         ui.button('Check Merge', icon='merge_type', on_click=check_merge).props('flat color=grey-6')
         ui.button('Refresh', icon='refresh', on_click=refresh).props('flat color=grey')
 
@@ -423,7 +423,7 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700 my-2')
 
     # ── Analytics / Ops tabs (full width, below split) ──
-    with ui.tabs().classes('w-full').props('dense align=left active-color=teal indicator-color=teal') as tabs:
+    with ui.tabs().classes('w-full').props('dense align=left active-color=amber indicator-color=amber') as tabs:
         tab_analytics = ui.tab('Analytics', icon='analytics')
         tab_ops = ui.tab('Ops', icon='engineering')
 
@@ -483,7 +483,7 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700')
     with ui.row().classes('items-center gap-2'):
         ui.label('RUNNING PROCESSES').classes('text-xs text-gray-500 uppercase tracking-wide')
-        proc_count_badge = ui.badge('0', color='teal').classes('text-[11px] font-mono')
+        proc_count_badge = ui.badge('0', color='amber').classes('text-[11px] font-mono')
 
     from scripts.dashboard_ng.utils.poly_bot_control import (
         BOT_DEFS as _BOT_DEFS, start_bot as _start, stop_bot as _stop,
@@ -552,7 +552,7 @@ def render_polymarket_page():
 
             sched_toggle = ui.switch('', value=sched.get('enabled', False),
                                      on_change=lambda e, k=key: on_sched_change(k)) \
-                .props('dense color=teal size=sm')
+                .props('dense color=amber size=sm')
 
             sched_inputs[key] = {
                 'start': start_input, 'stop': stop_input,
@@ -642,7 +642,7 @@ def render_polymarket_page():
             else:
                 for p in procs:
                     with ui.row().classes('items-center gap-2 w-full py-0.5'):
-                        ui.badge(f'PID {p["pid"]}', color='teal').classes('font-mono text-[12px]')
+                        ui.badge(f'PID {p["pid"]}', color='amber').classes('font-mono text-[12px]')
                         # Show uptime only if meaningful (>1min)
                         up = p['uptime'].strip()
                         if up and up != '00:00' and not up.startswith('00:0'):
@@ -713,7 +713,7 @@ def render_polymarket_page():
         is_dry = state.get('dry_run', True)
         mode_str = 'DRY RUN' if is_dry else 'LIVE'
         mode_btn.text = f'Mode: {mode_str}'
-        mode_btn.props(f'color={"orange" if is_dry else "green"}')
+        mode_btn.props(f'color={"deep-orange" if is_dry else "green"}')
 
         # Risk mode from mm_state.json (shown next to mode button)
         try:

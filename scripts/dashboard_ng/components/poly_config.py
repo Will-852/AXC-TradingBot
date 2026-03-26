@@ -156,7 +156,7 @@ def render_poly_config():
                     fmt = '%.0f' if is_int else f'%.{max(0, len(str(step).split(".")[-1]) if "." in str(step) else 0)}f'
 
                     slider = ui.slider(min=mn, max=mx, step=step, value=val) \
-                        .props('dense color=blue-grey-6') \
+                        .props('dense color=grey-7') \
                         .classes('flex-1')
 
                     val_label = ui.label(f'{val}{unit}').classes(

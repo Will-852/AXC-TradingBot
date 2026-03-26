@@ -62,7 +62,7 @@ def render_risk_boxes():
                         'Consecutive Losses',
                         consec,
                         risk.get('max_consecutive_losses', 5),
-                        color='orange',
+                        color='deep-orange',
                     )
                     _risk_bar(
                         'Daily Loss ($)',

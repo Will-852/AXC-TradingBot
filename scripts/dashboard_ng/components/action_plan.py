@@ -72,7 +72,7 @@ def render_action_plan():
                         finally:
                             _dialog_open['value'] = False
                     ui.button(f'📊 {sym.replace("USDT","")}', on_click=show_ob) \
-                        .props('outline dense size=sm color=blue-grey-5') \
+                        .props('outline dense size=sm color=grey-7') \
                         .tooltip(f'Order Book {sym}')
 
         grid_container.clear()
