@@ -204,6 +204,10 @@ def handle_close_position(body):
         limit_price = float(data.get("limit_price") or 0)
     except (ValueError, TypeError):
         limit_price = 0
+    try:
+        close_qty = float(data.get("qty") or 0)  # 0 = close all
+    except (ValueError, TypeError):
+        close_qty = 0
 
     if not symbol or not symbol.endswith("USDT"):
         return 400, {"error": f"Invalid symbol: {symbol}"}
@@ -474,11 +478,21 @@ def handle_place_order(body):
     t_start = time.time()
 
     try:
-        # ① Margin mode
+        # ① Margin mode (from UI toggle, default CROSSED)
+        margin_mode = (data.get("margin_mode") or "CROSSED").upper().strip()
+        if margin_mode not in ("CROSSED", "ISOLATED"):
+            margin_mode = "CROSSED"
+        margin_warnings = []
         try:
-            client.set_margin_mode(symbol, "CROSSED")
-        except Exception:
-            pass  # may already be set
+            client.set_margin_mode(symbol, margin_mode)
+        except Exception as margin_err:
+            err_str = str(margin_err)
+            if "No need to change" in err_str or "-4046" in err_str:
+                pass  # already set to requested mode
+            else:
+                margin_warnings.append(
+                    f"⚠️ Margin mode 未能切換到 {margin_mode}（可能有持倉）: {err_str[:80]}"
+                )
 
         # ② Leverage
         client.set_leverage(symbol, leverage)
@@ -569,6 +583,10 @@ def handle_place_order(body):
             except Exception as tp_err:
                 logging.warning("Dashboard TP failed (SL active): %s %s → %s", platform, symbol, tp_err)
                 resp["warnings"] = [f"TP 設置失敗 (SL 保護中): {tp_err}"]
+
+        # Merge margin warnings into response
+        if margin_warnings:
+            resp.setdefault("warnings", []).extend(margin_warnings)
 
         # Timing: total + entry fill
         t_end = time.time()

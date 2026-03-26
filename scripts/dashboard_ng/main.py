@@ -82,7 +82,7 @@ def main_page():
     )
 
     from scripts.dashboard_ng.components.chat import render_chat_toggle
-    from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
+    # Health + Diagrams moved to sidebar (layout.py)
 
     with ui.column().classes('w-full p-3 gap-2'):
         # ── Row 1: Controls (inline with) Service Panel ──
@@ -126,16 +126,7 @@ def main_page():
                 render_scan_log()
                 render_activity_log()
 
-        # ── Row 6: Health + Suggest (exchange moved to header) ──
-        with ui.row().classes('gap-2 w-full'):
-            with ui.column().classes('flex-1 min-w-[300px]'):
-                render_health_panel()
-            with ui.column().classes('flex-1 min-w-[200px]'):
-                render_suggest_mode()
-
-        # ── Row 7: System diagrams ──
-        from scripts.dashboard_ng.components.diagrams import render_all_diagrams
-        render_all_diagrams()
+        # Row 6+7 (Health, Mode Suggest, Diagrams) moved to sidebar — see layout.py
 
     # Floating chat button
     render_chat_toggle()

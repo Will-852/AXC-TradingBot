@@ -106,7 +106,7 @@ def create_layout(active_path: str = '/'):
         app.storage.user['dark_mode'] = True
 
     # ── Sidebar (220px — IBKR standard, toggleable) ──
-    drawer = ui.left_drawer(value=True, fixed=True) \
+    drawer = ui.left_drawer(value=True, fixed=False) \
         .classes(f'{SIDEBAR_CLS} p-0') \
         .props(f'width={SIDEBAR_WIDTH} breakpoint=0')
 
@@ -198,6 +198,22 @@ def create_layout(active_path: str = '/'):
         services_container = ui.column().classes('px-3 gap-0 w-full')
         for label, display in CORE_SERVICES:
             _service_row(label, display, services_container)
+
+        ui.separator().classes(f'my-2 bg-[{BORDER}]')
+
+        # Health + Mode Suggest + Diagrams (moved from main content to avoid overlap)
+        if active_path == '/':
+            from scripts.dashboard_ng.components.health import render_health_panel, render_suggest_mode
+            with ui.column().classes('px-2 gap-1 w-full'):
+                render_health_panel()
+                render_suggest_mode()
+
+            ui.separator().classes(f'my-2 bg-[{BORDER}]')
+
+            ui.label('WORKFLOWS').classes(f'{SECTION_HEADER} px-3 pb-0.5')
+            from scripts.dashboard_ng.components.diagrams import render_all_diagrams
+            with ui.column().classes('px-1 w-full'):
+                render_all_diagrams()
 
     # ── Footer (compact) ──
     with ui.footer().classes(f'{FOOTER_CLS} py-0.5 px-4 h-[24px]'):

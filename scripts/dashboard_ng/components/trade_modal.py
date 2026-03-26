@@ -51,10 +51,13 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
     dialog = ui.dialog().props('persistent')
     dialog.move()
     with dialog, ui.card().classes('p-6 min-w-[420px] max-w-[520px]'):
-        # ── Header ──
+        # ── Header + Margin Mode ──
         with ui.row().classes('items-center justify-between w-full mb-3'):
             ui.label('New Order').classes('text-xl font-bold')
-            ui.badge('CROSS MARGIN', color='amber', outline=True).classes('text-[10px]')
+            margin_toggle = ui.toggle(
+                {'CROSSED': 'CROSS', 'ISOLATED': 'ISOLATED'},
+                value='CROSSED',
+            ).props('dense no-caps size=sm color=amber')
 
         # ── Symbol + Platform ──
         with ui.row().classes('gap-4 w-full'):
@@ -65,8 +68,16 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                 value=platform, label='Exchange',
             ).classes('w-36').props('dense outlined dark')
 
-        # ── Side ──
-        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY').props('no-caps color=amber spread')
+        # ── Side (green=BUY, red=SELL — dynamic color) ──
+        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY') \
+            .props('no-caps spread glossy') \
+            .classes('font-bold')
+
+        def _update_side_color():
+            c = 'green' if side_toggle.value == 'BUY' else 'red'
+            side_toggle.props(f'color={c}')
+        side_toggle.on_value_change(lambda: _update_side_color())
+        _update_side_color()
 
         # ── Order type ──
         type_toggle = ui.toggle(['MARKET', 'LIMIT'], value='MARKET').props('dense no-caps color=grey-7')
@@ -250,6 +261,7 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                     'order_type': type_toggle.value,
                     'qty': qty_input.value,
                     'leverage': int(leverage_input.value or 5),
+                    'margin_mode': margin_toggle.value,
                     'limit_price': limit_price_input.value if type_toggle.value == 'LIMIT' else None,
                     'sl_price': sl_input.value,
                     'tp_price': tp_input.value,
