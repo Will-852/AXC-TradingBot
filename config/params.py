@@ -318,56 +318,6 @@ SIGNAL_COOLDOWN_HOURS = 12
 # Data evidence format: Sharpe~, WR, n (180d+360d combined)
 # Only rules backed by BOTH 180d AND 360d stability
 
-REGIME_SIGNAL_RULES = {
-    # ── BLOCK: stable negative expectancy across both periods ──
-    # BTC HIGH×TREND×trend: Sharpe~-0.10, WR 28%, n=61
-    ("BTCUSDT", "HIGH", "TREND", "trend"): "BLOCK",
-    # BTC NORMAL×RANGE×range: Sharpe~-0.10, WR 40%, n=42
-    ("BTCUSDT", "NORMAL", "RANGE", "range"): "BLOCK",
-    # XRP NORMAL×TREND×trend: Sharpe~-0.23, WR 23%, n=27
-    ("XRPUSDT", "NORMAL", "TREND", "trend"): "BLOCK",
-
-    # ── LOW vol: blanket block except BTC LOW×RANGE×range ──
-    # 180d data: only BTC LOW×RANGE×range is positive (+$200, 67% WR, n=9).
-    # All others negative (XRP -$928, ETH -$252, crash 0% WR).
-    # Handled in get_regime_rule() — not per-cell rules.
-
-    # ── BLOCK: NORMAL×RANGE×trend — trend-in-RANGE is a trap ──
-    # ETH: 33% WR, n=3 | XRP: 14% WR, -$119/trade, n=7 | BTC: pattern consistent
-    # SOL: 0% WR, -$886, n=4 (180d dead zone)
-    ("ETHUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
-    ("XRPUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
-    ("BTCUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
-    ("SOLUSDT", "NORMAL", "RANGE", "trend"): "BLOCK",
-
-    # ── BLOCK: HIGH×RANGE×range — range-in-RANGE high vol, negative EV ──
-    # BTC: 38% WR, -$579, n=26 (SL sweep 0.5-1.3 all PF<1)
-    ("BTCUSDT", "HIGH", "RANGE", "range"): "BLOCK",
-
-    # ── BLOCK: HIGH×CRASH×trend — XRP crash regime trend trap ──
-    # XRP: 0% WR, -$255, n=4
-    ("XRPUSDT", "HIGH", "CRASH", "trend"): "BLOCK",
-
-    # ── BLOCK: HIGH×TREND×crash — SOL crash-in-TREND trap ──
-    # SOL: 0% WR, -$211, n=3
-    ("SOLUSDT", "HIGH", "TREND", "crash"): "BLOCK",
-
-    # ── BOOST: stable high-Sharpe edge — lower conf_gate to capture more ──
-    # XRP NORMAL×RANGE×range: Sharpe~+0.48, WR 60%, n=31, calibrated
-    ("XRPUSDT", "NORMAL", "RANGE", "range"): {"conf_gate": 0.35},
-    # ETH HIGH×CRASH×trend: Sharpe~+0.80, WR 54%, n=30, calibrated
-    ("ETHUSDT", "HIGH", "CRASH", "trend"): {"conf_gate": 0.35},
-
-    # ── ALLOW with tighter gate: thin but stable edge ──
-    # XRP HIGH×TREND×trend: Sharpe~+0.14, WR 36%, n=92, calibrated
-    ("XRPUSDT", "HIGH", "TREND", "trend"): {"conf_gate": 0.55},
-    # ETH HIGH×RANGE×range: conf_gate 0.50 failed — still -$102, WR 42%, n=19 (180d)
-    ("ETHUSDT", "HIGH", "RANGE", "range"): "BLOCK",
-    # BTC HIGH×CRASH×trend: Sharpe~+0.03, WR 32%, n=38, barely positive
-    ("BTCUSDT", "HIGH", "CRASH", "trend"): {"conf_gate": 0.55},
-}
-
-
 def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
                     strategy: str) -> str | dict | None:
     """Lookup regime-conditional rule for a specific cell.
@@ -377,27 +327,20 @@ def get_regime_rule(pair: str, vol_regime: str, market_mode: str,
         {"conf_gate": float} — use this conf_gate instead of default
         None — no rule, use defaults
 
-    Design: LOW vol blanket-blocked except BTC LOW×RANGE×range (+$200, 67% WR).
-    Per-cell rules block additional proven bad cells (signal quality issues).
+    2026-03-19: Blanket blocking disabled. Net effect was negative —
+    blocked good trades along with bad ones. Returns None for all cells.
     """
-    # 2026-03-19: Blanket blocking disabled. Net effect was negative —
-    # blocked good trades along with bad ones. Portfolio +14.3% without filters
-    # vs ~0% with filters. Only LINKUSDT consistently negative across all configs.
     return None
 
 
 # ═══════════════════════════════════════
 # User Override: config/user_params.py（gitignored）
-# 用家自訂參數放呢度，git pull 永遠唔衝突
 # ═══════════════════════════════════════
 import importlib.util as _ilu
 import logging as _logging
 import os as _os
 
 _log = _logging.getLogger(__name__)
-
-# Dashboard / tg_bot 用 regex 直接寫入 params.py，
-# 如果 user_params.py 覆蓋呢啲值，UI 切換會無效。
 _USER_OVERRIDE_BLOCKLIST = {"ACTIVE_PROFILE", "ACTIVE_REGIME_PRESET"}
 
 _user_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "user_params.py")

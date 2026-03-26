@@ -79,7 +79,18 @@ PARAM_REGISTRY: dict[str, ParamSpec] = {
     "sl_atr_mult_trend": ParamSpec("sl_atr_mult_trend", 1.0,  2.0,  0.1, "position", "Trend SL = N x ATR"),
     "min_rr":            ParamSpec("min_rr",            1.5,  3.0,  0.5, "position", "Minimum reward:risk"),
     # ─── trend（monkey-patch trend_strategy module global）───
-    "pullback_tolerance": ParamSpec("pullback_tolerance", 0.010, 0.025, 0.005, "trend", "Pullback vs MA50 tolerance"),
+    "pullback_tolerance":     ParamSpec("pullback_tolerance",     0.015, 0.050, 0.005, "trend", "Pullback vs MA50 tolerance"),
+    "confidence_threshold":   ParamSpec("confidence_threshold",   0.25,  0.45,  0.05,  "trend", "Min weighted confidence to fire"),
+    "macd_hist_decay":        ParamSpec("macd_hist_decay",        0.4,   0.8,   0.1,   "trend", "MACD histogram decay exit threshold"),
+    # ─── crash（monkey-patch crash_strategy module global）───
+    "crash_rsi_entry":   ParamSpec("crash_rsi_entry",   50,  70,  5,   "crash", "Crash RSI overbought entry threshold"),
+    "crash_sl_atr_mult": ParamSpec("crash_sl_atr_mult", 1.5, 3.0, 0.5, "crash", "Crash SL = N x ATR"),
+    "crash_min_rr":      ParamSpec("crash_min_rr",      1.0, 2.5, 0.5, "crash", "Crash min reward:risk"),
+    # ─── squeeze（monkey-patch squeeze_strategy module global）───
+    "sqz_bb_pctl":       ParamSpec("sqz_bb_pctl",       20,  40,  5,   "squeeze", "Squeeze BB width percentile threshold"),
+    "sqz_sl_atr_mult":   ParamSpec("sqz_sl_atr_mult",   1.0, 2.0, 0.5, "squeeze", "Squeeze SL = N x ATR"),
+    "sqz_tp_atr_mult":   ParamSpec("sqz_tp_atr_mult",   2.0, 4.0, 0.5, "squeeze", "Squeeze TP = N x ATR"),
+    "sqz_min_rr":        ParamSpec("sqz_min_rr",        1.5, 3.0, 0.5, "squeeze", "Squeeze min reward:risk"),
     # ─── volume spike（indicator patch + scorer override）───
     "vol_spike_mult":  ParamSpec("vol_spike_mult",  1.5, 3.0, 0.5, "indicator", "Volume spike threshold multiplier"),
     "vol_spike_bonus": ParamSpec("vol_spike_bonus", 0.0, 1.0, 0.25, "indicator", "Volume spike score bonus"),
@@ -156,13 +167,44 @@ def _worker_run(
     import pandas as pd
     from indicator_calc import TIMEFRAME_PARAMS
     from backtest.strategies.bt_range_strategy import BTRangeStrategy
-    from backtest.strategies.bt_trend_strategy import BTTrendStrategy
     from backtest.scoring import WeightedScorer
 
     # ─── Monkey-patch trend entry params (live strategy module globals) ───
+    # 用 production TrendStrategy（weighted confidence），唔用 BTTrendStrategy（binary 4-KEY）
+    import trader_cycle.strategies.trend_strategy as _ts
     if "pullback_tolerance" in combo:
-        import trader_cycle.strategies.trend_strategy as _ts
         _ts.PULLBACK_TOLERANCE = combo["pullback_tolerance"]
+    if "confidence_threshold" in combo:
+        _ts.CONFIDENCE_THRESHOLD = combo["confidence_threshold"]
+
+    # ─── Monkey-patch trend position/exit params ───
+    # 直接 patch trend_strategy module（from import 係 copy 唔係 reference）
+    if "sl_atr_mult_trend" in combo:
+        _ts.TREND_SL_ATR_MULT = combo["sl_atr_mult_trend"]
+    if "min_rr" in combo:
+        _ts.TREND_MIN_RR = combo["min_rr"]
+    if "macd_hist_decay" in combo:
+        _ts.MACD_HIST_DECAY_THRESHOLD = combo["macd_hist_decay"]
+
+    # ─── Monkey-patch crash params (production CrashStrategy module) ───
+    import trader_cycle.strategies.crash_strategy as _cs
+    if "crash_rsi_entry" in combo:
+        _cs.CRASH_RSI_ENTRY = combo["crash_rsi_entry"]
+    if "crash_sl_atr_mult" in combo:
+        _cs.CRASH_SL_ATR_MULT = combo["crash_sl_atr_mult"]
+    if "crash_min_rr" in combo:
+        _cs.CRASH_MIN_RR = combo["crash_min_rr"]
+
+    # ─── Monkey-patch squeeze params (production SqueezeStrategy module) ───
+    import trader_cycle.strategies.squeeze_strategy as _sq
+    if "sqz_bb_pctl" in combo:
+        _sq.BB_PCTL_SQUEEZE = combo["sqz_bb_pctl"]
+    if "sqz_sl_atr_mult" in combo:
+        _sq.SQZ_SL_ATR_MULT = combo["sqz_sl_atr_mult"]
+    if "sqz_tp_atr_mult" in combo:
+        _sq.SQZ_TP_ATR_MULT = combo["sqz_tp_atr_mult"]
+    if "sqz_min_rr" in combo:
+        _sq.SQZ_MIN_RR = combo["sqz_min_rr"]
 
     # ─── Patch TIMEFRAME_PARAMS for rsi_long / rsi_short ───
     for key in ("rsi_long", "rsi_short"):
@@ -188,23 +230,18 @@ def _worker_run(
         scorer_override = WeightedScorer(ScoringWeights(w_vol_spike=combo["vol_spike_bonus"]))
 
     # ─── Build position_overrides for BT strategies ───
+    # Range: 仍用 BTRangeStrategy（同 production 邏輯一致）
+    # Trend: 唔建 BTTrendStrategy — 用 production TrendStrategy + monkey-patch（上面已 patch）
     pos_range = {}
-    pos_trend = {}
     if "sl_atr_mult_range" in combo:
         pos_range["sl_atr_mult"] = combo["sl_atr_mult_range"]
-    if "sl_atr_mult_trend" in combo:
-        pos_trend["sl_atr_mult"] = combo["sl_atr_mult_trend"]
     if "min_rr" in combo:
         pos_range["min_rr"] = combo["min_rr"]
-        pos_trend["min_rr"] = combo["min_rr"]
 
     strat_overrides = {}
     if pos_range or scorer_override:
         strat_overrides["range"] = BTRangeStrategy(
             position_overrides=pos_range or None, scorer=scorer_override)
-    if pos_trend or scorer_override:
-        strat_overrides["trend"] = BTTrendStrategy(
-            position_overrides=pos_trend or None, scorer=scorer_override)
 
     # ─── Run per pair ───
     results = {}
@@ -531,10 +568,60 @@ def auto_validate_top(
 
     validated = []
 
+    # ─── Save original module globals for restore after each combo ───
+    import trader_cycle.strategies.trend_strategy as _ts
+    import trader_cycle.strategies.crash_strategy as _cs
+    import trader_cycle.strategies.squeeze_strategy as _sq
+    _orig = {
+        # trend
+        "ts_PULLBACK_TOLERANCE": _ts.PULLBACK_TOLERANCE,
+        "ts_CONFIDENCE_THRESHOLD": _ts.CONFIDENCE_THRESHOLD,
+        "ts_TREND_SL_ATR_MULT": _ts.TREND_SL_ATR_MULT,
+        "ts_TREND_MIN_RR": _ts.TREND_MIN_RR,
+        "ts_MACD_HIST_DECAY_THRESHOLD": _ts.MACD_HIST_DECAY_THRESHOLD,
+        # crash
+        "cs_CRASH_RSI_ENTRY": _cs.CRASH_RSI_ENTRY,
+        "cs_CRASH_SL_ATR_MULT": _cs.CRASH_SL_ATR_MULT,
+        "cs_CRASH_MIN_RR": _cs.CRASH_MIN_RR,
+        # squeeze
+        "sq_BB_PCTL_SQUEEZE": _sq.BB_PCTL_SQUEEZE,
+        "sq_SQZ_SL_ATR_MULT": _sq.SQZ_SL_ATR_MULT,
+        "sq_SQZ_TP_ATR_MULT": _sq.SQZ_TP_ATR_MULT,
+        "sq_SQZ_MIN_RR": _sq.SQZ_MIN_RR,
+    }
+
     for i, combo in enumerate(candidates):
         params = combo["params"]
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
         print(f"\n  ── Combo #{i+1}: {param_str} ──")
+
+        # ─── Monkey-patch trend params for this combo ───
+        if "pullback_tolerance" in params:
+            _ts.PULLBACK_TOLERANCE = params["pullback_tolerance"]
+        if "confidence_threshold" in params:
+            _ts.CONFIDENCE_THRESHOLD = params["confidence_threshold"]
+        if "sl_atr_mult_trend" in params:
+            _ts.TREND_SL_ATR_MULT = params["sl_atr_mult_trend"]
+        if "min_rr" in params:
+            _ts.TREND_MIN_RR = params["min_rr"]
+        if "macd_hist_decay" in params:
+            _ts.MACD_HIST_DECAY_THRESHOLD = params["macd_hist_decay"]
+        # crash
+        if "crash_rsi_entry" in params:
+            _cs.CRASH_RSI_ENTRY = params["crash_rsi_entry"]
+        if "crash_sl_atr_mult" in params:
+            _cs.CRASH_SL_ATR_MULT = params["crash_sl_atr_mult"]
+        if "crash_min_rr" in params:
+            _cs.CRASH_MIN_RR = params["crash_min_rr"]
+        # squeeze
+        if "sqz_bb_pctl" in params:
+            _sq.BB_PCTL_SQUEEZE = params["sqz_bb_pctl"]
+        if "sqz_sl_atr_mult" in params:
+            _sq.SQZ_SL_ATR_MULT = params["sqz_sl_atr_mult"]
+        if "sqz_tp_atr_mult" in params:
+            _sq.SQZ_TP_ATR_MULT = params["sqz_tp_atr_mult"]
+        if "sqz_min_rr" in params:
+            _sq.SQZ_MIN_RR = params["sqz_min_rr"]
 
         # ── Walk-Forward ──
         fold_results = []
@@ -638,6 +725,20 @@ def auto_validate_top(
             print(f"    ✅ VALIDATED")
         else:
             print(f"    ❌ REJECTED")
+
+        # ─── Restore all strategy globals ───
+        _ts.PULLBACK_TOLERANCE = _orig["ts_PULLBACK_TOLERANCE"]
+        _ts.CONFIDENCE_THRESHOLD = _orig["ts_CONFIDENCE_THRESHOLD"]
+        _ts.TREND_SL_ATR_MULT = _orig["ts_TREND_SL_ATR_MULT"]
+        _ts.TREND_MIN_RR = _orig["ts_TREND_MIN_RR"]
+        _ts.MACD_HIST_DECAY_THRESHOLD = _orig["ts_MACD_HIST_DECAY_THRESHOLD"]
+        _cs.CRASH_RSI_ENTRY = _orig["cs_CRASH_RSI_ENTRY"]
+        _cs.CRASH_SL_ATR_MULT = _orig["cs_CRASH_SL_ATR_MULT"]
+        _cs.CRASH_MIN_RR = _orig["cs_CRASH_MIN_RR"]
+        _sq.BB_PCTL_SQUEEZE = _orig["sq_BB_PCTL_SQUEEZE"]
+        _sq.SQZ_SL_ATR_MULT = _orig["sq_SQZ_SL_ATR_MULT"]
+        _sq.SQZ_TP_ATR_MULT = _orig["sq_SQZ_TP_ATR_MULT"]
+        _sq.SQZ_MIN_RR = _orig["sq_SQZ_MIN_RR"]
 
     # Summary
     print(f"\n{'='*60}")

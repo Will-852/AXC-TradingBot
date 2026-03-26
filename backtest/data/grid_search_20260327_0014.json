@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T16:14:30.360285+00:00",
+    "params_swept": [
+      "sqz_sl_atr_mult",
+      "sqz_tp_atr_mult",
+      "sqz_min_rr"
+    ],
+    "pairs": [
+      "ETHUSDT",
+      "BTCUSDT"
+    ],
+    "days": 365,
+    "total_combos": 0
+  },
+  "baseline": {
+    "score": 24.0867,
+    "trades": 212,
+    "return_pct": -8.99,
+    "adj_wr": 42.8,
+    "pf": 0.0,
+    "max_dd": 17.9,
+    "coverage": 100.0,
+    "per_symbol": {
+      "ETHUSDT": {
+        "total_trades": 139,
+        "winners": 59,
+        "losers": 80,
+        "return_pct": -3.05,
+        "win_rate": 42.4,
+        "cluster_adj_wr": 44.4,
+        "profit_factor": 0.95,
+        "max_drawdown_pct": 16.3,
+        "final_balance": 9694.52
+      },
+      "BTCUSDT": {
+        "total_trades": 73,
+        "winners": 27,
+        "losers": 46,
+        "return_pct": -14.92,
+        "win_rate": 37.0,
+        "cluster_adj_wr": 41.1,
+        "profit_factor": 0.66,
+        "max_drawdown_pct": 17.9,
+        "final_balance": 8507.66
+      }
+    }
+  },
+  "results": []
+}

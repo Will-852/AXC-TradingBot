@@ -57,6 +57,13 @@ VOL_QUIET_THRESHOLD = 0.80    # volume_ratio < 0.8 (was 0.7, too strict)
 SESSION_BONUS = 0.10
 OBV_DIVERGENCE_BONUS = 0.05
 
+# ─── Position params (module-level for grid_search monkey-patching) ───
+SQZ_RISK_PCT = 0.03
+SQZ_LEVERAGE = 8
+SQZ_SL_ATR_MULT = 1.5
+SQZ_MIN_RR = 2.0
+SQZ_TP_ATR_MULT = 3.0
+
 _US_SESSIONS = {"US_PRE", "US_OPEN"}
 _NON_US_SESSIONS = {"ASIA", "EU_OPEN"}
 
@@ -190,9 +197,9 @@ class SqueezeStrategy(StrategyBase):
 
     def get_position_params(self) -> PositionParams:
         return PositionParams(
-            risk_pct=0.03,        # 3% margin (same as all strategies)
-            leverage=8,           # Uses zone range_leverage (overridden by position_sizer)
-            sl_atr_mult=1.5,      # SL: 1.5 × ATR (backtest: 1.0 too tight, 85% SL hit rate)
-            min_rr=2.0,           # R:R ≥ 2.0 → BE = 33% (backtest WR 35-37%)
-            tp_atr_mult=3.0,      # Ride the explosion: 3.0 × ATR
+            risk_pct=SQZ_RISK_PCT,
+            leverage=SQZ_LEVERAGE,
+            sl_atr_mult=SQZ_SL_ATR_MULT,
+            min_rr=SQZ_MIN_RR,
+            tp_atr_mult=SQZ_TP_ATR_MULT,
         )

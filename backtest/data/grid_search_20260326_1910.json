@@ -1,0 +1,361 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T11:10:39.710437+00:00",
+    "params_swept": [
+      "bb_touch_tol"
+    ],
+    "pairs": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "days": 365,
+    "total_combos": 8
+  },
+  "baseline": {
+    "score": 24.8282,
+    "trades": 256,
+    "return_pct": -2.79,
+    "adj_wr": 44.0,
+    "pf": 0.08,
+    "max_dd": 21.0,
+    "coverage": 100.0,
+    "per_symbol": {
+      "BTCUSDT": {
+        "total_trades": 81,
+        "winners": 33,
+        "losers": 48,
+        "return_pct": -6.09,
+        "win_rate": 40.7,
+        "cluster_adj_wr": 42.6,
+        "profit_factor": 0.85,
+        "max_drawdown_pct": 13.6,
+        "final_balance": 9391.14
+      },
+      "ETHUSDT": {
+        "total_trades": 175,
+        "winners": 77,
+        "losers": 98,
+        "return_pct": 0.51,
+        "win_rate": 44.0,
+        "cluster_adj_wr": 45.5,
+        "profit_factor": 1.01,
+        "max_drawdown_pct": 21.0,
+        "final_balance": 10051.26
+      }
+    }
+  },
+  "results": [
+    {
+      "rank": 1,
+      "params": {
+        "bb_touch_tol": 0.01
+      },
+      "aggregate": {
+        "score": 36.347,
+        "trades": 241,
+        "return_pct": 5.73,
+        "adj_wr": 46.0,
+        "pf": 3.58,
+        "max_dd": 11.5,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 87,
+          "winners": 37,
+          "losers": 50,
+          "return_pct": -4.43,
+          "win_rate": 42.5,
+          "cluster_adj_wr": 43.8,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 11.5,
+          "final_balance": 9556.78
+        },
+        "ETHUSDT": {
+          "total_trades": 154,
+          "winners": 71,
+          "losers": 83,
+          "return_pct": 15.88,
+          "win_rate": 46.1,
+          "cluster_adj_wr": 48.1,
+          "profit_factor": 1.22,
+          "max_drawdown_pct": 10.8,
+          "final_balance": 11588.28
+        }
+      }
+    },
+    {
+      "rank": 2,
+      "params": {
+        "bb_touch_tol": 0.008
+      },
+      "aggregate": {
+        "score": 32.0475,
+        "trades": 207,
+        "return_pct": 3.24,
+        "adj_wr": 44.0,
+        "pf": 2.07,
+        "max_dd": 13.7,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 68,
+          "winners": 27,
+          "losers": 41,
+          "return_pct": -6.07,
+          "win_rate": 39.7,
+          "cluster_adj_wr": 42.0,
+          "profit_factor": 0.84,
+          "max_drawdown_pct": 13.7,
+          "final_balance": 9393.08
+        },
+        "ETHUSDT": {
+          "total_trades": 139,
+          "winners": 62,
+          "losers": 77,
+          "return_pct": 12.55,
+          "win_rate": 44.6,
+          "cluster_adj_wr": 46.0,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 13.4,
+          "final_balance": 11254.71
+        }
+      }
+    },
+    {
+      "rank": 3,
+      "params": {
+        "bb_touch_tol": 0.003
+      },
+      "aggregate": {
+        "score": 28.0124,
+        "trades": 233,
+        "return_pct": 0.88,
+        "adj_wr": 45.8,
+        "pf": 1.19,
+        "max_dd": 17.5,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 67,
+          "winners": 26,
+          "losers": 41,
+          "return_pct": -9.47,
+          "win_rate": 38.8,
+          "cluster_adj_wr": 44.0,
+          "profit_factor": 0.75,
+          "max_drawdown_pct": 17.5,
+          "final_balance": 9053.2
+        },
+        "ETHUSDT": {
+          "total_trades": 166,
+          "winners": 77,
+          "losers": 89,
+          "return_pct": 11.24,
+          "win_rate": 46.4,
+          "cluster_adj_wr": 47.5,
+          "profit_factor": 1.15,
+          "max_drawdown_pct": 9.1,
+          "final_balance": 11123.75
+        }
+      }
+    },
+    {
+      "rank": 4,
+      "params": {
+        "bb_touch_tol": 0.005
+      },
+      "aggregate": {
+        "score": 25.1662,
+        "trades": 197,
+        "return_pct": -3.95,
+        "adj_wr": 43.8,
+        "pf": 0.32,
+        "max_dd": 18.5,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 67,
+          "winners": 25,
+          "losers": 42,
+          "return_pct": -11.65,
+          "win_rate": 37.3,
+          "cluster_adj_wr": 41.2,
+          "profit_factor": 0.7,
+          "max_drawdown_pct": 18.5,
+          "final_balance": 8835.31
+        },
+        "ETHUSDT": {
+          "total_trades": 130,
+          "winners": 57,
+          "losers": 73,
+          "return_pct": 3.75,
+          "win_rate": 43.8,
+          "cluster_adj_wr": 46.3,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 9.8,
+          "final_balance": 10374.58
+        }
+      }
+    },
+    {
+      "rank": 5,
+      "params": {
+        "bb_touch_tol": 0.006
+      },
+      "aggregate": {
+        "score": 24.9898,
+        "trades": 199,
+        "return_pct": -7.97,
+        "adj_wr": 42.7,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 67,
+          "winners": 25,
+          "losers": 42,
+          "return_pct": -11.7,
+          "win_rate": 37.3,
+          "cluster_adj_wr": 42.0,
+          "profit_factor": 0.7,
+          "max_drawdown_pct": 17.9,
+          "final_balance": 8829.91
+        },
+        "ETHUSDT": {
+          "total_trades": 132,
+          "winners": 55,
+          "losers": 77,
+          "return_pct": -4.23,
+          "win_rate": 41.7,
+          "cluster_adj_wr": 43.4,
+          "profit_factor": 0.93,
+          "max_drawdown_pct": 16.3,
+          "final_balance": 9576.96
+        }
+      }
+    },
+    {
+      "rank": 6,
+      "params": {
+        "bb_touch_tol": 0.009
+      },
+      "aggregate": {
+        "score": 24.8282,
+        "trades": 256,
+        "return_pct": -2.79,
+        "adj_wr": 44.0,
+        "pf": 0.08,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 81,
+          "winners": 33,
+          "losers": 48,
+          "return_pct": -6.09,
+          "win_rate": 40.7,
+          "cluster_adj_wr": 42.6,
+          "profit_factor": 0.85,
+          "max_drawdown_pct": 13.6,
+          "final_balance": 9391.14
+        },
+        "ETHUSDT": {
+          "total_trades": 175,
+          "winners": 77,
+          "losers": 98,
+          "return_pct": 0.51,
+          "win_rate": 44.0,
+          "cluster_adj_wr": 45.5,
+          "profit_factor": 1.01,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10051.26
+        }
+      }
+    },
+    {
+      "rank": 7,
+      "params": {
+        "bb_touch_tol": 0.007
+      },
+      "aggregate": {
+        "score": 24.4774,
+        "trades": 198,
+        "return_pct": -8.55,
+        "adj_wr": 40.3,
+        "pf": 0.0,
+        "max_dd": 18.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 66,
+          "winners": 25,
+          "losers": 41,
+          "return_pct": -9.58,
+          "win_rate": 37.9,
+          "cluster_adj_wr": 38.8,
+          "profit_factor": 0.75,
+          "max_drawdown_pct": 16.0,
+          "final_balance": 9042.15
+        },
+        "ETHUSDT": {
+          "total_trades": 132,
+          "winners": 53,
+          "losers": 79,
+          "return_pct": -7.52,
+          "win_rate": 40.2,
+          "cluster_adj_wr": 41.8,
+          "profit_factor": 0.87,
+          "max_drawdown_pct": 18.8,
+          "final_balance": 9248.2
+        }
+      }
+    },
+    {
+      "rank": 8,
+      "params": {
+        "bb_touch_tol": 0.004
+      },
+      "aggregate": {
+        "score": 21.3662,
+        "trades": 237,
+        "return_pct": -2.02,
+        "adj_wr": 42.6,
+        "pf": 0.74,
+        "max_dd": 22.7,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 66,
+          "winners": 22,
+          "losers": 44,
+          "return_pct": -15.65,
+          "win_rate": 33.3,
+          "cluster_adj_wr": 38.5,
+          "profit_factor": 0.61,
+          "max_drawdown_pct": 22.7,
+          "final_balance": 8435.14
+        },
+        "ETHUSDT": {
+          "total_trades": 171,
+          "winners": 78,
+          "losers": 93,
+          "return_pct": 11.61,
+          "win_rate": 45.6,
+          "cluster_adj_wr": 46.8,
+          "profit_factor": 1.16,
+          "max_drawdown_pct": 9.1,
+          "final_balance": 11160.57
+        }
+      }
+    }
+  ]
+}

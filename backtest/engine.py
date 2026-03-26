@@ -54,6 +54,7 @@ from trader_cycle.strategies.mode_detector import detect_mode_for_pair
 from trader_cycle.strategies.range_strategy import RangeStrategy
 from trader_cycle.strategies.trend_strategy import TrendStrategy
 from trader_cycle.strategies.crash_strategy import CrashStrategy
+from trader_cycle.strategies.squeeze_strategy import SqueezeStrategy
 from trader_cycle.strategies.regime_hmm import RegimeHMM
 from trader_cycle.strategies.regime_bocpd import RegimeBOCPD
 from backtest.strategies.bt_burst_strategy import BTBurstStrategy
@@ -173,6 +174,7 @@ class BacktestEngine:
         self.range_strategy = strats.get("range", RangeStrategy())
         self.trend_strategy = strats.get("trend", TrendStrategy())
         self.crash_strategy = strats.get("crash", CrashStrategy())
+        self.squeeze_strategy = strats.get("squeeze", SqueezeStrategy())
         # Burst strategy: disabled by default. Enable via strategy_overrides.
         # Tested on XRP 360d: neither continuation nor fade improved results.
         # Volume spikes on XRP don't carry reliable directional signal.
@@ -752,7 +754,8 @@ class BacktestEngine:
 
         # ── Run ALL strategies (no mode gate) ──
         candidates = []
-        all_strategies = [self.range_strategy, self.trend_strategy, self.crash_strategy]
+        all_strategies = [self.range_strategy, self.trend_strategy, self.crash_strategy,
+                          self.squeeze_strategy]
         if self.burst_strategy is not None:
             all_strategies.append(self.burst_strategy)
         if self.newarch_strategy is not None:

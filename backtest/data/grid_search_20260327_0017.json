@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T16:17:57.710069+00:00",
+    "params_swept": [
+      "crash_sl_atr_mult",
+      "crash_min_rr"
+    ],
+    "pairs": [
+      "ETHUSDT",
+      "BTCUSDT",
+      "SOLUSDT"
+    ],
+    "days": 365,
+    "total_combos": 0
+  },
+  "baseline": {
+    "score": 24.7299,
+    "trades": 358,
+    "return_pct": -6.57,
+    "adj_wr": 42.9,
+    "pf": 0.0,
+    "max_dd": 17.9,
+    "coverage": 100.0,
+    "per_symbol": {
+      "ETHUSDT": {
+        "total_trades": 139,
+        "winners": 59,
+        "losers": 80,
+        "return_pct": -3.05,
+        "win_rate": 42.4,
+        "cluster_adj_wr": 44.4,
+        "profit_factor": 0.95,
+        "max_drawdown_pct": 16.3,
+        "final_balance": 9694.52
+      },
+      "BTCUSDT": {
+        "total_trades": 73,
+        "winners": 27,
+        "losers": 46,
+        "return_pct": -14.92,
+        "win_rate": 37.0,
+        "cluster_adj_wr": 41.1,
+        "profit_factor": 0.66,
+        "max_drawdown_pct": 17.9,
+        "final_balance": 8507.66
+      },
+      "SOLUSDT": {
+        "total_trades": 146,
+        "winners": 62,
+        "losers": 84,
+        "return_pct": -1.73,
+        "win_rate": 42.5,
+        "cluster_adj_wr": 43.2,
+        "profit_factor": 0.97,
+        "max_drawdown_pct": 13.3,
+        "final_balance": 9826.93
+      }
+    }
+  },
+  "results": []
+}

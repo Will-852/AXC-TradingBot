@@ -1,0 +1,966 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T06:20:38.272754+00:00",
+    "params_swept": [
+      "sl_atr_mult_range",
+      "min_rr"
+    ],
+    "pairs": [
+      "BTCUSDT"
+    ],
+    "days": 180,
+    "total_combos": 32
+  },
+  "baseline": {
+    "score": 18.1479,
+    "trades": 99,
+    "return_pct": -9.7,
+    "adj_wr": 30.4,
+    "pf": 0.0,
+    "max_dd": 12.7,
+    "coverage": 100.0,
+    "per_symbol": {
+      "BTCUSDT": {
+        "total_trades": 99,
+        "winners": 30,
+        "losers": 69,
+        "return_pct": -9.7,
+        "win_rate": 30.3,
+        "cluster_adj_wr": 30.4,
+        "profit_factor": 0.78,
+        "max_drawdown_pct": 12.7,
+        "final_balance": 9029.51
+      }
+    }
+  },
+  "results": [
+    {
+      "rank": 1,
+      "params": {
+        "sl_atr_mult_range": 0.8,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 2,
+      "params": {
+        "sl_atr_mult_range": 0.9,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 3,
+      "params": {
+        "sl_atr_mult_range": 1.0,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 4,
+      "params": {
+        "sl_atr_mult_range": 1.1,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 5,
+      "params": {
+        "sl_atr_mult_range": 1.2,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 6,
+      "params": {
+        "sl_atr_mult_range": 1.3,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 7,
+      "params": {
+        "sl_atr_mult_range": 1.4,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 8,
+      "params": {
+        "sl_atr_mult_range": 1.5,
+        "min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 26.298,
+        "trades": 80,
+        "return_pct": 3.69,
+        "adj_wr": 40.0,
+        "pf": 5.0,
+        "max_dd": 21.0,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 32,
+          "losers": 48,
+          "return_pct": 3.69,
+          "win_rate": 40.0,
+          "cluster_adj_wr": 40.0,
+          "profit_factor": 1.06,
+          "max_drawdown_pct": 21.0,
+          "final_balance": 10368.58
+        }
+      }
+    },
+    {
+      "rank": 9,
+      "params": {
+        "sl_atr_mult_range": 0.8,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 10,
+      "params": {
+        "sl_atr_mult_range": 0.9,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 11,
+      "params": {
+        "sl_atr_mult_range": 1.0,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 12,
+      "params": {
+        "sl_atr_mult_range": 1.1,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 13,
+      "params": {
+        "sl_atr_mult_range": 1.2,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 14,
+      "params": {
+        "sl_atr_mult_range": 1.3,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 15,
+      "params": {
+        "sl_atr_mult_range": 1.4,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 16,
+      "params": {
+        "sl_atr_mult_range": 1.5,
+        "min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 23.3762,
+        "trades": 78,
+        "return_pct": 12.01,
+        "adj_wr": 25.9,
+        "pf": 5.0,
+        "max_dd": 23.1,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 78,
+          "winners": 21,
+          "losers": 57,
+          "return_pct": 12.01,
+          "win_rate": 26.9,
+          "cluster_adj_wr": 25.9,
+          "profit_factor": 1.19,
+          "max_drawdown_pct": 23.1,
+          "final_balance": 11201.44
+        }
+      }
+    },
+    {
+      "rank": 17,
+      "params": {
+        "sl_atr_mult_range": 0.8,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 18,
+      "params": {
+        "sl_atr_mult_range": 0.9,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 19,
+      "params": {
+        "sl_atr_mult_range": 1.0,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 20,
+      "params": {
+        "sl_atr_mult_range": 1.1,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 21,
+      "params": {
+        "sl_atr_mult_range": 1.2,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 22,
+      "params": {
+        "sl_atr_mult_range": 1.3,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 23,
+      "params": {
+        "sl_atr_mult_range": 1.4,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 24,
+      "params": {
+        "sl_atr_mult_range": 1.5,
+        "min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 21.2378,
+        "trades": 80,
+        "return_pct": 4.09,
+        "adj_wr": 27.3,
+        "pf": 5.0,
+        "max_dd": 23.8,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 80,
+          "winners": 22,
+          "losers": 58,
+          "return_pct": 4.09,
+          "win_rate": 27.5,
+          "cluster_adj_wr": 27.3,
+          "profit_factor": 1.07,
+          "max_drawdown_pct": 23.8,
+          "final_balance": 10409.48
+        }
+      }
+    },
+    {
+      "rank": 25,
+      "params": {
+        "sl_atr_mult_range": 0.8,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 26,
+      "params": {
+        "sl_atr_mult_range": 0.9,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 27,
+      "params": {
+        "sl_atr_mult_range": 1.0,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 28,
+      "params": {
+        "sl_atr_mult_range": 1.1,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 29,
+      "params": {
+        "sl_atr_mult_range": 1.2,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 30,
+      "params": {
+        "sl_atr_mult_range": 1.3,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 31,
+      "params": {
+        "sl_atr_mult_range": 1.4,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    },
+    {
+      "rank": 32,
+      "params": {
+        "sl_atr_mult_range": 1.5,
+        "min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 10.7438,
+        "trades": 60,
+        "return_pct": -5.72,
+        "adj_wr": 27.5,
+        "pf": 0.0,
+        "max_dd": 24.6,
+        "coverage": 100.0
+      },
+      "per_symbol": {
+        "BTCUSDT": {
+          "total_trades": 60,
+          "winners": 16,
+          "losers": 44,
+          "return_pct": -5.72,
+          "win_rate": 26.7,
+          "cluster_adj_wr": 27.5,
+          "profit_factor": 0.89,
+          "max_drawdown_pct": 24.6,
+          "final_balance": 9428.0
+        }
+      }
+    }
+  ]
+}
