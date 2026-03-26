@@ -80,7 +80,7 @@ _EXCHANGE_ROTATION = [
     "aster", "binance", "hyperliquid",
     "bybit", "okx", "kucoin", "gate", "mexc", "bitget",
 ]
-_ALL_SYMBOLS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "SOLUSDT"]
+_ALL_SYMBOLS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "SOLUSDT", "BNBUSDT"]
 
 
 def reload_params():

@@ -23,12 +23,12 @@ from scripts.trader_cycle.config.pairs import get_pair, PairConfig
 class TestCoinLoading:
     """All 7 coins load correctly."""
 
-    def test_all_7_coins_loaded(self):
+    def test_all_8_coins_loaded(self):
         coins = get_all_coins()
-        assert len(coins) == 7
+        assert len(coins) == 8  # +BNB (2026-03-26)
         assert set(coins.keys()) == {
             "BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT",
-            "POLUSDT", "XAGUSDT", "XAUUSDT",
+            "BNBUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT",
         }
 
     def test_btc_is_baseline(self):
@@ -89,11 +89,12 @@ class TestStrategyConfig:
             assert not is_strategy_enabled("XAGUSDT", strat)
 
     def test_btc_squeeze_only(self):
-        """BTC: range/trend disabled (BMD negative EV), squeeze+crash enabled."""
+        """BTC: range/trend/crash disabled (BMD negative EV), squeeze+burst enabled."""
         assert not is_strategy_enabled("BTCUSDT", "range")
         assert not is_strategy_enabled("BTCUSDT", "trend")
-        assert is_strategy_enabled("BTCUSDT", "crash")
+        assert not is_strategy_enabled("BTCUSDT", "crash")
         assert is_strategy_enabled("BTCUSDT", "squeeze")
+        assert is_strategy_enabled("BTCUSDT", "burst")
 
     def test_xau_still_enabled(self):
         """XAU is profitable — strategies should be ON."""
@@ -123,15 +124,15 @@ class TestDerivedData:
 
     def test_position_groups(self):
         groups = get_position_groups()
-        assert set(groups["crypto_correlated"]) == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+        assert set(groups["crypto_correlated"]) == {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
         assert set(groups["crypto_independent"]) == {"POLUSDT", "XRPUSDT"}
         assert set(groups["commodity"]) == {"XAGUSDT", "XAUUSDT"}
 
     def test_correlation_set(self):
-        assert get_correlation_set() == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+        assert get_correlation_set() == {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
 
     def test_liq_coins(self):
-        assert set(get_liq_coins()) == {"BTC", "ETH", "SOL"}
+        assert set(get_liq_coins()) == {"BTC", "ETH", "SOL", "BNB"}
 
     def test_regime_anchor(self):
         assert get_regime_anchor() == "BTCUSDT"
@@ -149,7 +150,7 @@ class TestDerivedData:
 
     def test_group_peers(self):
         peers = get_group_peers("BTCUSDT")
-        assert set(peers) == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+        assert set(peers) == {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
 
     def test_prefix_map(self):
         pm = get_prefix_map()
@@ -189,4 +190,4 @@ class TestPairsBackwardCompat:
 
     def test_all_7_pairs_available(self):
         from scripts.trader_cycle.config.pairs import get_all_symbols
-        assert len(get_all_symbols()) == 7
+        assert len(get_all_symbols()) == 8  # +BNB (2026-03-26)

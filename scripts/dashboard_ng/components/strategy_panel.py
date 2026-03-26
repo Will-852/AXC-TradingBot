@@ -27,9 +27,9 @@ _BASE = Path(os.environ.get("AXC_HOME", str(Path.home() / "projects" / "axc-trad
 _CACHE = _BASE / "shared" / "indicator_cache.json"
 _JOURNAL = _BASE / "shared" / "signal_journal.jsonl"
 
-_COINS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
-_COIN_SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XRPUSDT": "XRP"}
-_COIN_COLORS = {"BTC": "#f7931a", "ETH": "#627eea", "SOL": "#9945ff", "XRP": "#23292f"}
+_COINS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
+_COIN_SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XRPUSDT": "XRP", "BNBUSDT": "BNB"}
+_COIN_COLORS = {"BTC": "#f7931a", "ETH": "#627eea", "SOL": "#9945ff", "XRP": "#23292f", "BNB": "#f3ba2f"}
 
 # Squeeze thresholds (must match indicator_engine + squeeze_strategy)
 _SQZ_BB_MAX = 30.0

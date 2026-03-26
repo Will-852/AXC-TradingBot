@@ -30,6 +30,7 @@ Endpoint: /ticker/24hr?symbol={symbol}
 | BTCUSDT | Bitcoin 永續合約 |
 | ETHUSDT | Ethereum 永續合約 |
 | SOLUSDT | Solana 永續合約 |
+| BNBUSDT | BNB 永續合約 |
 
 配置: `config/params.py` → `BINANCE_SYMBOLS`
 修改後需重啟掃描器。

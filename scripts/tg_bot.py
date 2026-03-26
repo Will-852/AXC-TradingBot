@@ -91,6 +91,7 @@ _PAIR_ALIASES = {
     "xag": "XAGUSDT", "silver": "XAGUSDT", "白銀": "XAGUSDT",
     "xau": "XAUUSDT", "gold": "XAUUSDT", "黃金": "XAUUSDT",
     "sol": "SOLUSDT", "solana": "SOLUSDT",
+    "bnb": "BNBUSDT", "binance coin": "BNBUSDT",
 }
 
 # ── ATR Spike Detection ──
@@ -850,7 +851,7 @@ def parse_order_intent(text: str) -> dict | None:
     prompt = f"""判斷以下訊息是否包含下單/交易指令。
 
 當前餘額：${balance:.2f}
-可交易幣種：BTCUSDT, ETHUSDT, XRPUSDT, SOLUSDT, XAGUSDT, XAUUSDT
+可交易幣種：BTCUSDT, ETHUSDT, XRPUSDT, SOLUSDT, BNBUSDT, XAGUSDT, XAUUSDT
 支持交易所：aster（預設）, binance, hyperliquid（hl）
 
 訊息：「{text}」

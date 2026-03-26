@@ -79,7 +79,7 @@ class BaseExchangeClient(ABC):
     def set_leverage(self, symbol: str, leverage: int) -> Dict[str, Any]: ...
 
     @abstractmethod
-    def set_margin_mode(self, symbol: str, margin_mode: str = "ISOLATED") -> Dict[str, Any]: ...
+    def set_margin_mode(self, symbol: str, margin_mode: str = "CROSSED") -> Dict[str, Any]: ...
 
     @abstractmethod
     def get_income(self, income_type: Optional[str] = None,
@@ -277,7 +277,7 @@ class HmacExchangeClient(BaseExchangeClient):
     # ─── Account ───
 
     @retry_quadratic()
-    def set_margin_mode(self, symbol: str, margin_mode: str = "ISOLATED") -> Dict[str, Any]:
+    def set_margin_mode(self, symbol: str, margin_mode: str = "CROSSED") -> Dict[str, Any]:
         try:
             return self._private_request(
                 "POST", "/fapi/v1/marginType",

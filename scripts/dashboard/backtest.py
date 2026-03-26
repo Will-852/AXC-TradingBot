@@ -41,7 +41,7 @@ _aggtrades_lock = threading.Lock()  # protects _aggtrades_jobs + ensures single 
 _AGGTRADES_JOB_TTL = 600  # seconds — evict completed jobs after this
 _AGGTRADES_UNSUPPORTED = {"XAGUSDT", "XAUUSDT"}  # Aster DEX — no Binance aggTrades
 # BTC ~4min/day, SOL ~4min/day, ETH ~2min/day via Binance aggTrades API.
-_HIGH_VOL_MAX_DAYS = {"BTCUSDT": 1, "ETHUSDT": 2, "SOLUSDT": 1}
+_HIGH_VOL_MAX_DAYS = {"BTCUSDT": 1, "ETHUSDT": 2, "SOLUSDT": 1, "BNBUSDT": 2}
 
 _REPORT_FORMAT_VERSION = "1.0"
 

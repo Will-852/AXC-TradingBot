@@ -184,6 +184,7 @@ BINANCE_SYMBOLS = [
     "BTCUSDT",
     "ETHUSDT",
     "SOLUSDT",
+    "BNBUSDT",
     "POLUSDT",
     # 加幣種：加一行 "幣種USDT", 然後重啟掃描器
 ]

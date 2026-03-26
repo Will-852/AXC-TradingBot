@@ -200,7 +200,7 @@ def _flat_to_json(flat: dict) -> dict:
             "tp_price": _to_float(flat.get("TP_PRICE", 0)),
             "tp2_price": _to_float(flat.get("TP2_PRICE", 0)),
             "leverage": int(_to_float(flat.get("LEVERAGE", 0))),
-            "margin_type": str(flat.get("MARGIN_TYPE", "isolated")),
+            "margin_type": str(flat.get("MARGIN_TYPE", "cross")),
             "margin": _to_float(flat.get("MARGIN", 0)),
             "liquidation": _to_float(flat.get("LIQUIDATION", 0)),
             "unrealized_pnl": _to_float(flat.get("UNREALIZED_PNL", 0)),
@@ -279,7 +279,7 @@ def _json_to_flat(data: dict) -> dict:
         flat["TP_PRICE"] = pos.get("tp_price", 0.0)
         flat["TP2_PRICE"] = pos.get("tp2_price", 0.0)
         flat["LEVERAGE"] = pos.get("leverage", 0)
-        flat["MARGIN_TYPE"] = pos.get("margin_type", "isolated")
+        flat["MARGIN_TYPE"] = pos.get("margin_type", "cross")
         flat["MARGIN"] = pos.get("margin", 0.0)
         flat["LIQUIDATION"] = pos.get("liquidation", 0.0)
         flat["UNREALIZED_PNL"] = pos.get("unrealized_pnl", 0.0)
@@ -520,7 +520,7 @@ def _default_state() -> dict:
         "TP_PRICE": 0.0,
         "TP2_PRICE": 0.0,
         "LEVERAGE": 0,
-        "MARGIN_TYPE": "isolated",
+        "MARGIN_TYPE": "cross",
         "MARGIN": 0.0,
         "LIQUIDATION": 0.0,
         "UNREALIZED_PNL": 0.0,

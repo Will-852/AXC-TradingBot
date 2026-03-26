@@ -14,5 +14,5 @@ ON_LIQS_SIGNAL_BOOST = 1.0          # +1.0 to signal score when liq detected
 # ─── Monitor Settings ───
 LIQ_POLL_INTERVAL_SEC = 60          # poll every 60s
 LIQ_STATE_MAX_AGE_SEC = 180         # ignore state older than 3 min
-LIQ_COINS = ["BTC", "ETH", "SOL"]  # coins to monitor
+LIQ_COINS = ["BTC", "ETH", "SOL", "BNB"]  # coins to monitor
 LIQ_HISTORY_MAXLEN = 20             # rolling window entries (20 × 60s = 20 min)

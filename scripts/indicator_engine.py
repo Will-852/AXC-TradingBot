@@ -74,7 +74,7 @@ try:
     SYMBOLS = get_exchange_symbols("binance")
     REGIME_ANCHOR = get_regime_anchor()
 except ImportError:
-    SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "POLUSDT"]
+    SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "POLUSDT"]
     REGIME_ANCHOR = "BTCUSDT"
 
 # Lowercase symbol set for fast lookup from Redis messages

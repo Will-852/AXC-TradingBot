@@ -3,7 +3,7 @@ execute_trade.py — ExecuteTradeStep: 落盤！
 Pipeline Step 12 (SizePosition 之後)
 
 執行序列（30 秒內完成）：
-  ① set_margin_mode(pair, 'ISOLATED')
+  ① set_margin_mode(pair, 'CROSSED')
   ② set_leverage(pair, leverage)
   ③ create_market_order(pair, side, qty)  → 入場
   ④ 驗證 fill
@@ -103,9 +103,9 @@ class ExecuteTradeStep:
             return ctx
 
         try:
-            # ① Set margin mode (ISOLATED)
-            client.set_margin_mode(pair, "ISOLATED")
-            logger.info(f"[{pair}] Margin mode: ISOLATED")
+            # ① Set margin mode (CROSSED)
+            client.set_margin_mode(pair, "CROSSED")
+            logger.info(f"[{pair}] Margin mode: CROSSED")
 
             # ② Set leverage
             client.set_leverage(pair, leverage)

@@ -275,7 +275,7 @@ def cmd_report():
 
     lines.append("")
     lines.append("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 行情 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
-    for sym, label in [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("XRPUSDT", "XRP"), ("XAGUSDT", "XAG")]:
+    for sym, label in [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("XRPUSDT", "XRP"), ("BNBUSDT", "BNB"), ("XAGUSDT", "XAG")]:
         p = prices.get(sym, {})
         price = p.get("price", 0)
         chg = p.get("change", 0)
@@ -367,7 +367,7 @@ def _scan_data():
         prices = {}
 
     if not prices:
-        pair_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "XRP": "XRPUSDT", "XAG": "XAGUSDT"}
+        pair_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "XRP": "XRPUSDT", "BNB": "BNBUSDT", "XAG": "XAGUSDT"}
         for prefix, sym in pair_map.items():
             p_str = scan.get(f"{prefix}_price", "")
             if p_str:

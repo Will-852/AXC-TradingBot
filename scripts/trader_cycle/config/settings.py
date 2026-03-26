@@ -34,8 +34,8 @@ BINANCE_FAPI = "https://fapi.binance.com/fapi/v1"
 API_TIMEOUT = 10  # seconds
 
 # ─── Pairs ───
-PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT"]
-PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "SOLUSDT": "SOL", "POLUSDT": "POL", "XAGUSDT": "XAG", "XAUUSDT": "XAU"}
+PAIRS = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "BNBUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT"]
+PAIR_PREFIX = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "XRPUSDT": "XRP", "SOLUSDT": "SOL", "BNBUSDT": "BNB", "POLUSDT": "POL", "XAGUSDT": "XAG", "XAUUSDT": "XAU"}
 
 # ─── Mode Detection (4H, 5 indicators) ───
 MODE_RSI_TREND_LOW = 34          # RSI < 34 = trend signal (synced with params.py 2026-03-26)
@@ -83,9 +83,9 @@ USE_VALIDATION_PIPELINE = os.environ.get("USE_VALIDATION_PIPELINE", "true").lowe
 # ─── Risk — Position Limits ───
 MAX_CRYPTO_POSITIONS = 2
 MAX_XAG_POSITIONS = 1
-# BTC + ETH + SOL = same group (max 1 combined)
+# BTC + ETH + SOL + BNB = same group (max 1 combined)
 POSITION_GROUPS = {
-    "crypto_correlated": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],  # max 1 total
+    "crypto_correlated": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"],  # max 1 total
     "crypto_independent": ["XRPUSDT", "POLUSDT"],             # max 1
     "commodity": ["XAGUSDT", "XAUUSDT"],                       # max 1
 }
@@ -252,7 +252,7 @@ CYCLE_LOG_DIR = os.path.join(LOG_DIR, "cycles")
 
 # ─── Platform Symbol Lists (fallback; overridden by params.py below) ───
 ASTER_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "XRPUSDT", "XAGUSDT", "XAUUSDT"}
-BINANCE_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "POLUSDT"}
+BINANCE_SYMBOLS: set[str] = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "POLUSDT"}
 
 # ─── Profile Override ───
 # config/profiles/ 獨立文件 → override 策略常數

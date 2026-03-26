@@ -419,9 +419,9 @@ class HyperLiquidClient(BaseExchangeClient):
         return self._wrap_error(result, "set_leverage")
 
     @retry_quadratic()
-    def set_margin_mode(self, symbol: str, margin_mode: str = "ISOLATED") -> Dict[str, Any]:
+    def set_margin_mode(self, symbol: str, margin_mode: str = "CROSSED") -> Dict[str, Any]:
         coin = self._to_hl(symbol)
-        is_cross = margin_mode.upper() == "CROSS"
+        is_cross = margin_mode.upper() in ("CROSS", "CROSSED")
         try:
             state = self.info.user_state(self.account_address)
             current_leverage = 1
