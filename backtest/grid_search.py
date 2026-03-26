@@ -583,7 +583,10 @@ def auto_validate_top(
                         symbol=pair, df_1h=oos_1h, df_4h=oos_4h,
                         initial_balance=balance, param_overrides=params, quiet=True,
                     ).run()
-                except (ValueError, Exception):
+                except ValueError:
+                    continue  # not enough data for this fold
+                except Exception as e:
+                    log.warning("WF fold %d/%s unexpected error: %s", fold_i + 1, pair, e)
                     continue
 
                 fold_results.append({
@@ -596,11 +599,14 @@ def auto_validate_top(
             print(f"    Walk-Forward: NO VALID FOLDS")
             continue
 
-        is_rets = [f["is_ret"] for f in fold_results if f["is_ret"] != 0]
+        is_rets = [f["is_ret"] for f in fold_results]
         oos_rets = [f["oos_ret"] for f in fold_results]
         mean_is = float(np.mean(is_rets)) if is_rets else 0
         mean_oos = float(np.mean(oos_rets))
-        wfe = mean_oos / mean_is if mean_is != 0 else 0
+        if abs(mean_is) < 0.5:
+            wfe = 1.0 if mean_oos > 0 else 0.0
+        else:
+            wfe = mean_oos / mean_is if mean_is != 0 else 0
         wf_pass = wfe > 0.50
 
         # Count OOS positive folds

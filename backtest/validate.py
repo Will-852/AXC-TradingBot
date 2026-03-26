@@ -237,12 +237,16 @@ def walk_forward(args):
         print("\n  No valid folds produced. Try more --days or fewer --folds.")
         return False
 
-    # Compute WFE
-    is_rets = [f["is_ret"] for f in fold_results if f["is_ret"] != 0]
+    # Compute WFE — include ALL folds (don't exclude IS return=0)
+    is_rets = [f["is_ret"] for f in fold_results]
     oos_rets = [f["oos_ret"] for f in fold_results]
     mean_is = float(np.mean(is_rets)) if is_rets else 0
     mean_oos = float(np.mean(oos_rets))
-    wfe = mean_oos / mean_is if mean_is != 0 else 0
+    # WFE: OOS/IS ratio. If IS is near 0, use OOS sign as pass criteria instead.
+    if abs(mean_is) < 0.5:  # IS essentially flat → judge by OOS alone
+        wfe = 1.0 if mean_oos > 0 else 0.0
+    else:
+        wfe = mean_oos / mean_is if mean_is != 0 else 0
     passed = wfe > 0.50
 
     print(f"\n  Walk-Forward ({n_folds} folds × {len(args.symbols)} pairs):")
