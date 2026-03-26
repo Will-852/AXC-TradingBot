@@ -305,6 +305,8 @@ def _discover(gamma: GammaClient) -> list[dict]:
                     "coin": coin, "slug": slug,
                     "up_tok": up, "dn_tok": dn,
                     "start_ms": ws_s * 1000, "end_ms": we_s * 1000,
+                    "up_price": float(p.get("yes_price", 0) or 0),
+                    "dn_price": float(p.get("no_price", 0) or 0),
                 })
 
     logger.info("Discovery: %d daily markets (%d coins × 2 days)",
@@ -480,6 +482,16 @@ def _check_fills_paper(state: dict) -> None:
                 continue
             tok = po.get("token_id", "")
             mid = _poly_midpoint(tok) if tok else None
+            if mid is None or mid <= 0:
+                # Fallback: compute fair value from bridge model
+                coin_now = _btc_price(_coin)
+                coin_open = mkt.get("coin_open_price", 0)
+                vol = _vol_1m(_coin) if coin_now > 0 else 0
+                t_remaining = max(1, (_WINDOW_MIN - (now * 1000 - mkt.get("window_start_ms", 0)) / 60_000))
+                if coin_now > 0 and coin_open > 0 and vol > 0:
+                    fair_up = compute_fair_up(coin_now, coin_open, vol, int(t_remaining))
+                    o_side = po.get("outcome", "UP")
+                    mid = fair_up if o_side == "UP" else (1.0 - fair_up)
             if mid is None or mid <= 0:
                 new_pending.append(po)
                 continue
@@ -895,6 +907,8 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
                     "up_token_id": up_tok, "down_token_id": dn_tok,
                     "window_start_ms": start_ms, "window_end_ms": end_ms,
                     "coin_open_price": coin_open,
+                    "up_price": mkt_info.get("up_price", 0),
+                    "dn_price": mkt_info.get("dn_price", 0),
                     "phase": "OPEN",
                     "up_shares": 0, "up_avg_price": 0,
                     "down_shares": 0, "down_avg_price": 0,

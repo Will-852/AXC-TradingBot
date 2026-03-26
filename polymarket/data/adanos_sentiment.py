@@ -68,6 +68,12 @@ def _get(path: str, params: dict | None = None, timeout: int = 10) -> dict | Non
     if cache_key in _CACHE and now - _CACHE[cache_key][1] < _CACHE_TTL:
         return _CACHE[cache_key][0]
 
+    # Monthly limit exhausted → stop trying until next month
+    if _CACHE.get("_monthly_exhausted", (False, 0))[0]:
+        exhaust_ts = _CACHE["_monthly_exhausted"][1]
+        if now - exhaust_ts < 86400:  # retry once per day
+            return None
+
     try:
         req = Request(url, headers={
             "X-API-Key": key,
@@ -79,12 +85,18 @@ def _get(path: str, params: dict | None = None, timeout: int = 10) -> dict | Non
         _CACHE[cache_key] = (data, now)
         return data
     except HTTPError as e:
-        if e.code == 429:
-            logger.warning("Adanos rate limit hit")
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        if "limit exceeded" in body.lower() or e.code == 429:
+            logger.warning("Adanos monthly limit exhausted — pausing until reset")
+            _CACHE["_monthly_exhausted"] = (True, now)
         elif e.code == 403:
-            logger.warning("Adanos 403: tier limit exceeded")
+            logger.warning("Adanos 403: %s", body[:100])
         else:
-            logger.warning("Adanos HTTP %d: %s", e.code, path)
+            logger.debug("Adanos HTTP %d: %s", e.code, path)
         return None
     except (URLError, TimeoutError, OSError) as e:
         logger.debug("Adanos fetch failed: %s", e)

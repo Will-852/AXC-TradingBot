@@ -682,6 +682,9 @@ def main():
                                 oid = f"fuse_{int(time.time()*1000)}_{_MockPost._counter}"
                                 logger.info("FUSE DRY BUY %s $%.2f @ $%.3f → %s", tid[:10], amt, price, oid)
                                 return {"orderID": oid, "status": "live", "dry_run": True}
+                            def sell_shares(self, tok, shares, price=0):
+                                logger.info("FUSE DRY SELL %s %d @ $%.3f", tok[:10], shares, price)
+                                return {"dry_run": True}
                             def get_usdc_balance(self):
                                 return state.get("bankroll", 0)
                             def get_orders(self, **kw):
