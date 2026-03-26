@@ -42,7 +42,7 @@ EXCHANGE_ROTATION = [
 # ═══════════════════════════════════════
 # Section 2: BB 指標參數（indicator_calc 讀）
 # ═══════════════════════════════════════
-BB_TOUCH_TOL_DEFAULT = 0.006   # BTC, ETH, XAG (opt: 0.0063, rounded)
+BB_TOUCH_TOL_DEFAULT = 0.009   # 2026-03-26: was 0.006. Grid search proved 0.009 → +2.8% vs -5.6% (PF 1.43 vs 0.08)
 BB_TOUCH_TOL_XRP = 0.008       # XRP 較大容忍度
 BB_WIDTH_MIN = 0.065           # 最小BB寬度過濾 (opt: 0.0645)
 
