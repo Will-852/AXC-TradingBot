@@ -137,7 +137,7 @@ polymarket/
 
 ## Quick Fixes (done in this round)
 - [x] A.4: Python path hardcode → env var (4 files)
-- [ ] Dead code archive: signal_engine.py, ob_recorder.py, polymarket/config/params.py → .archive/
+- [x] Dead code archive: signal_engine.py, ob_recorder.py, polymarket/config/params.py → .archive/
 
 ## ⚠️ DOWNSTREAM Markers（後續需要回頭檢查）
 | Marker | Location | Trigger | Check When |

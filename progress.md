@@ -97,4 +97,12 @@
   - ✅ Only 4 `def` in orchestrator (_shutdown, run_cycle, _status, main)
   - ✅ WS connected (Binance + Polymarket)
 
-**Phase 4 COMPLETE.** Both Phase 3 + Phase 4 done. Next: dead code archive + handin.
+**Phase 4 COMPLETE.**
+
+### Round 7: Dead code archive (completed)
+- signal_engine.py (523L) → .archive/ (zero imports confirmed)
+- ob_recorder.py (622L) → .archive/ (zero imports confirmed)
+- params.py (~30L) → .archive/ (zero imports confirmed)
+- Both bots import OK after archive
+
+**All phases COMPLETE.** Ready for handin.
