@@ -17,7 +17,7 @@ def render_chat_toggle():
                 ui.label('AXC AI').classes('font-bold')
                 with ui.row().classes('gap-1'):
                     mode_toggle = ui.toggle(['Fast', 'Deep'], value='Fast') \
-                        .props('dense no-caps size=xs color=indigo')
+                        .props('dense no-caps size=xs color=teal')
                     ui.button(icon='close', on_click=chat_dialog.close) \
                         .props('flat round dense size=sm')
 
@@ -73,10 +73,10 @@ def render_chat_toggle():
                     messages_area.scroll_to(percent=1.0)
 
                 send_btn = ui.button(icon='send', on_click=send_message) \
-                    .props('flat round dense color=indigo')
+                    .props('flat round dense color=teal')
                 chat_input.on('keydown.enter', send_message)
 
     # Floating action button
     ui.button(icon='chat', on_click=chat_dialog.open) \
-        .props('fab color=indigo') \
+        .props('fab color=teal') \
         .classes('fixed bottom-20 right-6 z-50')

@@ -160,13 +160,13 @@ def create_layout(active_path: str = '/'):
                                     d.submit(None)
                                     await _show_connect_dialog(e)
                                 ui.button('Connect', on_click=do_connect) \
-                                    .props('flat dense size=xs color=blue')
+                                    .props('flat dense size=xs color=teal')
                     ui.button('Close', on_click=lambda: dlg.submit(None)).props('flat color=grey').classes('mt-2')
                 dlg.open()
                 await dlg
 
             ui.button('Connect', on_click=show_exchange_dialog) \
-                .props('flat dense no-caps size=sm color=blue-4') \
+                .props('flat dense no-caps size=sm color=teal-6') \
                 .classes('text-[11px]')
 
             # Notification bell

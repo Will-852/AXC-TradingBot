@@ -1271,6 +1271,73 @@
 💡 日常建議
 • 日常 4 件就夠：呼吸(BB) + 神經(EMA) + 體溫(RSI) + 心跳(Delta)
 • Stoch 只喺確認震盪市時先開"><input type="checkbox" onchange="toggleIndicator('AXC_STOCH')"> Stoch</label>
+      <label data-tip="🏠 S/R = 天花板 + 地板（Rolling High/Low）
+
+🏠 人體：活動範圍 — 關節極限
+• Rolling High = 頭頂能摸到嘅天花板
+• Rolling Low = 腳踩嘅地板
+• 價格反覆觸碰但穿唔過 = 關節極限
+
+🎯 實戰
+• 價格到天花板 + RSI>65 = 準備回落
+• 價格到地板 + RSI<35 = 準備反彈
+• 突破天花板/地板 = 活動範圍擴大（趨勢開始）"><input type="checkbox" onchange="toggleIndicator('AXC_SR')"> S/R</label>
+      <label data-tip="💪 ADX = 肌肉力量測量儀（趨勢強度 0-100）
+
+💪 人體：握力計 — 測量發力程度
+• ADX<20 = 冇力（震盪市，用 Range 策略）
+• ADX 20-40 = 正常發力（趨勢市）
+• ADX>50 = 極端用力（趨勢尾聲⚠️）
+• DI+ > DI- = 向上發力（多頭）
+• DI- > DI+ = 向下發力（空頭）
+
+🎯 實戰
+• ADX 從 <15 升破 20 = 新趨勢開始
+• ADX>40 開始回落 = 趨勢減弱，準備轉震盪"><input type="checkbox" onchange="toggleIndicator('AXC_ADX')"> ADX</label>
+      <label data-tip="🩸 OBV = 血液流量（累積成交量方向）
+
+🩸 人體：血流量 — 身體真正嘅供血方向
+• 價格升 + OBV 升 = 血液充足，健康上漲
+• 價格升 + OBV 跌 = 貧血上漲⚠️（背離 = 即將暈倒）
+• OBV > OBV EMA = 血流加速
+• OBV < OBV EMA = 血流減速
+
+🎯 實戰
+• OBV 背離 = 最強反轉信號之一
+• OBV 同 Price 同向 = 趨勢健康，繼續持倉"><input type="checkbox" onchange="toggleIndicator('AXC_OBV')"> OBV</label>
+      <label data-tip="🫁 BBWP = 呼吸頻率百分位（0-100）
+
+🫁 人體：呼吸頻率排名
+• BBWP<20 = 呼吸極慢（Squeeze 區域 — 即將爆發）
+• BBWP 20-80 = 正常呼吸
+• BBWP>80 = 呼吸極快（波動率已高，可能回歸）
+
+🎯 實戰
+• BBWP<15 = Squeeze 確認（同 BB Width 一起睇）
+• BBWP 從 <20 急升 = 爆發開始
+• 70% 嘅 Squeeze 向上突破"><input type="checkbox" onchange="toggleIndicator('AXC_BBWP')"> BBWP</label>
+      <label data-tip="📊 Volume Ratio = 心跳同平時比
+
+📊 人體：靜息心率對比
+• Vol Ratio=1.0 = 同平時一樣
+• Vol Ratio>2.0 = 心跳加速（高活躍）
+• Vol Ratio<0.4 = 心跳極慢（死市⚠️ — 觸發 NO_TRADE）
+
+🎯 實戰
+• <0.25 = Dead market（AXC 會 block entry）
+• >2.5 = Burst 信號候選
+• 配合 Delta 方向睇更準"><input type="checkbox" onchange="toggleIndicator('AXC_VOLR')"> VolR</label>
+      <label data-tip="🌡️ Z-Robust = 體溫偏離程度（MAD Z-Score）
+
+🌡️ 人體：體溫偏離正常值幾多個標準差
+• Z=0 = 正常體溫
+• |Z|>2 = 發燒或低溫（極端偏離）
+• |Z|>3 = 危險⚠️
+
+🎯 比 RSI 更穩定
+• 用 MAD（唔係 std），對 outlier 更 robust
+• Z>2 + RSI>70 = 雙重確認超買
+• Z<-2 + RSI<30 = 雙重確認超賣"><input type="checkbox" onchange="toggleIndicator('AXC_ZROB')"> Z-Rob</label>
       <span class="sep"></span>
       <label data-tip="🔄 市場模式 = 五行相位（需回測）
 
@@ -1748,7 +1815,7 @@ var tradeOverlays = [];
 var slTpOverlays = [];        // Phase 3: SL/TP line overlays
 var indicatorData = {};       // Phase 2: timestamp → indicator values
 var indicatorPaneIds = {};    // Phase 2: indicator name → pane ID
-var activeIndicators = { AXC_BB: true, AXC_EMA: true, AXC_MA: false, AXC_VWAP: false, AXC_RSI: false, AXC_MACD: false, AXC_STOCH: false, AXC_MODE: true };
+var activeIndicators = { AXC_BB: true, AXC_EMA: true, AXC_MA: false, AXC_VWAP: false, AXC_RSI: false, AXC_MACD: false, AXC_STOCH: false, AXC_MODE: true, AXC_SR: false, AXC_ADX: false, AXC_OBV: false, AXC_BBWP: false, AXC_VOLR: false, AXC_ZROB: false };
 var modeOverlays = [];        // Phase 2: mode transition overlays
 var compareRunA = null;       // Phase 4: stored Run A result
 var selectedTradeIdx = -1;    // Phase 4: currently selected trade
@@ -2710,6 +2777,128 @@ function registerBackendIndicators() {
     }
   });
 
+  // ── S/R Lines — Rolling High/Low (overlay, dashed) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_SR',
+    figures: [
+      { key: 'rHigh', title: 'Resistance', type: 'line' },
+      { key: 'rLow', title: 'Support', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.rolling_high != null) return { rHigh: ind.rolling_high, rLow: ind.rolling_low };
+        return {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: 'rgba(239,68,68,0.6)', size: 1, dashedValue: [6,3] },
+        { color: 'rgba(34,197,94,0.6)', size: 1, dashedValue: [6,3] }
+      ]
+    }
+  });
+
+  // ── ADX + DI+/DI- (sub-pane, trend strength) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_ADX',
+    figures: [
+      { key: 'adx', title: 'ADX', type: 'line' },
+      { key: 'diPlus', title: 'DI+', type: 'line' },
+      { key: 'diMinus', title: 'DI-', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.adx != null) return { adx: ind.adx, diPlus: ind.di_plus, diMinus: ind.di_minus };
+        return {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#f59e0b', size: 1.5 },
+        { color: '#22c55e', size: 1 },
+        { color: '#ef4444', size: 1 }
+      ]
+    }
+  });
+
+  // ── OBV + OBV EMA (sub-pane, volume momentum) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_OBV',
+    figures: [
+      { key: 'obv', title: 'OBV', type: 'line' },
+      { key: 'obvEma', title: 'OBV EMA', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.obv != null) return { obv: ind.obv, obvEma: ind.obv_ema };
+        return {};
+      });
+    },
+    styles: {
+      lines: [
+        { color: '#06b6d4', size: 1.5 },
+        { color: '#eab308', size: 1, dashedValue: [4,2] }
+      ]
+    }
+  });
+
+  // ── BB Width Percentile (sub-pane, squeeze detection 0-100) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_BBWP',
+    figures: [
+      { key: 'bbwp', title: 'BBWP', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.bb_width_pctl != null) return { bbwp: ind.bb_width_pctl };
+        return {};
+      });
+    },
+    styles: {
+      lines: [{ color: '#a855f7', size: 1.5 }]
+    }
+  });
+
+  // ── Volume Ratio (sub-pane, volume vs 30d avg) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_VOLR',
+    figures: [
+      { key: 'volr', title: 'Vol Ratio', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.volume_ratio != null) return { volr: ind.volume_ratio };
+        return {};
+      });
+    },
+    styles: {
+      lines: [{ color: '#14b8a6', size: 1.5 }]
+    }
+  });
+
+  // ── Z-Robust (sub-pane, MAD-based z-score) ──
+  klinecharts.registerIndicator({
+    name: 'AXC_ZROB',
+    figures: [
+      { key: 'z', title: 'Z-Rob', type: 'line' }
+    ],
+    calc: function(dataList) {
+      return dataList.map(function(d) {
+        var ind = indicatorData[d.timestamp];
+        if (ind && ind.z_robust != null) return { z: ind.z_robust };
+        return {};
+      });
+    },
+    styles: {
+      lines: [{ color: '#ec4899', size: 1.5 }]
+    }
+  });
+
   // ── Whale Trades (main pane overlay — diamonds on candle high/low) ──
   // Design: NO TEXT. Just colored diamonds above/below candles.
   //   Green diamond above candle = net buy whale activity
@@ -3261,7 +3450,7 @@ function applyIndicatorData(series) {
   });
 
   // Apply active indicators
-  var names = ['AXC_BB', 'AXC_EMA', 'AXC_MA', 'AXC_VWAP', 'AXC_RSI', 'AXC_MACD', 'AXC_STOCH'];
+  var names = ['AXC_BB', 'AXC_EMA', 'AXC_MA', 'AXC_VWAP', 'AXC_RSI', 'AXC_MACD', 'AXC_STOCH', 'AXC_SR', 'AXC_ADX', 'AXC_OBV', 'AXC_BBWP', 'AXC_VOLR', 'AXC_ZROB'];
   names.forEach(function(name) {
     if (activeIndicators[name]) {
       addIndicatorToChart(name);
@@ -3281,7 +3470,7 @@ function addIndicatorToChart(name) {
     console.log('[IND] Skip duplicate:', name);
     return;
   }
-  var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA' || name === 'AXC_CVD');
+  var isSubPane = (name === 'AXC_RSI' || name === 'AXC_MACD' || name === 'AXC_STOCH' || name === 'AXC_DELTA' || name === 'AXC_CVD' || name === 'AXC_ADX' || name === 'AXC_OBV' || name === 'AXC_BBWP' || name === 'AXC_VOLR' || name === 'AXC_ZROB');
   try {
     if (isSubPane) {
       var paneId = mainChart.createIndicator(name, false);
@@ -4460,7 +4649,7 @@ function gateIndicators(interval) {
   labels.forEach(function(el) { el.style.display = 'flex'; });
   fpEls.forEach(function(el) { el.style.display = 'flex'; });
   // Re-apply active indicators (they'll recalc from new kline data)
-  ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH','AXC_VWAP'].forEach(function(name) {
+  ['AXC_BB','AXC_EMA','AXC_MA','AXC_RSI','AXC_MACD','AXC_STOCH','AXC_VWAP','AXC_SR','AXC_ADX','AXC_OBV','AXC_BBWP','AXC_VOLR','AXC_ZROB'].forEach(function(name) {
     if (activeIndicators[name] && !indicatorPaneIds[name]) {
       addIndicatorToChart(name);
     }

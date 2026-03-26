@@ -392,7 +392,7 @@ def render_polymarket_page():
             else:
                 ui.notify(msg or 'No mergeable positions', type='info')
 
-        run_btn = ui.button('Run Cycle', icon='play_arrow', on_click=run_cycle).props('color=indigo')
+        run_btn = ui.button('Run Cycle', icon='play_arrow', on_click=run_cycle).props('color=teal')
         scan_btn = ui.button('Force Scan', icon='search', on_click=force_scan).props('color=grey-7')
         mode_btn = ui.button('Mode: —', icon='toggle_on', on_click=toggle_mode).props('color=orange')
         ui.button('Check Merge', icon='merge_type', on_click=check_merge).props('flat color=grey-6')
@@ -423,7 +423,7 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700 my-2')
 
     # ── Analytics / Ops tabs (full width, below split) ──
-    with ui.tabs().classes('w-full').props('dense align=left active-color=indigo indicator-color=indigo') as tabs:
+    with ui.tabs().classes('w-full').props('dense align=left active-color=teal indicator-color=teal') as tabs:
         tab_analytics = ui.tab('Analytics', icon='analytics')
         tab_ops = ui.tab('Ops', icon='engineering')
 
@@ -483,7 +483,7 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700')
     with ui.row().classes('items-center gap-2'):
         ui.label('RUNNING PROCESSES').classes('text-xs text-gray-500 uppercase tracking-wide')
-        proc_count_badge = ui.badge('0', color='blue').classes('text-[11px] font-mono')
+        proc_count_badge = ui.badge('0', color='teal').classes('text-[11px] font-mono')
 
     from scripts.dashboard_ng.utils.poly_bot_control import (
         BOT_DEFS as _BOT_DEFS, start_bot as _start, stop_bot as _stop,
@@ -552,7 +552,7 @@ def render_polymarket_page():
 
             sched_toggle = ui.switch('', value=sched.get('enabled', False),
                                      on_change=lambda e, k=key: on_sched_change(k)) \
-                .props('dense color=indigo size=sm')
+                .props('dense color=teal size=sm')
 
             sched_inputs[key] = {
                 'start': start_input, 'stop': stop_input,
@@ -642,7 +642,7 @@ def render_polymarket_page():
             else:
                 for p in procs:
                     with ui.row().classes('items-center gap-2 w-full py-0.5'):
-                        ui.badge(f'PID {p["pid"]}', color='blue').classes('font-mono text-[12px]')
+                        ui.badge(f'PID {p["pid"]}', color='teal').classes('font-mono text-[12px]')
                         # Show uptime only if meaningful (>1min)
                         up = p['uptime'].strip()
                         if up and up != '00:00' and not up.startswith('00:0'):

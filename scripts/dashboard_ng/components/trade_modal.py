@@ -1,18 +1,22 @@
-"""Trade entry modal — OKX-style order entry with 5-step execution.
+"""Trade entry modal — enhanced order entry with real-time calculations.
 
 Sequence: margin mode → leverage → entry → SL (critical) → TP (best-effort).
 BMD fix #2: debounce lock prevents double-submit.
+
+Enhancements (2026-03-26):
+  - Margin mode badge (CROSSED)
+  - Real-time notional + margin % display
+  - Bidirectional USDT ↔ Qty calculation
+  - Validation warnings (min qty, min notional, insufficient balance)
 """
 
 import logging
+import math
 import time
 
 from nicegui import ui, run
 
 log = logging.getLogger('axc.trade')
-
-# Note: debounce is per-dialog via submit_btn.set_enabled(False)
-# No global lock needed — NiceGUI isolates per client.
 
 
 async def _fetch_balance() -> dict:
@@ -31,19 +35,28 @@ async def _fetch_symbol_info(symbol: str, platform: str) -> dict:
     return data
 
 
+def _get_price(symbol: str) -> float:
+    """Get current price from dashboard state."""
+    try:
+        from scripts.dashboard_ng.state import get_data
+        prices = get_data().get('prices', {})
+        coin = symbol.replace('USDT', '')
+        return float(prices.get(coin, 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
-    """Show the trade entry dialog.
-
-    Uses teleport to page body to avoid parent slot deletion when
-    timer-refreshed containers call clear().
-    """
-    # Create dialog then move to page root (escape timer-refreshed container)
+    """Show the trade entry dialog."""
     dialog = ui.dialog().props('persistent')
-    dialog.move()  # target_container=None → moves to page root
-    with dialog, ui.card().classes('p-6 min-w-[400px] max-w-[500px]'):
-        ui.label('New Order').classes('text-xl font-bold mb-4')
+    dialog.move()
+    with dialog, ui.card().classes('p-6 min-w-[420px] max-w-[520px]'):
+        # ── Header ──
+        with ui.row().classes('items-center justify-between w-full mb-3'):
+            ui.label('New Order').classes('text-xl font-bold')
+            ui.badge('CROSS MARGIN', color='teal', outline=True).classes('text-[10px]')
 
-        # Symbol + Platform
+        # ── Symbol + Platform ──
         with ui.row().classes('gap-4 w-full'):
             symbol_input = ui.input('Symbol', value=symbol).classes('flex-1') \
                 .props('dense outlined dark')
@@ -52,10 +65,10 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                 value=platform, label='Exchange',
             ).classes('w-36').props('dense outlined dark')
 
-        # Side
-        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY').props('no-caps color=indigo spread')
+        # ── Side ──
+        side_toggle = ui.toggle(['BUY', 'SELL'], value='BUY').props('no-caps color=teal spread')
 
-        # Order type
+        # ── Order type ──
         type_toggle = ui.toggle(['MARKET', 'LIMIT'], value='MARKET').props('dense no-caps color=grey-7')
         limit_price_input = ui.number('Limit Price', format='%.4f').classes('w-full') \
             .props('dense outlined dark')
@@ -66,32 +79,39 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
 
         type_toggle.on_value_change(on_type_change)
 
-        # Balance display
-        balance_label = ui.label('Balance: loading...').classes('text-xs text-gray-500')
+        # ── Balance + Margin info ──
+        with ui.row().classes('gap-4 w-full items-center'):
+            balance_label = ui.label('Balance: loading...').classes('text-xs text-gray-500')
+            margin_pct_label = ui.label('').classes('text-xs text-gray-500')
 
-        # Qty inputs
+        # ── USDT Amount + Quantity (bidirectional) ──
         with ui.row().classes('gap-4 w-full items-end'):
-            notional_input = ui.number('USDT Amount', value=10.0, min=1, format='%.2f') \
+            notional_input = ui.number('USDT Margin', value=10.0, min=0.1, format='%.2f') \
                 .classes('flex-1').props('dense outlined dark')
             qty_input = ui.number('Quantity', format='%.6f') \
                 .classes('flex-1').props('dense outlined dark')
 
-        # Leverage
-        leverage_input = ui.number('Leverage', value=5, min=1, max=125, step=1) \
-            .classes('w-32').props('dense outlined dark')
+        # ── Leverage ──
+        with ui.row().classes('gap-4 w-full items-end'):
+            leverage_input = ui.number('Leverage', value=5, min=1, max=125, step=1) \
+                .classes('w-32').props('dense outlined dark')
+            notional_label = ui.label('').classes('text-xs text-teal-400 font-mono')
 
-        # SL / TP
+        # ── SL / TP ──
         with ui.row().classes('gap-4 w-full'):
             sl_input = ui.number('Stop Loss', format='%.4f').classes('flex-1') \
                 .props('dense outlined dark')
             tp_input = ui.number('Take Profit', format='%.4f').classes('flex-1') \
                 .props('dense outlined dark')
 
-        # Symbol info display
+        # ── Info + Validation ──
         info_label = ui.label('').classes('text-[10px] text-gray-600')
+        warn_label = ui.label('').classes('text-[11px] text-orange-400')
 
-        # Auto-calculate qty from notional
+        # ── State ──
         symbol_info = {'data': {}}
+        _balance = {'value': 0.0}
+        _calc_lock = {'from_usdt': False, 'from_qty': False}
 
         async def load_info():
             try:
@@ -110,53 +130,110 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                     info_label.text = 'Could not fetch symbol info'
 
                 balances = await _fetch_balance()
-                bal = balances.get(plat, {}).get('balance', '?')
-                balance_label.text = f'Balance: ${bal}'
+                bal_raw = balances.get(plat, {}).get('balance', 0)
+                try:
+                    _balance['value'] = float(bal_raw)
+                except (TypeError, ValueError):
+                    _balance['value'] = 0
+                balance_label.text = f'Balance: ${_balance["value"]:.2f}'
             except Exception as e:
                 log.error('load_info failed: %s', e)
-                info_label.text = f'Error loading info: {e}'
+                info_label.text = f'Error: {e}'
 
-        def calc_qty():
+        def _update_display():
+            """Update notional, margin %, and validation warnings."""
+            price = _get_price((symbol_input.value or '').upper().strip())
+            qty = qty_input.value or 0
+            usdt = notional_input.value or 0
+            info = symbol_info['data']
+
+            # Notional value
+            if price > 0 and qty > 0:
+                notional_val = qty * price
+                notional_label.text = f'Notional: ${notional_val:,.1f}'
+            else:
+                notional_label.text = ''
+
+            # Margin % of balance
+            bal = _balance['value']
+            if bal > 0 and usdt > 0:
+                pct = (usdt / bal) * 100
+                color = 'text-green-400' if pct < 50 else 'text-orange-400' if pct < 80 else 'text-red-400'
+                margin_pct_label.text = f'({pct:.0f}% of balance)'
+                margin_pct_label.classes(replace=f'text-xs {color}')
+            else:
+                margin_pct_label.text = ''
+
+            # Validation warnings
+            warnings = []
+            min_qty = info.get('min_qty', 0)
+            min_notional = info.get('min_notional', 5.0)
+            step = info.get('step_size', 0.001)
+
+            if qty > 0 and min_qty > 0 and qty < min_qty:
+                warnings.append(f'Qty {qty} < min {min_qty}')
+            if price > 0 and qty > 0 and (qty * price) < min_notional:
+                warnings.append(f'Notional ${qty * price:.1f} < min ${min_notional}')
+            if usdt > 0 and bal > 0 and usdt > bal:
+                warnings.append(f'Margin ${usdt:.1f} > balance ${bal:.1f}')
+
+            warn_label.text = ' | '.join(warnings) if warnings else ''
+
+        def calc_qty_from_usdt():
+            """USDT → Qty calculation."""
+            if _calc_lock['from_qty']:
+                return
+            _calc_lock['from_usdt'] = True
             try:
-                from scripts.dashboard_ng.state import get_data
-                d = get_data()
-                prices = d.get('prices', {})
-                sym = (symbol_input.value or '').upper().strip()
-
-                coin = sym.replace('USDT', '')
-                price_str = prices.get(coin, '0')
-                try:
-                    price = float(price_str)
-                except (TypeError, ValueError):
-                    price = 0
-
+                price = _get_price((symbol_input.value or '').upper().strip())
                 if price <= 0:
                     return
-
-                notional = notional_input.value or 0
+                usdt = notional_input.value or 0
                 lev = leverage_input.value or 1
-                if notional <= 0 or lev <= 0:
+                if usdt <= 0 or lev <= 0:
                     return
-                raw_qty = (notional * lev) / price
-
-                info = symbol_info['data']
-                step = info.get('step_size', 0.001)
+                raw_qty = (usdt * lev) / price
+                step = symbol_info['data'].get('step_size', 0.001)
                 if step > 0:
-                    import math
                     raw_qty = math.floor(raw_qty / step) * step
-
                 qty_input.value = round(raw_qty, 8)
             except Exception as e:
                 log.warning('calc_qty error: %s', e)
+            finally:
+                _calc_lock['from_usdt'] = False
+                _update_display()
 
-        notional_input.on('update:model-value', lambda: calc_qty())
-        leverage_input.on('update:model-value', lambda: calc_qty())
+        def calc_usdt_from_qty():
+            """Qty → USDT reverse calculation."""
+            if _calc_lock['from_usdt']:
+                return
+            _calc_lock['from_qty'] = True
+            try:
+                price = _get_price((symbol_input.value or '').upper().strip())
+                if price <= 0:
+                    return
+                qty = qty_input.value or 0
+                lev = leverage_input.value or 1
+                if qty <= 0 or lev <= 0:
+                    return
+                usdt = (qty * price) / lev
+                notional_input.value = round(usdt, 2)
+            except Exception as e:
+                log.warning('calc_usdt error: %s', e)
+            finally:
+                _calc_lock['from_qty'] = False
+                _update_display()
+
+        notional_input.on('update:model-value', lambda: calc_qty_from_usdt())
+        leverage_input.on('update:model-value', lambda: calc_qty_from_usdt())
+        qty_input.on('update:model-value', lambda: calc_usdt_from_qty())
 
         ui.separator().classes('bg-gray-700 my-2')
 
-        # Submit button with debounce
+        # ── Status ──
         status_label = ui.label('').classes('text-sm')
 
+        # ── Submit ──
         async def submit_order():
             if not submit_btn.enabled:
                 return
@@ -199,7 +276,6 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
                     for w in warnings:
                         ui.notify(w, type='warning')
 
-                    # Auto-close after success
                     import asyncio
                     await asyncio.sleep(1.5)
                     dialog.submit('done')
@@ -220,15 +296,14 @@ async def show_trade_modal(symbol: str = 'BTCUSDT', platform: str = 'aster'):
         with ui.row().classes('gap-3 justify-end w-full'):
             ui.button('Cancel', on_click=lambda: dialog.submit(None)).props('flat color=grey')
             submit_btn = ui.button('Place Order', icon='send', on_click=submit_order) \
-                .props('color=indigo')
+                .props('color=teal')
 
-        # Load info on open, then calc qty after info loads
+        # ── Init ──
         async def init_dialog():
             await load_info()
-            calc_qty()
+            calc_qty_from_usdt()
 
         ui.timer(0.1, init_dialog, once=True)
 
     dialog.open()
-    # Block until dialog is closed — prevents caller's finally from running early
     await dialog

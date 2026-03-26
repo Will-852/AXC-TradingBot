@@ -82,7 +82,7 @@ def render_controls():
                     'ZONE_B': 'B · 15-18x',
                 },
                 value='ZONE_A',
-            ).props('dense no-caps color=indigo')
+            ).props('dense no-caps color=teal')
 
             async def on_profile(e):
                 if syncing['active']:
@@ -113,7 +113,7 @@ def render_controls():
                     'full': 'Full',
                 },
                 value='full',
-            ).props('dense no-caps color=indigo')
+            ).props('dense no-caps color=teal')
 
             async def on_regime(e):
                 if syncing['active']:
@@ -218,7 +218,7 @@ def render_service_panel():
                         await refresh_status()
 
                     ui.button(icon='refresh', on_click=on_restart).props(
-                        'flat dense round color=blue size=sm'
+                        'flat dense round color=teal size=sm'
                     ).tooltip('Restart')
 
         ui.separator()

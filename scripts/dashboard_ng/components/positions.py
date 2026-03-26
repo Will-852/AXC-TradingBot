@@ -60,7 +60,7 @@ async def _show_modify_dialog(pos: dict):
             ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
             ui.button('Confirm', on_click=lambda: dialog.submit({
                 'sl': sl_input.value, 'tp': tp_input.value,
-            })).props('color=indigo')
+            })).props('color=teal')
 
     try:
         result = await dialog
@@ -173,7 +173,7 @@ def _render_position_card(pos: dict):
                     .classes('text-xs').props('dense')
             with ui.row().classes('gap-1'):
                 ui.button('SL/TP', on_click=lambda p=pos: _show_modify_dialog(p)) \
-                    .props('flat dense size=sm color=indigo')
+                    .props('flat dense size=sm color=teal')
                 async def _confirm_close(s=symbol, p=platform, pnl=pnl_val, mk=mark, sd=side):
                     dlg = ui.dialog().props('persistent')
                     dlg.move()

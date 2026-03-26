@@ -26,7 +26,7 @@ def render_market_view():
             ui.label('MARKET FOCUS').classes('text-xs text-gray-500 uppercase tracking-wide')
             market_select = ui.select(
                 [], value=None, label='Select Market',
-            ).classes('w-80').props('dense filled dark color=indigo')
+            ).classes('w-80').props('dense filled dark color=teal')
 
         with ui.row().classes('items-center gap-3'):
             countdown_label = ui.label('--:--').classes('text-2xl font-mono font-bold text-amber-400')

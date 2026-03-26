@@ -71,7 +71,7 @@ async def _show_connect_dialog(exch: dict):
 
         with ui.row().classes('gap-2 justify-end w-full mt-2'):
             ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
-            ui.button('Connect', icon='link', on_click=submit).props('color=indigo')
+            ui.button('Connect', icon='link', on_click=submit).props('color=teal')
 
     dialog.open()
 
@@ -129,7 +129,7 @@ def render_exchange_panel():
                                 async def do_connect(e=exch):
                                     await _show_connect_dialog(e)
                                 ui.button('Connect', on_click=do_connect) \
-                                    .props('flat dense size=xs color=indigo')
+                                    .props('flat dense size=xs color=teal')
 
         ui.timer(0.1, update, once=True)
         ui.timer(60, update)
