@@ -111,7 +111,9 @@ def _fetch_from_cdn(symbol: str, day: datetime) -> pd.DataFrame | None:
             if resp.status_code == 404:
                 log.debug("CDN: %s %s not available yet", symbol, date_str)
                 return None
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                log.warning("CDN: %s %s HTTP %d — skipping", symbol, date_str, resp.status_code)
+                return None
 
             # Stream to temp file (avoid loading 100MB+ into memory)
             with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
