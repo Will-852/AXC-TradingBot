@@ -272,7 +272,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             ws_user=_ws_user, ws_poly=_ws_poly)
 
     # ══════ RUNTIME RATIO CAP ══════
-    order_lifecycle.runtime_ratio_cap(state, client)
+    order_lifecycle.runtime_ratio_cap(state, client, ws_user=_ws_user)
 
     # ══════ POST-FILL AS CHECK ══════
     order_lifecycle.post_fill_as_check(client, ws_poly=_ws_poly)

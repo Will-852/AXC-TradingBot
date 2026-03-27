@@ -622,10 +622,14 @@ def cancel_defense(state: dict, client, dry_run: bool,
         _phantom_fills = []
         _time_on_book = now_s - entry_ts if entry_ts > 0 else 0
         _dist_to_end_s = (end_ms / 1000 - now_s) if end_ms > 0 else 0
+        _ws_available = bool(ws_user and ws_user.connected)
+        if not _ws_available and to_cancel:
+            logger.warning("CANCEL DEFENSE %s: WS not connected — phantom fill guard disabled, "
+                           "proceeding with cancel (end-of-window cleanup)", cid[:8])
         for po in to_cancel:
             oid = po.get("order_id", "")
             if oid:
-                if ws_user and ws_user.connected:
+                if _ws_available:
                     _ws_st = ws_user.get_order_status(oid)
                     if _ws_st == "MATCHED":
                         _fill_size = po["size"]
@@ -692,6 +696,10 @@ def reprice_orders(state: dict, client, dry_run: bool,
     """
     if not (both_sides and client and hasattr(client, "client")
             and not dry_run and is_heavy):
+        return
+
+    # WS unavailable → skip ALL repricing (phantom fill risk without status check)
+    if not (ws_user and ws_user.connected):
         return
 
     _reprice_now = time.time()
@@ -849,10 +857,11 @@ def reprice_orders(state: dict, client, dry_run: bool,
                 mkt["fills_confirmed"] = True
 
 
-def runtime_ratio_cap(state: dict, client) -> None:
+def runtime_ratio_cap(state: dict, client, ws_user=None) -> None:
     """Cancel excess lean orders if effective ratio > cap.
 
     🔴 T1+T2 can amplify ratio to 2.7-4.2x. One R=2.7 trade lost $10.44.
+    🔴 Must WS pre-check before cancel — same phantom fill risk as reprice.
     """
     for _rc_cid, _rc_mkt in list(state.get("markets", {}).items()):
         if not _rc_mkt.get("both_sides"):
@@ -868,16 +877,60 @@ def runtime_ratio_cap(state: dict, client) -> None:
                 _rc_cancel = [p for p in _rc_pending
                               if p.get("outcome", "").upper() == _rc_excess_side]
                 if _rc_cancel and client and hasattr(client, "client"):
+                    # WS unavailable → skip cancel (conservative: don't risk phantom fill)
+                    if not (ws_user and ws_user.connected):
+                        logger.warning(
+                            "RATIO CAP SKIP %s: R=%.1f > %.1f cap, but WS not connected "
+                            "— cannot safely cancel (phantom fill risk)",
+                            _rc_cid[:8], _rc_ratio, _W4_EFFECTIVE_R_CAP)
+                        continue
+                    _rc_filled_oids = set()  # track matched orders to remove from pending
                     for _rc_o in _rc_cancel:
                         _rc_oid = _rc_o.get("order_id", "")
-                        if _rc_oid:
-                            try:
-                                client.client.cancel(_rc_oid)
-                                logger.warning("RATIO CAP %s: R=%.1f > %.1f cap → cancelled %s %s",
-                                               _rc_cid[:8], _rc_ratio, _W4_EFFECTIVE_R_CAP,
-                                               _rc_excess_side, _rc_oid[:12])
-                            except Exception:
-                                pass
+                        if not _rc_oid:
+                            continue
+                        # WS pre-check: if already matched, account fill instead of cancel
+                        _rc_ws_st = ws_user.get_order_status(_rc_oid)
+                        if _rc_ws_st == "MATCHED":
+                            _rc_fill_size = _rc_o.get("size", 0)
+                            _rc_ws_det = ws_user.get_order_detail(_rc_oid)
+                            if _rc_ws_det and _rc_ws_det.get("size_matched", 0) > 0:
+                                _rc_fill_size = _rc_ws_det["size_matched"]
+                            _rc_fill_price = _rc_o.get("price", 0)
+                            _rc_outcome = _rc_o.get("outcome", "").upper()
+                            if _rc_outcome == "UP":
+                                _old_val = _rc_mkt["up_shares"] * _rc_mkt["up_avg_price"]
+                                _rc_mkt["up_shares"] += _rc_fill_size
+                                _rc_mkt["up_avg_price"] = (
+                                    (_old_val + _rc_fill_size * _rc_fill_price) / _rc_mkt["up_shares"]
+                                )
+                            elif _rc_outcome == "DOWN":
+                                _old_val = _rc_mkt["down_shares"] * _rc_mkt["down_avg_price"]
+                                _rc_mkt["down_shares"] += _rc_fill_size
+                                _rc_mkt["down_avg_price"] = (
+                                    (_old_val + _rc_fill_size * _rc_fill_price) / _rc_mkt["down_shares"]
+                                )
+                            _rc_mkt["entry_cost"] = _rc_mkt.get("entry_cost", 0) + _rc_fill_size * _rc_fill_price
+                            bump_fill(state, "filled")
+                            _rc_filled_oids.add(_rc_oid)
+                            logger.warning(
+                                "RATIO CAP ABORT %s %s: order ALREADY MATCHED "
+                                "(%.1f @ $%.3f) — phantom fill recovered, NOT cancelled",
+                                _rc_cid[:8], _rc_outcome, _rc_fill_size, _rc_fill_price)
+                            continue
+                        try:
+                            client.client.cancel(_rc_oid)
+                            logger.warning("RATIO CAP %s: R=%.1f > %.1f cap → cancelled %s %s",
+                                           _rc_cid[:8], _rc_ratio, _W4_EFFECTIVE_R_CAP,
+                                           _rc_excess_side, _rc_oid[:12])
+                        except Exception:
+                            pass
+                    # Remove matched orders from pending to prevent double accounting
+                    if _rc_filled_oids:
+                        _rc_mkt["pending_orders"] = [
+                            p for p in _rc_mkt.get("pending_orders", [])
+                            if p.get("order_id", "") not in _rc_filled_oids
+                        ]
                 else:
                     logger.warning("RATIO CAP WARN %s: R=%.1f > %.1f cap, UP=%.0f DN=%.0f, "
                                    "but no pending to cancel (all filled)",

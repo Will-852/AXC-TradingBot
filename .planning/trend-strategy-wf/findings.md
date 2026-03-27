@@ -58,7 +58,36 @@ Dead params confirmed:
 
 The **only** params that change results are sl_atr_mult and min_rr (position sizing), but they overfit.
 
-## Next Steps
-1. Skip Sweep B (entry params) — pointless given Sweep A result
-2. Focus on SQUEEZE edge (PF=1.65 from handoff) + exit/sizing optimization
-3. Walk-forward validate Crash strategy (separate regime, may have edge)
+## Crash Sweep A: Exit/Sizing (16 combos × 3 symbols × 365d) ❌ NO EDGE
+
+Best: sl_atr_mult=3.0 → -3.8%, 358 trades. Production baseline: -6.6%.
+Walk-Forward: 4/5 REJECTED. 1 marginal pass (sl_atr=2.5, rr=1.0) but **OOS = -4.0%** (蝕錢)
+- min_rr = DEAD param (1.0-2.5 identical results)
+- SOL only positive symbol (+9.4%), ETH (-7.6%) and BTC (-13.2%) dead
+- WFE=1.31 is misleading — ratio of two negatives
+
+## Squeeze Sweep A: Exit/Sizing (60 combos × 2 symbols × 365d) ❌ NO EDGE (FALSE POSITIVE)
+
+5/5 WF "passed" but **both IS and OOS are negative**:
+- IS = -5.79%, OOS = -4.11% → WFE = 0.71 (ratio of negatives)
+- PF = 0.0, return = -8.99% aggregate, AdjWR 42.8%
+- sqz_min_rr = DEAD param (1.5-3.0 identical)
+- sqz_tp_atr_mult = nearly dead (2.0-2.5 identical)
+- PF=1.65 from handoff was specific to session-filtered subset, not general
+
+**WF validation bug found**: WFE > 0.50 passes when both IS and OOS are negative. Need `mean_oos > 0` additional condition.
+
+## FINAL CONCLUSION: ALL 4 STRATEGIES = NO EDGE
+
+| Strategy | Status | Evidence |
+|----------|--------|----------|
+| Range | DEAD | 96 combos, 3 sweeps, 0 WF pass |
+| Trend | DEAD | 228 combos, 0 WF pass, OOS -2.7% |
+| Crash | DEAD | 16 combos, 1 marginal pass, OOS -4.0% |
+| Squeeze | DEAD | 60 combos, 5 false+ pass, IS+OOS both negative |
+
+## Next Steps (Strategy Direction Change Required)
+1. **Fix WF validation**: add `mean_oos > 0` requirement
+2. **Stop tuning params** — entry/exit params are mostly dead across all strategies
+3. **Fundamental rethink needed**: indicator-based strategies on 1H/4H timeframes don't have edge
+4. Possible directions: order flow (sub-minute), ML features, or pure market making

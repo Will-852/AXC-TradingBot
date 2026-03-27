@@ -355,6 +355,17 @@ def try_entries(state: dict, client, config, dry_run: bool,
                 _up_shares = max(config.min_order_size, round(_total_shares * _hedge_share_frac, 1))
                 _dn_shares = max(config.min_order_size, round(_total_shares * _lean_share_frac, 1))
 
+            # Warn if min_order_size floor hit — can cause ratio drift on small budgets
+            _intended_lean = round(_total_shares * _lean_share_frac, 1)
+            _intended_hedge = round(_total_shares * _hedge_share_frac, 1)
+            if (_intended_lean < config.min_order_size or _intended_hedge < config.min_order_size):
+                _actual_r = max(_up_shares, _dn_shares) / max(min(_up_shares, _dn_shares), 0.1)
+                logger.warning(
+                    "T1 RATIO DRIFT %s: min_order_size floor hit. "
+                    "intended=%.1f/%.1f actual=%.1f/%.1f R=%.2f (budget=$%.2f)",
+                    cid[:8], _intended_lean, _intended_hedge,
+                    _up_shares, _dn_shares, _actual_r, _budget)
+
             _est_cost = _up_shares * _up_bid + _dn_shares * _dn_bid
             if _est_cost > _budget * 1.5 and _budget > 0:
                 _scale = _budget / _est_cost
