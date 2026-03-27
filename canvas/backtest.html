@@ -844,7 +844,7 @@
     </button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importReport(this)">
 
-    <button class="btn-load" onclick="document.getElementById('file-help').style.display=document.getElementById('file-help').style.display==='none'?'block':'none'" title="文件位置說明" style="padding:7px 8px;min-width:0">
+    <button class="btn-load" onclick="try{var h=document.getElementById('file-help');if(h)h.style.display=h.style.display==='none'?'block':'none'}catch(e){console.warn('help toggle:',e)}" title="文件位置說明" style="padding:7px 8px;min-width:0">
       <i class="fas fa-question-circle"></i>
     </button>
 
@@ -4438,90 +4438,83 @@ function loadExisting() {
         setState('IDLE');
         return;
       }
-      var msg = 'Available results:\n\n';
+      loadExisting._results = results;  // stash for loadResult callback
+      // ── Styled result picker modal ──
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+      var card = document.createElement('div');
+      card.style.cssText = 'background:#1e222d;border:1px solid #2a2e39;border-radius:10px;padding:20px;max-width:600px;width:90%;max-height:70vh;overflow-y:auto;color:#d1d4dc;font-size:0.85rem';
+      card.innerHTML = '<div style="font-weight:700;font-size:1.1rem;margin-bottom:12px;color:#fff">📂 載入舊結果 (' + results.length + ')</div>';
+      var list = document.createElement('div');
       results.forEach(function(r, i) {
-        var line = (i+1) + '. ' + r.symbol + ' ' + r.days + 'd';
-        // Stats summary
+        var row = document.createElement('div');
+        row.style.cssText = 'padding:10px 12px;border-bottom:1px solid #2a2e39;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-radius:6px;margin:2px 0';
+        row.onmouseenter = function() { row.style.background = '#2a2e39'; };
+        row.onmouseleave = function() { row.style.background = 'transparent'; };
+        var left = '<div><b style="color:#fff">' + r.symbol + '</b> <span style="color:#787b86">' + r.days + 'd</span>';
+        if (r.is_imported) left += ' <span style="color:#f59e0b;font-size:0.7rem">[imported]</span>';
+        left += '<br><span style="font-size:0.75rem;color:#787b86">' + r.trade_count + ' trades</span></div>';
+        var right = '';
         if (r.stats && r.stats.return_pct !== undefined) {
-          var est = r.stats.estimated ? '~' : '';
           var ret = r.stats.return_pct;
-          var retStr = est + (ret >= 0 ? '+' : '') + ret.toFixed(1) + '%';
-          line += '  ' + retStr;
-          if (r.stats.win_rate !== undefined) line += '  WR:' + r.stats.win_rate.toFixed(0) + '%';
-          if (r.stats.max_drawdown_pct !== undefined) line += '  DD:' + est + r.stats.max_drawdown_pct.toFixed(1) + '%';
+          var retColor = ret >= 0 ? '#22c55e' : '#ef4444';
+          right = '<div style="text-align:right"><span style="color:' + retColor + ';font-weight:700;font-size:1rem">' + (ret >= 0 ? '+' : '') + ret.toFixed(1) + '%</span>';
+          if (r.stats.win_rate !== undefined) right += '<br><span style="font-size:0.7rem;color:#787b86">WR ' + r.stats.win_rate.toFixed(0) + '%</span>';
+          right += '</div>';
         }
-        line += '  (' + r.trade_count + ' trades)';
-        if (r.is_imported) line += ' [imported]';
-        msg += line + '\n';
+        row.innerHTML = left + right;
+        row.onclick = function() { document.body.removeChild(overlay); loadResult(i); };
+        list.appendChild(row);
       });
-      var pick = prompt(msg + '\nEnter number to load:', '1');
-      if (!pick) { setState('IDLE'); return; }
-      var idx = parseInt(pick) - 1;
-      if (idx < 0 || idx >= results.length) { setState('IDLE'); return; }
+      card.appendChild(list);
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = 'Cancel';
+      closeBtn.style.cssText = 'margin-top:12px;padding:6px 16px;background:#2a2e39;color:#d1d4dc;border:none;border-radius:4px;cursor:pointer;font-size:0.8rem';
+      closeBtn.onclick = function() { document.body.removeChild(overlay); setState('IDLE'); };
+      card.appendChild(closeBtn);
+      overlay.appendChild(card);
+      overlay.onclick = function(e) { if (e.target === overlay) { document.body.removeChild(overlay); setState('IDLE'); } };
+      // Define loadResult globally before return (so onclick can access it)
+      window._loadExistingResults = results;
+      window.loadResult = function(idx) {
+        var results = window._loadExistingResults;
+        if (!results || idx < 0 || idx >= results.length) { setState('IDLE'); return; }
 
-      var chosen = results[idx];
-      document.getElementById('sel-symbol').value = chosen.symbol;
-
-      // Fill back param panel from metadata
-      if (chosen.balance) document.getElementById('inp-balance').value = chosen.balance;
-      if (chosen.strategy_params) fillParamPanel(chosen.strategy_params);
-      if (chosen.allowed_modes) {
-        document.getElementById('p-mode-range').checked = chosen.allowed_modes.indexOf('RANGE') >= 0;
-        document.getElementById('p-mode-trend').checked = chosen.allowed_modes.indexOf('TREND') >= 0;
-      }
-      if (chosen.mode_confirmation) document.getElementById('p-mode-conf').value = chosen.mode_confirmation;
-      if (chosen.param_overrides) fillOverridePanel(chosen.param_overrides);
-
-      // Show run config card
-      updateRunConfig({
-        balance: chosen.balance, strategy_params: chosen.strategy_params,
-        param_overrides: chosen.param_overrides, stats: chosen.stats,
-        symbol: chosen.symbol, days: chosen.days
-      });
-
-      api('/api/backtest/results?file=' + encodeURIComponent(chosen.file))
-        .then(function(data) {
-          var trades = data.trades || [];
-          loadKlines(chosen.symbol, chosen.days, function() {
-            currentTrades = trades;
-            currentFile = chosen.file || '';
-            updateTradeLog(trades);
-            drawTradeMarkers(trades);
-            // Enable export button for loaded results
-            var expBtn = document.getElementById('btn-export-report');
-            if (expBtn) { expBtn.disabled = false; expBtn.style.opacity = '1'; }
-            // Restore stats from meta if available, otherwise compute from trades
-            if (chosen.stats && chosen.stats.return_pct !== undefined) {
-              updateStats(chosen.stats);
-            } else if (trades.length) {
-              var wins = 0, totalPnl = 0, maxDD = 0, equity = 0, peak = 0;
-              trades.forEach(function(t) {
-                var pnl = t.pnl || 0;
-                if (pnl > 0) wins++;
-                totalPnl += pnl;
-                equity += pnl;
-                if (equity > peak) peak = equity;
-                var dd = peak - equity;
-                if (dd > maxDD) maxDD = dd;
-              });
-              var bal = parseFloat(document.getElementById('inp-balance').value) || 10000;
-              updateStats({
-                return_pct: (totalPnl / bal) * 100,
-                win_rate: trades.length ? (wins / trades.length * 100) : 0,
-                profit_factor: '--',
-                max_drawdown_pct: bal > 0 ? (maxDD / bal * 100) : 0,
-                total_trades: trades.length,
-                expectancy: trades.length ? (totalPnl / trades.length) : 0,
-                sharpe_ratio: 0,
-                max_win_streak: 0, max_loss_streak: 0
-              });
-            }
-          });
-        })
-        .catch(function(e) {
-          console.error('results error:', e);
-          setState('ERROR');
+        var chosen = results[idx];
+        document.getElementById('sel-symbol').value = chosen.symbol;
+        if (chosen.balance) document.getElementById('inp-balance').value = chosen.balance;
+        if (chosen.strategy_params) fillParamPanel(chosen.strategy_params);
+        if (chosen.allowed_modes) {
+          document.getElementById('p-mode-range').checked = chosen.allowed_modes.indexOf('RANGE') >= 0;
+          document.getElementById('p-mode-trend').checked = chosen.allowed_modes.indexOf('TREND') >= 0;
+        }
+        if (chosen.mode_confirmation) document.getElementById('p-mode-conf').value = chosen.mode_confirmation;
+        if (chosen.param_overrides) fillOverridePanel(chosen.param_overrides);
+        updateRunConfig({
+          balance: chosen.balance, strategy_params: chosen.strategy_params,
+          param_overrides: chosen.param_overrides, stats: chosen.stats,
+          symbol: chosen.symbol, days: chosen.days
         });
+        api('/api/backtest/results?file=' + encodeURIComponent(chosen.file))
+          .then(function(data) {
+            var trades = data.trades || [];
+            loadKlines(chosen.symbol, chosen.days, function() {
+              currentTrades = trades;
+              currentFile = chosen.file || '';
+              updateTradeLog(trades);
+              drawTradeMarkers(trades);
+              if (data.indicator_series) applyIndicatorData(data.indicator_series);
+              var expBtn = document.getElementById('btn-export-report');
+              if (expBtn) { expBtn.disabled = false; expBtn.style.opacity = '1'; }
+              var csvBtn = document.getElementById('btn-export');
+              if (csvBtn) { csvBtn.disabled = false; csvBtn.style.opacity = '1'; }
+              setState('LOADED');
+              showToast('載入 ' + trades.length + ' 筆交易 (' + chosen.symbol + ' ' + chosen.days + 'd)', 'success');
+            });
+          })
+          .catch(function(e) { console.error('results error:', e); setState('ERROR'); });
+      };
+      document.body.appendChild(overlay);
     })
     .catch(function(e) {
       console.error('list error:', e);
