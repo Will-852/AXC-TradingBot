@@ -176,8 +176,8 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     for _vc in ("BTC", "ETH", "SOL"):
         _coin_vols[_vc] = _vol_1m(_vc)
 
-    # ── Refresh bankroll (10% of wallet — share with 15M bot) ──
-    _1H_BANKROLL_FRACTION = 0.10
+    # ── Refresh bankroll (30% of wallet — 15M stopped, more room for conviction) ──
+    _1H_BANKROLL_FRACTION = 0.30
     if client and hasattr(client, "get_usdc_balance") and not dry_run:
         try:
             state["bankroll"] = client.get_usdc_balance() * _1H_BANKROLL_FRACTION
@@ -619,6 +619,25 @@ def main():
         except Exception as e:
             print(f"  CLOB failed: {e} → dry-run fallback")
             dry_run = True
+
+    # --- Startup orphan cancel (live only) ---
+    if not dry_run and client is not None:
+        try:
+            existing = client.get_orders()
+            if existing:
+                cancelled = 0
+                for o in existing:
+                    oid = o.get("id", "")
+                    if oid:
+                        try:
+                            client.client.cancel(order_id=oid)
+                            cancelled += 1
+                        except Exception:
+                            pass
+                if cancelled:
+                    logger.warning("STARTUP: cancelled %d orphan orders", cancelled)
+        except Exception as e:
+            logger.warning("Startup orphan check failed: %s", e)
 
     if dry_run and client is None:
         class _Mock:

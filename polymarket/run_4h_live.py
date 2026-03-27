@@ -72,10 +72,12 @@ _WINDOW_MIN = 240       # 4H = 240 minutes
 _WAIT_MIN = 60          # wait 60 min before first entry (momentum read)
 _LATE_CUTOFF_MIN = 210  # no new entries in last 30 min
 
-# ── Pricing: cheap-to-mid zone (OB depth mostly $0.30-$0.50) ──
-_MIN_ENTRY_PRICE = 0.20
-_MAX_ENTRY_PRICE = 0.50  # raised from 0.40 — OB depth at $0.40-$0.50
-_MIN_FAIR_DEVIATION = 0.08  # bridge must deviate ≥8c from 0.50
+# ── Pricing: relative cap (edge_calibration.py → 70% discount optimal) ──
+_ENTRY_DISCOUNT = 0.70     # entry ≤ fair × 70% (was absolute $0.39)
+_MIN_ENTRY_PRICE = 0.20    # floor
+_MAX_ENTRY_PRICE = 0.60    # absolute ceiling (safety net)
+_MIN_EDGE = 0.10           # must leave ≥10c EV per share
+_MIN_FAIR_DEVIATION = 0.08 # bridge must deviate ≥8c from 0.50
 
 # ── Sizing ──
 _MAX_SIZE_FRAC = 0.03   # 3% of bankroll per window (default)
@@ -95,7 +97,7 @@ _COIN_SYMBOLS = {
     "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT",
 }
 # BTC paper-only. Others observe (collect signals, no execution).
-_LIVE_COINS = {"BTC", "SOL"}  # BTC+SOL live, ETH observe-only
+_LIVE_COINS = {"BTC", "ETH", "SOL"}  # all coins live (2/day cap protects)
 
 _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0}
 
@@ -369,10 +371,13 @@ def _4h_signal(
     result["confidence"] = round(confidence, 3)
     result["direction"] = direction
 
-    # ── Entry price: scaled to OB depth zone ($0.20-$0.50) ──
-    # Low conf → $0.20, high conf → $0.50 (where liquidity exists)
-    entry_price = _MIN_ENTRY_PRICE + confidence * 0.30
-    entry_price = max(_MIN_ENTRY_PRICE, min(_MAX_ENTRY_PRICE, round(entry_price, 2)))
+    # ── Entry price: relative cap = fair × discount ──
+    # Model says p_win → we buy at p_win × 70% → 30% discount = our edge
+    p_win = fair_up if direction == "UP" else (1 - fair_up)
+    entry_price = round(p_win * _ENTRY_DISCOUNT, 2)
+    # EV floor: entry must leave ≥ MIN_EDGE per share
+    entry_price = min(entry_price, round(p_win - _MIN_EDGE, 2))
+    entry_price = max(_MIN_ENTRY_PRICE, min(_MAX_ENTRY_PRICE, entry_price))
     result["entry_price"] = entry_price
 
     # ── Size: fraction of bankroll, scaled by confidence ──
@@ -817,7 +822,7 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
     # ── Refresh bankroll ──
     if client and hasattr(client, "get_usdc_balance") and not dry_run:
         try:
-            _4H_BANKROLL_FRAC = 0.10
+            _4H_BANKROLL_FRAC = 0.20  # 15M stopped, more room for conviction
             state["bankroll"] = client.get_usdc_balance() * _4H_BANKROLL_FRAC
         except Exception:
             pass
@@ -1032,6 +1037,25 @@ def main():
             print(f"  CLOB failed: {e} → dry-run fallback")
             dry_run = True
 
+    # --- Startup orphan cancel (live only) ---
+    if not dry_run and client is not None:
+        try:
+            existing = client.get_orders()
+            if existing:
+                cancelled = 0
+                for o in existing:
+                    oid = o.get("id", "")
+                    if oid:
+                        try:
+                            client.client.cancel(order_id=oid)
+                            cancelled += 1
+                        except Exception:
+                            pass
+                if cancelled:
+                    logger.warning("STARTUP: cancelled %d orphan orders", cancelled)
+        except Exception as e:
+            logger.warning("Startup orphan check failed: %s", e)
+
     if dry_run and client is None:
         class _Mock:
             _counter = 0
@@ -1086,6 +1110,16 @@ def main():
                     state, gamma, client, dry_run, max_size_frac,
                     last_scan, last_heavy, cached_markets, cached_vols)
                 _save(state)
+                # ── Fuse check: total loss > 22% of initial bankroll → stop ──
+                if not dry_run:
+                    _init_br = state.get("initial_bankroll", 0)
+                    _total_pnl = state.get("total_pnl", 0)
+                    if _init_br > 0 and _total_pnl < -(_init_br * _TOTAL_LOSS_FUSE_PCT):
+                        logger.critical("FUSE BLOWN: pnl $%.2f < -%.0f%% of $%.2f",
+                                        _total_pnl, _TOTAL_LOSS_FUSE_PCT * 100, _init_br)
+                        _tg_alert(f"<b>🔴 4H FUSE BLOWN</b>\nPnL: ${_total_pnl:+.2f} / limit: ${-_init_br * _TOTAL_LOSS_FUSE_PCT:+.2f}")
+                        dry_run = True
+                        break
             except KeyboardInterrupt:
                 break
             except Exception as e:

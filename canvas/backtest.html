@@ -5070,16 +5070,25 @@ function pollJob(jobId, ctx) {
 
 // ── Symbol change handler (reload history + reconnect WS if live) ──
 function onSymbolChange() {
-  if (!liveWs) return;
-  closeLiveWs();
+  // Clear stale indicator + footprint data from previous symbol
+  indicatorData = {};
+  footprintData = { delta_volume: {}, large_trades: [], volume_profile: [], heatmap: {}, cvd: {} };
+  fpFetched = false;
+
+  var wasLive = !!liveWs;
+  if (wasLive) closeLiveWs();
   var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value) || 3;
   loadKlines(symbol, days, function() {
-    connectLiveWs(true);
-    if (liveOFActive) startLiveOFWorker();  // restart OF worker for new symbol
+    if (wasLive) {
+      connectLiveWs(true);
+      if (liveOFActive) startLiveOFWorker();
+    }
   }, currentInterval, function() {
-    connectLiveWs(true);
-    if (liveOFActive) startLiveOFWorker();
+    if (wasLive) {
+      connectLiveWs(true);
+      if (liveOFActive) startLiveOFWorker();
+    }
   });
 }
 
@@ -5109,12 +5118,17 @@ function toggleLive() {
     btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live';
     return;
   }
+  var symbol = document.getElementById('sel-symbol').value;
+  // Aster symbols: no live WS, only history mode
+  if (_ASTER_SYMBOLS.indexOf(symbol) !== -1) {
+    showToast(symbol + ' 冇即時 WS（Aster DEX）— 用歷史數據', 'info');
+    return;
+  }
   btn.classList.add('active');
   btn.innerHTML = '<i class="fas fa-broadcast-tower"></i> Live ON';
   flowBtn.disabled = false; flowBtn.style.opacity = '1';
   obBtn.disabled = false; obBtn.style.opacity = '1';
   // Load recent history first, then attach WS for live updates
-  var symbol = document.getElementById('sel-symbol').value;
   var days = parseInt(document.getElementById('sel-days').value) || 3;
   loadKlines(symbol, days, function() {
     connectLiveWs();

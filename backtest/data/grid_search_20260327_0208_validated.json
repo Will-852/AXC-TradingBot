@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T19:54:09.955206+00:00",
+    "source": "/Users/wai/projects/axc-trading/backtest/data/grid_search_20260327_0208.json",
+    "folds": 5,
+    "tested": 5,
+    "passed": 5
+  },
+  "validated": [
+    {
+      "rank": 1,
+      "params": {
+        "sqz_sl_atr_mult": 1.0,
+        "sqz_tp_atr_mult": 2.0,
+        "sqz_min_rr": 2.0
+      },
+      "aggregate": {
+        "score": 24.0867,
+        "trades": 212,
+        "return_pct": -8.99,
+        "adj_wr": 42.8,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 0.71,
+        "mean_is_ret": -5.79,
+        "mean_oos_ret": -4.11,
+        "oos_positive_folds": 4,
+        "total_folds": 10,
+        "consistency": 0.4
+      }
+    },
+    {
+      "rank": 2,
+      "params": {
+        "sqz_sl_atr_mult": 1.0,
+        "sqz_tp_atr_mult": 2.0,
+        "sqz_min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 24.0867,
+        "trades": 212,
+        "return_pct": -8.99,
+        "adj_wr": 42.8,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 0.71,
+        "mean_is_ret": -5.79,
+        "mean_oos_ret": -4.11,
+        "oos_positive_folds": 4,
+        "total_folds": 10,
+        "consistency": 0.4
+      }
+    },
+    {
+      "rank": 3,
+      "params": {
+        "sqz_sl_atr_mult": 1.0,
+        "sqz_tp_atr_mult": 2.0,
+        "sqz_min_rr": 2.5
+      },
+      "aggregate": {
+        "score": 24.0867,
+        "trades": 212,
+        "return_pct": -8.99,
+        "adj_wr": 42.8,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 0.71,
+        "mean_is_ret": -5.79,
+        "mean_oos_ret": -4.11,
+        "oos_positive_folds": 4,
+        "total_folds": 10,
+        "consistency": 0.4
+      }
+    },
+    {
+      "rank": 4,
+      "params": {
+        "sqz_sl_atr_mult": 1.0,
+        "sqz_tp_atr_mult": 2.0,
+        "sqz_min_rr": 3.0
+      },
+      "aggregate": {
+        "score": 24.0867,
+        "trades": 212,
+        "return_pct": -8.99,
+        "adj_wr": 42.8,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 0.71,
+        "mean_is_ret": -5.79,
+        "mean_oos_ret": -4.11,
+        "oos_positive_folds": 4,
+        "total_folds": 10,
+        "consistency": 0.4
+      }
+    },
+    {
+      "rank": 5,
+      "params": {
+        "sqz_sl_atr_mult": 1.0,
+        "sqz_tp_atr_mult": 2.5,
+        "sqz_min_rr": 1.5
+      },
+      "aggregate": {
+        "score": 24.0867,
+        "trades": 212,
+        "return_pct": -8.99,
+        "adj_wr": 42.8,
+        "pf": 0.0,
+        "max_dd": 17.9,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 0.71,
+        "mean_is_ret": -5.79,
+        "mean_oos_ret": -4.11,
+        "oos_positive_folds": 4,
+        "total_folds": 10,
+        "consistency": 0.4
+      }
+    }
+  ]
+}

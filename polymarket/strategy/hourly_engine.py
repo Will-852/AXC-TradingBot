@@ -77,9 +77,13 @@ class HourlyConfig:
     # Edge = buying cheap, not direction accuracy. Cap $0.39 = structural protection.
     price_cap_base: float = 0.25         # cap at zero conviction
     price_cap_scale: float = 0.12        # cap grows by this x conviction → max 0.37
-    max_entry_price: float = 0.39        # hard ceiling — structural edge protection
+    max_entry_price: float = 0.60        # absolute ceiling (raised from 0.39 for relative cap)
     min_entry_price: float = 0.20        # never pay less than this (too far = no fill)
-    min_ev_per_share: float = 0.05       # minimum 5c EV per share
+    min_ev_per_share: float = 0.10       # minimum 10c EV per share (raised from 5c)
+    # Relative cap: entry ≤ p_win × discount (overrides absolute cap when p_win is high)
+    # 70% discount = 30% edge requirement. Calibrated from 720 windows (edge_calibration.py)
+    relative_cap_discount: float = 0.70  # entry ≤ fair × 70%
+    min_fair_for_relative: float = 0.65  # only use relative cap when model ≥ 65% confident
     # Spread scaling
     base_spread: float = 0.15           # spread at zero conviction
     spread_compression: float = 0.7     # how much conviction compresses spread
@@ -250,18 +254,20 @@ def conviction_signal(
             size_fraction=0, fair_up=fair_up, p_win=p_win,
             reason=f"conviction {conviction:.3f} < threshold {threshold:.3f}")
 
-    # ─── 7. Entry price: dynamic spread + dynamic cap ───
-    # High conviction → spread compresses → price closer to fair → more fills
-    # Low conviction → wide spread → cheaper entry → more margin of safety
-    dynamic_spread = config.base_spread * (1.0 - conviction * config.spread_compression)
-    entry_price = p_win - dynamic_spread
+    # ─── 7. Entry price: relative cap (edge_calibration.py verified) ───
+    # Relative cap: entry ≤ fair × discount. Replaces old dynamic-spread system.
+    # Old $0.39 cap → 0% live fill rate. Relative cap → price scales with edge.
+    if p_win >= config.min_fair_for_relative and config.relative_cap_discount > 0:
+        # High-conviction: relative cap = fair × 70%
+        entry_price = round(p_win * config.relative_cap_discount, 2)
+    else:
+        # Low-conviction fallback: old dynamic spread system
+        dynamic_spread = config.base_spread * (1.0 - conviction * config.spread_compression)
+        entry_price = p_win - dynamic_spread
+        price_cap = config.price_cap_base + conviction * config.price_cap_scale
+        entry_price = min(entry_price, price_cap)
 
-    # Dynamic cap: scales with conviction (low conviction → tighter cap)
-    # v2: conviction 0.2 → $0.274 | 0.5 → $0.31 | 0.8 → $0.346 | 1.0 → $0.37
-    price_cap = config.price_cap_base + conviction * config.price_cap_scale
-    entry_price = min(entry_price, price_cap)
-
-    # Hard ceiling: structural edge protection (break-even WR = entry price)
+    # Hard ceiling (safety net)
     if config.max_entry_price > 0:
         entry_price = min(entry_price, config.max_entry_price)
 

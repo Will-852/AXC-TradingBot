@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "timestamp": "2026-03-26T19:55:44.208324+00:00",
+    "source": "/Users/wai/projects/axc-trading/backtest/data/grid_search_20260327_0110.json",
+    "folds": 5,
+    "tested": 5,
+    "passed": 1
+  },
+  "validated": [
+    {
+      "rank": 1,
+      "params": {
+        "crash_sl_atr_mult": 2.5,
+        "crash_min_rr": 1.0
+      },
+      "aggregate": {
+        "score": 26.0129,
+        "trades": 362,
+        "return_pct": -5.32,
+        "adj_wr": 43.0,
+        "pf": 0.14,
+        "max_dd": 16.4,
+        "coverage": 100.0
+      },
+      "validation": {
+        "wfe": 1.307,
+        "mean_is_ret": -3.09,
+        "mean_oos_ret": -4.04,
+        "oos_positive_folds": 6,
+        "total_folds": 15,
+        "consistency": 0.4
+      }
+    }
+  ]
+}

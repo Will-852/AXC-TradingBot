@@ -112,6 +112,7 @@ def _check_black_swan(client, state: dict, dry_run: bool):
                               sell_pct=_BLACK_SWAN_SELL_PCT)
                 # Greed hedge: buy opposite side min 5 shares at MARKET price (speed > price)
                 # Must execute instantly — market can reverse in seconds.
+                # NOTE: dry_run guard at line 90 protects this path — _check_black_swan returns early if dry_run.
                 if sold:
                     opp_tok = mkt.get("down_token_id", "") if side == "UP" else mkt.get("up_token_id", "")
                     opp_side = "DOWN" if side == "UP" else "UP"

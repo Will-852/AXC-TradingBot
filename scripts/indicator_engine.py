@@ -68,14 +68,24 @@ MAX_ROWS = 300           # rolling DataFrame max rows (trim oldest)
 CACHE_PATH = SHARED_DIR / "indicator_cache.json"
 HEARTBEAT_PATH = LOGS_DIR / "indicator_engine_heartbeat.txt"
 
-# Coins to process — Binance exchange coins from config/coins/
+# Coins to process — ALL exchange coins (Binance + Aster)
 try:
-    from config.coins.loader import get_exchange_symbols, get_regime_anchor
-    SYMBOLS = get_exchange_symbols("binance")
+    from config.coins.loader import get_exchange_symbols, get_regime_anchor, get_all_coins
+    _binance = get_exchange_symbols("binance")
+    _aster = get_exchange_symbols("aster")
+    SYMBOLS = sorted(set(_binance) | set(_aster))
     REGIME_ANCHOR = get_regime_anchor()
+    # Per-symbol platform lookup — prefer Binance when symbol is on both exchanges
+    _SYMBOL_PLATFORM = {}
+    for sym, cfg in get_all_coins().items():
+        exchanges = cfg.get("exchange", ["binance"])
+        _SYMBOL_PLATFORM[sym] = "binance" if "binance" in exchanges else "aster"
 except ImportError:
-    SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "POLUSDT"]
+    SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "POLUSDT", "XAGUSDT", "XAUUSDT"]
     REGIME_ANCHOR = "BTCUSDT"
+    _SYMBOL_PLATFORM = {s: "binance" for s in SYMBOLS}
+    _SYMBOL_PLATFORM["XAGUSDT"] = "aster"
+    _SYMBOL_PLATFORM["XAUUSDT"] = "aster"
 
 # Lowercase symbol set for fast lookup from Redis messages
 _SYMBOLS_LOWER = {s.lower() for s in SYMBOLS}
@@ -431,8 +441,8 @@ def _backfill() -> bool:
         _indicators.setdefault(symbol, {})
         sym_success = 0
 
-        # Determine platform for this symbol
-        platform = "binance"  # All WS symbols are Binance
+        # Determine platform for this symbol (Binance or Aster)
+        platform = _SYMBOL_PLATFORM.get(symbol, "binance")
 
         for tf in TIMEFRAMES:
             try:
@@ -612,7 +622,7 @@ async def _fallback_loop() -> None:
         for symbol in SYMBOLS:
             for tf in TIMEFRAMES:
                 try:
-                    df = fetch_klines(symbol, tf, KLINE_LIMIT, platform="binance")
+                    df = fetch_klines(symbol, tf, KLINE_LIMIT, platform=_SYMBOL_PLATFORM.get(symbol, "binance"))
                     if df is not None and len(df) >= 20:
                         _dataframes.setdefault(symbol, {})[tf] = df
                         ind = _calc_indicators_for(symbol, tf)

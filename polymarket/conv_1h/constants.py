@@ -53,7 +53,7 @@ _FILL_STATS_DEFAULT = {"submitted": 0, "filled": 0, "cancelled": 0, "expired": 0
 # ─── Coin scope ───
 _COIN_SLUGS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "XRP": "xrp"}
 _COIN_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "XRP": "XRPUSDT"}
-_LIVE_COINS = {"BTC"}
+_LIVE_COINS = {"BTC", "ETH", "SOL", "XRP"}  # all coins live (2/day cap protects)
 
 # ─── Analysis collection ───
 _ANALYSIS_INTERVAL_S = 60
