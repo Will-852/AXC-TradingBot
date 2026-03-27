@@ -1,48 +1,48 @@
 # Polymarket — Claude Code 入口
 > ⚠️ 此文件上限 150 行。Claude Code 自動載入。
-> 最後更新：2026-03-22
+> 最後更新：2026-03-28
 
 ## 身份
 獨立預測市場交易子系統，寄生於 AXC shared_infra 但邏輯完全獨立。
 詳細業務規則 → `polymarket/CORE.md`（必讀）
 
-## Current Phase: 🟢 Live（部分）
+## Current Phase: 🟢 Live（1H primary）
 | 系統 | 狀態 | 入口 |
 |------|------|------|
-| MM 15M (v15) | 🟢 LIVE | `run_mm_live.py`（BTC+ETH） |
-| 1H Conviction (v15) | 🟢 LIVE (BTC) | `run_1h_live.py` |
+| 1H Conviction | 🟢 **LIVE — PRIMARY** | `run_1h_live.py`（BTC+ETH+SOL+XRP live, ETH UP gated） |
+| 4H Conviction | 📝 DRY-RUN（2026-03-28 bankroll merge） | `run_4h_live.py` |
+| Daily (24H) | 📝 DRY-RUN | `run_daily_live.py` |
+| MM 15M (v15) | ❌ STOPPED（2026-03-28） | `run_mm_live.py` |
+| 5M W4 | ❌ STOPPED（2026-03-28） | `run_5m_live.py` |
 | Research Cycle | 🟢 ACTIVE（6h） | `research_cycle.py` |
 | General Pipeline | 🟡 DORMANT | `pipeline.py`（last run 2026-03-20） |
-| Weather | ❌ 廢棄 + 代碼已清除（2026-03-22） | — |
 
-## 業務範圍（紅線 — 2026-03-19 事故後確立，2026-03-22 擴大）
-- **自動化只限：BTC+ETH 15M（MM bot）+ BTC+ETH+SOL 1H（Conviction bot）**
+## 業務範圍（紅線 — 2026-03-28 更新）
+- **自動化只限：BTC+ETH+SOL+XRP 1H Conviction（primary）**
+- **ETH 1H：只允許 DOWN direction**（UP+ETH = 20% WR → gate blocked）
+- **XRP**: live but same daily cap (2 entries/day shared across all coins)
+- 4H/Daily = dry-run only，MM/5M = stopped
 - 其他市場唔准自動操作。用戶手動落嘅注 = 只讀監控，唔准 exit/sell
 - 詳細 → `CORE.md` §2 + `memory/rules/polymarket_redline.md`
 
-## 三個交易系統
+## 交易系統
 
-### 1. MM 15M Bot（`run_mm_live.py`）★ 主力
-- **BTC+SOL live execution | ETH+XRP observe-only**（`_LIVE_TRADE_COINS = {"btc", "sol"}`）
-- Dual-Layer market maker：Zone 1/2/3 hedge + directional
-- 5s fast loop + **5s** heavy cycle + 300s discovery
-- Bridge: **Student-t(ν=5)** + OB adj | M1 deadline **5min**（was 3min, +6pp WR verified 2688 windows）
-- Cancel: window-2min / adverse BTC **0.5%** ETH **0.7%** / **dynamic TTL**（skip endgame+hedge orders）
-- Exit: Profit Lock (mid≥96¢ sell 96%) + Cost Recovery (mid≥64¢) + Stop Loss (-25%)
-- Forced hold: **last 5 min**（market accepts until T+50s — self-imposed guard）
-- **Endgame**: T-120s→T-30s 1-share underdog bets（data collection, daily cap 10）
-- **Hedge**: T-120s→T-30s buy opposite if BTC $50+ adverse 30s（30% of position）
-- 詳細 → `docs/mm_v15_pipeline.md`
-
-### 2. 1H Conviction Bot（`run_1h_live.py`）
-- **BTC+ETH+SOL dry-run**（`_LIVE_COINS = {"BTC", "ETH", "SOL"}`）— 收集數據中
-- Brownian Bridge fair-value + OB conviction + **volume imbalance filter** + **ToD gate**
-- BTC + ETH + SOL 1H candles，slug-based discovery
+### 1. 1H Conviction Bot（`run_1h_live.py`）★ 主力
+- **BTC+SOL live | ETH DOWN-only**（UP+ETH gated off — 20% WR）
+- Brownian Bridge fair-value + **taker flow gate** + volume imbalance filter + ToD gate
+- **Direction bias**: DOWN ×1.3 / UP ×0.7（91.7% vs 53.8% WR, N=25）
+- **Taker flow gate**: first 15min Binance buy ratio, agree/disagree filter（z=3.7, N=329）
+- **Bankroll**: 50% of wallet（2026-03-28: was 30%, increased after 4H merge）
 - 共用 `market_maker.py`（MMMarketState + resolve_market）
 - 獨立 state：`mm_state_1h.json`, `mm_trades_1h.jsonl`
 - One-order-per-market guard（唔會重複入同一 market）
-- Paper PnL tracker：`logs/paper_pnl_1h.jsonl`（engine price + market price 雙軌）
 - Signal tape：`logs/signal_tape_1h.jsonl`（real Poly mid snapshots every 20s）
+
+### 2. 4H / Daily / MM / 5M — DRY-RUN or STOPPED
+- 4H: dry-run（plist changed 2026-03-28, bankroll $28→1H）
+- Daily: dry-run（paper data collection, 4/4 correct）
+- MM 15M: STOPPED（no edge, momentum paradox）
+- 5M: STOPPED（latency disadvantage）
 
 ### 3. General Pipeline（`pipeline.py`）— DORMANT
 - 14-step pipeline，覆蓋 crypto / logical arb（天氣已清除）
@@ -91,7 +91,7 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab）
 ```
 
 **Hard coupling（已知，暫時接受）：**
-- `crypto_15m.py:154` subprocess → `scripts/indicator_calc.py`（硬編碼 python3.11）
+- `crypto_15m.py` direct import `indicator_calc`（2026-03-28 BMD fix: was subprocess）
 - `cvd_strategy.py` lazy import `backtest.fetch_agg_trades`（頂層 backtest/）
 - 所有入口用 `sys.path` hack 注入 `scripts/`
 - `hl_hedge_client.py` 直接用 `hyperliquid-python-sdk`
@@ -106,21 +106,19 @@ AXC → polymarket            ❌ 禁止（唯一例外：dashboard tab）
 ## 跑法
 ```bash
 cd ~/projects/axc-trading
-# MM 15M
-PYTHONPATH=.:scripts python3 polymarket/run_mm_live.py --live      # 或 --dry-run
-# 1H Conviction
+# 1H Conviction (PRIMARY)
 PYTHONPATH=.:scripts python3 polymarket/run_1h_live.py --live      # 或 --dry-run
+# 4H Conviction (dry-run)
+PYTHONPATH=.:scripts python3 polymarket/run_4h_live.py --dry-run
+# Daily (dry-run)
+PYTHONPATH=.:scripts python3 polymarket/run_daily_live.py --dry-run
 # Pipeline (dormant)
 PYTHONPATH=.:scripts python3 polymarket/pipeline.py --dry-run --verbose
-# BTC paper
-PYTHONPATH=.:scripts python3 polymarket/run_btc_paper.py --predict
-# Position watcher (manual daemon)
-PYTHONPATH=.:scripts python3 polymarket/position_watcher.py --live
 ```
 
 ## ⚠️ Known Issues
 1. ~~Trade log 路徑~~ ✅ | ~~Weather scope~~ ✅ | ~~Exit signals~~ ✅（全部 2026-03-18 已修）
-2. **indicator_calc.py 硬編碼**：`/opt/homebrew/bin/python3.11`（換機要改）
+2. ~~indicator_calc.py 硬編碼~~ ✅（2026-03-28 BMD fix: subprocess→direct import）
 3. **HL credentials 未填**：`secrets/.env` HL_PRIVATE_KEY 係空
 4. **Position Merger Phase 2**：on-chain merge execution 未做
 5. ~~mm_v9 doc 過時~~ ✅ 已修（2026-03-21）：新建 `docs/mm_v15_pipeline.md`

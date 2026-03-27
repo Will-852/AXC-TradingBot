@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _holder_cache: dict = {}     # {cid: (ts, imbalance)}
 _price_cache: dict = {}      # {coin: (ts, price)}
 _vol_imbal_cache: dict = {}  # {key: (ts, direction_or_none)}
+_taker_flow_cache: dict = {} # {key: (ts, buy_ratio_or_none)}
 
 # ─── WS feed references (set by orchestrator via set_ws_feeds) ───
 _ws_binance = None  # BinancePriceFeed instance
@@ -139,6 +140,65 @@ def vol_imbalance(coin: str, window_start_ms: int) -> str | None:
     ratio = buy_vol / total
     result = "UP" if ratio > 0.55 else ("DOWN" if ratio < 0.45 else None)
     _vol_imbal_cache[cache_key] = (now, result)
+    return result
+
+
+_TAKER_FLOW_CACHE_TTL = 30  # seconds — taker ratio changes slowly, no need to re-fetch fast
+_TAKER_FLOW_MIN_CANDLES = 10  # need at least 10 1m candles for meaningful ratio
+_TAKER_FLOW_AGREE_THRESHOLD = 0.52  # above = buy-dominant (research: z=3.7 at N=329)
+_TAKER_FLOW_DISAGREE_THRESHOLD = 0.48  # below = sell-dominant
+
+
+def taker_flow_15min(coin: str, window_start_ms: int) -> str | None:
+    """Binance taker buy ratio for first 15min of current 1H window.
+
+    Returns 'UP' if buy-dominant (ratio > 0.52), 'DOWN' if sell-dominant (< 0.48),
+    None if neutral or insufficient data. Cached 30s.
+
+    Research basis (2026-03-28):
+      First 15min all-flow → 64.1% accuracy (N=329, z=3.7, p<0.001).
+      All flow outperforms whale-only (whales too sparse per hour).
+      Source: Binance 1m kline taker_buy_base_vol (field [9]).
+    """
+    now = time.time()
+    cache_key = f"taker_{coin}_{window_start_ms}"
+    if cache_key in _taker_flow_cache:
+        cached_ts, cached_val = _taker_flow_cache[cache_key]
+        if now - cached_ts < _TAKER_FLOW_CACHE_TTL:
+            return cached_val
+
+    sym = _COIN_SYMBOLS.get(coin, "BTCUSDT")
+    # Only fetch first 15 minutes of the window
+    end_ms = min(int(now * 1000), window_start_ms + 15 * 60 * 1000)
+    if end_ms <= window_start_ms:
+        _taker_flow_cache[cache_key] = (now, None)
+        return None
+
+    data = _get_json(
+        f"{_BINANCE}/klines?symbol={sym}&interval=1m"
+        f"&startTime={window_start_ms}&endTime={end_ms}&limit=15")
+    if not data or not isinstance(data, list) or len(data) < _TAKER_FLOW_MIN_CANDLES:
+        _taker_flow_cache[cache_key] = (now, None)
+        return None
+
+    # Kline field [5] = total volume, field [9] = taker buy base volume
+    total_vol = sum(float(k[5]) for k in data)
+    taker_buy_vol = sum(float(k[9]) for k in data)
+    if total_vol < 1e-10:
+        _taker_flow_cache[cache_key] = (now, None)
+        return None
+
+    buy_ratio = taker_buy_vol / total_vol
+    if buy_ratio > _TAKER_FLOW_AGREE_THRESHOLD:
+        result = "UP"
+    elif buy_ratio < _TAKER_FLOW_DISAGREE_THRESHOLD:
+        result = "DOWN"
+    else:
+        result = None  # neutral — no signal
+
+    _taker_flow_cache[cache_key] = (now, result)
+    logger.debug("TAKER_FLOW %s: buy_ratio=%.3f → %s (N=%d candles)",
+                 coin, buy_ratio, result or "NEUTRAL", len(data))
     return result
 
 

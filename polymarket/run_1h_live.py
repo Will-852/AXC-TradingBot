@@ -59,6 +59,7 @@ from polymarket.conv_1h.data_feeds import (
     poly_ob as _poly_ob,
     set_ws_feeds as _set_ws_feeds,
     vol_1m as _vol_1m,
+    taker_flow_15min as _taker_flow_15min,
     vol_imbalance as _vol_imbalance,
 )
 from polymarket.conv_1h.state_io import (
@@ -176,8 +177,9 @@ def run_cycle(state: dict, gamma: GammaClient, client,
     for _vc in ("BTC", "ETH", "SOL"):
         _coin_vols[_vc] = _vol_1m(_vc)
 
-    # ── Refresh bankroll (30% of wallet — 15M stopped, more room for conviction) ──
-    _1H_BANKROLL_FRACTION = 0.30
+    # ── Refresh bankroll (50% of wallet — 15M/4H stopped, 1H is primary) ──
+    # 💰 2026-03-28: increased from 30% to 50% after bankroll merge (4H→paper).
+    _1H_BANKROLL_FRACTION = 0.50
     if client and hasattr(client, "get_usdc_balance") and not dry_run:
         try:
             state["bankroll"] = client.get_usdc_balance() * _1H_BANKROLL_FRACTION
@@ -336,6 +338,13 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # ── Act on signal ──
         if sig.action == "ENTER" or sig.action == "ADD":
+            # ── 💰 Direction asymmetry gate (2026-03-28 edge analysis) ──
+            # DOWN WR=91.7% vs UP=53.8% (N=25, r=0.41, t=2.17).
+            # UP+ETH = 20% WR (1/5) — almost all losses. Skip entirely.
+            if sig.direction == "UP" and coin.upper() == "ETH":
+                logger.info("DIR_GATE SKIP %s UP+ETH: 20%% WR in backtest → skip", coin)
+                continue
+
             # ── Volume imbalance filter (multi-signal) ──
             # Backtest: Bridge+VolImbal → +5-8pp WR vs bridge alone.
             # If volume direction conflicts with conviction direction → skip.
@@ -343,6 +352,15 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             if _vol_dir is not None and _vol_dir != sig.direction:
                 logger.info("VOL CONFLICT %s: conviction=%s but vol=%s → skip",
                             coin, sig.direction, _vol_dir)
+                continue
+
+            # ── 💰 Taker flow gate (2026-03-28 edge analysis) ──
+            # First 15min Binance taker buy ratio: 64.1% accuracy (N=329, z=3.7).
+            # AGREE → enter. DISAGREE → skip. NEUTRAL/None → enter (conservative).
+            _flow_dir = _taker_flow_15min(coin, start_ms)
+            if _flow_dir is not None and _flow_dir != sig.direction:
+                logger.info("FLOW CONFLICT %s: conviction=%s but taker_flow=%s → skip",
+                            coin, sig.direction, _flow_dir)
                 continue
 
             # ── One-order-per-market guard ──
@@ -380,11 +398,16 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 imbal_with = max(0, -h_imbal)
                 imbal_against = max(0, h_imbal)
 
-            _size_mult = 1.0
+            # ── 💰 Direction bias multiplier (2026-03-28 edge analysis) ──
+            # DOWN WR=91.7% → boost, UP WR=53.8% → reduce.
+            # N=25 — will auto-validate with kill switch (8 consec / WR<28%).
+            _DIR_BIAS = {"DOWN": 1.3, "UP": 0.7}
+            _dir_mult = _DIR_BIAS.get(sig.direction, 1.0)
+            _size_mult = _dir_mult  # base from direction bias
             _flip = False
             if imbal_with > _HOLDER_STRONG_IMBAL:
-                # Whale + bridge AGREE → strongest signal, boost size 30%
-                _size_mult = 1.3
+                # Whale + bridge AGREE → strongest signal, stack direction bias + holder boost
+                _size_mult = _dir_mult * 1.3
                 logger.info("HOLDER AGREE %s %s: imbal=%.2f with direction — whale confirms, size ×130%%",
                             coin, sig.direction, h_imbal)
             elif imbal_against > _HOLDER_STRONG_IMBAL:
@@ -399,11 +422,17 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 # FIX(bmd): use base_spread not ceiling — avoid always-$0.39 entry
                 sig.entry_price = round(min(sig.p_win - config.base_spread, 0.35), 2)
                 sig.entry_price = max(config.min_entry_price, sig.entry_price)
-                _size_mult = 0.7  # slightly reduced for holder-driven flip
+                _size_mult = 0.7  # holder-driven flip: reduced (direction bias N/A after flip)
             elif imbal_against > _HOLDER_MILD_IMBAL:
-                _size_mult = 0.5
+                _size_mult = _dir_mult * 0.5  # stack direction bias + mild conflict penalty
                 logger.info("HOLDER REDUCE %s %s: imbal=%.2f mild conflict — size ×50%%",
                             coin, sig.direction, h_imbal)
+
+            # ── Re-check UP+ETH after holder flip (challenger audit 2026-03-28) ──
+            # Holder flip can change direction to UP. UP+ETH = 20% WR still applies.
+            if _flip and sig.direction == "UP" and coin.upper() == "ETH":
+                logger.info("DIR_GATE SKIP %s: holder-flipped to UP+ETH → still skip", coin)
+                continue
 
             # Mid sanity check: market must somewhat agree with our direction
             our_tok = up_tok if sig.direction == "UP" else dn_tok
@@ -584,6 +613,10 @@ def main():
     except RuntimeError as e:
         logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
         raise SystemExit(1)
+    except (ImportError, ModuleNotFoundError) as e:
+        # Non-fatal: validate may fail under launchd due to import path differences.
+        # Other errors (AttributeError, ValueError etc.) should still crash — they're real bugs.
+        logging.getLogger(__name__).warning("Startup validation skipped (import): %s", e)
 
     if args.status:
         _status(_load())
