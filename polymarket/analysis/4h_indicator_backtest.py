@@ -130,7 +130,7 @@ def _compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
         log.error("tradingview_indicators not installed. pip install tradingview-indicators")
         sys.exit(1)
 
-    params = TIMEFRAME_PARAMS["4h"]
+    params = TIMEFRAME_PARAMS["4h"].copy()  # 🔴 BMD fix: was reference leak
     close = df["close"]
     high = df["high"]
     low = df["low"]

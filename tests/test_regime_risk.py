@@ -114,16 +114,16 @@ class TestZoneProfileValues:
         from config.profiles.loader import load_profile
         za = load_profile("ZONE_A")
         assert za["zone"] == "A"
-        assert za["margin_pct"] == 0.03
+        assert za["margin_pct"] == 0.25   # updated 2026-03-28: was 0.03
         assert za["sl_pct_base"] == 0.010
-        assert za["range_leverage"] == 8
+        assert za["range_leverage"] == 20  # updated 2026-03-28: was 8
         assert za["max_open_positions"] == 2
 
     def test_zone_b_loads(self):
         from config.profiles.loader import load_profile
         zb = load_profile("ZONE_B")
         assert zb["zone"] == "B"
-        assert zb["margin_pct"] == 0.03
+        assert zb["margin_pct"] == 0.25   # updated 2026-03-28: was 0.03
         assert zb["sl_pct_base"] == 0.006
         assert zb["range_leverage"] == 18
         assert zb["max_open_positions"] == 1

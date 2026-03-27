@@ -8,7 +8,7 @@ description: Lessons learned from 2026-03-03 setup session — diagnose and fix 
 ## Model Tier Rules (CRITICAL)
 - tier1 (claude-sonnet-4-6): ALL Telegram messages, slash commands, trading decisions — only model that reliably follows 31K system prompt
 - tier2 (claude-haiku-4-5): IDLE for now — too weak for large system prompts, ignores workspace files, responds as generic chatbot
-- tier3 (gpt-5-mini): heartbeat ONLY — no workspace access needed, too weak for any instruction-following
+- tier3 (gpt-5.2): daily/agent default via yinli.one — heartbeat 已改為 No LLM（純 Python）
 - Golden rule: never assign Telegram slash commands to tier2 or tier3
 
 ## Slash Command Architecture (What We Learned)

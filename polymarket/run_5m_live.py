@@ -367,6 +367,14 @@ def main():
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
+    # ─── 💀 Startup validation (BMD P0 fix, 2026-03-28) ───
+    try:
+        from polymarket.mm.validate import run_all
+        run_all()
+    except RuntimeError as e:
+        logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
+        raise SystemExit(1)
+
     if args.status:
         _status(_load())
         return
@@ -389,23 +397,18 @@ def main():
         for cfg in COIN_CONFIG.values():
             cfg.live = False
 
-    # ── Start Binance WebSocket price feed ──
-    global _ws_binance
+    # ─── Start shared WebSocket feeds (BMD P2 fix, 2026-03-28) ───
+    # 🔴 2CHECK: SharedWSManager — shared with MM/1H runners
+    global _ws_binance, _ws_poly
     try:
-        from polymarket.data.ws_binance import BinancePriceFeed
-        _ws_binance = BinancePriceFeed()
-        _ws_binance.start()
-        print("  WS PRICE: Binance bookTicker feed started")
+        from polymarket.data import ws_shared
+        _ws_binance = ws_shared.get_binance()
+        print("  WS PRICE: Binance bookTicker feed (shared)")
     except Exception as e:
         logger.warning("WS price feed failed: %s -- using REST fallback", e)
-
-    # ── Start Polymarket WebSocket order book feed ──
-    global _ws_poly
     try:
-        from polymarket.data.ws_polymarket import PolymarketBookFeed
-        _ws_poly = PolymarketBookFeed()
-        _ws_poly.start()
-        print("  WS OB: Polymarket book feed started")
+        _ws_poly = ws_shared.get_poly()
+        print("  WS OB: Polymarket book feed (shared)")
     except Exception as e:
         logger.warning("WS OB feed failed: %s -- using REST fallback", e)
 
@@ -487,10 +490,19 @@ def main():
     print()
 
     if args.cycle:
-        state, cached_markets = run_cycle(
-            state, gamma, client, dry_run, bet_pct, cached_markets)
-        _save(state)
-        _status(state)
+        try:
+            state, cached_markets = run_cycle(
+                state, gamma, client, dry_run, bet_pct, cached_markets)
+            _save(state)
+            _status(state)
+        finally:
+            # 💀 FATAL fix: release shared WS even in --cycle mode
+            try:
+                from polymarket.data import ws_shared
+                ws_shared.release_binance()
+                ws_shared.release_poly()
+            except Exception:
+                pass
         return
 
     try:
@@ -532,14 +544,17 @@ def main():
             time.sleep(_CYCLE_S)
     except KeyboardInterrupt:
         pass
-
-    _save(state)
-    _status(state)
-    if _ws_binance:
-        _ws_binance.stop()
-    if _ws_poly:
-        _ws_poly.stop()
-    logger.info("5M bot stopped.")
+    finally:
+        _save(state)
+        _status(state)
+        # ⚠️ #12: release shared feeds — guaranteed cleanup path
+        try:
+            from polymarket.data import ws_shared
+            ws_shared.release_binance()
+            ws_shared.release_poly()
+        except Exception:
+            pass
+        logger.info("5M bot stopped.")
 
 
 if __name__ == "__main__":

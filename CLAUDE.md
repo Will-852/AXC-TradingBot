@@ -1,6 +1,6 @@
 # AXC Trading — Claude Code 入口
 > ⚠️ 此文件上限200行。Claude Code 自動載入（唔可移動）。
-> 最後更新：2026-03-13
+> 最後更新：2026-03-28
 
 ## Collaborator
 → 睇 README.md「共同開發指南」| 改參數：`config/user_params.py`

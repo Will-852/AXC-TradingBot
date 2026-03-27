@@ -169,52 +169,62 @@ def _worker_run(
     from backtest.strategies.bt_range_strategy import BTRangeStrategy
     from backtest.scoring import WeightedScorer
 
-    # ─── Monkey-patch trend entry params (live strategy module globals) ───
-    # 用 production TrendStrategy（weighted confidence），唔用 BTTrendStrategy（binary 4-KEY）
+    # ─── Monkey-patch with save/restore (BMD P4 fix, 2026-03-28) ───
+    # 🔴 2CHECK: all module-level mutations saved for try/finally restore.
+    # ProcessPoolExecutor reuses workers — mutations leak across combos without restore.
+    _module_originals = {}  # {(module, attr): original_value}
+
+    def _patch(mod, attr, val):
+        """Patch module attr and record original for restore."""
+        _module_originals[(mod, attr)] = getattr(mod, attr, None)
+        setattr(mod, attr, val)
+
+    # ─── Trend entry params ───
     import trader_cycle.strategies.trend_strategy as _ts
     if "pullback_tolerance" in combo:
-        _ts.PULLBACK_TOLERANCE = combo["pullback_tolerance"]
+        _patch(_ts, "PULLBACK_TOLERANCE", combo["pullback_tolerance"])
     if "confidence_threshold" in combo:
-        _ts.CONFIDENCE_THRESHOLD = combo["confidence_threshold"]
-
-    # ─── Monkey-patch trend position/exit params ───
-    # 直接 patch trend_strategy module（from import 係 copy 唔係 reference）
+        _patch(_ts, "CONFIDENCE_THRESHOLD", combo["confidence_threshold"])
     if "sl_atr_mult_trend" in combo:
-        _ts.TREND_SL_ATR_MULT = combo["sl_atr_mult_trend"]
+        _patch(_ts, "TREND_SL_ATR_MULT", combo["sl_atr_mult_trend"])
     if "min_rr" in combo:
-        _ts.TREND_MIN_RR = combo["min_rr"]
+        _patch(_ts, "TREND_MIN_RR", combo["min_rr"])
     if "macd_hist_decay" in combo:
-        _ts.MACD_HIST_DECAY_THRESHOLD = combo["macd_hist_decay"]
+        _patch(_ts, "MACD_HIST_DECAY_THRESHOLD", combo["macd_hist_decay"])
 
-    # ─── Monkey-patch crash params (production CrashStrategy module) ───
+    # ─── Crash params ───
     import trader_cycle.strategies.crash_strategy as _cs
     if "crash_rsi_entry" in combo:
-        _cs.CRASH_RSI_ENTRY = combo["crash_rsi_entry"]
+        _patch(_cs, "CRASH_RSI_ENTRY", combo["crash_rsi_entry"])
     if "crash_sl_atr_mult" in combo:
-        _cs.CRASH_SL_ATR_MULT = combo["crash_sl_atr_mult"]
+        _patch(_cs, "CRASH_SL_ATR_MULT", combo["crash_sl_atr_mult"])
     if "crash_min_rr" in combo:
-        _cs.CRASH_MIN_RR = combo["crash_min_rr"]
+        _patch(_cs, "CRASH_MIN_RR", combo["crash_min_rr"])
 
-    # ─── Monkey-patch squeeze params (production SqueezeStrategy module) ───
+    # ─── Squeeze params ───
     import trader_cycle.strategies.squeeze_strategy as _sq
     if "sqz_bb_pctl" in combo:
-        _sq.BB_PCTL_SQUEEZE = combo["sqz_bb_pctl"]
+        _patch(_sq, "BB_PCTL_SQUEEZE", combo["sqz_bb_pctl"])
     if "sqz_sl_atr_mult" in combo:
-        _sq.SQZ_SL_ATR_MULT = combo["sqz_sl_atr_mult"]
+        _patch(_sq, "SQZ_SL_ATR_MULT", combo["sqz_sl_atr_mult"])
     if "sqz_tp_atr_mult" in combo:
-        _sq.SQZ_TP_ATR_MULT = combo["sqz_tp_atr_mult"]
+        _patch(_sq, "SQZ_TP_ATR_MULT", combo["sqz_tp_atr_mult"])
     if "sqz_min_rr" in combo:
-        _sq.SQZ_MIN_RR = combo["sqz_min_rr"]
+        _patch(_sq, "SQZ_MIN_RR", combo["sqz_min_rr"])
 
     # ─── Patch TIMEFRAME_PARAMS for rsi_long / rsi_short ───
+    # 🔴 2CHECK: was mutating global dict without restore — BUG found in BMD 2026-03-28.
+    # Now save originals and restore in finally block at end of function.
+    _tf_originals = {}
     for key in ("rsi_long", "rsi_short"):
         if key in combo:
+            _tf_originals[key] = TIMEFRAME_PARAMS["1h"].get(key)
             TIMEFRAME_PARAMS["1h"][key] = combo[key]
 
     # ─── Patch vol_spike multiplier (indicator module global) ───
     if "vol_spike_mult" in combo:
         import indicator_calc as _ic
-        _ic.VOL_SPIKE_MULT = combo["vol_spike_mult"]
+        _patch(_ic, "VOL_SPIKE_MULT", combo["vol_spike_mult"])
 
     # ─── Engine indicator overrides ───
     engine_overrides = {
@@ -244,44 +254,59 @@ def _worker_run(
             position_overrides=pos_range or None, scorer=scorer_override)
 
     # ─── Run per pair ───
-    results = {}
-    for pair in pairs:
-        csv_1h, csv_4h = data_paths[pair]
-        df_1h = pd.read_csv(csv_1h)
-        df_4h = pd.read_csv(csv_4h)
-        for col in ("open", "high", "low", "close", "volume"):
-            df_1h[col] = df_1h[col].astype(float)
-            df_4h[col] = df_4h[col].astype(float)
-        df_1h["timestamp"] = pd.to_datetime(df_1h["open_time"], unit="ms")
-        df_4h["timestamp"] = pd.to_datetime(df_4h["open_time"], unit="ms")
+    # 🔴 2CHECK: try/finally ensures TIMEFRAME_PARAMS restored even on exception.
+    # BMD 2026-03-28: previously leaked mutations across combos.
+    try:
+        results = {}
+        for pair in pairs:
+            csv_1h, csv_4h = data_paths[pair]
+            df_1h = pd.read_csv(csv_1h)
+            df_4h = pd.read_csv(csv_4h)
+            for col in ("open", "high", "low", "close", "volume"):
+                df_1h[col] = df_1h[col].astype(float)
+                df_4h[col] = df_4h[col].astype(float)
+            df_1h["timestamp"] = pd.to_datetime(df_1h["open_time"], unit="ms")
+            df_4h["timestamp"] = pd.to_datetime(df_4h["open_time"], unit="ms")
 
-        try:
-            engine = BacktestEngine(
-                symbol=pair, df_1h=df_1h, df_4h=df_4h,
-                initial_balance=initial_balance,
-                param_overrides=engine_overrides,
-                strategy_overrides=strat_overrides if strat_overrides else None,
-                quiet=True,
-            )
-            r = engine.run()
-            results[pair] = {
-                "total_trades": r["total_trades"], "winners": r["winners"],
-                "losers": r["losers"], "return_pct": r["return_pct"],
-                "win_rate": r["win_rate"],
-                "cluster_adj_wr": r.get("cluster_adj_wr", 0.0),
-                "profit_factor": r["profit_factor"],
-                "max_drawdown_pct": r["max_drawdown_pct"],
-                "final_balance": r["final_balance"],
-            }
-        except Exception as e:
-            results[pair] = {
-                "total_trades": 0, "winners": 0, "losers": 0,
-                "return_pct": 0.0, "win_rate": 0.0, "cluster_adj_wr": 0.0,
-                "profit_factor": 0.0, "max_drawdown_pct": 0.0,
-                "final_balance": initial_balance, "error": str(e),
-            }
+            try:
+                engine = BacktestEngine(
+                    symbol=pair, df_1h=df_1h, df_4h=df_4h,
+                    initial_balance=initial_balance,
+                    param_overrides=engine_overrides,
+                    strategy_overrides=strat_overrides if strat_overrides else None,
+                    quiet=True,
+                )
+                r = engine.run()
+                results[pair] = {
+                    "total_trades": r["total_trades"], "winners": r["winners"],
+                    "losers": r["losers"], "return_pct": r["return_pct"],
+                    "win_rate": r["win_rate"],
+                    "cluster_adj_wr": r.get("cluster_adj_wr", 0.0),
+                    "profit_factor": r["profit_factor"],
+                    "max_drawdown_pct": r["max_drawdown_pct"],
+                    "final_balance": r["final_balance"],
+                }
+            except Exception as e:
+                results[pair] = {
+                    "total_trades": 0, "winners": 0, "losers": 0,
+                    "return_pct": 0.0, "win_rate": 0.0, "cluster_adj_wr": 0.0,
+                    "profit_factor": 0.0, "max_drawdown_pct": 0.0,
+                    "final_balance": initial_balance, "error": str(e),
+                }
 
-    return {"combo_idx": combo_idx, "params": combo, "results": results}
+        return {"combo_idx": combo_idx, "params": combo, "results": results}
+    finally:
+        # Restore ALL mutations (BMD P0 + P4 fix: prevent leak across combos)
+        # Module-level attrs (_ts, _cs, _sq, _ic)
+        for (mod, attr), orig_val in _module_originals.items():
+            if orig_val is not None:
+                setattr(mod, attr, orig_val)
+        # TIMEFRAME_PARAMS dict entries
+        for key, orig_val in _tf_originals.items():
+            if orig_val is not None:
+                TIMEFRAME_PARAMS["1h"][key] = orig_val
+            else:
+                TIMEFRAME_PARAMS["1h"].pop(key, None)
 
 
 # ═══════════════════════════════════════════════════════

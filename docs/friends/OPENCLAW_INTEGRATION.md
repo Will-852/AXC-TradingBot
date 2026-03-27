@@ -45,7 +45,7 @@ Bridge 只讀以下兩個 section，其餘欄位隨意：
     "list": [
       {
         "id": "main",                    // string — agent 識別碼
-        "model": "tier3/gpt-5-mini"      // string — "prefix/model-name" 格式
+        "model": "tier3/gpt-5.2"         // string — "prefix/model-name" 格式
       },
       {
         "id": "aster_trader",
@@ -71,7 +71,7 @@ from openclaw_bridge import bridge
 bridge.available          # bool: OpenClaw 裝咗未
 bridge.gateway_status()   # "ok" / "down" / "n/a"
 bridge.gateway_port()     # int 或 None
-bridge.agent_models()     # {"main": "gpt-5-mini", "aster_trader": "claude-sonnet-4-6"}
+bridge.agent_models()     # {"main": "gpt-5.2", "aster_trader": "claude-sonnet-4-6"}
 ```
 
 ## 冇裝 OpenClaw 嘅行為

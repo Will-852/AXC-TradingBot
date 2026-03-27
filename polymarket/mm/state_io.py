@@ -6,35 +6,72 @@ Split from run_mm_live.py (2026-03-25).
 """
 
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime
 
 from polymarket.mm.constants import (
-    _FILL_STATS_DEFAULT, _HKT, _LOG_DIR, _ORDER_LOG, _POS_LOG,
-    _STATE_PATH, _TRADE_LOG,
+    _FILL_STATS_DEFAULT, _HKT, _LOG_DIR, _MIN_VIABLE_BUDGET,
+    _ORDER_LOG, _POS_LOG, _STATE_PATH, _TRADE_LOG,
 )
+
+log = logging.getLogger(__name__)
 
 
 def load() -> dict:
-    """Load MM state from disk. Returns default state if file missing/corrupt."""
+    """Load MM state from disk. Returns default state if file missing/corrupt.
+
+    💀 WARNING: on corruption, silently returns default with bankroll=100.0.
+    Caller should use validate.validate_bankroll() to catch unexpected resets.
+    """
     if not os.path.exists(_STATE_PATH):
         return _default_state()
     try:
         with open(_STATE_PATH) as f:
             d = json.load(f)
-        d.setdefault("fill_stats", dict(_FILL_STATS_DEFAULT))
+        d = _migrate(d)
+        # ⚠️ 容易錯 #4: warning after json.load success, before return
+        # 💀 Bankroll sanity check — catches silent state resets
+        bankroll = d.get("bankroll", 0)
+        if isinstance(bankroll, (int, float)) and bankroll < _MIN_VIABLE_BUDGET:
+            log.warning("⚠️ Loaded bankroll $%.2f < min viable $%.2f — "
+                        "check if state was corrupted or balance depleted",
+                        bankroll, _MIN_VIABLE_BUDGET)
         return d
     except Exception:
+        log.warning("⚠️ Failed to load state from %s — returning default", _STATE_PATH)
         return _default_state()
 
 
+_STATE_VERSION = 1  # Increment when schema changes; add migration below.
+
+
 def _default_state() -> dict:
-    return {"markets": {}, "watchlist": {}, "daily_pnl": 0.0,
+    return {"_version": _STATE_VERSION,
+            "markets": {}, "watchlist": {}, "daily_pnl": 0.0,
             "total_pnl": 0.0, "total_markets": 0, "bankroll": 100.0,
             "consecutive_losses": 0, "cooldown_until": "",
             "daily_pnl_date": "", "last_scan": "",
             "fill_stats": dict(_FILL_STATS_DEFAULT)}
+
+
+def _migrate(state: dict) -> dict:
+    """Run forward migrations. Each step upgrades one version.
+
+    💀 ⚠️ #15: migration failure → return state as-is (don't crash loop).
+    """
+    v = state.get("_version", 0)
+    try:
+        # v0 → v1: add _version field + fill_stats default
+        if v < 1:
+            state.setdefault("fill_stats", dict(_FILL_STATS_DEFAULT))
+            state["_version"] = 1
+            log.info("State migrated v0 → v1 (added _version + fill_stats)")
+        # Future: if v < 2: ... state["_version"] = 2
+    except Exception as e:
+        log.warning("State migration failed at v%d: %s — using state as-is", v, e)
+    return state
 
 
 def save(state: dict):

@@ -1018,6 +1018,14 @@ def main():
         format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S",
     )
 
+    # ─── 💀 Startup validation (BMD P0 fix, 2026-03-28) ───
+    try:
+        from polymarket.mm.validate import run_all
+        run_all()
+    except RuntimeError as e:
+        logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
+        raise SystemExit(1)
+
     if args.status:
         _status(_load())
         return
@@ -1038,21 +1046,27 @@ def main():
             dry_run = True
 
     # --- Startup orphan cancel (live only) ---
+    # 💀 2CHECK fix: was cancelling ALL orders (including MM/1H's).
+    # Now filters by own CIDs only.
     if not dry_run and client is not None:
         try:
             existing = client.get_orders()
+            _pre_state = _load()
+            _own_cids = set(_pre_state.get("markets", {}).keys())
             if existing:
                 cancelled = 0
                 for o in existing:
                     oid = o.get("id", "")
-                    if oid:
+                    _mkt = o.get("market", "")
+                    if oid and (_mkt in _own_cids or not _mkt):
                         try:
                             client.client.cancel(order_id=oid)
                             cancelled += 1
                         except Exception:
                             pass
                 if cancelled:
-                    logger.warning("STARTUP: cancelled %d orphan orders", cancelled)
+                    logger.warning("STARTUP: cancelled %d/%d orphan orders (own CIDs only)",
+                                   cancelled, len(existing))
         except Exception as e:
             logger.warning("Startup orphan check failed: %s", e)
 

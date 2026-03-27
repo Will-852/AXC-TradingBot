@@ -14,7 +14,6 @@ import logging
 import math
 import os
 import re
-import subprocess
 import tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -54,9 +53,6 @@ _WEIGHTS = {
     "funding": 0.10,
     "sentiment": 0.10,
 }
-
-# indicator_calc.py subprocess timeout
-_INDICATOR_TIMEOUT_S = 15
 
 
 # ─── Title Parsing ───
@@ -143,61 +139,37 @@ def _to_24h(hour: int, ampm: str) -> int:
 # ─── Data Fetching ───
 
 def _fetch_15m_indicators(symbol: str) -> dict | None:
-    """Subprocess call to indicator_calc.py for 15m indicators.
+    """Direct import of indicator_calc for 15m indicators.
 
-    Returns indicators dict or None on failure. Uses python3.11 because
-    tradingview_indicators requires match syntax (3.10+) and system
-    python3.11 is the installed version.
+    Returns indicators dict or None on failure.
+    BMD P3 fix (2026-03-28): replaced subprocess call with direct import.
+    Eliminates ~100-200ms subprocess spawn overhead per call.
     """
-    script_path = os.path.join(AXC_HOME, "scripts", "indicator_calc.py")
-    if not os.path.exists(script_path):
-        logger.warning("indicator_calc.py not found: %s", script_path)
+    try:
+        # 🟡 VERIFY: indicator_calc is on sys.path via PYTHONPATH=.:scripts
+        from indicator_calc import fetch_klines, calc_indicators
+        from config.params import TIMEFRAME_PARAMS
+    except ImportError as e:
+        logger.warning("indicator_calc import failed: %s — check PYTHONPATH", e)
         return None
+
+    interval = "15m"
+    if interval not in TIMEFRAME_PARAMS:
+        logger.warning("Unsupported interval: %s", interval)
+        return None
+
+    params = TIMEFRAME_PARAMS[interval].copy()
 
     try:
-        result = subprocess.run(
-            [os.environ.get("PYTHON3", "python3"),
-             script_path,
-             "--symbol", symbol,
-             "--interval", "15m",
-             "--limit", "50",
-             "--mode", "full"],
-            capture_output=True, text=True,
-            timeout=_INDICATOR_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning("indicator_calc.py timed out for %s 15m", symbol)
-        return None
-    except FileNotFoundError:
-        logger.warning("python3 not found (set PYTHON3 env or ensure 'python3' in PATH)")
+        # Fetch + calculate (same logic as indicator_calc.py main())
+        df = fetch_klines(symbol.upper(), interval, limit=50)
+        indicators = calc_indicators(df, params)
+    except Exception as e:
+        logger.warning("indicator_calc failed for %s 15m: %s", symbol, e)
         return None
 
-    if result.returncode != 0:
-        logger.warning("indicator_calc.py failed (rc=%d): %s",
-                       result.returncode, result.stderr[:200])
-        return None
-
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        logger.warning("indicator_calc.py non-JSON output: %s",
-                       result.stdout[:200])
-        return None
-
-    if "error" in data:
-        logger.warning("indicator_calc.py error: %s", data["error"])
-        return None
-
-    indicators = data.get("indicators")
-
-    # Freshness check: indicator price should be close to recent market price
-    # If indicator_calc returns stale data, the price would be materially different
     if indicators and indicators.get("price"):
-        ind_price = indicators["price"]
-        # Quick spot check via the same subprocess cache — if price is >2% off
-        # from what we'd expect, data is likely stale. Log warning but don't block
-        # (we can't easily get a reference price here without another API call).
-        logger.debug("Indicator price: $%.0f", ind_price)
+        logger.debug("Indicator price: $%.0f", indicators["price"])
 
     return indicators
 

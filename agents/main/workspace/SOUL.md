@@ -49,12 +49,12 @@ If you change this file, tell the user — it's your soul, and they should know.
 
 | Agent | Dir | Model | Role |
 |-------|-----|-------|------|
-| main | agents/main/ | tier3/claude-haiku-4-5 | 大腦：決策、對話、路由 |
-| aster_scanner | agents/aster_scanner/ | tier2/claude-haiku | 👁️ 眼：Aster DEX 市場掃描 |
-| aster_trader | agents/aster_trader/ | tier1/claude-sonnet | 💓 心臟：Aster DEX 交易執行 |
-| heartbeat | agents/heartbeat/ | tier3/claude-haiku-4-5 | 🌡️ 神經：系統健康檢查 |
-| haiku_filter | agents/haiku_filter/ | tier2/claude-haiku | 🔬 過濾：信號壓縮（max 300 words） |
-| analyst | agents/analyst/ | tier1/claude-sonnet | 📊 分析：模式/政體偵測 |
+| main | agents/main/ | tier2/claude-haiku-4-5 | 大腦：決策、對話、路由 |
+| aster_scanner | agents/aster_scanner/ | tier2/claude-haiku-4-5 | 👁️ 眼：Aster DEX 市場掃描 |
+| aster_trader | agents/aster_trader/ | tier1/claude-sonnet-4-6 | 💓 心臟：Aster DEX 交易執行 |
+| heartbeat | agents/heartbeat/ | No LLM (Python) | 🌡️ 神經：系統健康檢查 |
+| haiku_filter | agents/haiku_filter/ | tier2/claude-haiku-4-5 | 🔬 過濾：信號壓縮（max 300 words） |
+| analyst | agents/analyst/ | tier1/claude-sonnet-4-6 | 📊 分析：模式/政體偵測 |
 | decision | agents/decision/ | opus | 🎯 決策：最終交易決策（3 scenarios） |
 | binance_trader | agents/binance_trader/ | — | (placeholder) Binance 執行 |
 | binance_scanner | agents/binance_scanner/ | — | (placeholder) Binance 掃描 |

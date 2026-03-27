@@ -1001,6 +1001,14 @@ def main():
         format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S",
     )
 
+    # ─── 💀 Startup validation (BMD P0 fix, 2026-03-28) ───
+    try:
+        from polymarket.mm.validate import run_all
+        run_all()
+    except RuntimeError as e:
+        logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
+        raise SystemExit(1)
+
     if args.status:
         _status(_load())
         return

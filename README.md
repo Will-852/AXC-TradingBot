@@ -761,7 +761,7 @@ Dashboard dropdown 切換。Preset 同 Profile 正交（N × M 組合）。
 |------|-------|------|------|
 | tier1 | claude-sonnet-4-6 | 決策 + 交易分析 | $$$ |
 | tier2 | claude-haiku-4-5 | 掃描 + tg_bot + 新聞 | $ |
-| tier3 | gpt-5-mini | 日常 / agent default | $ |
+| tier3 | gpt-5.2 | 日常 / agent default (via yinli.one) | $ |
 | Python | — | scanner, trader_cycle, heartbeat | 零 AI cost |
 
 Proxy: `https://tao.plus7.plus/v1`（PROXY_API_KEY）

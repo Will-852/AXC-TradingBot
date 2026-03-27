@@ -60,7 +60,7 @@ audience: human,claude,github
     "providers": {
       "tier1": { "model": "claude-sonnet-4-6", "baseUrl": "你的proxy/v1", "apiKey": "sk-xxx" },
       "tier2": { "model": "claude-haiku-4-5", "baseUrl": "你的proxy/v1", "apiKey": "sk-xxx" },
-      "tier3": { "model": "gpt-5-mini", "baseUrl": "你的proxy/v1", "apiKey": "sk-xxx" }
+      "tier3": { "model": "gpt-5.2", "baseUrl": "你的proxy/v1", "apiKey": "sk-xxx" }
     }
   }
 }

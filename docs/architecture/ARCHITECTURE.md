@@ -16,7 +16,7 @@
 |------|-------|-----|------|
 | tier1 | claude-sonnet-4-6 | anthropic-messages | 決策 + 交易 |
 | tier2 | claude-haiku-4-5 | anthropic-messages | 掃描 + tg_bot chat |
-| tier3 | gpt-5-mini | openai-completions | 日常 / agent default |
+| tier3 | gpt-5.2 | openai-completions | 日常 / agent default (fallback via yinli.one) |
 
 All via proxy `https://tao.plus7.plus/v1`
 

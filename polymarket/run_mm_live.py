@@ -497,6 +497,16 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
+    # ─── 💀 Startup validation (BMD P0 fix, 2026-03-28) ───
+    # ⚠️ 容易錯 #8: MUST be after logging.basicConfig, before any trading logic.
+    # ⚠️ 容易錯 #9: --status mode also validates (status on corrupt state = misleading).
+    try:
+        from polymarket.mm.validate import run_all
+        run_all()
+    except RuntimeError as e:
+        logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
+        raise SystemExit(1)
+
     if args.status:
         _status(state_io.load())
         return
@@ -530,23 +540,19 @@ def main():
     except Exception as e:
         logger.warning("Market data fetcher failed to start: %s — continuing without", e)
 
-    # ─── Start Binance WebSocket price feed ───
-    global _ws_binance
+    # ─── Start shared WebSocket feeds (BMD P2 fix, 2026-03-28) ───
+    # 🔴 2CHECK: SharedWSManager — MM/1H/5M share one Binance + one Poly connection
+    # ⚠️ #12: release MUST be in finally block below (runner crash isolation)
+    global _ws_binance, _ws_poly
     try:
-        from polymarket.data.ws_binance import BinancePriceFeed
-        _ws_binance = BinancePriceFeed()
-        _ws_binance.start()
-        print("  WS PRICE: Binance bookTicker feed started")
+        from polymarket.data import ws_shared
+        _ws_binance = ws_shared.get_binance()
+        print("  WS PRICE: Binance bookTicker feed (shared)")
     except Exception as e:
         logger.warning("WS price feed failed to start: %s — using REST fallback", e)
-
-    # ─── Start Polymarket WebSocket order book feed ───
-    global _ws_poly
     try:
-        from polymarket.data.ws_polymarket import PolymarketBookFeed
-        _ws_poly = PolymarketBookFeed()
-        _ws_poly.start()
-        print("  WS OB: Polymarket book feed started")
+        _ws_poly = ws_shared.get_poly()
+        print("  WS OB: Polymarket book feed (shared)")
     except Exception as e:
         logger.warning("WS OB feed failed to start: %s — using REST fallback", e)
 
@@ -620,6 +626,12 @@ def main():
         except Exception:
             pass
 
+    # 💀 Bankroll sanity check (BMD P0 fix — challenger audit found orphan)
+    from polymarket.mm.validate import validate_bankroll
+    bankroll_warnings = validate_bankroll(state)
+    for w in bankroll_warnings:
+        logger.warning("BANKROLL: %s", w)
+
     if not dry_run and not state.get("live_start_ts"):
         state["live_start_ts"] = time.time()
         logger.info("PROTECTION: live_start_ts set — %.0fh protection active", _PROTECTION_HOURS)
@@ -632,53 +644,65 @@ def main():
     print(f"  [{datetime.now(tz=_HKT):%H:%M HKT}] Bankroll ${br:.2f} | "
           f"Bet {config.bet_pct:.0%} = ${bet:.2f} | Spread {config.half_spread:.1%}{_prot_str}")
 
-    if args.cycle:
-        state = run_cycle(state, gamma, client, config, dry_run,
-                          continuous_momentum=getattr(args, 'continuous_momentum', False),
-                          both_sides=both_sides)
-        state_io.save(state)
-        _status(state)
-    else:
-        print(f"  Loop: {_CYCLE_S}s")
-        try:
-            while True:
-                try:
-                    state = run_cycle(state, gamma, client, config, dry_run,
-                                     continuous_momentum=getattr(args, 'continuous_momentum', False),
-                                     both_sides=both_sides)
-                    state_io.save(state)
-                    state_io.log_positions(state)
-                except Exception as e:
-                    logger.error("Cycle error: %s", e, exc_info=True)
-                time.sleep(_CYCLE_S)
-        except KeyboardInterrupt:
-            print("\n  Shutting down...")
-            if client and hasattr(client, "get_orders") and not dry_run:
-                try:
-                    remaining = client.get_orders()
-                    _own_cids = set(state.get("markets", {}).keys()) | set(state.get("watchlist", {}).keys())
-                    for o in (remaining or []):
-                        oid = o.get("id", "")
-                        _mkt = o.get("market", "")
-                        if oid and (_mkt in _own_cids or not _mkt):
-                            try:
-                                client.client.cancel(order_id=oid)
-                            except Exception:
-                                pass
-                    if remaining:
-                        print(f"  Cancelled {len(remaining)} open orders")
-                except Exception:
-                    pass
+    # 💀 FATAL fix: release shared WS feeds in finally block (challenger audit 2026-03-28)
+    # ⚠️ #12: MUST be in finally — uncaught exception / SIGTERM / --cycle all need cleanup
+    try:
+        if args.cycle:
+            state = run_cycle(state, gamma, client, config, dry_run,
+                              continuous_momentum=getattr(args, 'continuous_momentum', False),
+                              both_sides=both_sides)
             state_io.save(state)
             _status(state)
-            if _mkt_fetcher:
-                _mkt_fetcher.shutdown()
-            if _ws_binance:
-                _ws_binance.stop()
-            if _ws_poly:
-                _ws_poly.stop()
-            if _ws_user:
-                _ws_user.stop()
+        else:
+            print(f"  Loop: {_CYCLE_S}s")
+            try:
+                while True:
+                    try:
+                        state = run_cycle(state, gamma, client, config, dry_run,
+                                         continuous_momentum=getattr(args, 'continuous_momentum', False),
+                                         both_sides=both_sides)
+                        state_io.save(state)
+                        state_io.log_positions(state)
+                    except Exception as e:
+                        logger.error("Cycle error: %s", e, exc_info=True)
+                    time.sleep(_CYCLE_S)
+            except KeyboardInterrupt:
+                print("\n  Shutting down...")
+                if client and hasattr(client, "get_orders") and not dry_run:
+                    try:
+                        remaining = client.get_orders()
+                        _own_cids = set(state.get("markets", {}).keys()) | set(state.get("watchlist", {}).keys())
+                        for o in (remaining or []):
+                            oid = o.get("id", "")
+                            _mkt = o.get("market", "")
+                            if oid and (_mkt in _own_cids or not _mkt):
+                                try:
+                                    client.client.cancel(order_id=oid)
+                                except Exception:
+                                    pass
+                        if remaining:
+                            print(f"  Cancelled {len(remaining)} open orders")
+                    except Exception:
+                        pass
+                state_io.save(state)
+                _status(state)
+    finally:
+        # 🔴 2CHECK: guaranteed cleanup — state save + WS release
+        # Double Ctrl+C fix: save state here too (idempotent atomic write)
+        try:
+            state_io.save(state)
+        except Exception:
+            pass
+        if _mkt_fetcher:
+            _mkt_fetcher.shutdown()
+        try:
+            from polymarket.data import ws_shared
+            ws_shared.release_binance()
+            ws_shared.release_poly()
+        except Exception:
+            pass
+        if _ws_user:
+            _ws_user.stop()
 
 
 if __name__ == "__main__":

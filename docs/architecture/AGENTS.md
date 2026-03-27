@@ -25,7 +25,7 @@
 - 更新頻率：每 3 分鐘（scanner_runner.py）
 
 #### 心跳（heartbeat）
-- 模型：tier3 gpt-5-mini
+- 模型：No LLM（Python-based file I/O + comparison）
 - 職責：系統健康監測
 - SOUL：agents/heartbeat/workspace/SOUL.md
 - 更新頻率：每 15 分鐘
