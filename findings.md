@@ -1,44 +1,32 @@
-# Findings: Dashboard NG UI Enhancement
+# Findings — 1H Strategy Upgrade
 
-## Web Research: Crypto Order Form UX (Binance/Bybit/OKX)
+## Codebase Scout Results
 
-### Standard Input Flow
-- **Binance Futures**: Margin mode toggle (Cross/Isolated) at top → Leverage slider → Order type → Price → Size (USDT or Qty toggle) → SL/TP → Confirm
-- **Bybit**: Similar but adds "Order Value" real-time display + margin required
-- **OKX**: Most polished — shows "Cost", "Max", margin %, all real-time
+### 1H Entry Flow (run_1h_live.py)
+- Line 285-295: conviction_signal() called
+- Line 338: entry decision (if sig.action == "ENTER" or "ADD")
+- Line 342-346: vol_imbalance filter (confirm direction)
+- Line 370-406: holder imbalance adjustment (±size, flip direction)
+- Line 416-427: size calculation + budget enforcement
+- Line 429-434: daily entry cap (max 2/day)
 
-### Key UX Patterns
-1. **Margin mode visible** — always shown as badge/toggle, never hidden
-2. **Dual input mode** — toggle between "by USDT" and "by Qty"
-3. **Real-time calculations** — notional, margin required, margin % update on every keystroke
-4. **Max button** — "use all available margin" shortcut
-5. **Order confirmation** — summary popup before execution (Bybit default on)
-6. **Validation** — red border + error text for insufficient balance / below min qty
+### Conviction Formula (hourly_engine.py)
+- Line 180-195: Brownian Bridge fair_up (Student-t ν=5)
+- Line 197-200: confidence = |fair_up - 0.50| × 2
+- Line 227: time_trust = min(t/40, 1.0)
+- Line 229-239: ob_factor = sqrt(spread × depth), penalize if <0.30
+- Line 242: conviction = confidence × time_trust × ob_factor
+- Line 244-248: threshold = max(0.12, 0.33 - t×0.005)
+- Line 285-298: size_fraction = 0.05 × conviction² × ob_quality
 
-### What we should adopt
-- Margin mode badge (read-only since we hardcode CROSSED)
-- Notional value display
-- Margin % of balance
-- Real-time min qty validation
-- Reverse calc (qty → USDT)
+### Taker Flow Infrastructure (already exists!)
+- ws_aggtrade_recorder.py: recording BTC/ETH/SOL to CSV (30-day retention)
+- Path: backtest/data/aggtrades/{SYMBOL}_{YYYYMMDD}_agg.live.csv
+- Columns: agg_id, price, qty, timestamp, is_buyer_maker
+- fetch_agg_trades.py: multi-source fetcher with aggregate_delta_volume()
+- cvd_strategy.py: has divergence detection but NOT wired to 1H
 
-## Indicator Inventory (from scout)
-
-### Currently in chart (13)
-BB, EMA, MA, RSI, MACD, STOCH, VWAP, VOL, WHALE, DELTA, VP, HEATMAP, CVD
-
-### In indicator_cache but NOT in chart (6)
-- ADX/DI+/DI- (adx, di_plus, di_minus) — trend strength
-- OBV + EMA (obv, obv_ema) — volume momentum
-- S/R Lines (rolling_low, rolling_high) — range strategy core
-- BB Width Pctl (bb_width_pctl) — squeeze detection (0-100)
-- Z-Robust (z_robust) — MAD-based z-score
-- Volume Ratio (volume_ratio) — volume vs 30-SMA
-
-### Data format in indicator_cache
-Each symbol → each TF (3m/15m/1h/4h) → 38 fields
-
-## Notification Issue
-- `ui.notify` = bottom (not the problem)
-- `ui.dialog` in notifications.py = full-screen modal overlay (the problem)
-- Fix: `ui.menu` dropdown anchored to bell button
+### SharedWSManager
+- Only used by: run_mm_live.py, run_1h_live.py, run_5m_live.py
+- 4H and Daily don't use WS
+- If MM+5M stopped, only 1H consumer → refcount always 1

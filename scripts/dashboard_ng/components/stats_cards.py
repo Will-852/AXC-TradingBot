@@ -23,7 +23,7 @@ def _format_pnl(val) -> tuple[str, str]:
 
 
 def _stat_card(title: str, key: str, formatter=None, icon: str = 'info'):
-    """Stat card with dynamic glow based on value."""
+    """Stat card — returns update(d) function for external timer."""
     card = ui.card().classes(f'{CARD_DARK} min-w-[140px] flex-1')
     with card:
         with ui.row().classes('items-center gap-2 mb-1'):
@@ -31,37 +31,38 @@ def _stat_card(title: str, key: str, formatter=None, icon: str = 'info'):
             ui.label(title).classes(LABEL_XS)
         value_label = ui.label('—').classes(DATA_VALUE_XL)
 
-        def update():
-            d = get_data()
-            raw = d.get(key, '—')
-            if formatter:
-                text, color = formatter(raw)
-                value_label.text = text
-                value_label.classes(replace=f'{DATA_VALUE_XL} {color}')
-                # Dynamic glow
-                try:
-                    v = float(raw)
-                    if v > 0:
-                        card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-green')
-                    elif v < 0:
-                        card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-red')
-                    else:
-                        card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1')
-                except (TypeError, ValueError):
-                    pass
-            else:
-                value_label.text = str(raw)
+    def update(d: dict):
+        raw = d.get(key, '—')
+        if formatter:
+            text, color = formatter(raw)
+            value_label.text = text
+            value_label.classes(replace=f'{DATA_VALUE_XL} {color}')
+            try:
+                v = float(raw)
+                if v > 0:
+                    card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-green')
+                elif v < 0:
+                    card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-red')
+                else:
+                    card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1')
+            except (TypeError, ValueError):
+                pass
+        else:
+            value_label.text = str(raw)
 
-        ui.timer(2, update)
+    return update
 
 
 def render_stats_row():
-    """Render the 4-KPI stats row."""
-    with ui.row().classes('gap-3 flex-wrap w-full'):
-        _stat_card('Today PnL', 'today_pnl', formatter=_format_pnl, icon='trending_up')
-        _stat_card('Total PnL', 'total_pnl', formatter=_format_pnl, icon='account_balance')
-        _stat_card('Triggers', 'scan_count', icon='bolt')
+    """Render the 4-KPI stats row with a single shared timer."""
+    updaters = []
 
+    with ui.row().classes('gap-3 flex-wrap w-full'):
+        updaters.append(_stat_card('Today PnL', 'today_pnl', formatter=_format_pnl, icon='trending_up'))
+        updaters.append(_stat_card('Total PnL', 'total_pnl', formatter=_format_pnl, icon='account_balance'))
+        updaters.append(_stat_card('Triggers', 'scan_count', icon='bolt'))
+
+        # Positions card (custom logic)
         card = ui.card().classes(f'{CARD_DARK} min-w-[140px] flex-1')
         with card:
             with ui.row().classes('items-center gap-2 mb-1'):
@@ -69,16 +70,23 @@ def render_stats_row():
                 ui.label('POSITIONS').classes(LABEL_XS)
             pos_label = ui.label('0').classes(DATA_VALUE_XL)
 
-            def update_pos():
-                d = get_data()
-                positions = d.get('live_positions', [])
-                n = len(positions)
-                pos_label.text = str(n)
-                if n > 0:
-                    pos_label.classes(replace=f'{DATA_VALUE_XL} text-[{GREEN}]')
-                    card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-blue')
-                else:
-                    pos_label.classes(replace=f'{DATA_VALUE_XL} text-[{TEXT_PRIMARY}]')
-                    card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1')
+        def update_pos(d: dict):
+            positions = d.get('live_positions', [])
+            n = len(positions)
+            pos_label.text = str(n)
+            if n > 0:
+                pos_label.classes(replace=f'{DATA_VALUE_XL} text-[{GREEN}]')
+                card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1 card-glow-blue')
+            else:
+                pos_label.classes(replace=f'{DATA_VALUE_XL} text-[{TEXT_PRIMARY}]')
+                card.classes(replace=f'{CARD_DARK} min-w-[140px] flex-1')
 
-            ui.timer(2, update_pos)
+        updaters.append(update_pos)
+
+    # Single 2s timer — one get_data() for all 4 cards
+    def _update_all_stats():
+        d = get_data()
+        for fn in updaters:
+            fn(d)
+
+    ui.timer(2, _update_all_stats)

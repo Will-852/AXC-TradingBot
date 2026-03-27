@@ -47,8 +47,8 @@ def get_active_markets() -> list[dict]:
                 if cid not in markets_raw and cid not in watchlist:
                     m['_source'] = '1h'
                     watchlist[cid] = m
-        except (json.JSONDecodeError, IOError):
-            pass
+        except (json.JSONDecodeError, IOError) as e:
+            log.debug('1H mm_state unreadable: %s', e)
 
     markets = []
     now_ms = int(time.time() * 1000)
@@ -146,22 +146,27 @@ load_dotenv({os.path.join(AXC_HOME, 'secrets', '.env')!r})
 from polymarket.exchange.polymarket_client import PolymarketClient
 client = PolymarketClient()
 
+import sys as _sys
 result = dict()
 try:
     result['up_mid'] = client.get_midpoint({up_token!r})
-except Exception:
+except Exception as _e:
+    print(f'up_mid fetch failed: {{_e}}', file=_sys.stderr)
     result['up_mid'] = 0
 try:
     result['dn_mid'] = client.get_midpoint({dn_token!r})
-except Exception:
+except Exception as _e:
+    print(f'dn_mid fetch failed: {{_e}}', file=_sys.stderr)
     result['dn_mid'] = 0
 try:
     result['up_spread'] = client.get_spread({up_token!r})
-except Exception:
+except Exception as _e:
+    print(f'up_spread fetch failed: {{_e}}', file=_sys.stderr)
     result['up_spread'] = 0
 try:
     result['dn_spread'] = client.get_spread({dn_token!r})
-except Exception:
+except Exception as _e:
+    print(f'dn_spread fetch failed: {{_e}}', file=_sys.stderr)
     result['dn_spread'] = 0
 print(json.dumps(result))
 '''
@@ -200,8 +205,8 @@ def get_latest_signals() -> dict[str, dict]:
                     latest[cid] = s  # last one wins
                 except json.JSONDecodeError:
                     continue
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('get_latest_signals read failed: %s', e)
     return latest
 
 
@@ -221,5 +226,6 @@ def get_market_summary() -> dict:
             'fill_stats': state.get('fill_stats', {}),
             'risk_mode': state.get('_risk_mode', ''),
         }
-    except Exception:
+    except Exception as e:
+        log.warning('get_market_summary failed: %s', e)
         return {}

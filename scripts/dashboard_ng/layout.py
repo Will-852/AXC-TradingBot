@@ -10,7 +10,7 @@ from . import state
 from .theme import (
     FONTS_CSS, GLOBAL_CSS, BG_PRIMARY, BG_SURFACE, BORDER,
     TEXT_SECONDARY, TEXT_MUTED, TEXT_FAINT,
-    GREEN, RED, ACCENT, SIDEBAR_WIDTH,
+    GREEN, GREEN_LIGHT, RED, ACCENT, SIDEBAR_WIDTH,
     HEADER_CLS, SIDEBAR_CLS, FOOTER_CLS, SECTION_HEADER,
 )
 
@@ -148,7 +148,7 @@ def create_layout(active_path: str = '/'):
                         with ui.row().classes('items-center justify-between w-full py-2 border-b border-gray-800'):
                             with ui.row().classes('items-center gap-2'):
                                 ui.icon('circle').classes('text-[8px]').style(
-                                    f'color: {"#10b981" if is_conn else "#64748b"}')
+                                    f'color: {GREEN if is_conn else TEXT_MUTED}')
                                 ui.label(exch['label']).classes('text-sm font-bold')
                                 if is_conn and bal is not None:
                                     ui.label(f'${bal:.2f}').classes('text-sm font-mono text-emerald-400')

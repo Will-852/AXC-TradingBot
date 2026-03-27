@@ -4,6 +4,8 @@ import logging
 
 from nicegui import ui, run
 
+from scripts.dashboard_ng.theme import GREEN_LIGHT, RED
+
 from scripts.dashboard_ng.state import get_data
 
 log = logging.getLogger('axc.health')
@@ -33,7 +35,7 @@ def render_health_panel():
                     for name, info in agents.items():
                         status = info.get('status', '?') if isinstance(info, dict) else str(info)
                         ok = status in ('ok', 'running', 'alive')
-                        color = '#22c55e' if ok else '#ef4444'
+                        color = GREEN_LIGHT if ok else RED
                         with ui.row().classes('items-center gap-2'):
                             ui.icon('circle').classes('text-[6px]').style(f'color: {color}')
                             ui.label(name).classes('text-xs text-gray-400 min-w-[100px]')

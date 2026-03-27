@@ -125,8 +125,8 @@ def _parse_hold_score(raw):
             s = re.sub(r'\bFalse\b', 'false', s)
             s = re.sub(r'\bNone\b', 'null', s)
             return json.loads(s)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('_parse_repr failed: %s', e)
     return None
 
 

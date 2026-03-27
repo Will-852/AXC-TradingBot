@@ -9,6 +9,7 @@ import logging
 from nicegui import ui, run
 
 from scripts.dashboard_ng import state
+from scripts.dashboard_ng.theme import GREEN_LIGHT, TEXT_MUTED
 
 log = logging.getLogger('axc.exchange')
 
@@ -106,7 +107,7 @@ def render_exchange_panel():
                     key_preview = info.get('key_preview', '')
 
                     is_connected = status == 'connected'
-                    color = '#22c55e' if is_connected else '#6b7280'
+                    color = GREEN_LIGHT if is_connected else TEXT_MUTED
 
                     with ui.row().classes('items-center justify-between w-full py-1'):
                         with ui.row().classes('items-center gap-3'):

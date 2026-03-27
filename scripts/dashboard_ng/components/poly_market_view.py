@@ -7,6 +7,10 @@ live prices chart, spread, position delta.
 import logging
 from nicegui import ui, run
 
+from scripts.dashboard_ng.theme import (
+    TEXT_FAINT, TEXT_MUTED, BORDER, AMBER, CHART_UP, CHART_DN,
+)
+
 log = logging.getLogger('axc.poly_view')
 
 
@@ -64,26 +68,26 @@ def render_market_view():
     # Shared X axis config: elapsed minutes, fixed window
     def _x_elapsed(show_label=True):
         return {'type': 'value', 'min': 0, 'max': 15,
-                'axisLabel': {'color': '#475569', 'fontSize': 11, 'show': show_label,
+                'axisLabel': {'color': TEXT_FAINT, 'fontSize': 11, 'show': show_label,
                               'formatter': '{value}m'},
-                'axisLine': {'lineStyle': {'color': '#1e2d45'}},
+                'axisLine': {'lineStyle': {'color': BORDER}},
                 'splitLine': {'show': False}}
 
     price_chart = ui.echart({
         'darkMode': True, 'backgroundColor': 'transparent',
         'tooltip': {'trigger': 'axis', 'formatter': None},
-        'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 11}, 'top': 0},
+        'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': TEXT_MUTED, 'fontSize': 11}, 'top': 0},
         'grid': {'left': 45, 'right': 60, 'top': 25, 'bottom': 20},
         'xAxis': _x_elapsed(),
         'yAxis': {'type': 'value', 'min': 0, 'max': 1,
-                  'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
-                  'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                  'axisLabel': {'color': TEXT_FAINT, 'fontSize': 11, 'formatter': '${value}'},
+                  'splitLine': {'lineStyle': {'color': BORDER, 'type': 'dashed'}}},
         'series': [
             {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
-             'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'},
+             'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_UP},
              'markLine': {'data': [], 'silent': True}},
             {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
-             'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'}},
+             'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_DN}},
         ],
     }).classes('h-40 w-full')
 
@@ -96,11 +100,11 @@ def render_market_view():
         'grid': {'left': 45, 'right': 60, 'top': 10, 'bottom': 20},
         'xAxis': _x_elapsed(show_label=False),
         'yAxis': {'type': 'value',
-                  'axisLabel': {'color': '#475569', 'fontSize': 11, 'formatter': '${value}'},
-                  'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                  'axisLabel': {'color': TEXT_FAINT, 'fontSize': 11, 'formatter': '${value}'},
+                  'splitLine': {'lineStyle': {'color': BORDER, 'type': 'dashed'}}},
         'series': [
             {'type': 'line', 'data': [], 'step': 'end',
-             'showSymbol': False, 'lineStyle': {'width': 1.5, 'color': '#f59e0b'},
+             'showSymbol': False, 'lineStyle': {'width': 1.5, 'color': AMBER},
              'areaStyle': {'color': 'rgba(245,158,11,0.15)'}},
         ],
     }).classes('h-24 w-full')
@@ -114,18 +118,18 @@ def render_market_view():
             pos_chart = ui.echart({
                 'darkMode': True, 'backgroundColor': 'transparent',
                 'tooltip': {'trigger': 'axis'},
-                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
+                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': TEXT_MUTED, 'fontSize': 10}, 'top': 0},
                 'grid': {'left': 50, 'right': 15, 'top': 25, 'bottom': 20},
                 'xAxis': _x_elapsed(),
                 'yAxis': {'type': 'value',
-                          'axisLabel': {'color': '#475569', 'fontSize': 10},
-                          'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                          'axisLabel': {'color': TEXT_FAINT, 'fontSize': 10},
+                          'splitLine': {'lineStyle': {'color': BORDER, 'type': 'dashed'}}},
                 'series': [
                     {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
-                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'},
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_UP},
                      'areaStyle': {'color': 'rgba(52,211,153,0.1)'}},
                     {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
-                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'},
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_DN},
                      'areaStyle': {'color': 'rgba(248,113,113,0.1)'}},
                 ],
             }).classes('h-32 w-full')
@@ -138,17 +142,17 @@ def render_market_view():
             avg_chart = ui.echart({
                 'darkMode': True, 'backgroundColor': 'transparent',
                 'tooltip': {'trigger': 'axis'},
-                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': '#64748b', 'fontSize': 10}, 'top': 0},
+                'legend': {'data': ['Up', 'Down'], 'textStyle': {'color': TEXT_MUTED, 'fontSize': 10}, 'top': 0},
                 'grid': {'left': 45, 'right': 15, 'top': 25, 'bottom': 20},
                 'xAxis': _x_elapsed(),
                 'yAxis': {'type': 'value', 'min': 0, 'max': 1,
-                          'axisLabel': {'color': '#475569', 'fontSize': 10, 'formatter': '${value}'},
-                          'splitLine': {'lineStyle': {'color': '#1e2d45', 'type': 'dashed'}}},
+                          'axisLabel': {'color': TEXT_FAINT, 'fontSize': 10, 'formatter': '${value}'},
+                          'splitLine': {'lineStyle': {'color': BORDER, 'type': 'dashed'}}},
                 'series': [
                     {'name': 'Up', 'type': 'line', 'data': [], 'smooth': True,
-                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#34d399'}},
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_UP}},
                     {'name': 'Down', 'type': 'line', 'data': [], 'smooth': True,
-                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': '#f87171'}},
+                     'showSymbol': False, 'lineStyle': {'width': 2, 'color': CHART_DN}},
                 ],
             }).classes('h-32 w-full')
 
@@ -413,7 +417,7 @@ def render_market_view():
         # "Now" vertical dashed line
         price_chart.options['series'][0]['markLine'] = {
             'silent': True, 'symbol': 'none',
-            'lineStyle': {'type': 'dashed', 'color': '#f59e0b', 'width': 1},
+            'lineStyle': {'type': 'dashed', 'color': AMBER, 'width': 1},
             'data': [{'xAxis': round(elapsed_min, 1)}],
             'label': {'show': False},
         }

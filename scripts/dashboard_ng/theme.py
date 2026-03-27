@@ -117,11 +117,22 @@ TEXT_MUTED = '#64748b'
 TEXT_FAINT = '#475569'
 
 GREEN = '#10b981'
+GREEN_LIGHT = '#22c55e'      # Tailwind green-500 — status dots, chart positive
 RED = '#ef4444'
+RED_LIGHT = '#f87171'        # Tailwind red-400 — chart negative lines
 AMBER = '#f59e0b'
 CYAN = '#06b6d4'
 ACCENT = '#3b82f6'
 ACCENT_HOVER = '#2563eb'
+INDIGO = '#6366f1'           # PnL chart accent
+
+# ── Chart-specific Colors (ECharts / Mermaid) ──
+CHART_UP = '#34d399'         # emerald-400 — up/positive line
+CHART_DN = '#f87171'         # red-400 — down/negative line
+CHART_AXIS = '#6b7280'       # gray-500 — axis labels
+CHART_GRID = '#1f2937'       # gray-800 — grid/split lines
+CHART_TOOLTIP_BG = '#1e293b' # slate-800 — tooltip background
+CHART_TOOLTIP_BORDER = '#334155'  # slate-700 — tooltip border
 
 # ── Component Classes ──
 CARD = f'p-3 rounded-[{CARD_RADIUS}px] border'

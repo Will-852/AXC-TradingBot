@@ -75,8 +75,8 @@ def _check_for_alerts(old: dict, new: dict):
         if new_losses > old_losses and new_losses >= 2:
             push_notification(f'Consecutive losses: {new_losses}', 'circuit_breaker')
 
-    except Exception:
-        pass  # notification system is optional
+    except Exception as e:
+        log.warning('_check_for_alerts failed: %s', e)
 
 
 async def _update_services():

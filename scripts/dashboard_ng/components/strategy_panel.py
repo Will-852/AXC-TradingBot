@@ -10,11 +10,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 
 from nicegui import ui
+
+log = logging.getLogger('axc.strategy_panel')
 
 from scripts.dashboard_ng.theme import (
     CARD_DARK, LABEL_XS, LABEL_SM, DATA_VALUE, DATA_VALUE_LG,
@@ -37,19 +40,44 @@ _SQZ_ADX_MAX = 25.0
 _SQZ_VOL_MAX = 0.80
 
 
+import time as _time
+
+# Shared file cache — avoids reading same JSON twice per 5s cycle
+_cache_data: dict = {}
+_cache_ts: float = 0
+_CACHE_TTL = 2.0  # seconds
+
+_journal_data: list = []
+_journal_ts: float = 0
+
+
 def _read_cache() -> dict:
+    global _cache_data, _cache_ts
+    now = _time.monotonic()
+    if now - _cache_ts < _CACHE_TTL and _cache_data:
+        return _cache_data
     try:
-        return json.loads(_CACHE.read_text())
-    except Exception:
-        return {}
+        _cache_data = json.loads(_CACHE.read_text())
+    except Exception as e:
+        log.debug('_read_cache failed: %s', e)
+        _cache_data = {}
+    _cache_ts = now
+    return _cache_data
 
 
 def _read_journal_tail(n: int = 10) -> list[dict]:
+    global _journal_data, _journal_ts
+    now = _time.monotonic()
+    if now - _journal_ts < _CACHE_TTL and _journal_data:
+        return _journal_data[-n:][::-1]
     try:
         lines = _JOURNAL.read_text().strip().split("\n")
-        return [json.loads(l) for l in lines[-n:]][::-1]  # newest first
-    except Exception:
-        return []
+        _journal_data = [json.loads(l) for l in lines if l.strip()]
+    except Exception as e:
+        log.debug('_read_journal_tail failed: %s', e)
+        _journal_data = []
+    _journal_ts = now
+    return _journal_data[-n:][::-1]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -174,7 +202,8 @@ def render_strategy_matrix():
                 try:
                     mod = __import__(f'config.coins.{coin}.config', fromlist=['COIN'])
                     cfg = mod.COIN.get("strategies", {})
-                except Exception:
+                except Exception as e:
+                    log.warning('Failed to load config for %s: %s', coin, e)
                     cfg = {}
 
                 with ui.row().classes('gap-0 items-center'):

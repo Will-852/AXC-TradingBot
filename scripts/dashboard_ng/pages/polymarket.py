@@ -3,26 +3,24 @@
 Features: KPIs, positions table, PnL chart, trades, circuit breakers (with reset),
 running processes (PID), cycle status polling, force scan with results,
 check merge, strategy breakdown, calibration.
+
+Split into sub-modules:
+  poly_helpers.py  — pure data functions (no UI)
+  poly_auth_ui.py  — auth section (connection status + credentials dialog)
+  poly_display.py  — update_all() + display helpers
 """
 
 import logging
 
 from nicegui import ui, run
 
+from .poly_helpers import get_poly_data, get_cycle_status, fetch_data_api
+from .poly_auth_ui import build_auth_section
+from .poly_display import update_all, update_cycle_status
+
+from scripts.dashboard_ng.theme import CHART_AXIS, CHART_GRID, INDIGO
+
 log = logging.getLogger('axc.poly')
-
-
-def _get_poly_data() -> dict:
-    from scripts.dashboard.polymarket import handle_polymarket_data
-    _, data = handle_polymarket_data()
-    return data
-
-
-def _get_cycle_status() -> dict:
-    from scripts.dashboard.polymarket import handle_polymarket_cycle_status
-    _, data = handle_polymarket_cycle_status()
-    return data
-
 
 
 def render_polymarket_page():
@@ -31,56 +29,25 @@ def render_polymarket_page():
     # ── Aggregate view data (initialise early — used by both columns) ──
     poly_data = {'data': {}}
 
-    def _fetch_data_api() -> dict:
-        """Fetch portfolio data from Polymarket Data API (public, no auth).
-        Uses curl (urllib gets 403 from Polymarket User-Agent block).
-        """
-        import os, json, subprocess as _sp
-        wallet = os.getenv('POLY_WALLET_ADDRESS', '')
-        if not wallet:
-            return {}
-        result = {}
-        try:
-            r = _sp.run(['curl', '-s', f'https://data-api.polymarket.com/value?user={wallet}'],
-                        capture_output=True, text=True, timeout=10)
-            resp = json.loads(r.stdout)
-            if resp and isinstance(resp, list):
-                result['positions_value'] = resp[0].get('value', 0)
-        except Exception:
-            pass
-        try:
-            r = _sp.run(['curl', '-s', f'https://data-api.polymarket.com/positions?user={wallet}'],
-                        capture_output=True, text=True, timeout=10)
-            positions = json.loads(r.stdout)
-            open_pos = [p for p in positions if p.get('currentValue', 0) > 0.01]
-            closed = [p for p in positions if p.get('currentValue', 0) <= 0.01]
-            result['open_count'] = len(open_pos)
-            result['closed_wins'] = len([p for p in closed if p.get('cashPnl', 0) > 0])
-            result['closed_losses'] = len([p for p in closed if p.get('cashPnl', 0) < 0])
-        except Exception:
-            pass
-        return result
-
     async def refresh():
-        poly_data['data'] = await run.io_bound(_get_poly_data)
+        poly_data['data'] = await run.io_bound(get_poly_data)
         # Live CLOB balance
         try:
             from scripts.dashboard_ng.utils.poly_live import query_live
             live = await run.io_bound(query_live)
             if live and live.get('balance'):
                 poly_data['live'] = live
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning('refresh CLOB balance failed: %s', e)
         # Data API: true portfolio value + positions
         try:
-            api_data = await run.io_bound(_fetch_data_api)
+            import os, json
+            api_data = await run.io_bound(fetch_data_api)
             if api_data:
                 poly_data['_positions_value'] = api_data.get('positions_value', 0)
                 poly_data['_open_count'] = api_data.get('open_count', 0)
                 poly_data['_closed_wins'] = api_data.get('closed_wins', 0)
                 poly_data['_closed_losses'] = api_data.get('closed_losses', 0)
-                # Initial deposit from mm_state.json (first deposit amount)
-                import os, json
                 mm_path = os.path.join(
                     os.environ.get('AXC_HOME', os.path.expanduser('~/projects/axc-trading')),
                     'polymarket', 'logs', 'mm_state.json'
@@ -89,198 +56,15 @@ def render_polymarket_page():
                     with open(mm_path) as f:
                         mm = json.load(f)
                     poly_data['_initial_deposit'] = mm.get('initial_bankroll', 0)
-        except Exception:
-            pass
-        update_all()
-
-    # ── Connection Status (Polymarket auth) ──
-    auth_container = ui.row().classes('items-center gap-3 w-full py-1 px-2 rounded '
-                                      'border border-gray-800 bg-gray-900/50')
-
-    def _check_auth() -> dict:
-        """Check Polymarket auth status (local files only, no API calls)."""
-        import os as _os
-        axc = _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading'))
-        secrets_env = _os.path.join(axc, 'secrets', '.env')
-        creds_cache = _os.path.join(axc, 'secrets', '.poly_api_creds.json')
-
-        result = {'key': False, 'wallet': '', 'l2_creds': False, 'network': 'Polygon'}
-
-        # Check env vars (loaded by dotenv at import time)
-        pk = _os.getenv('POLY_PRIVATE_KEY', '')
-        wallet = _os.getenv('POLY_WALLET_ADDRESS', '')
-
-        # Fallback: read from .env file
-        if not pk and _os.path.exists(secrets_env):
-            try:
-                with open(secrets_env) as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith('POLY_PRIVATE_KEY=') and len(line) > 20:
-                            pk = 'set'
-                        elif line.startswith('POLY_WALLET_ADDRESS=') and len(line) > 22:
-                            wallet = line.split('=', 1)[1].strip().strip('"').strip("'")
-            except Exception:
-                pass
-
-        result['key'] = bool(pk)
-        result['wallet'] = wallet
-
-        # Check L2 cached creds
-        if _os.path.exists(creds_cache):
-            try:
-                import json as _j
-                with open(creds_cache) as f:
-                    c = _j.load(f)
-                result['l2_creds'] = bool(c.get('api_key') or c.get('apiKey'))
-            except Exception:
-                pass
-
-        return result
-
-    async def refresh_auth():
-        try:
-            auth = await run.io_bound(_check_auth)
         except Exception as e:
-            auth_container.clear()
-            with auth_container:
-                ui.icon('error').classes('text-red-400')
-                ui.label(f'Auth check failed: {e}').classes('text-[12px] text-red-400')
-            return
-        auth_container.clear()
-        with auth_container:
-            # Connection dot
-            connected = auth['key'] and auth['l2_creds']
-            dot_color = '#22c55e' if connected else '#f59e0b' if auth['key'] else '#ef4444'
-            status_text = 'Connected' if connected else 'L1 Only' if auth['key'] else 'No Key'
-            ui.icon('circle').classes('text-[9px]').style(f'color: {dot_color}')
-            ui.label(status_text).classes('text-[12px] font-mono font-bold').style(f'color: {dot_color}')
+            log.warning('refresh data API / mm_state failed: %s', e)
+        update_all(ctx)
 
-            # Wallet address (truncated)
-            if auth['wallet']:
-                w = auth['wallet']
-                short = f'{w[:6]}...{w[-4:]}' if len(w) > 10 else w
-                ui.label(short).classes('text-[12px] font-mono text-gray-400')
-
-            # Auth badges
-            ui.badge('L1 Key', color='green' if auth['key'] else 'red').classes('text-[11px]')
-            ui.badge('L2 API', color='green' if auth['l2_creds'] else 'grey').classes('text-[11px]')
-            ui.badge(auth['network'], color='grey-7').classes('text-[11px]')
-
-            # Spacer + Settings button
-            ui.element('div').classes('flex-1')
-            ui.button(icon='settings', on_click=open_settings) \
-                .props('flat dense round size=sm color=grey-6') \
-                .tooltip('Polymarket Credentials')
-
-    async def open_settings():
-        """Open credential settings dialog."""
-        import os as _os
-        axc = _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading'))
-        env_path = _os.path.join(axc, 'secrets', '.env')
-
-        # Read current values (masked)
-        current_pk = ''
-        current_wallet = ''
-        if _os.path.exists(env_path):
-            with open(env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('POLY_PRIVATE_KEY='):
-                        val = line.split('=', 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            current_pk = f'{val[:6]}...{val[-4:]}' if len(val) > 10 else '***'
-                    elif line.startswith('POLY_WALLET_ADDRESS='):
-                        current_wallet = line.split('=', 1)[1].strip().strip('"').strip("'")
-
-        dlg = ui.dialog().props('persistent')
-        dlg.move()
-        with dlg, ui.card().classes('p-6 min-w-[420px]'):
-            ui.label('Polymarket Credentials').classes('text-lg font-bold')
-            ui.label('Saved to secrets/.env (localhost only)').classes('text-[11px] text-gray-500')
-
-            ui.separator().classes('my-2')
-
-            # Current status
-            if current_pk:
-                ui.label(f'Current Key: {current_pk}').classes('text-[12px] font-mono text-green-400')
-            else:
-                ui.label('No private key configured').classes('text-[12px] text-red-400')
-
-            if current_wallet:
-                ui.label(f'Wallet: {current_wallet}').classes('text-[12px] font-mono text-gray-400')
-
-            ui.separator().classes('my-2')
-            ui.label('Update Credentials').classes('text-sm font-bold text-gray-300')
-            ui.label('Leave blank to keep current value.').classes('text-[11px] text-gray-600')
-
-            pk_input = ui.input('Private Key (0x...)') \
-                .props('type=password dense filled dark') \
-                .classes('w-full')
-            wallet_input = ui.input('Proxy Wallet Address (0x...)') \
-                .props('dense filled dark') \
-                .classes('w-full')
-            if current_wallet:
-                wallet_input.value = current_wallet
-
-            with ui.row().classes('gap-3 mt-4 justify-end w-full'):
-                ui.button('Cancel', on_click=lambda: dlg.submit(None)).props('flat color=grey')
-
-                async def save_creds():
-                    new_pk = pk_input.value.strip()
-                    new_wallet = wallet_input.value.strip()
-
-                    if new_pk and not new_pk.startswith('0x'):
-                        ui.notify('Private key must start with 0x', type='negative')
-                        return
-                    if new_wallet and not new_wallet.startswith('0x'):
-                        ui.notify('Wallet address must start with 0x', type='negative')
-                        return
-
-                    # Read existing .env, update only POLY_ lines
-                    lines_out = []
-                    found_pk = False
-                    found_wallet = False
-                    if _os.path.exists(env_path):
-                        with open(env_path) as f:
-                            for line in f:
-                                if line.strip().startswith('POLY_PRIVATE_KEY=') and new_pk:
-                                    lines_out.append(f'POLY_PRIVATE_KEY={new_pk}\n')
-                                    found_pk = True
-                                elif line.strip().startswith('POLY_WALLET_ADDRESS=') and new_wallet:
-                                    lines_out.append(f'POLY_WALLET_ADDRESS={new_wallet}\n')
-                                    found_wallet = True
-                                else:
-                                    lines_out.append(line)
-                    if new_pk and not found_pk:
-                        lines_out.append(f'POLY_PRIVATE_KEY={new_pk}\n')
-                    if new_wallet and not found_wallet:
-                        lines_out.append(f'POLY_WALLET_ADDRESS={new_wallet}\n')
-
-                    import tempfile
-                    fd, tmp = tempfile.mkstemp(dir=_os.path.dirname(env_path), suffix='.tmp')
-                    with _os.fdopen(fd, 'w') as f:
-                        f.writelines(lines_out)
-                    _os.replace(tmp, env_path)
-
-                    # Delete cached L2 creds (force re-derive on next client init)
-                    creds_path = _os.path.join(axc, 'secrets', '.poly_api_creds.json')
-                    if new_pk and _os.path.exists(creds_path):
-                        _os.remove(creds_path)
-
-                    ui.notify('Credentials saved. Restart dashboard to apply.', type='positive')
-                    dlg.submit('saved')
-
-                ui.button('Save', on_click=save_creds).props('color=green')
-
-        dlg.open()
-        result = await dlg
-        if result == 'saved':
-            await refresh_auth()
-
+    # ── Auth section ──
+    _auth_container, refresh_auth = build_auth_section()
     ui.timer(0.5, refresh_auth, once=True)
 
-    # ── KPI row (market + wallet merged) ──
+    # ── KPI row ──
     with ui.row().classes('gap-3 flex-wrap'):
         kpi_labels = {}
         for key, label in [
@@ -301,6 +85,7 @@ def render_polymarket_page():
     ui.separator().classes('bg-gray-700')
 
     # ── Controls row ──
+    # 💰 toggle_mode: controls DRY↔LIVE — wrong = real money operations
     with ui.row().classes('gap-3 items-center flex-wrap'):
         async def run_cycle():
             from scripts.dashboard.polymarket import handle_polymarket_run_cycle
@@ -314,7 +99,6 @@ def render_polymarket_page():
                     ui.notify(data.get('error', 'Already running'), type='warning')
                 elif data.get('ok'):
                     ui.notify('Pipeline started — polling for result...', type='info')
-                    # Start polling cycle status
                     await _poll_cycle()
             run_btn.set_enabled(True)
             await refresh()
@@ -324,14 +108,14 @@ def render_polymarket_page():
             import asyncio
             for _ in range(120):  # max 4 min
                 await asyncio.sleep(2)
-                status = await run.io_bound(_get_cycle_status)
+                status = await run.io_bound(get_cycle_status)
                 if not status.get('running', False):
                     if status.get('last_error'):
                         ui.notify(f'Pipeline error: {status["last_error"]}', type='negative')
                     else:
                         dur = status.get('last_duration', 0)
                         ui.notify(f'Pipeline complete ({dur:.1f}s)', type='positive')
-                    _update_cycle_status(status)
+                    update_cycle_status(cycle_container, status)
                     return
             ui.notify('Pipeline poll timeout', type='warning')
 
@@ -350,13 +134,13 @@ def render_polymarket_page():
             scan_btn.set_enabled(True)
 
         async def toggle_mode():
+            """💰 Switch between DRY RUN and LIVE mode."""
             from scripts.dashboard.polymarket import handle_polymarket_set_mode
             d = poly_data['data']
             st = d.get('state', {})
             is_dry = st.get('dry_run', True)
             new_mode = 'live' if is_dry else 'dry_run'
 
-            # Confirm before switching to LIVE
             if new_mode == 'live':
                 confirm_dlg = ui.dialog().props('persistent')
                 confirm_dlg.move()
@@ -400,50 +184,41 @@ def render_polymarket_page():
 
     # ── Split layout: Market (left) | Wallet (right) ──
     with ui.row().classes('w-full gap-4 items-start'):
-
-        # ── LEFT: Per-market charts ──
         with ui.column().classes('gap-2').style('flex: 55 1 0%; min-width: 0'):
             from scripts.dashboard_ng.components.poly_market_view import render_market_view
             render_market_view()
 
-        # ── RIGHT: Orders + Trades (sticky — stays visible while scrolling charts) ──
-        with ui.column().classes('gap-2').style('flex: 45 1 0%; min-width: 0; position: sticky; top: 0; align-self: flex-start'):
-            # Hidden containers for live data refresh (no visible wallet header — stats merged into KPI row)
+        with ui.column().classes('gap-2').style(
+            'flex: 45 1 0%; min-width: 0; position: sticky; top: 0; align-self: flex-start'
+        ):
             live_container = ui.column().classes('hidden')
             live_ts = ui.label('').classes('hidden')
-
-            # Open Orders
             ui.label('OPEN ORDERS (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide')
             positions_container = ui.column().classes('w-full')
-
-            # Recent Trades
             ui.label('RECENT TRADES (LIVE)').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
             trades_container = ui.column().classes('w-full max-h-96 overflow-y-auto')
 
     ui.separator().classes('bg-gray-700 my-2')
 
-    # ── Analytics / Ops tabs (full width, below split) ──
+    # ── Analytics / Ops tabs ──
     with ui.tabs().classes('w-full').props('dense align=left active-color=amber indicator-color=amber') as tabs:
         tab_analytics = ui.tab('Analytics', icon='analytics')
         tab_ops = ui.tab('Ops', icon='engineering')
 
     with ui.tab_panels(tabs, value=tab_analytics).classes('w-full'):
-
-        # ━━━ TAB: Analytics ━━━
         with ui.tab_panel(tab_analytics):
-            # PnL chart
             ui.label('PNL').classes('text-xs text-gray-500 uppercase tracking-wide')
             pnl_chart = ui.echart({
                 'backgroundColor': 'transparent',
                 'tooltip': {'trigger': 'axis'},
                 'grid': {'left': 50, 'right': 20, 'top': 20, 'bottom': 30},
                 'xAxis': {'type': 'category', 'data': [],
-                          'axisLabel': {'color': '#6b7280', 'fontSize': 11}},
+                          'axisLabel': {'color': CHART_AXIS, 'fontSize': 11}},
                 'yAxis': {'type': 'value',
-                          'axisLabel': {'color': '#6b7280', 'formatter': '${value}'},
-                          'splitLine': {'lineStyle': {'color': '#1f2937'}}},
+                          'axisLabel': {'color': CHART_AXIS, 'formatter': '${value}'},
+                          'splitLine': {'lineStyle': {'color': CHART_GRID}}},
                 'series': [{'type': 'line', 'data': [], 'smooth': True,
-                            'itemStyle': {'color': '#6366f1'}, 'areaStyle': {
+                            'itemStyle': {'color': INDIGO}, 'areaStyle': {
                                 'color': {'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
                                           'colorStops': [
                                               {'offset': 0, 'color': 'rgba(99,102,241,0.3)'},
@@ -452,34 +227,36 @@ def render_polymarket_page():
             }).classes('h-48 w-full')
 
             ui.separator().classes('bg-gray-700 my-2')
-
-            # Strategy Breakdown
             ui.label('STRATEGY BREAKDOWN').classes('text-xs text-gray-500 uppercase tracking-wide')
             strategy_container = ui.column().classes('w-full')
-
-            # Calibration
             ui.label('CALIBRATION').classes('text-xs text-gray-500 uppercase tracking-wide mt-4')
             cal_container = ui.row().classes('gap-4')
 
-        # ━━━ TAB: Ops ━━━
         with ui.tab_panel(tab_ops):
-            # Circuit breakers
             ui.label('CIRCUIT BREAKERS').classes('text-xs text-gray-500 uppercase tracking-wide')
             cb_container = ui.column().classes('w-full')
-
             ui.separator().classes('bg-gray-700 my-2')
-
-            # Pipeline Status
             with ui.expansion('Pipeline Status', icon='pending_actions').classes('w-full'):
                 cycle_container = ui.column().classes('w-full gap-1')
-
             ui.separator().classes('bg-gray-700 my-2')
-
-            # Strategy Config
             from scripts.dashboard_ng.components.poly_config import render_poly_config
             render_poly_config()
 
-    # ── Running Processes + Bot Control (always visible, outside tabs) ──
+    # ── Build the shared context dict for display functions ──
+    ctx = {
+        'poly_data': poly_data,
+        'kpi_labels': kpi_labels,
+        'mode_btn': mode_btn,
+        'positions_container': positions_container,
+        'pnl_chart': pnl_chart,
+        'strategy_container': strategy_container,
+        'cal_container': cal_container,
+        'trades_container': trades_container,
+        'cb_container': cb_container,
+        'refresh_fn': refresh,
+    }
+
+    # ── Running Processes + Bot Control ──
     ui.separator().classes('bg-gray-700')
     with ui.row().classes('items-center gap-2'):
         ui.label('RUNNING PROCESSES').classes('text-xs text-gray-500 uppercase tracking-wide')
@@ -491,7 +268,6 @@ def render_polymarket_page():
     )
     from scripts.dashboard_ng.scheduler import read_schedules, write_schedules
 
-    # Bot control: Start/Stop + Schedule per bot
     bot_btns = {}
     sched_inputs = {}
     schedules = read_schedules()
@@ -499,10 +275,10 @@ def render_polymarket_page():
     for bot_name, script, args, key in _BOT_DEFS:
         sched = schedules.get(key, {})
         with ui.row().classes('items-center gap-2 w-full py-1 border-b border-gray-800'):
-            # Start / Stop
             async def on_start(s=script, a=args, k=key, n=bot_name):
                 ok = await run.io_bound(_start, s, a, k)
-                ui.notify(f'{n} started' if ok else f'{n} already running', type='positive' if ok else 'info')
+                ui.notify(f'{n} started' if ok else f'{n} already running',
+                          type='positive' if ok else 'info')
                 log_cmd(f'Started {n}' if ok else f'{n} already running')
                 await run.io_bound(lambda: __import__('time').sleep(2))
                 await refresh_procs()
@@ -522,7 +298,6 @@ def render_polymarket_page():
             ui.button(icon='stop', on_click=on_stop) \
                 .props('dense size=sm color=red-8')
 
-            # Schedule inputs
             ui.label('|').classes('text-gray-700')
 
             async def on_sched_change(k=key):
@@ -534,7 +309,7 @@ def render_polymarket_page():
                 s[k]['enabled'] = si['toggle'].value
                 s[k]['name'] = si['name']
                 await run.io_bound(write_schedules, s)
-                ui.notify(f'Schedule saved', type='info')
+                ui.notify('Schedule saved', type='info')
 
             start_input = ui.input(placeholder='Start HH:MM') \
                 .props('dense filled dark mask="##:##"') \
@@ -558,60 +333,37 @@ def render_polymarket_page():
                 'start': start_input, 'stop': stop_input,
                 'toggle': sched_toggle, 'name': bot_name,
             }
-
             bot_btns[key] = (start_b,)
 
     proc_container = ui.column().classes('w-full gap-1')
 
-    # ── Command Log (always visible, shows running status) ──
+    # ── Command Log ──
     ui.separator().classes('bg-gray-700')
     with ui.row().classes('items-center gap-2'):
         ui.label('COMMAND LOG').classes('text-xs text-gray-500 uppercase tracking-wide')
     cmd_log = ui.column().classes('w-full max-h-32 overflow-y-auto gap-0')
 
-    # ── Async refresh functions (outside tabs — closures reference containers above) ──
+    # ── Async refresh helpers ──
 
     async def refresh_live():
         from scripts.dashboard_ng.utils.poly_live import query_live
-        from datetime import datetime
         try:
             data = await run.io_bound(query_live)
         except Exception as e:
+            log.warning('refresh_live CLOB query failed: %s', e)
             return
         if not data:
             return
-        # Update KPI cards with live wallet data
         bal = data.get('balance', 0)
         if isinstance(bal, (int, float)):
             kpi_labels['usdc_balance'].text = f'${bal:.2f}'
-            poly_data['live'] = data  # store for update_all
+            poly_data['live'] = data
         kpi_labels['open_orders'].text = str(data.get('open_orders', 0))
         kpi_labels['total_trades'].text = str(data.get('total_trades', 0))
 
-    def _update_cycle_status(status: dict):
-        cycle_container.clear()
-        with cycle_container:
-            running = status.get('running', False)
-            with ui.row().classes('items-center gap-2'):
-                if running:
-                    ui.spinner(size='sm')
-                    ui.label('Pipeline running...').classes('text-yellow-400 text-sm')
-                else:
-                    ui.icon('check_circle').classes('text-green-400 text-sm')
-                    ui.label('Idle').classes('text-gray-400 text-sm')
-            last_run = status.get('last_run', 0)
-            if last_run:
-                from datetime import datetime
-                ts_str = datetime.fromtimestamp(last_run).strftime('%H:%M:%S')
-                dur = status.get('last_duration', 0)
-                ui.label(f'Last run: {ts_str} ({dur:.1f}s)').classes('text-xs text-gray-500 font-mono')
-            err = status.get('last_error')
-            if err:
-                ui.label(f'Last error: {err}').classes('text-xs text-red-400')
-
     async def refresh_cycle():
-        status = await run.io_bound(_get_cycle_status)
-        _update_cycle_status(status)
+        status = await run.io_bound(get_cycle_status)
+        update_cycle_status(cycle_container, status)
 
     async def refresh_procs():
         try:
@@ -625,9 +377,11 @@ def render_polymarket_page():
         proc_count_badge._props['color'] = 'green' if procs else 'grey'
         proc_count_badge.update()
 
-        # Update bot button states (green outline when running, no uptime on button)
         for key, (start_b,) in bot_btns.items():
-            matched = next((p for p in procs if key in p.get('cmd', '') or key in p.get('cmd_full', '')), None)
+            matched = next(
+                (p for p in procs if key in p.get('cmd', '') or key in p.get('cmd_full', '')),
+                None,
+            )
             base_name = start_b.text.split(' ⏱')[0]
             if matched:
                 start_b.props('color=green-8 outline')
@@ -643,282 +397,10 @@ def render_polymarket_page():
                 for p in procs:
                     with ui.row().classes('items-center gap-2 w-full py-0.5'):
                         ui.badge(f'PID {p["pid"]}', color='amber').classes('font-mono text-[12px]')
-                        # Show uptime only if meaningful (>1min)
                         up = p['uptime'].strip()
                         if up and up != '00:00' and not up.startswith('00:0'):
                             ui.label(up).classes('text-[12px] font-mono text-amber-400')
                         ui.label(p['cmd']).classes('text-[12px] text-gray-400 font-mono truncate')
-
-    ui.timer(5, refresh_live, once=True)
-    ui.timer(30, refresh_live)
-    ui.timer(0.1, refresh_cycle, once=True)
-    ui.timer(10, refresh_cycle)
-    ui.timer(0.1, refresh_procs, once=True)
-    ui.timer(15, refresh_procs)
-
-    def update_all():
-        d = poly_data['data']
-        state = d.get('state', {})
-
-        # KPIs
-        positions = state.get('positions', [])
-        bal = state.get('usdc_balance', 0)
-        exposure = state.get('total_exposure', 0)
-        daily_pnl = state.get('daily_pnl_pct', 0)
-        exposure_pct = state.get('exposure_pct', 0)
-
-        last_updated = state.get('last_updated', '—')
-
-        # PnL from Polymarket Data API (true on-chain source)
-        import os as _os
-        import json as _json
-        live = poly_data.get('live', {})
-        live_bal = live.get('balance')
-        if live_bal and isinstance(live_bal, (int, float)):
-            bal = live_bal
-
-        # Fetch positions value from Data API (cached in poly_data)
-        positions_value = poly_data.get('_positions_value', 0)
-        initial_deposit = poly_data.get('_initial_deposit', 0)
-        total_account = (bal if isinstance(bal, (int, float)) else 0) + positions_value
-        total_pnl = total_account - initial_deposit if initial_deposit else 0
-
-        from datetime import datetime
-        kpi_labels['usdc_balance'].text = f'${bal:.2f}' if isinstance(bal, (int, float)) else str(bal)
-        pnl_color = 'text-green-400' if total_pnl >= 0 else 'text-red-400'
-        kpi_labels['total_pnl'].text = f'${total_pnl:+.2f}'
-        kpi_labels['total_pnl'].classes(replace=f'text-lg font-bold font-mono {pnl_color}')
-        # Win rate from Data API positions
-        n_closed = poly_data.get('_closed_wins', 0) + poly_data.get('_closed_losses', 0)
-        if n_closed > 0:
-            wr = poly_data.get('_closed_wins', 0) / n_closed * 100
-            kpi_labels['win_rate'].text = f'{wr:.0f}% ({poly_data.get("_closed_wins",0)}/{n_closed})'
-        else:
-            kpi_labels['win_rate'].text = f'{poly_data.get("_open_count", 0)} open'
-
-        # Positions = live open orders if available
-        n_orders = live.get('open_orders', 0)
-        if n_orders:
-            kpi_labels['positions_count'].text = f'{n_orders} orders'
-        else:
-            kpi_labels['positions_count'].text = str(len(positions)) if isinstance(positions, list) else '0'
-
-        kpi_labels['total_exposure'].text = f'${exposure:.2f}' if isinstance(exposure, (int, float)) else str(exposure)
-        kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}%' if isinstance(exposure_pct, (int, float)) else str(exposure_pct)
-
-        # Last Updated = NOW (live query time), not stale state file timestamp
-        kpi_labels['last_updated'].text = datetime.now().strftime('%H:%M:%S')
-
-        # Mode button
-        is_dry = state.get('dry_run', True)
-        mode_str = 'DRY RUN' if is_dry else 'LIVE'
-        mode_btn.text = f'Mode: {mode_str}'
-        mode_btn.props(f'color={"deep-orange" if is_dry else "green"}')
-
-        # Risk mode from mm_state.json (shown next to mode button)
-        try:
-            import os as _os
-            import json as _json_rm
-            _mm_path = _os.path.join(
-                _os.environ.get('AXC_HOME', _os.path.expanduser('~/projects/axc-trading')),
-                'polymarket', 'logs', 'mm_state.json'
-            )
-            if _os.path.exists(_mm_path):
-                with open(_mm_path) as _f:
-                    _mm = _json_rm.load(_f)
-                risk_mode = _mm.get('_risk_mode', '')
-                if risk_mode:
-                    risk_color = 'text-red-400' if risk_mode == 'STOPPED' else 'text-amber-400' if risk_mode == 'PROTECTION' else 'text-green-400'
-                    kpi_labels['exposure_pct'].text = f'{exposure_pct:.1f}% ({risk_mode})'
-                    kpi_labels['exposure_pct'].classes(replace=f'text-lg font-bold font-mono {risk_color}')
-        except Exception:
-            pass
-
-        # Positions — show LIVE orders from CLOB (state file positions are stale)
-        live = poly_data.get('live', {})
-        live_orders = live.get('orders', [])
-        positions_container.clear()
-        with positions_container:
-            if live_orders:
-                from datetime import datetime as _dt
-                rows = []
-                for o in live_orders:
-                    try:
-                        sz = f"{float(o.get('size', 0)):.2f}"
-                    except (TypeError, ValueError):
-                        sz = str(o.get('size', ''))
-                    # Parse created_at time (can be int epoch or string)
-                    ct = o.get('created', '')
-                    try:
-                        if isinstance(ct, (int, float)):
-                            ct = _dt.fromtimestamp(ct).strftime('%m-%d %H:%M')
-                        elif isinstance(ct, str) and ct.isdigit():
-                            ct = _dt.fromtimestamp(int(ct)).strftime('%m-%d %H:%M')
-                        elif isinstance(ct, str) and len(ct) > 16:
-                            ct = ct[:16]
-                    except (ValueError, OSError):
-                        ct = str(ct)[:16]
-                    rows.append({
-                        'time': ct,
-                        'side': o.get('side', ''),
-                        'outcome': o.get('outcome', ''),
-                        'size': sz,
-                        'price': f"${o.get('price', '?')}",
-                    })
-                ui.aggrid({
-                    'columnDefs': [
-                        {'field': 'time', 'headerName': 'Created', 'width': 110},
-                        {'field': 'side', 'width': 50},
-                        {'field': 'outcome', 'width': 55},
-                        {'field': 'size', 'width': 65, 'type': 'rightAligned'},
-                        {'field': 'price', 'width': 65, 'type': 'rightAligned'},
-                    ],
-                    'rowData': rows,
-                    'headerHeight': 30, 'rowHeight': 28,
-                }).classes('h-80 w-full ag-theme-balham-dark')
-            else:
-                ui.label('No open orders').classes('text-gray-600 text-sm')
-
-        # PnL chart — use cumulative PnL, timestamp for time axis
-        pnl_series = d.get('pnl_series', [])
-        if pnl_series:
-            times = []
-            values = []
-            for p in pnl_series:
-                ts = p.get('timestamp', p.get('time', ''))
-                if isinstance(ts, str) and len(ts) > 16:
-                    ts = ts[5:16]  # "2026-03-19T14:46" → "03-19T14:46"
-                times.append(ts)
-                values.append(p.get('cumulative', p.get('pnl', 0)))
-            pnl_chart.options['xAxis']['data'] = times
-            pnl_chart.options['series'][0]['data'] = values
-            pnl_chart.update()
-
-        # Strategy breakdown
-        breakdown = d.get('strategy_breakdown', {})
-        strategy_container.clear()
-        with strategy_container:
-            if breakdown and isinstance(breakdown, dict):
-                with ui.row().classes('gap-3 flex-wrap'):
-                    for strat, count in sorted(breakdown.items(), key=lambda x: -(x[1] if isinstance(x[1], (int, float)) else 0)):
-                        if isinstance(count, (int, float)) and count > 0:
-                            ui.badge(f'{strat}: {count}', color='grey').classes('font-mono text-[12px]')
-            else:
-                ui.label('No strategy data').classes('text-gray-600 text-sm')
-
-        # Calibration
-        cal = d.get('calibration', {})
-        cal_container.clear()
-        with cal_container:
-            brier = cal.get('brier')
-            edge = cal.get('edge')
-            if isinstance(brier, (int, float)):
-                ui.label(f'Brier: {brier:.4f}').classes('text-sm font-mono text-gray-400')
-            if isinstance(edge, (int, float)):
-                color = 'text-green-400' if edge > 0 else 'text-red-400'
-                ui.label(f'Edge: {edge:.4f}').classes(f'text-sm font-mono {color}')
-            elif isinstance(edge, dict):
-                matched = edge.get('matched', 0)
-                predictions = edge.get('edge_predictions_count', 0)
-                ui.label(f'Edge: {matched} matched / {predictions} predictions').classes('text-sm font-mono text-gray-400')
-            if brier is None and edge is None:
-                ui.label('No calibration data').classes('text-gray-600 text-sm')
-
-        # Trades — use LIVE CLOB trades (not stale state file)
-        live_trades = live.get('recent_trades', [])
-        trades_container.clear()
-        with trades_container:
-            if live_trades:
-                from datetime import datetime as _dt
-                rows = []
-                for t in live_trades[:20]:
-                    mt = t.get('match_time', '')
-                    # Convert epoch seconds to human time
-                    try:
-                        if isinstance(mt, (int, float)) or (isinstance(mt, str) and mt.isdigit()):
-                            mt = _dt.fromtimestamp(int(mt)).strftime('%m-%d %H:%M')
-                        elif isinstance(mt, str) and len(mt) > 16:
-                            mt = mt[:16]
-                    except (ValueError, OSError):
-                        pass
-                    try:
-                        sz = f"{float(t.get('size', 0)):.2f}"
-                    except (TypeError, ValueError):
-                        sz = str(t.get('size', ''))
-                    rows.append({
-                        'time': mt,
-                        'side': t.get('side', ''),
-                        'outcome': t.get('outcome', ''),
-                        'size': sz,
-                        'price': f"${t.get('price', '?')}",
-                    })
-                ui.aggrid({
-                    'columnDefs': [
-                        {'field': 'time', 'headerName': 'Time', 'width': 140},
-                        {'field': 'side', 'width': 50},
-                        {'field': 'outcome', 'width': 60},
-                        {'field': 'size', 'width': 65, 'type': 'rightAligned'},
-                        {'field': 'price', 'width': 70, 'type': 'rightAligned'},
-                    ],
-                    'rowData': rows,
-                    'headerHeight': 32, 'rowHeight': 30, 'domLayout': 'autoHeight',
-                }).classes('w-full ag-theme-balham-dark')
-            else:
-                # Fallback to state file trades if live not available
-                state_trades = d.get('trades', [])
-                if state_trades:
-                    ui.label('(State file trades — pipeline stale)').classes('text-[11px] text-yellow-400')
-                    for t in state_trades[:5]:
-                        ts = t.get('timestamp', t.get('time', ''))[:16] if t.get('timestamp') else ''
-                        ui.label(f"{ts} {t.get('side','')} ${t.get('price','')}").classes('text-xs text-gray-500')
-                else:
-                    ui.label('No trades').classes('text-gray-600 text-sm')
-
-        # Circuit breakers (with RESET button)
-        # Actual shape: [{"service": "polymarket", "state": "closed", "failure_count": 0, ...}]
-        cbs = d.get('circuit_breakers', [])
-        cb_container.clear()
-        with cb_container:
-            if cbs:
-                for cb in cbs:
-                    if isinstance(cb, dict):
-                        name = cb.get('service', cb.get('name', '?'))
-                        cb_state = cb.get('state', 'closed')
-                        failures = cb.get('failure_count', 0)
-                        triggered = cb_state != 'closed'
-                    else:
-                        name = str(cb)
-                        triggered = False
-                        failures = 0
-
-                    with ui.row().classes('items-center gap-2 w-full'):
-                        ui.icon('circle').classes('text-[9px]').style(
-                            f'color: {"#ef4444" if triggered else "#22c55e"}')
-                        ui.label(str(name)).classes('text-sm text-gray-300 min-w-[100px]')
-                        ui.label(f'{cb_state}' if isinstance(cb, dict) else '').classes('text-[11px] font-mono text-gray-500')
-                        if failures:
-                            ui.label(f'({failures} failures)').classes('text-[11px] text-yellow-400')
-                        if triggered:
-                            async def reset_cb(n=name):
-                                from scripts.dashboard.polymarket import handle_polymarket_reset_cb
-                                import json as _json
-                                result = await run.io_bound(
-                                    handle_polymarket_reset_cb, _json.dumps({'service': n})
-                                )
-                                if isinstance(result, tuple):
-                                    _, rdata = result
-                                else:
-                                    rdata = result
-                                if rdata.get('ok'):
-                                    ui.notify(f'CB "{n}" reset', type='positive')
-                                else:
-                                    ui.notify(f'Reset failed: {rdata.get("error")}', type='negative')
-                                await refresh()
-
-                            ui.button('Reset', on_click=reset_cb) \
-                                .props('flat dense size=xs color=red')
-            else:
-                ui.label('No circuit breakers').classes('text-gray-600 text-sm')
 
     def log_cmd(msg: str):
         """Append a timestamped command to the log."""
@@ -934,6 +416,12 @@ def render_polymarket_page():
     from scripts.dashboard_ng.components.diagrams import render_polymarket_pipeline
     render_polymarket_pipeline()
 
-    # Initial load + timer (20s refresh — includes live balance query)
+    # ── Timers ──
+    ui.timer(5, refresh_live, once=True)
+    ui.timer(30, refresh_live)
+    ui.timer(0.1, refresh_cycle, once=True)
+    ui.timer(10, refresh_cycle)
+    ui.timer(0.1, refresh_procs, once=True)
+    ui.timer(15, refresh_procs)
     ui.timer(0.1, refresh, once=True)
     ui.timer(20, refresh)
