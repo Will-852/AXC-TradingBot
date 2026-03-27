@@ -143,11 +143,14 @@ def register_backtest_routes():
         from scripts.dashboard_ng.state import get_data
         return get_data()
 
-    # Serve backtest.html with correct MIME type
+    # Serve backtest.html with no-cache (force fresh on every load)
     @app.get('/backtest.html')
     async def serve_backtest_html():
         from fastapi.responses import FileResponse
         html_path = os.path.join(AXC_HOME, 'canvas', 'backtest.html')
-        return FileResponse(html_path, media_type='text/html')
+        return FileResponse(
+            html_path, media_type='text/html',
+            headers={'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache'}
+        )
 
     log.info('Backtest API routes registered')

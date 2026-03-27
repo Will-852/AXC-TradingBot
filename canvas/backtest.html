@@ -918,8 +918,8 @@
   </div>
 
   <!-- File location help panel -->
-  <div id="file-help" style="display:none;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:14px 18px;margin:8px 0;font-size:.78rem;color:#d1d4dc;line-height:1.7">
-    <div style="font-weight:600;margin-bottom:8px;color:#fff"><i class="fas fa-folder"></i> 文件位置同格式說明</div>
+  <div id="file-help" style="display:none;position:fixed;top:80px;right:20px;z-index:9999;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:14px 18px;font-size:.78rem;color:#d1d4dc;line-height:1.7;max-width:520px;max-height:70vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:600;color:#fff"><i class="fas fa-folder"></i> 文件位置同格式說明</div><button onclick="document.getElementById('file-help').style.display='none'" style="background:none;border:none;color:#787b86;cursor:pointer;font-size:1.1rem;padding:0 4px">✕</button></div>
     <table style="width:100%;border-collapse:collapse;font-size:.75rem">
       <tr style="border-bottom:1px solid #2a2e39">
         <td style="padding:4px 8px;color:#787b86;white-space:nowrap">回測結果</td>
