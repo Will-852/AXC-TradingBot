@@ -1025,6 +1025,10 @@ def main():
     except RuntimeError as e:
         logging.getLogger(__name__).critical("STARTUP BLOCKED: %s", e)
         raise SystemExit(1)
+    except (ImportError, ModuleNotFoundError) as e:
+        # Non-fatal: validate may fail under launchd due to import path differences.
+        # Other errors (AttributeError, ValueError etc.) should still crash — they're real bugs.
+        logging.getLogger(__name__).warning("Startup validation skipped (import): %s", e)
 
     if args.status:
         _status(_load())
