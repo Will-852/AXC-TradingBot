@@ -115,16 +115,16 @@ def main_page():
                     render_fee_breakdown()
                     render_trade_stats()
 
-        # ── Row 5: (Funding + Trades) 50% | (News + Scan + Activity) 50% ──
+        # ── Row 5: (News + Scan + Activity) 50% | (Funding + Trades) 50% ──
         with ui.row().classes('gap-2 w-full items-start'):
-            with ui.column().classes('flex-1 min-w-[350px] gap-2'):
-                render_funding_rates()
-                render_trade_history()
-
             with ui.column().classes('flex-1 min-w-[350px] gap-2'):
                 render_news_sentiment()
                 render_scan_log()
                 render_activity_log()
+
+            with ui.column().classes('flex-1 min-w-[350px] gap-2'):
+                render_funding_rates()
+                render_trade_history()
 
         # Row 6+7 (Health, Mode Suggest, Diagrams) moved to sidebar — see layout.py
 

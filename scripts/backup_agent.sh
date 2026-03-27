@@ -55,4 +55,35 @@ echo "✅ Zip: backups/backup-${TIMESTAMP}.zip"
 # Clean old zips (keep last 10, any naming pattern)
 cd backups
 ls -t *.zip 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null
+cd "$AXC_HOME"
+
+# ── Off-site sync (iCloud Drive) ──────────────
+ICLOUD_BACKUP="$HOME/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup"
+if ! mkdir -p "$ICLOUD_BACKUP" 2>/dev/null; then
+  echo "⚠️  iCloud Drive not available, skipping off-site sync"
+  echo "✅ Backup complete (local only)"
+  exit 0
+fi
+
+rsync -a --delete \
+  "$AXC_HOME/shared/" "$ICLOUD_BACKUP/shared/"
+rsync -a --delete \
+  "$AXC_HOME/config/" "$ICLOUD_BACKUP/config/"
+rsync -a --delete \
+  "$AXC_HOME/ai/" "$ICLOUD_BACKUP/ai/"
+
+# Secrets — single file, no --delete
+if [ -f "$AXC_HOME/secrets/.env" ]; then
+  mkdir -p "$ICLOUD_BACKUP/secrets"
+  rsync -a "$AXC_HOME/secrets/.env" "$ICLOUD_BACKUP/secrets/.env"
+fi
+
+# Latest zip only (save iCloud space)
+LATEST_ZIP=$(ls -t "$AXC_HOME/backups/"*.zip 2>/dev/null | head -1)
+if [ -n "$LATEST_ZIP" ]; then
+  mkdir -p "$ICLOUD_BACKUP/backups"
+  rsync -a "$LATEST_ZIP" "$ICLOUD_BACKUP/backups/"
+fi
+
+echo "✅ iCloud sync done → $ICLOUD_BACKUP"
 echo "✅ Backup complete"

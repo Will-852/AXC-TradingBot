@@ -9,7 +9,9 @@ backup_agent.sh
     |
     +-- git commit + push（GitHub）
     +-- zip 壓縮（本地 backups/）
-         保留最近 10 個
+    |    保留最近 10 個
+    +-- iCloud Drive sync（rsync）
+         shared/ config/ ai/ secrets/ 最新zip
 ```
 
 ## 觸發方式
@@ -41,7 +43,11 @@ crontab -l
 |------|----------|------|
 | 代碼 + 文件 | GitHub | github.com/Will-852/AXC-TradingBot |
 | 本地 zip | 本地保留10個 | ~/projects/axc-trading/backups/ |
-| .env secrets | 手動 | iCloud |
+| shared/ 狀態 | iCloud Drive (rsync) | ~/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup/shared/ |
+| config/ | iCloud Drive (rsync) | ~/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup/config/ |
+| ai/ | iCloud Drive (rsync) | ~/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup/ai/ |
+| .env secrets | iCloud Drive (rsync) | ~/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup/secrets/ |
+| 最新 zip | iCloud Drive (rsync) | ~/Library/Mobile Documents/com~apple~CloudDocs/AXC-Backup/backups/ |
 | 記憶 jsonl | GitHub | memory/store/ |
 | 向量索引 | 不備份 | 可重建 |
 

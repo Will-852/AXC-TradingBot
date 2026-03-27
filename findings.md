@@ -1,32 +1,24 @@
-# Findings — 1H Strategy Upgrade
+# Findings — Infrastructure Upgrades
+> Created: 2026-03-28
 
-## Codebase Scout Results
+## Recon Results
 
-### 1H Entry Flow (run_1h_live.py)
-- Line 285-295: conviction_signal() called
-- Line 338: entry decision (if sig.action == "ENTER" or "ADD")
-- Line 342-346: vol_imbalance filter (confirm direction)
-- Line 370-406: holder imbalance adjustment (±size, flip direction)
-- Line 416-427: size calculation + budget enforcement
-- Line 429-434: daily entry cap (max 2/day)
+### Backup System
+- `scripts/backup_agent.sh`: crontab 03:00 daily, git push + local zip (last 10)
+- Zips: config/ agents/ shared/ scripts/ ai/ docs/ CLAUDE.md
+- NOT backed up off-site: shared/ state, secrets/.env (manual iCloud), vector index
+- No LaunchAgent for backup — crontab only
+- Docs: `docs/guides/BACKUP.md`
 
-### Conviction Formula (hourly_engine.py)
-- Line 180-195: Brownian Bridge fair_up (Student-t ν=5)
-- Line 197-200: confidence = |fair_up - 0.50| × 2
-- Line 227: time_trust = min(t/40, 1.0)
-- Line 229-239: ob_factor = sqrt(spread × depth), penalize if <0.30
-- Line 242: conviction = confidence × time_trust × ob_factor
-- Line 244-248: threshold = max(0.12, 0.33 - t×0.005)
-- Line 285-298: size_fraction = 0.05 × conviction² × ob_quality
+### Trade Logging
+- `memory/store/trades.jsonl`: sparse — id, type, content, ts, symbol, side, entry, exit, pnl
+- `shared/signal_journal.jsonl`: rich — ~40 fields per cycle (strategy, regime, confidence, indicators)
+- `shared/activity_log.jsonl`: lightweight system events only
+- Existing metrics: `scripts/trader_cycle/analysis/metrics.py` reads trades.jsonl
+- Gap: no way to query signal_journal by outcome (WR, PnL by filter)
 
-### Taker Flow Infrastructure (already exists!)
-- ws_aggtrade_recorder.py: recording BTC/ETH/SOL to CSV (30-day retention)
-- Path: backtest/data/aggtrades/{SYMBOL}_{YYYYMMDD}_agg.live.csv
-- Columns: agg_id, price, qty, timestamp, is_buyer_maker
-- fetch_agg_trades.py: multi-source fetcher with aggregate_delta_volume()
-- cvd_strategy.py: has divergence detection but NOT wired to 1H
-
-### SharedWSManager
-- Only used by: run_mm_live.py, run_1h_live.py, run_5m_live.py
-- 4H and Daily don't use WS
-- If MM+5M stopped, only 1H consumer → refcount always 1
+### CI/CD
+- `.github/workflows/release.yml`: tag push → zip → release. NO test step.
+- No git hooks installed (only .sample files)
+- 197 tests, 16 files, pytest.ini: testpaths=tests, pythonpath=. scripts
+- Dependencies for tests: numpy (conftest fixtures)

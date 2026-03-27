@@ -23,11 +23,32 @@ MERMAID_INIT = '''%%{init: {
 
 
 def _diagram_section(title: str, icon: str, mermaid_code: str, description: str = ''):
-    """Render an expandable diagram section."""
+    """Render an expandable diagram section with click-to-enlarge."""
+    full_code = MERMAID_INIT + '\n' + mermaid_code
+
     with ui.expansion(title, icon=icon).classes('w-full'):
         if description:
             ui.label(description).classes('text-xs text-slate-400 mb-2')
-        ui.mermaid(MERMAID_INIT + '\n' + mermaid_code).classes('w-full')
+
+        # Inline preview — clickable
+        preview = ui.mermaid(full_code).classes('w-full cursor-pointer')
+        preview.tooltip('Click to enlarge')
+
+        def open_fullscreen():
+            dlg = ui.dialog().props('maximized')
+            with dlg, ui.card().classes(
+                f'w-full h-full bg-[{BG_SURFACE}] p-6 overflow-auto'
+            ):
+                with ui.row().classes('items-center justify-between w-full mb-4'):
+                    ui.label(title).classes('text-lg font-bold text-slate-200')
+                    ui.button(icon='close', on_click=dlg.close) \
+                        .props('flat round color=grey-6')
+                ui.mermaid(full_code).classes('w-full').style(
+                    'max-height: 85vh; overflow: auto;'
+                )
+            dlg.open()
+
+        preview.on('click', open_fullscreen)
 
 
 def render_system_architecture():
