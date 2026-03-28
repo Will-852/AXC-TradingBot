@@ -26,29 +26,27 @@ def _diagram_section(title: str, icon: str, mermaid_code: str, description: str 
     """Render an expandable diagram section with click-to-enlarge."""
     full_code = MERMAID_INIT + '\n' + mermaid_code
 
+    # Pre-build fullscreen dialog (one per diagram, avoids DOM accumulation)
+    dlg = ui.dialog().props('maximized')
+    with dlg, ui.card().classes(
+        f'w-full h-full bg-[{BG_SURFACE}] p-6 overflow-auto'
+    ):
+        with ui.row().classes('items-center justify-between w-full mb-4'):
+            ui.label(title).classes('text-lg font-bold text-slate-200')
+            ui.button(icon='close', on_click=dlg.close) \
+                .props('flat round color=grey-6')
+        ui.mermaid(full_code).classes('w-full').style(
+            'max-height: 85vh; overflow: auto;'
+        )
+
     with ui.expansion(title, icon=icon).classes('w-full'):
         if description:
             ui.label(description).classes('text-xs text-slate-400 mb-2')
 
-        # Inline preview — clickable
-        preview = ui.mermaid(full_code).classes('w-full cursor-pointer')
-        preview.tooltip('Click to enlarge')
-
-        def open_fullscreen():
-            dlg = ui.dialog().props('maximized')
-            with dlg, ui.card().classes(
-                f'w-full h-full bg-[{BG_SURFACE}] p-6 overflow-auto'
-            ):
-                with ui.row().classes('items-center justify-between w-full mb-4'):
-                    ui.label(title).classes('text-lg font-bold text-slate-200')
-                    ui.button(icon='close', on_click=dlg.close) \
-                        .props('flat round color=grey-6')
-                ui.mermaid(full_code).classes('w-full').style(
-                    'max-height: 85vh; overflow: auto;'
-                )
-            dlg.open()
-
-        preview.on('click', open_fullscreen)
+        # Wrapper div ensures click always fires (SVG may intercept pointer events)
+        with ui.element('div').classes('w-full cursor-pointer').on('click', lambda: dlg.open()):
+            ui.mermaid(full_code).classes('w-full pointer-events-none')
+            ui.label('Click to enlarge').classes('text-[10px] text-gray-600 text-center mt-1')
 
 
 def render_system_architecture():

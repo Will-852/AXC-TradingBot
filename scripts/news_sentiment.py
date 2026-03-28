@@ -322,12 +322,13 @@ def main():
         log.info("No articles to analyze")
         return
 
-    # Filter to analysis window (1 hour) only
+    # Filter to analysis window (1 hour) — use last_seen if available (stays fresh
+    # while article remains in RSS feed), otherwise fall back to fetched_at
     cutoff = datetime.now(timezone.utc) - timedelta(hours=ANALYSIS_WINDOW_HOURS)
     cutoff_str = cutoff.isoformat()
     fresh_articles = [
         a for a in articles
-        if a.get("fetched_at", "") > cutoff_str
+        if a.get("last_seen", a.get("fetched_at", "")) > cutoff_str
     ]
 
     # Skip already analyzed
@@ -359,17 +360,28 @@ def main():
     )
 
     if not high_influence and not manual_entries:
-        log.info("No fresh articles or manual entries within analysis window")
-        # Preserve existing sentiment but mark as stale
-        if SENTIMENT_FILE.exists():
-            try:
-                existing = json.loads(SENTIMENT_FILE.read_text(encoding="utf-8"))
-                existing["stale"] = True
-                existing["updated_at"] = datetime.now(timezone.utc).isoformat()
-                atomic_write_json(SENTIMENT_FILE, existing)
-            except Exception:
-                pass
-        return
+        # Fallback: widen window to 3h for high-influence articles
+        fallback_cutoff = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+        fallback_articles = [
+            a for a in articles
+            if a.get("last_seen", a.get("fetched_at", "")) > fallback_cutoff
+            and a.get("influence_score", 0) >= INFLUENCE_THRESHOLD
+        ]
+        if fallback_articles:
+            log.info(f"No fresh articles — fallback to {len(fallback_articles)} high-influence (<3h)")
+            high_influence = fallback_articles
+        else:
+            log.info("No fresh articles or manual entries within analysis window")
+            # Preserve existing sentiment but mark as stale
+            if SENTIMENT_FILE.exists():
+                try:
+                    existing = json.loads(SENTIMENT_FILE.read_text(encoding="utf-8"))
+                    existing["stale"] = True
+                    existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    atomic_write_json(SENTIMENT_FILE, existing)
+                except Exception:
+                    pass
+            return
 
     # Call LLM for sentiment (only high-influence + manual entries)
     try:

@@ -321,6 +321,10 @@ def main():
     # Merge with existing (keep within archive window)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=ARCHIVE_WINDOW_HOURS)
     cutoff_str = cutoff.isoformat()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    # Build lookup of currently-active articles (still in RSS feeds)
+    active_hashes = {a["url_hash"] for a in deduped}
 
     if OUTPUT_FILE.exists():
         try:
@@ -329,6 +333,10 @@ def main():
                 a for a in old_data.get("articles", [])
                 if a.get("fetched_at", "") > cutoff_str
             ]
+            # Update last_seen for articles still in RSS (keeps them "fresh")
+            for a in old_articles:
+                if a["url_hash"] in active_hashes:
+                    a["last_seen"] = now_str
             # Merge: old (still fresh) + new (deduped)
             old_hashes = {a["url_hash"] for a in old_articles}
             for a in deduped:
