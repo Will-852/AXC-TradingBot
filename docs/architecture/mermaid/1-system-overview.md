@@ -1,3 +1,7 @@
+<!-- NOTE: 此 Mermaid 源碼係 Draw.io 嘅草稿版本。
+     正式 SVG 由 Draw.io 手動排版生成（1-system-overview.drawio）。
+     改呢個文件唔會自動更新 SVG — 要用 open_drawio_mermaid 重新匯入。 -->
+
 ```mermaid
 graph TD
     subgraph data["數據採集 Data Ingestion"]

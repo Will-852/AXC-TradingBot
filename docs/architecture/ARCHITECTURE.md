@@ -66,8 +66,7 @@ voyage-3 免費額度 = 約 40 萬條
 
 | # | 檔案 | 類型 | 內容 |
 |---|------|------|------|
-| 1 | `1-system-overview.svg` | Draw.io | 全系統鳥瞰 — 數據入口、狀態層、交易引擎、交易所、輸出、AI、回測 |
-| 1 | `1-system-overview.drawio` | Draw.io 原始檔 | 可用 [draw.io](https://app.diagrams.net) 開啟再編輯 |
+| 1 | `1-system-overview.svg` + `.drawio` | Draw.io | 全系統鳥瞰 — 數據入口、狀態層、交易引擎、交易所、輸出、AI、回測 |
 | 2 | `2-pipeline-16steps.svg` | Mermaid | trader_cycle 16 步 pipeline — 準備→診斷→判斷→執行→收尾 |
 | 3 | `3-mindmap.svg` | Mermaid | 全系統 component mindmap — 9 大分支 |
 | 4 | `4-boundary-map.svg` | Mermaid | 🆕 系統邊界 — trader_cycle ↔ polymarket 隔離 + shared/ 交叉點 |

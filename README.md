@@ -37,31 +37,43 @@
 ```mermaid
 mindmap
   root((AXC Trading))
+    ⚡ Trader Cycle
+      Trend 趨勢
+      Range 區間
+      Crash 暴跌
+      Squeeze 擠壓
+      Burst 爆發
+    🎰 Polymarket
+      MM 做莊
+      1H Conviction
+      4H Consolidation
+    🤖 AI Agents
+      Haiku Filter
+      Analyst Sonnet
+      Decision Opus
+    📊 Dashboard
+      NiceGUI
+      Live Controls
+      Backtest Studio
     📱 Telegram Bot
       /pos /bal /pnl
-      /order 落單
       /ask AI 分析
-      自然語言
-    📊 Dashboard (NiceGUI)
-      Pure Python UI
-      Live Trading Controls
-      Backtest Studio
-      Polymarket Terminal
-      Paper Trading
-    ⚡ Trader Cycle
-      Range 策略
-      Trend 策略
-      Crash 策略
-      BOCPD 偵測
+      自然語言落單
     🔍 Scanner
       Aster DEX
       Binance
       HyperLiquid
     🛡 Risk
       ATR 止損
-      Conformal Prediction
-      Circuit Breaker
       Kelly Sizing
+      Circuit Breaker
+    📚 Backtest
+      Engine
+      Parameter Sweep
+      Monte Carlo
+    🧠 Memory
+      RAG 向量搜索
+      Trade Journal
 ```
 
 ---
@@ -71,13 +83,16 @@ mindmap
 ```mermaid
 graph LR
     S[🔍 Scanner] -->|prices| TC[⚡ Trader Cycle]
+    S -->|prices| PM[🎰 Polymarket]
     TC -->|signals| D[📊 Dashboard]
     TC -->|alerts| TG[📱 Telegram]
     TC -->|check| R[🛡 Risk Manager]
     R -->|stop loss| TC
+    PM -->|alerts| TG
+    PM -->|check| R
 ```
 
-Scanner 不斷掃描市場 → Trader Cycle 用策略分析 → 有信號就通知你 + 自動管理風險。
+Scanner 不斷掃描市場 → 兩套交易系統（Trader Cycle + Polymarket）獨立運作 → Dashboard + Telegram 通知 → Risk Manager 全程監控。
 
 ---
 
