@@ -43,7 +43,7 @@ def _discover(gamma: GammaClient) -> list[dict]:
         ts, te = int(ws.timestamp()), int(we.timestamp())
         if now_s > te + 300:
             continue
-        for coin in ("BTC", "ETH", "SOL"):
+        for coin in ("BTC", "ETH", "SOL", "XRP"):
             slug = _build_slug(coin, ws)
             if not slug:
                 continue

@@ -162,12 +162,14 @@ def _binance_close(coin: str, end_ms: int) -> float:
 
 
 def _poly_midpoint(token_id: str) -> float | None:
-    d = _get_json(f"https://clob.polymarket.com/midpoint?token_id={token_id}")
+    url = f"https://clob.polymarket.com/midpoint?token_id={token_id}"
+    d = _get_json(url)
     if d:
         try:
             return float(d["mid"])
         except (KeyError, TypeError, ValueError):
-            pass
+            logger.debug("midpoint parse fail: %s", d)
+    return None
     return None
 
 
@@ -748,8 +750,11 @@ def _get_adanos(coin: str) -> dict:
     return _adanos_cache.get(coin, {})
 
 
-def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
+def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig,
+                    up_tok: str = "", dn_tok: str = ""):
     adanos = _get_adanos(coin)
+    up_mid = _poly_midpoint(up_tok) if up_tok else None
+    dn_mid = _poly_midpoint(dn_tok) if dn_tok else None
     entry = {
         "ts": datetime.now(tz=_HKT).isoformat(timespec="seconds"),
         "coin": coin, "cid": cid[:12],
@@ -757,6 +762,8 @@ def _record_signal(coin, cid, t_elapsed, spot, coin_open, vol, sig):
         "spot": round(spot, 2), "open": round(coin_open, 2),
         "vol_1m": round(vol, 6),
         "fair_up": sig.get("fair_up", 0),
+        "up_mid": round(up_mid, 4) if up_mid is not None else None,
+        "dn_mid": round(dn_mid, 4) if dn_mid is not None else None,
         "action": sig.get("action", ""),
         "direction": sig.get("direction", ""),
         "confidence": sig.get("confidence", 0),
@@ -863,7 +870,9 @@ def run_cycle(state, gamma, client, dry_run, max_size_frac,
             max_size_frac=max_size_frac,
         )
 
-        _record_signal(coin, cid, t_elapsed, current_price, coin_open, vol, sig)
+        _record_signal(coin, cid, t_elapsed, current_price, coin_open, vol, sig,
+                       up_tok=mkt_info.get("up_tok", ""),
+                       dn_tok=mkt_info.get("dn_tok", ""))
 
         if sig["action"] != "ENTER":
             if sig["action"] == "WAIT" and sig.get("direction"):

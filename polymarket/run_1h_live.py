@@ -338,12 +338,12 @@ def run_cycle(state: dict, gamma: GammaClient, client,
 
         # ── Act on signal ──
         if sig.action == "ENTER" or sig.action == "ADD":
-            # ── 💰 Direction asymmetry gate (2026-03-28 edge analysis) ──
+            # ── 💰 Direction asymmetry (2026-03-28 edge analysis, revised) ──
             # DOWN WR=91.7% vs UP=53.8% (N=25, r=0.41, t=2.17).
-            # UP+ETH = 20% WR (1/5) — almost all losses. Skip entirely.
-            if sig.direction == "UP" and coin.upper() == "ETH":
-                logger.info("DIR_GATE SKIP %s UP+ETH: 20%% WR in backtest → skip", coin)
-                continue
+            # UP+ETH was hard-blocked (20% WR, N=5) but N too small for hard block.
+            # ETH bridge T+40 accuracy = 85.6% (highest of all coins).
+            # Changed to sizing modifier: UP+ETH ×0.3 instead of skip.
+            _UP_ETH_PENALTY = 0.3
 
             # ── Volume imbalance filter (multi-signal) ──
             # Backtest: Bridge+VolImbal → +5-8pp WR vs bridge alone.
@@ -354,14 +354,22 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                             coin, sig.direction, _vol_dir)
                 continue
 
-            # ── 💰 Taker flow gate (2026-03-28 edge analysis) ──
-            # First 15min Binance taker buy ratio: 64.1% accuracy (N=329, z=3.7).
-            # AGREE → enter. DISAGREE → skip. NEUTRAL/None → enter (conservative).
+            # ── 💰 Taker flow sizing modifier (2026-03-28, revised after BMD) ──
+            # First 15min Binance taker buy ratio. NOT a hard gate — sizing modifier.
+            # AGREE: 91.4% WR → ×1.5 | NEUTRAL: 80.0% → ×1.0 | DISAGREE: 69.4% → ×0.5
+            # (Was hard block, but DISAGREE bridge WR=69.4% still profitable. N=167)
+            _FLOW_MULT = {"AGREE": 1.5, "NEUTRAL": 1.0, "DISAGREE": 0.5}
             _flow_dir = _taker_flow_15min(coin, start_ms)
-            if _flow_dir is not None and _flow_dir != sig.direction:
-                logger.info("FLOW CONFLICT %s: conviction=%s but taker_flow=%s → skip",
-                            coin, sig.direction, _flow_dir)
-                continue
+            if _flow_dir is not None and _flow_dir == sig.direction:
+                _flow_label = "AGREE"
+            elif _flow_dir is not None and _flow_dir != sig.direction:
+                _flow_label = "DISAGREE"
+            else:
+                _flow_label = "NEUTRAL"
+            _flow_mult = _FLOW_MULT[_flow_label]
+            if _flow_label != "NEUTRAL":
+                logger.info("FLOW %s %s: conviction=%s, taker_flow=%s → size ×%.1f",
+                            _flow_label, coin, sig.direction, _flow_dir, _flow_mult)
 
             # ── One-order-per-market guard ──
             # Prevents re-submission loop: CLOB cancels (no balance) → budget freed
@@ -403,7 +411,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             # N=25 — will auto-validate with kill switch (8 consec / WR<28%).
             _DIR_BIAS = {"DOWN": 1.3, "UP": 0.7}
             _dir_mult = _DIR_BIAS.get(sig.direction, 1.0)
-            _size_mult = _dir_mult  # base from direction bias
+            # Apply UP+ETH penalty (×0.3) on top of direction bias
+            if sig.direction == "UP" and coin.upper() == "ETH":
+                _dir_mult *= _UP_ETH_PENALTY
+                logger.info("DIR_PENALTY %s UP+ETH: base ×%.2f (direction ×0.7 × ETH ×0.3)", coin, _dir_mult)
+            _size_mult = _dir_mult  # base from direction + coin bias
             _flip = False
             if imbal_with > _HOLDER_STRONG_IMBAL:
                 # Whale + bridge AGREE → strongest signal, stack direction bias + holder boost
@@ -428,11 +440,11 @@ def run_cycle(state: dict, gamma: GammaClient, client,
                 logger.info("HOLDER REDUCE %s %s: imbal=%.2f mild conflict — size ×50%%",
                             coin, sig.direction, h_imbal)
 
-            # ── Re-check UP+ETH after holder flip (challenger audit 2026-03-28) ──
-            # Holder flip can change direction to UP. UP+ETH = 20% WR still applies.
+            # ── Post-flip UP+ETH penalty (challenger audit 2026-03-28) ──
+            # Holder flip can change direction to UP. Apply same penalty.
             if _flip and sig.direction == "UP" and coin.upper() == "ETH":
-                logger.info("DIR_GATE SKIP %s: holder-flipped to UP+ETH → still skip", coin)
-                continue
+                _size_mult *= _UP_ETH_PENALTY
+                logger.info("DIR_PENALTY %s: holder-flipped to UP+ETH → size ×%.1f", coin, _UP_ETH_PENALTY)
 
             # Mid sanity check: market must somewhat agree with our direction
             our_tok = up_tok if sig.direction == "UP" else dn_tok
@@ -445,7 +457,7 @@ def run_cycle(state: dict, gamma: GammaClient, client,
             # Determine token and size
             token_id = our_tok
 
-            size_usd = sig.size_fraction * state["bankroll"] * _size_mult
+            size_usd = sig.size_fraction * state["bankroll"] * _size_mult * _flow_mult
             budget_left = window_budget - budget_spent
             # FIX: hard block when budget exhausted. Old max(2.50, ...) bypassed budget
             # and allowed infinite $2.50 orders → 119 shares / $50 on one market.
