@@ -2,7 +2,8 @@
 > 讀者：AI Agent
 > 人類文件：docs/README.md
 > 判斷樹：docs/architecture/TAXONOMY.md
-> 深度分析：docs/analysis-20260310/（10 步架構分析）
+> 自動架構清單：docs/ARCHITECTURE_AUTO.md（跑 gen_architecture.py 生成）
+> 判斷/危險位：docs/ARCHITECTURE_NOTES.md
 > 最後更新：2026-03-13
 > ⚠️ 此文件只引用 docs/，不複製內容
 
@@ -16,7 +17,8 @@
 Agent職責 → docs/architecture/AGENTS.md
 操作指南  → docs/guides/
 加幣種    → docs/guides/SYMBOLS.md（7 步 checklist）
-10 步分析 → docs/analysis-20260310/FOLDER_GUIDE.md
+架構清單  → docs/ARCHITECTURE_AUTO.md（自動生成）
+判斷筆記  → docs/ARCHITECTURE_NOTES.md（手動維護）
 
 ## 系統概覽
 
@@ -37,7 +39,8 @@ Proxy：https://tao.plus7.plus/v1（PROXY_API_KEY）
 │   ├── architecture/      ARCHITECTURE + AGENTS + ROADMAP + TAXONOMY
 │   ├── indicators/        指標研究 + Yunis Collection（14 個文件）
 │   ├── friends/           INSTALL + .env.example（外部評測）
-│   └── analysis-20260310/ 10 步架構分析（本次）
+│   ├── ARCHITECTURE_AUTO.md  自動生成架構清單
+│   └── ARCHITECTURE_NOTES.md 判斷/危險位/教學（手動維護）
 ├── agents/                ← 10 agents，各自 SOUL.md
 ├── scripts/               ← Python/Bash 執行層（23 root + trader_cycle）
 │   └── trader_cycle/      ← ⭐ 自動交易引擎（16 步 pipeline）

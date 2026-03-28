@@ -60,18 +60,20 @@ voyage-3 免費額度 = 約 40 萬條
 ---
 
 ## 系統架構圖 System Architecture Diagrams
-> 更新：2026-03-16 | 中英雙語
+> 更新：2026-03-29 | 中英雙語 | Mermaid 源碼 → `docs/architecture/mermaid/`
 
 所有圖存放於 `docs/architecture/`，可用瀏覽器直接開 SVG。
 
 | # | 檔案 | 類型 | 內容 |
 |---|------|------|------|
-| 1 | `1-system-overview.svg` | Draw.io | 全系統鳥瞰 — 7 大區塊：數據入口、狀態層、交易引擎、交易所、輸出、AI、回測 |
+| 1 | `1-system-overview.svg` | Draw.io | 全系統鳥瞰 — 數據入口、狀態層、交易引擎、交易所、輸出、AI、回測 |
 | 1 | `1-system-overview.drawio` | Draw.io 原始檔 | 可用 [draw.io](https://app.diagrams.net) 開啟再編輯 |
-| 2 | `2-pipeline-16steps.svg` | Mermaid | 交易引擎 16 步流程 + 決策分支（SafetyCheck → Execute → Report） |
-| 3 | `3-mindmap.svg` | Mermaid | 概念樹 — 一眼睇晒數據/信號/執行/AI/回測/狀態 |
-| 4 | `4-sequence-diagram.svg` | Mermaid | 時序圖 — 一個 30min cycle 內各模組互動順序 |
-| 5 | `5-strategy-flow.svg` | Mermaid | 策略層 — 6票投票偵測 → 3 大策略入場邏輯 → 倉位計算 |
+| 2 | `2-pipeline-16steps.svg` | Mermaid | trader_cycle 16 步 pipeline — 準備→診斷→判斷→執行→收尾 |
+| 3 | `3-mindmap.svg` | Mermaid | 全系統 component mindmap — 9 大分支 |
+| 4 | `4-boundary-map.svg` | Mermaid | 🆕 系統邊界 — trader_cycle ↔ polymarket 隔離 + shared/ 交叉點 |
+| 5 | `5-mm-trade-flow.svg` | Mermaid | 🆕 polymarket/mm/ trade flow — validate → entry → order → exit |
+| 6 | `6-strategy-flow.svg` | Mermaid | 策略選擇 — HMM 偵測 → 5 種策略 → 評估 → 篩選 → 注碼 |
+| 7 | `7-agent-pipeline.svg` | Mermaid | 🆕 AI agent 分級 — Scanner → Haiku → Sonnet → Opus → Trader |
 
 ### 顏色標準
 | 顏色 | 區塊 |
@@ -86,6 +88,8 @@ voyage-3 免費額度 = 約 40 萬條
 | 白底灰邊 | 回測 Backtest |
 
 ### 更新指引
-- Mermaid 圖：叫 Claude 重新 `mermaid_preview` → `mermaid_save` 覆蓋 SVG
-- Draw.io 圖：用 draw.io 編輯 `.drawio` → Export 覆蓋 SVG，**同時保留 .drawio 原始檔**
+- Mermaid 源碼存喺 `docs/architecture/mermaid/*.md`
+- 更新 Mermaid 圖：改 `.md` → `mermaid_preview` → `mermaid_save` 覆蓋 SVG
+- 更新 Draw.io 圖：`open_drawio_mermaid` 或手動編輯 `.drawio` → Export 覆蓋 SVG
 - 架構有重大改動時更新圖表，小改動唔需要
+- `gen_architecture.py` 生成嘅數據可以輔助判斷邊張圖需要更新
