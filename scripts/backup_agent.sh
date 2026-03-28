@@ -42,7 +42,7 @@ fi
 # ── Git backup ──────────────────────────────────
 git add -A
 git commit -m "[$DATE] backup" 2>/dev/null && echo "✅ Git commit done" || echo "⚪ No changes to commit"
-git push origin main 2>/dev/null && echo "✅ Pushed to GitHub" || echo "⚠️  Push failed (check auth)"
+git push origin main 2>/dev/null && echo "✅ Pushed to GitHub" || echo "⚠️  Push failed (check tests or auth)"
 
 # ── Zip archive ─────────────────────────────────
 mkdir -p backups

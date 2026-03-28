@@ -147,10 +147,9 @@ def compute_stats(signals: list[dict], trades_lookup: dict | None = None) -> dic
 
         if matched_pnls:
             wins = [p for p in matched_pnls if p > 0]
-            losses = [p for p in matched_pnls if p < 0]
             stats["trades_matched"] = len(matched_pnls)
             stats["total_pnl"] = round(sum(matched_pnls), 2)
-            stats["win_rate"] = f"{len(wins)/len(matched_pnls)*100:.1f}%" if matched_pnls else "0%"
+            stats["win_rate"] = f"{len(wins)/len(matched_pnls)*100:.1f}%"
             stats["avg_pnl"] = round(sum(matched_pnls) / len(matched_pnls), 2)
         else:
             stats["trades_matched"] = 0
